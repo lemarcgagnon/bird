@@ -1,0 +1,875 @@
+{
+  "preset": "E",
+  "name": "all-decos-vector",
+  "description": "ridge=left, doorPanel=true, décos vectorielles (triangle) sur les 4 panneaux latéraux. Capturé depuis TS port.",
+  "source": "Capture mixte (TS port pour state+buildPanelDefs+STL ; src/* pour computeCalculations+computeCutList+computeCutLayout+planSvg). Raison : src.buildDecoGeo heightmap branch DOM-bound ⇒ state+geometry doivent passer par TS ; les fonctions pures calc/cutLayout sont identiques src↔TS (parité 1e-6 prouvée en P1.1) donc on conserve l'import src par inertie. Snapshot de régression du port TS, pas référence indépendante vs v15.",
+  "state": {
+    "params": {
+      "W": 160,
+      "H": 220,
+      "D": 160,
+      "slope": 35,
+      "overhang": 30,
+      "T": 12,
+      "mode": "solid",
+      "explode": 0,
+      "floor": "enclave",
+      "ridge": "left",
+      "taperX": 0,
+      "door": "round",
+      "doorW": 40,
+      "doorH": 40,
+      "doorPX": 50,
+      "doorPY": 50,
+      "doorVar": 100,
+      "doorPanel": true,
+      "doorFollowTaper": false,
+      "perch": false,
+      "perchDiam": 8,
+      "perchLen": 30,
+      "perchOff": 15,
+      "panelW": 1220,
+      "panelH": 2440
+    },
+    "clip": {
+      "x": {
+        "on": false,
+        "pos": 0.5
+      },
+      "y": {
+        "on": false,
+        "pos": 0.5
+      },
+      "z": {
+        "on": false,
+        "pos": 0.5
+      }
+    },
+    "camera": {
+      "theta": 0.7853981633974483,
+      "phi": 0.9817477042468103,
+      "dist": 550,
+      "tx": 0,
+      "ty": 0,
+      "tz": 0
+    },
+    "decos": {
+      "front": {
+        "enabled": true,
+        "source": "synthetic://triangle",
+        "sourceType": "svg",
+        "bbox": {
+          "minX": 2,
+          "minY": 2,
+          "maxX": 18,
+          "maxY": 18
+        },
+        "mode": "vector",
+        "w": 40,
+        "h": 40,
+        "posX": 50,
+        "posY": 50,
+        "rotation": 0,
+        "depth": 1.5,
+        "bevel": 0,
+        "invert": false,
+        "resolution": 64,
+        "clipToPanel": false,
+        "lastParseWarning": null,
+        "parsedShapes": [
+          [
+            {
+              "x": 2,
+              "y": 2
+            },
+            {
+              "x": 18,
+              "y": 2
+            },
+            {
+              "x": 10,
+              "y": 18
+            }
+          ]
+        ],
+        "heightmapData": null,
+        "heightmapResolution": 64
+      },
+      "back": {
+        "enabled": true,
+        "source": "synthetic://triangle",
+        "sourceType": "svg",
+        "bbox": {
+          "minX": 2,
+          "minY": 2,
+          "maxX": 18,
+          "maxY": 18
+        },
+        "mode": "vector",
+        "w": 40,
+        "h": 40,
+        "posX": 50,
+        "posY": 50,
+        "rotation": 0,
+        "depth": 1.5,
+        "bevel": 0,
+        "invert": false,
+        "resolution": 64,
+        "clipToPanel": false,
+        "lastParseWarning": null,
+        "parsedShapes": [
+          [
+            {
+              "x": 2,
+              "y": 2
+            },
+            {
+              "x": 18,
+              "y": 2
+            },
+            {
+              "x": 10,
+              "y": 18
+            }
+          ]
+        ],
+        "heightmapData": null,
+        "heightmapResolution": 64
+      },
+      "left": {
+        "enabled": true,
+        "source": "synthetic://triangle",
+        "sourceType": "svg",
+        "bbox": {
+          "minX": 2,
+          "minY": 2,
+          "maxX": 18,
+          "maxY": 18
+        },
+        "mode": "vector",
+        "w": 40,
+        "h": 40,
+        "posX": 50,
+        "posY": 50,
+        "rotation": 0,
+        "depth": 1.5,
+        "bevel": 0,
+        "invert": false,
+        "resolution": 64,
+        "clipToPanel": false,
+        "lastParseWarning": null,
+        "parsedShapes": [
+          [
+            {
+              "x": 2,
+              "y": 2
+            },
+            {
+              "x": 18,
+              "y": 2
+            },
+            {
+              "x": 10,
+              "y": 18
+            }
+          ]
+        ],
+        "heightmapData": null,
+        "heightmapResolution": 64
+      },
+      "right": {
+        "enabled": true,
+        "source": "synthetic://triangle",
+        "sourceType": "svg",
+        "bbox": {
+          "minX": 2,
+          "minY": 2,
+          "maxX": 18,
+          "maxY": 18
+        },
+        "mode": "vector",
+        "w": 40,
+        "h": 40,
+        "posX": 50,
+        "posY": 50,
+        "rotation": 0,
+        "depth": 1.5,
+        "bevel": 0,
+        "invert": false,
+        "resolution": 64,
+        "clipToPanel": false,
+        "lastParseWarning": null,
+        "parsedShapes": [
+          [
+            {
+              "x": 2,
+              "y": 2
+            },
+            {
+              "x": 18,
+              "y": 2
+            },
+            {
+              "x": 10,
+              "y": 18
+            }
+          ]
+        ],
+        "heightmapData": null,
+        "heightmapResolution": 64
+      },
+      "roofL": {
+        "enabled": false,
+        "source": null,
+        "sourceType": null,
+        "bbox": null,
+        "mode": "heightmap",
+        "w": 60,
+        "h": 60,
+        "posX": 50,
+        "posY": 50,
+        "rotation": 0,
+        "depth": 2,
+        "bevel": 0,
+        "invert": false,
+        "resolution": 64,
+        "clipToPanel": false,
+        "lastParseWarning": null,
+        "parsedShapes": null,
+        "heightmapData": null,
+        "heightmapResolution": 64
+      },
+      "roofR": {
+        "enabled": false,
+        "source": null,
+        "sourceType": null,
+        "bbox": null,
+        "mode": "heightmap",
+        "w": 60,
+        "h": 60,
+        "posX": 50,
+        "posY": 50,
+        "rotation": 0,
+        "depth": 2,
+        "bevel": 0,
+        "invert": false,
+        "resolution": 64,
+        "clipToPanel": false,
+        "lastParseWarning": null,
+        "parsedShapes": null,
+        "heightmapData": null,
+        "heightmapResolution": 64
+      }
+    },
+    "activeDecoKey": "front",
+    "lang": "fr",
+    "activeTab": "dim"
+  },
+  "reference": {
+    "calculations": {
+      "volumes": {
+        "ext": 6349012.519126743,
+        "int": 4287503.313308711,
+        "mat": 2061509.205818032
+      },
+      "surfaces": {
+        "total": 219424.14658513875,
+        "facades": 79362.65648908429,
+        "sides": 59840,
+        "bottom": 18496,
+        "roof": 61725.49009605447
+      },
+      "derived": {
+        "wallH": 220,
+        "rH": 56.01660305677677,
+        "sL": 134.28520476376016,
+        "rL": 220,
+        "bev": 8.402490458516517,
+        "sL_L": 146.28520476376016,
+        "sL_R": 134.28520476376016,
+        "Wtop": 160,
+        "Wbot": 160,
+        "wallHreal": 220,
+        "hasTaper": false,
+        "floorW": 136,
+        "floorD": 136,
+        "sideD": 136,
+        "isPose": false,
+        "ang": 0.6108652381980153
+      }
+    },
+    "cutList": {
+      "cuts": [
+        {
+          "nameKey": "calc.cuts.facade",
+          "noteKey": "calc.cuts.note.pentagon",
+          "qty": 2,
+          "dim": "160 × 276"
+        },
+        {
+          "nameKey": "calc.cuts.side",
+          "noteKey": null,
+          "noteParams": null,
+          "qty": 2,
+          "dim": "136 × 220"
+        },
+        {
+          "nameKey": "calc.cuts.bottom",
+          "noteKey": "calc.cuts.note.enclave",
+          "qty": 1,
+          "dim": "136 × 136"
+        },
+        {
+          "nameKey": "calc.cuts.roofL",
+          "noteKey": "calc.cuts.note.ridgeT",
+          "qty": 1,
+          "dim": "146 × 220"
+        },
+        {
+          "nameKey": "calc.cuts.roofR",
+          "noteKey": null,
+          "qty": 1,
+          "dim": "134 × 220"
+        },
+        {
+          "nameKey": "calc.cuts.door",
+          "doorShape": {
+            "key": "calc.door.shape.round",
+            "percent": null
+          },
+          "qty": 1,
+          "dim": "40 × 40"
+        }
+      ],
+      "nPieces": 8
+    },
+    "cutLayout": {
+      "pieces": [
+        {
+          "nameKey": "calc.cuts.facade",
+          "suffix": " 1",
+          "w": 160,
+          "h": 276.0166030567768,
+          "color": "#d4a574",
+          "shape": "pent",
+          "rH": 56.01660305677677,
+          "wallH": 220,
+          "Wtop": 160,
+          "Wbot": 160,
+          "idx": 0,
+          "px": 5,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.facade",
+          "suffix": " 2",
+          "w": 160,
+          "h": 276.0166030567768,
+          "color": "#d4a574",
+          "shape": "pent",
+          "rH": 56.01660305677677,
+          "wallH": 220,
+          "Wtop": 160,
+          "Wbot": 160,
+          "idx": 1,
+          "px": 170,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.side",
+          "suffix": " G",
+          "w": 136,
+          "h": 220,
+          "color": "#c49464",
+          "shape": "rect",
+          "idx": 2,
+          "px": 335,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.side",
+          "suffix": " D",
+          "w": 136,
+          "h": 220,
+          "color": "#c49464",
+          "shape": "rect",
+          "idx": 3,
+          "px": 476,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.roofL",
+          "w": 146.28520476376016,
+          "h": 220,
+          "color": "#9e7044",
+          "shape": "rect",
+          "idx": 5,
+          "px": 617,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.roofR",
+          "w": 134.28520476376016,
+          "h": 220,
+          "color": "#9e7044",
+          "shape": "rect",
+          "idx": 6,
+          "px": 768.2852047637601,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.bottom",
+          "w": 136,
+          "h": 136,
+          "color": "#b48454",
+          "shape": "rect",
+          "idx": 4,
+          "px": 907.5704095275203,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.door",
+          "w": 40,
+          "h": 40,
+          "color": "#e8c088",
+          "shape": "rect",
+          "idx": 7,
+          "px": 1048.5704095275203,
+          "py": 5,
+          "rot": false
+        }
+      ],
+      "shW": 1220,
+      "shH": 2440,
+      "totalArea": 229986.80307422302
+    },
+    "panelDefsNormalized": [
+      {
+        "key": "front",
+        "triangleCount": 116,
+        "bbox": {
+          "min": [
+            -80,
+            0,
+            0
+          ],
+          "max": [
+            80,
+            276.0166015625,
+            12
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          68
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 13935988,
+        "hasExtraClips": false
+      },
+      {
+        "key": "back",
+        "triangleCount": 16,
+        "bbox": {
+          "min": [
+            -80,
+            0,
+            0
+          ],
+          "max": [
+            80,
+            276.0166015625,
+            12
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          -80
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 13935988,
+        "hasExtraClips": false
+      },
+      {
+        "key": "left",
+        "triangleCount": 12,
+        "bbox": {
+          "min": [
+            -80,
+            0,
+            -68
+          ],
+          "max": [
+            -68,
+            228.40249633789062,
+            68
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          0
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 12883044,
+        "hasExtraClips": false
+      },
+      {
+        "key": "right",
+        "triangleCount": 12,
+        "bbox": {
+          "min": [
+            68,
+            0,
+            -68
+          ],
+          "max": [
+            80,
+            228.40249633789062,
+            68
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          0
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 12883044,
+        "hasExtraClips": false
+      },
+      {
+        "key": "bottom",
+        "triangleCount": 12,
+        "bbox": {
+          "min": [
+            -68,
+            -6,
+            -68
+          ],
+          "max": [
+            68,
+            6,
+            68
+          ]
+        },
+        "basePos": [
+          0,
+          6,
+          0
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 11830356,
+        "hasExtraClips": false
+      },
+      {
+        "key": "roofL",
+        "triangleCount": 12,
+        "bbox": {
+          "min": [
+            -134.2852020263672,
+            0,
+            -110
+          ],
+          "max": [
+            11.999999046325684,
+            12,
+            110
+          ]
+        },
+        "basePos": [
+          0,
+          276.0166030567768,
+          0
+        ],
+        "baseRot": [
+          0,
+          0,
+          0.6108652381980153
+        ],
+        "color": 10383428,
+        "hasExtraClips": false
+      },
+      {
+        "key": "roofR",
+        "triangleCount": 12,
+        "bbox": {
+          "min": [
+            0.0000013686965303350007,
+            0,
+            -110
+          ],
+          "max": [
+            134.2852020263672,
+            12,
+            110
+          ]
+        },
+        "basePos": [
+          0,
+          276.0166030567768,
+          0
+        ],
+        "baseRot": [
+          0,
+          0,
+          -0.6108652381980153
+        ],
+        "color": 10383428,
+        "hasExtraClips": false
+      },
+      {
+        "key": "doorPanel",
+        "triangleCount": 96,
+        "bbox": {
+          "min": [
+            -20,
+            90,
+            0
+          ],
+          "max": [
+            20,
+            130,
+            12
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          68
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 15253640,
+        "hasExtraClips": false
+      },
+      {
+        "key": "deco_front",
+        "triangleCount": 8,
+        "bbox": {
+          "min": [
+            -20,
+            118.00830078125,
+            12
+          ],
+          "max": [
+            20,
+            158.00830078125,
+            13.5
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          68
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 15247701,
+        "hasExtraClips": false
+      },
+      {
+        "key": "deco_back",
+        "triangleCount": 8,
+        "bbox": {
+          "min": [
+            -20,
+            118.00830078125,
+            -1.5
+          ],
+          "max": [
+            20,
+            158.00830078125,
+            2.4492935992912173e-15
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          -80
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 15247701,
+        "hasExtraClips": false
+      },
+      {
+        "key": "deco_left",
+        "triangleCount": 8,
+        "bbox": {
+          "min": [
+            -7.5,
+            -20,
+            -20
+          ],
+          "max": [
+            -6,
+            20,
+            20
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          0
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 15247701,
+        "hasExtraClips": false
+      },
+      {
+        "key": "deco_right",
+        "triangleCount": 8,
+        "bbox": {
+          "min": [
+            6,
+            -20,
+            -20
+          ],
+          "max": [
+            7.5,
+            20,
+            20
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          0
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 15247701,
+        "hasExtraClips": false
+      }
+    ],
+    "stlHouse": {
+      "byteLength": 11284,
+      "triangleCount": 224,
+      "aggregateBbox": {
+        "min": [
+          -116.8829149938715,
+          -20,
+          -110
+        ],
+        "max": [
+          116.8829149938715,
+          292.7293442774521,
+          110
+        ]
+      }
+    },
+    "stlDoor": {
+      "byteLength": 4884,
+      "triangleCount": 96,
+      "aggregateBbox": {
+        "min": [
+          -20,
+          90,
+          68
+        ],
+        "max": [
+          20,
+          130,
+          80
+        ]
+      }
+    },
+    "panelsZip": {
+      "byteLength": 17452,
+      "entries": [
+        {
+          "filename": "front.stl",
+          "stlByteLength": 6284,
+          "stlTriangleCount": 124
+        },
+        {
+          "filename": "back.stl",
+          "stlByteLength": 1284,
+          "stlTriangleCount": 24
+        },
+        {
+          "filename": "left.stl",
+          "stlByteLength": 1084,
+          "stlTriangleCount": 20
+        },
+        {
+          "filename": "right.stl",
+          "stlByteLength": 1084,
+          "stlTriangleCount": 20
+        },
+        {
+          "filename": "bottom.stl",
+          "stlByteLength": 684,
+          "stlTriangleCount": 12
+        },
+        {
+          "filename": "roofL.stl",
+          "stlByteLength": 684,
+          "stlTriangleCount": 12
+        },
+        {
+          "filename": "roofR.stl",
+          "stlByteLength": 684,
+          "stlTriangleCount": 12
+        },
+        {
+          "filename": "doorPanel.stl",
+          "stlByteLength": 4884,
+          "stlTriangleCount": 96
+        }
+      ]
+    },
+    "planSvg": {
+      "byteLength": 4838,
+      "polygonCount": 2,
+      "rectCount": 7,
+      "textCount": 16
+    }
+  }
+}

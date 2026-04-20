@@ -1,0 +1,50 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "./dist",
+    "jsx": "preserve",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "@nichoir/ui/app": [
+        "../../packages/nichoir-ui/src/app.ts"
+      ],
+      "@nichoir/ui/theme-boot": [
+        "../../packages/nichoir-ui/src/theme-boot.ts"
+      ],
+      "@nichoir/ui/theme.css": [
+        "../../packages/nichoir-ui/src/styles/theme.css"
+      ],
+      "@nichoir/core": [
+        "../../packages/nichoir-core/src/index.ts"
+      ],
+      "@nichoir/adapters": [
+        "../../packages/nichoir-adapters/src/index.ts"
+      ]
+    },
+    "allowJs": true,
+    "noEmit": true,
+    "incremental": true
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

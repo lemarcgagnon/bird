@@ -1,0 +1,71 @@
+/* Sidebar.module.css */
+
+.root {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  min-height: 100%;
+  background: var(--n-sidebar-bg);
+  color: var(--n-text);
+  font-family: var(--n-font-family);
+  border-right: 1px solid var(--n-border);
+  overflow: hidden;
+}
+
+.header {
+  padding: 16px 12px 10px;
+  border-bottom: 1px solid var(--n-border);
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--n-accent);
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--n-text-subtle);
+}
+
+.panel {
+  padding: 14px 12px;
+  overflow-y: auto;
+}
+
+.placeholder {
+  padding: 20px 10px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--n-text-muted);
+  background: var(--n-accent-muted);
+  border: 1px dashed var(--n-border-strong);
+  border-radius: 4px;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--n-border);
+  background: var(--n-panel-bg);
+}
+
+.langGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.langLabel {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: var(--n-text-muted);
+}

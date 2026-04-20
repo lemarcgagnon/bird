@@ -1,0 +1,119 @@
+/* CalcTab.module.css
+ *
+ * Port visuel fidèle des styles v15 stat-row / cut-table
+ * (styles/*.css). Les noms de classes suivent nos conventions CSS Modules
+ * camelCase. Les tokens (var(--n-*)) viennent de theme.css, donc light/dark
+ * suivent automatiquement.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sectionLabel {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--n-text-muted);
+  text-transform: uppercase;
+  margin: 6px 0 4px;
+}
+
+/* ---- Stat rows (volumes, surfaces, material) ---- */
+
+.statRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--n-border);
+}
+
+.statRow .val {
+  color: var(--n-accent);
+}
+
+.statRowSub {
+  font-size: 10px;
+  color: var(--n-text-muted);
+}
+
+.statRowSub .val {
+  color: var(--n-text-muted);
+}
+
+/* Exposée comme classe module pour pouvoir référencer via styles.val
+ * dans le JSX (les sélecteurs combinés ci-dessus sont hashés par CSS Modules). */
+.val {
+  color: var(--n-accent);
+}
+
+.label {
+  color: inherit;
+}
+
+/* ---- Cut list (<table> sémantique, port visuel v15) ---- */
+
+.cutTable {
+  width: 100%;
+  background: var(--n-panel-bg);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--n-border);
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.cutTable thead th {
+  padding: 6px 10px;
+  font-size: 9px;
+  color: var(--n-text-muted);
+  background: var(--n-border);
+  letter-spacing: 0.5px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.cutTable tbody td {
+  padding: 6px 10px;
+  font-size: 11px;
+  border-bottom: 1px solid var(--n-border);
+  vertical-align: middle;
+}
+
+.cutTable tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Classes colonnes (exposées comme module classes pour que le JSX puisse
+ * utiliser styles.piece / styles.qty / styles.dims sans dépendre d'un
+ * hash combiné type `.cutTable td.piece`). */
+.piece {
+  width: 40%;
+}
+
+.qty {
+  width: 20%;
+  text-align: center;
+  color: var(--n-accent);
+}
+
+.dims {
+  width: 40%;
+  text-align: right;
+  font-size: 10px;
+  font-family: monospace;
+}
+
+.cutNote {
+  color: var(--n-text-muted);
+  font-size: 9px;
+  margin-left: 4px;
+}

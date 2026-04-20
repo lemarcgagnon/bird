@@ -1,0 +1,44 @@
+
+> @nichoir/demo@0.1.0 prebuild /home/marc/Documents/cabane/nichoir/apps/demo
+> pnpm --filter @nichoir/core --filter @nichoir/adapters --filter @nichoir/ui build
+
+Scope: 3 of 5 workspace projects
+../../packages/nichoir-core build$ tsc -p tsconfig.build.json
+../../packages/nichoir-core build: Done
+../../packages/nichoir-adapters build$ tsc -p tsconfig.build.json
+../../packages/nichoir-adapters build: Done
+../../packages/nichoir-ui build$ tsc -p tsconfig.build.json && node scripts/copy-assets.mjs
+../../packages/nichoir-ui build: ✓ copied 16 CSS asset(s) to dist/
+../../packages/nichoir-ui build: Done
+
+> @nichoir/demo@0.1.0 build /home/marc/Documents/cabane/nichoir/apps/demo
+> next build
+
+   ▲ Next.js 15.5.15
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 2.1s
+   Linting and checking validity of types ...
+
+ ⚠ The Next.js plugin was not detected in your ESLint configuration. See https://nextjs.org/docs/app/api-reference/config/eslint#migrating-existing-config
+   Collecting page data ...
+   Generating static pages (0/5) ...
+   Generating static pages (1/5) 
+   Generating static pages (2/5) 
+   Generating static pages (3/5) 
+ ✓ Generating static pages (5/5)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ƒ /                                      123 B         102 kB
+├ ƒ /_not-found                            989 B         102 kB
+└ ƒ /tools/nichoir                        185 kB         286 kB
++ First Load JS shared by all             101 kB
+  ├ chunks/695-00bca043953d4170.js       45.3 kB
+  ├ chunks/d99d8e6a-80443bd3c9d31f50.js  54.2 kB
+  └ other shared chunks (total)          1.94 kB
+
+
+ƒ  (Dynamic)  server-rendered on demand
+

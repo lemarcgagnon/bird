@@ -1,0 +1,15 @@
+=== Test 1: Cookie=dark (explicit) ===
+<html lang="fr" data-theme="dark">
+
+=== Test 2: Cookie=light (explicit) ===
+<html lang="fr" data-theme="light">
+
+=== Test 3: No cookie (fallback) ===
+<html lang="fr" data-theme="light">
+
+=== Test 4: Invalid cookie value (safe fallback) ===
+<html lang="fr" data-theme="light">
+
+=== Test 5: No dangerouslySetInnerHTML script anti-FOUC in response ===
+0
+0 occurrences

@@ -1,0 +1,72 @@
+/* src/styles/theme.css
+ *
+ * Variables CSS globales du module Nichoir.
+ * Light mode = default (HIG mandate). Dark mode opt-in via [data-theme="dark"].
+ *
+ * Import : une seule fois, au niveau du layout de l'app hôte (ex:
+ * apps/demo/app/layout.tsx). NE PAS importer depuis des composants React —
+ * ce fichier définit des tokens, pas du styling local (qui vit en CSS Modules).
+ */
+
+:root,
+[data-theme='light'] {
+  /* Surfaces */
+  --n-bg: #f5f3ef;
+  --n-sidebar-bg: #ffffff;
+  --n-panel-bg: #f9f8f4;
+
+  /* Texte */
+  --n-text: #1a1a1a;
+  --n-text-muted: #5a5f6a;
+  --n-text-subtle: #8a8f9a;
+
+  /* Accent */
+  --n-accent: #7a5010;
+  --n-accent-hover: #5f3e0c;
+  --n-accent-muted: rgba(122, 80, 16, 0.1);
+
+  /* Borders */
+  --n-border: #e0ddd4;
+  --n-border-strong: #b8b4a8;
+
+  /* States */
+  --n-focus-ring: 2px solid #7a5010;
+  --n-disabled: #cccccc;
+
+  /* Overlay viewport (semi-transparent sur fond clair) */
+  --n-overlay-bg: rgba(255, 255, 255, 0.85);
+}
+
+[data-theme='dark'] {
+  /* Surfaces */
+  --n-bg: #0f1117;
+  --n-sidebar-bg: #13151c;
+  --n-panel-bg: #1a1d25;
+
+  /* Texte */
+  --n-text: #e8a955;
+  --n-text-muted: #5a5f6a;
+  --n-text-subtle: #3a3d45;
+
+  /* Accent */
+  --n-accent: #e8a955;
+  --n-accent-hover: #f2b85f;
+  --n-accent-muted: rgba(232, 169, 85, 0.12);
+
+  /* Borders */
+  --n-border: #252830;
+  --n-border-strong: #3a3d45;
+
+  /* States */
+  --n-focus-ring: 2px solid #e8a955;
+  --n-disabled: #444;
+
+  /* Overlay viewport (semi-transparent sur fond sombre) */
+  --n-overlay-bg: rgba(15, 17, 23, 0.85);
+}
+
+/* Police utilisée par tous les composants Nichoir. L'app hôte peut l'override
+ * en settant --n-font-family sur :root. Fallback web-safe. */
+:root {
+  --n-font-family: 'Space Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
+}

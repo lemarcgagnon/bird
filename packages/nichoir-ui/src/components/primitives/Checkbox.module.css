@@ -1,0 +1,26 @@
+/* Checkbox.module.css */
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 2px;
+  font-size: 11px;
+  color: var(--n-text-muted);
+  cursor: pointer;
+  transition: color 120ms;
+}
+
+.label[data-checked='true'] {
+  color: var(--n-accent);
+}
+
+.input {
+  cursor: pointer;
+  accent-color: var(--n-accent);
+}
+
+.input:focus-visible {
+  outline: var(--n-focus-ring);
+  outline-offset: 2px;
+}

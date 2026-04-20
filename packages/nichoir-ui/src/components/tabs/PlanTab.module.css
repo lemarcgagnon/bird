@@ -1,0 +1,83 @@
+/* PlanTab.module.css
+ *
+ * Styles spécifiques à PLAN. Port visuel v15 (styles/*.css "LISTE DE COUPE"
+ * + canvas cut-plan). Les classes réutilisables (statRow) sont dupliquées
+ * depuis CalcTab.module.css pour garder les fichiers indépendants — si
+ * PLAN/EXPORT ajoutent ≥2 autres sites de statRow, on extraira une
+ * primitive partagée.
+ */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sectionLabel {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--n-text-muted);
+  text-transform: uppercase;
+  margin: 6px 0 4px;
+}
+
+/* ---- Preset picker (select natif) ---- */
+
+.presetSelect {
+  width: 100%;
+  background: var(--n-panel-bg);
+  color: var(--n-accent);
+  border: 1px solid var(--n-border);
+  border-radius: 4px;
+  padding: 6px;
+  font-family: inherit;
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.presetSelect:focus-visible {
+  outline: 2px solid var(--n-accent);
+  outline-offset: 1px;
+}
+
+.customPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* ---- Canvas SVG (preview layout) ---- */
+
+.svgPreview {
+  width: 100%;
+  height: auto;
+  display: block;
+  margin: 4px 0 8px;
+  border-radius: 4px;
+  background: #252018;
+}
+
+/* ---- Stats (port visuel CalcTab.statRow) ---- */
+
+.statRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--n-border);
+}
+
+.val {
+  color: var(--n-accent);
+}
+
+.label {
+  color: inherit;
+}

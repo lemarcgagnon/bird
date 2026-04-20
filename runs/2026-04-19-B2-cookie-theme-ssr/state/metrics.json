@@ -1,0 +1,32 @@
+{
+  "task_id": "2026-04-19-B2-cookie-theme-ssr",
+  "status": "completed",
+  "date": "2026-04-19",
+  "acceptance_passed": true,
+  "tests_passed": true,
+  "lint_passed": true,
+  "typecheck_passed": true,
+  "build_passed": true,
+  "retries": 0,
+  "files_changed": 10,
+  "files_added": 3,
+  "files_deleted": 2,
+  "files_modified": 5,
+  "commands_count": 11,
+  "test_count_total": 428,
+  "test_count_delta": 4,
+  "test_count_breakdown": { "core": 130, "adapters": 4, "ui": 294 },
+  "route_status_change": { "/tools/nichoir": "○ Static → ƒ Dynamic", "/": "○ Static → ƒ Dynamic", "/_not-found": "○ Static → ƒ Dynamic" },
+  "verification_evidence": "typecheck 4/4 green; test 428 green; lint 4/4 green; build green with /tools/nichoir explicitly marked ƒ Dynamic; curl with Cookie:nichoir-theme=dark returns <html data-theme=\"dark\">; no-cookie returns light fallback; invalid cookie returns safe light fallback; grep localStorage.getItem in HTML response = 0; puppeteer diag-hydration 4/4 scenarios zero warning; capture-deco DECOR 6/6 including slot concurrency front=32/back=128 no regression",
+  "evidence_document_written": true,
+  "artifacts": [
+    "artifacts/build-output.txt",
+    "artifacts/curl-evidence.txt",
+    "artifacts/diag-hydration-post-fix.json",
+    "artifacts/capture-deco-post-fix.json"
+  ],
+  "spikes_used": {
+    "next-headers-mock": "FAILED (as predicted by plan verification) — vite cannot resolve next/headers in nichoir-ui scope, plan revised to use pure helper",
+    "jsdom-document-cookie": "PASSED 2/2 — document.cookie read/write works in jsdom"
+  }
+}

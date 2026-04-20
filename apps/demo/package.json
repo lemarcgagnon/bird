@@ -1,0 +1,28 @@
+{
+  "name": "@nichoir/demo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "predev": "pnpm --filter @nichoir/core --filter @nichoir/adapters --filter @nichoir/ui build",
+    "dev": "next dev",
+    "prebuild": "pnpm --filter @nichoir/core --filter @nichoir/adapters --filter @nichoir/ui build",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@nichoir/adapters": "workspace:*",
+    "@nichoir/core": "workspace:*",
+    "@nichoir/ui": "workspace:*",
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.4.0"
+  }
+}

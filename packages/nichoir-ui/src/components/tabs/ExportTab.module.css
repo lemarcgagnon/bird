@@ -1,0 +1,45 @@
+/* ExportTab.module.css */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sectionLabel {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--n-text-muted);
+  text-transform: uppercase;
+  margin: 6px 0 4px;
+}
+
+.hintList {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--n-text-muted);
+}
+
+.hintList li {
+  list-style: disc;
+  margin-bottom: 2px;
+}
+
+.error {
+  margin: 6px 0 0;
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #b00020;
+  background: rgba(176, 0, 32, 0.08);
+  border: 1px solid rgba(176, 0, 32, 0.3);
+  border-radius: 4px;
+}

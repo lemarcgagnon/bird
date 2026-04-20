@@ -1,0 +1,2 @@
+Ceci n'est pas une image.
+Test fixture pour valider le rejet de parseDecoFile sur extension non acceptée.

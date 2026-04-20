@@ -1,0 +1,59 @@
+[
+  {
+    "name": "A_default",
+    "html": {
+      "outer": "<html lang=\"fr\" data-theme=\"light\">",
+      "dataTheme": "light",
+      "lang": "fr"
+    },
+    "pageErrors": [],
+    "consoleTotal": 1,
+    "byType": {
+      "error": 1
+    },
+    "allMessages": [
+      {
+        "type": "error",
+        "text": "Failed to load resource: the server responded with a status of 404 (Not Found)",
+        "args": 0,
+        "location": "localhost:3001/favicon.ico"
+      }
+    ]
+  },
+  {
+    "name": "B_darkLS",
+    "html": {
+      "outer": "<html lang=\"fr\" data-theme=\"light\">",
+      "dataTheme": "light",
+      "lang": "fr"
+    },
+    "pageErrors": [],
+    "consoleTotal": 0,
+    "byType": {},
+    "allMessages": []
+  },
+  {
+    "name": "C_lightLS",
+    "html": {
+      "outer": "<html lang=\"fr\" data-theme=\"light\">",
+      "dataTheme": "light",
+      "lang": "fr"
+    },
+    "pageErrors": [],
+    "consoleTotal": 0,
+    "byType": {},
+    "allMessages": []
+  },
+  {
+    "name": "D_prefersDark",
+    "html": {
+      "outer": "<html lang=\"fr\" data-theme=\"light\">",
+      "dataTheme": "light",
+      "lang": "fr"
+    },
+    "pageErrors": [],
+    "consoleTotal": 0,
+    "byType": {},
+    "allMessages": []
+  }
+]

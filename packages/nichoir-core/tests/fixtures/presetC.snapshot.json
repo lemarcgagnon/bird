@@ -1,0 +1,594 @@
+{
+  "preset": "C",
+  "name": "steep-miter",
+  "description": "Pente forte, toit en onglet (miter), surplomb 50mm, épaisseur 18mm.",
+  "source": "src/* modular refactor (visual parity with nichoir_v15.html established)",
+  "state": {
+    "params": {
+      "W": 160,
+      "H": 220,
+      "D": 160,
+      "slope": 60,
+      "overhang": 50,
+      "T": 18,
+      "mode": "solid",
+      "explode": 0,
+      "floor": "enclave",
+      "ridge": "miter",
+      "taperX": 0,
+      "door": "none",
+      "doorW": 38,
+      "doorH": 38,
+      "doorPX": 50,
+      "doorPY": 50,
+      "doorVar": 100,
+      "doorPanel": false,
+      "doorFollowTaper": false,
+      "perch": false,
+      "perchDiam": 8,
+      "perchLen": 30,
+      "perchOff": 15,
+      "panelW": 1220,
+      "panelH": 2440
+    },
+    "clip": {
+      "x": {
+        "on": false,
+        "pos": 0.5
+      },
+      "y": {
+        "on": false,
+        "pos": 0.5
+      },
+      "z": {
+        "on": false,
+        "pos": 0.5
+      }
+    },
+    "camera": {
+      "theta": 0.7853981633974483,
+      "phi": 0.9817477042468103,
+      "dist": 550,
+      "tx": 0,
+      "ty": 0,
+      "tz": 0
+    },
+    "decos": {
+      "front": {
+        "enabled": false,
+        "source": null,
+        "sourceType": null,
+        "bbox": null,
+        "mode": "heightmap",
+        "w": 60,
+        "h": 60,
+        "posX": 50,
+        "posY": 50,
+        "rotation": 0,
+        "depth": 2,
+        "bevel": 0,
+        "invert": false,
+        "resolution": 64,
+        "clipToPanel": false,
+        "lastParseWarning": null
+      },
+      "back": {
+        "enabled": false,
+        "source": null,
+        "sourceType": null,
+        "bbox": null,
+        "mode": "heightmap",
+        "w": 60,
+        "h": 60,
+        "posX": 50,
+        "posY": 50,
+        "rotation": 0,
+        "depth": 2,
+        "bevel": 0,
+        "invert": false,
+        "resolution": 64,
+        "clipToPanel": false,
+        "lastParseWarning": null
+      },
+      "left": {
+        "enabled": false,
+        "source": null,
+        "sourceType": null,
+        "bbox": null,
+        "mode": "heightmap",
+        "w": 60,
+        "h": 60,
+        "posX": 50,
+        "posY": 50,
+        "rotation": 0,
+        "depth": 2,
+        "bevel": 0,
+        "invert": false,
+        "resolution": 64,
+        "clipToPanel": false,
+        "lastParseWarning": null
+      },
+      "right": {
+        "enabled": false,
+        "source": null,
+        "sourceType": null,
+        "bbox": null,
+        "mode": "heightmap",
+        "w": 60,
+        "h": 60,
+        "posX": 50,
+        "posY": 50,
+        "rotation": 0,
+        "depth": 2,
+        "bevel": 0,
+        "invert": false,
+        "resolution": 64,
+        "clipToPanel": false,
+        "lastParseWarning": null
+      },
+      "roofL": {
+        "enabled": false,
+        "source": null,
+        "sourceType": null,
+        "bbox": null,
+        "mode": "heightmap",
+        "w": 60,
+        "h": 60,
+        "posX": 50,
+        "posY": 50,
+        "rotation": 0,
+        "depth": 2,
+        "bevel": 0,
+        "invert": false,
+        "resolution": 64,
+        "clipToPanel": false,
+        "lastParseWarning": null
+      },
+      "roofR": {
+        "enabled": false,
+        "source": null,
+        "sourceType": null,
+        "bbox": null,
+        "mode": "heightmap",
+        "w": 60,
+        "h": 60,
+        "posX": 50,
+        "posY": 50,
+        "rotation": 0,
+        "depth": 2,
+        "bevel": 0,
+        "invert": false,
+        "resolution": 64,
+        "clipToPanel": false,
+        "lastParseWarning": null
+      }
+    },
+    "activeDecoKey": "front",
+    "lang": "fr",
+    "activeTab": "dim"
+  },
+  "reference": {
+    "calculations": {
+      "volumes": {
+        "ext": 7405620.02695053,
+        "int": 3931544.4097325504,
+        "mat": 3474075.6172179794
+      },
+      "surfaces": {
+        "total": 305812.24811630393,
+        "facades": 92570.25033688163,
+        "sides": 54560,
+        "bottom": 15376,
+        "roof": 143305.99777942232
+      },
+      "derived": {
+        "wallH": 220,
+        "rH": 138.56406460551014,
+        "sL": 259.99999999999994,
+        "rL": 260,
+        "bev": 31.17691453623978,
+        "sL_L": 259.99999999999994,
+        "sL_R": 259.99999999999994,
+        "Wtop": 160,
+        "Wbot": 160,
+        "wallHreal": 220,
+        "hasTaper": false,
+        "floorW": 124,
+        "floorD": 124,
+        "sideD": 124,
+        "isPose": false,
+        "ang": 1.0471975511965976
+      }
+    },
+    "cutList": {
+      "cuts": [
+        {
+          "nameKey": "calc.cuts.facade",
+          "noteKey": "calc.cuts.note.pentagon",
+          "qty": 2,
+          "dim": "160 × 359"
+        },
+        {
+          "nameKey": "calc.cuts.side",
+          "noteKey": null,
+          "noteParams": null,
+          "qty": 2,
+          "dim": "124 × 220"
+        },
+        {
+          "nameKey": "calc.cuts.bottom",
+          "noteKey": "calc.cuts.note.enclave",
+          "qty": 1,
+          "dim": "124 × 124"
+        },
+        {
+          "nameKey": "calc.cuts.roof",
+          "noteKey": "calc.cuts.note.miter",
+          "noteParams": {
+            "slope": 60
+          },
+          "qty": 2,
+          "dim": "260 × 260"
+        }
+      ],
+      "nPieces": 7
+    },
+    "cutLayout": {
+      "pieces": [
+        {
+          "nameKey": "calc.cuts.facade",
+          "suffix": " 1",
+          "w": 160,
+          "h": 358.5640646055101,
+          "color": "#d4a574",
+          "shape": "pent",
+          "rH": 138.56406460551014,
+          "wallH": 220,
+          "Wtop": 160,
+          "Wbot": 160,
+          "idx": 0,
+          "px": 5,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.facade",
+          "suffix": " 2",
+          "w": 160,
+          "h": 358.5640646055101,
+          "color": "#d4a574",
+          "shape": "pent",
+          "rH": 138.56406460551014,
+          "wallH": 220,
+          "Wtop": 160,
+          "Wbot": 160,
+          "idx": 1,
+          "px": 170,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.roofL",
+          "w": 291.17691453623974,
+          "h": 260,
+          "color": "#9e7044",
+          "shape": "rect",
+          "idx": 5,
+          "px": 335,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.roofR",
+          "w": 291.17691453623974,
+          "h": 260,
+          "color": "#9e7044",
+          "shape": "rect",
+          "idx": 6,
+          "px": 631.1769145362398,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.side",
+          "suffix": " G",
+          "w": 124,
+          "h": 220,
+          "color": "#c49464",
+          "shape": "rect",
+          "idx": 2,
+          "px": 927.3538290724796,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.side",
+          "suffix": " D",
+          "w": 124,
+          "h": 220,
+          "color": "#c49464",
+          "shape": "rect",
+          "idx": 3,
+          "px": 1056.3538290724796,
+          "py": 5,
+          "rot": false
+        },
+        {
+          "nameKey": "calc.cuts.bottom",
+          "w": 124,
+          "h": 124,
+          "color": "#b48454",
+          "shape": "rect",
+          "idx": 4,
+          "px": 5,
+          "py": 368.5640646055101,
+          "rot": false
+        }
+      ],
+      "shW": 1220,
+      "shH": 2440,
+      "totalArea": 336088.4962326079
+    },
+    "panelDefsNormalized": [
+      {
+        "key": "front",
+        "triangleCount": 16,
+        "bbox": {
+          "min": [
+            -80,
+            0,
+            0
+          ],
+          "max": [
+            80,
+            358.5640563964844,
+            18
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          62
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 13935988,
+        "hasExtraClips": false
+      },
+      {
+        "key": "back",
+        "triangleCount": 16,
+        "bbox": {
+          "min": [
+            -80,
+            0,
+            0
+          ],
+          "max": [
+            80,
+            358.5640563964844,
+            18
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          -80
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 13935988,
+        "hasExtraClips": false
+      },
+      {
+        "key": "left",
+        "triangleCount": 12,
+        "bbox": {
+          "min": [
+            -80,
+            0,
+            -62
+          ],
+          "max": [
+            -62,
+            251.17691040039062,
+            62
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          0
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 12883044,
+        "hasExtraClips": false
+      },
+      {
+        "key": "right",
+        "triangleCount": 12,
+        "bbox": {
+          "min": [
+            62,
+            0,
+            -62
+          ],
+          "max": [
+            80,
+            251.17691040039062,
+            62
+          ]
+        },
+        "basePos": [
+          0,
+          0,
+          0
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 12883044,
+        "hasExtraClips": false
+      },
+      {
+        "key": "bottom",
+        "triangleCount": 12,
+        "bbox": {
+          "min": [
+            -62,
+            -9,
+            -62
+          ],
+          "max": [
+            62,
+            9,
+            62
+          ]
+        },
+        "basePos": [
+          0,
+          9,
+          0
+        ],
+        "baseRot": [
+          0,
+          0,
+          0
+        ],
+        "color": 11830356,
+        "hasExtraClips": false
+      },
+      {
+        "key": "roofL",
+        "triangleCount": 12,
+        "bbox": {
+          "min": [
+            -260,
+            0,
+            -130
+          ],
+          "max": [
+            31.17691421508789,
+            18,
+            130
+          ]
+        },
+        "basePos": [
+          0,
+          358.5640646055101,
+          0
+        ],
+        "baseRot": [
+          0,
+          0,
+          1.0471975511965976
+        ],
+        "color": 10383428,
+        "hasExtraClips": false
+      },
+      {
+        "key": "roofR",
+        "triangleCount": 12,
+        "bbox": {
+          "min": [
+            -31.17691421508789,
+            0,
+            -130
+          ],
+          "max": [
+            260,
+            18,
+            130
+          ]
+        },
+        "basePos": [
+          0,
+          358.5640646055101,
+          0
+        ],
+        "baseRot": [
+          0,
+          0,
+          -1.0471975511965976
+        ],
+        "color": 10383428,
+        "hasExtraClips": false
+      }
+    ],
+    "stlHouse": {
+      "byteLength": 4684,
+      "triangleCount": 92,
+      "aggregateBbox": {
+        "min": [
+          -145.58845726811992,
+          0,
+          -130
+        ],
+        "max": [
+          145.58845726811992,
+          394.5640643273844,
+          130
+        ]
+      }
+    },
+    "stlDoor": null,
+    "panelsZip": {
+      "byteLength": 5866,
+      "entries": [
+        {
+          "filename": "front.stl",
+          "stlByteLength": 884,
+          "stlTriangleCount": 16
+        },
+        {
+          "filename": "back.stl",
+          "stlByteLength": 884,
+          "stlTriangleCount": 16
+        },
+        {
+          "filename": "left.stl",
+          "stlByteLength": 684,
+          "stlTriangleCount": 12
+        },
+        {
+          "filename": "right.stl",
+          "stlByteLength": 684,
+          "stlTriangleCount": 12
+        },
+        {
+          "filename": "bottom.stl",
+          "stlByteLength": 684,
+          "stlTriangleCount": 12
+        },
+        {
+          "filename": "roofL.stl",
+          "stlByteLength": 684,
+          "stlTriangleCount": 12
+        },
+        {
+          "filename": "roofR.stl",
+          "stlByteLength": 684,
+          "stlTriangleCount": 12
+        }
+      ]
+    },
+    "planSvg": {
+      "byteLength": 4406,
+      "polygonCount": 2,
+      "rectCount": 6,
+      "textCount": 14
+    }
+  }
+}

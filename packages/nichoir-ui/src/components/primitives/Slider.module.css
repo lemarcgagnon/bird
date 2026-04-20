@@ -1,0 +1,71 @@
+/* Slider.module.css */
+
+.group {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 4px;
+  padding: 6px 0;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.label {
+  font-size: 11px;
+  color: var(--n-text);
+  letter-spacing: 0.02em;
+}
+
+.valueWrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--n-accent);
+}
+
+.numInput {
+  width: 52px;
+  padding: 2px 4px;
+  background: var(--n-panel-bg);
+  color: var(--n-accent);
+  border: 1px solid var(--n-border);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 11px;
+  text-align: right;
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.numInput::-webkit-outer-spin-button,
+.numInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.numInput:focus-visible {
+  outline: var(--n-focus-ring);
+  outline-offset: 1px;
+  border-color: var(--n-accent);
+}
+
+.unit {
+  color: var(--n-text-muted);
+  font-size: 10px;
+}
+
+.range {
+  width: 100%;
+  accent-color: var(--n-accent);
+  cursor: pointer;
+}
+
+.range:focus-visible {
+  outline: var(--n-focus-ring);
+  outline-offset: 2px;
+}

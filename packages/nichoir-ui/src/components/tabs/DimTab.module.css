@@ -1,0 +1,57 @@
+/* DimTab.module.css */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sectionLabel {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--n-text-muted);
+  text-transform: uppercase;
+  margin: 6px 0 4px;
+}
+
+.hint {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--n-text-muted);
+  padding: 4px 0;
+}
+
+.toggleHelper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.toggleInnerLabel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  line-height: 1.2;
+}
+
+.noteSmall {
+  font-size: 9px;
+  color: var(--n-text-subtle);
+  font-weight: 400;
+}
+
+.subPanel {
+  padding: 10px 2px 4px;
+  margin-top: 4px;
+  border-top: 1px solid var(--n-border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

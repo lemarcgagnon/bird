@@ -1,0 +1,56 @@
+{
+  "viewportBoot": {
+    "mode": "canvas",
+    "fallbackText": null
+  },
+  "letterbox": {
+    "frontLandscapeStatus": "Image · raster 256×256 — Façade avant",
+    "frontLandscapeViewport": true,
+    "backPortraitStatus": "Image · raster 256×256 — Façade arrière",
+    "backPortraitViewport": true,
+    "leftWideSvgStatus": "SVG · 2 formes · raster 256×256 — Côté gauche",
+    "leftWideSvgViewport": true
+  },
+  "flow": {
+    "initialStatus": "SVG · 2 formes · raster 256×256 — Façade avant",
+    "initialViewport": true,
+    "finalStatus": "SVG · 2 formes · raster 256×256 — Façade avant",
+    "width": 180,
+    "height": 140,
+    "depth": 9.5,
+    "rotation": 32,
+    "alertAfterFlow": null,
+    "finalViewport": true
+  },
+  "resampleAsync": {
+    "finalResolution": 128,
+    "alert": null,
+    "viewport": true
+  },
+  "slotConcurrency": {
+    "frontResolutionAfterSet": 32,
+    "backResolutionAfterSet": 128,
+    "frontResolution": 32,
+    "backResolution": 128
+  },
+  "uploadDuringResample": {
+    "status": "SVG · 2 formes · raster 256×256 — Toit gauche",
+    "alert": null,
+    "viewport": true
+  },
+  "warningLeak": {
+    "frontAlert": "⚠ Les PNG/JPG ne supportent que le mode heightmap. Charge un SVG pour le mode vectoriel.",
+    "backAlertAfterSwitch": null
+  },
+  "pageErrors": [],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ],
+  "requestFailures": [],
+  "badResponses": [
+    {
+      "url": "http://localhost:3001/favicon.ico",
+      "status": 404
+    }
+  ]
+}

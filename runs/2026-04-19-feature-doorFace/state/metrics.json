@@ -1,0 +1,43 @@
+{
+  "task_id": "2026-04-19-feature-doorFace",
+  "status": "completed",
+  "date": "2026-04-19",
+  "acceptance_passed": true,
+  "tests_passed": true,
+  "lint_passed": true,
+  "typecheck_passed": true,
+  "build_passed": true,
+  "retries": 0,
+  "files_changed": 9,
+  "files_added": 0,
+  "files_deleted": 0,
+  "test_count_total": 438,
+  "test_count_delta": 14,
+  "test_count_breakdown": { "core": 135, "adapters": 4, "ui": 299 },
+  "test_count_note": "135 core = 130 baseline + 1 state doorFace default + 4 panels doorFace routing ; 299 ui = 294 baseline + 5 DimTab doorFace ToggleBar (visibility, click left/right, i18n en). Total +14 nets.",
+  "backward_compat": {
+    "fixtures_md5_preserved": true,
+    "md5": {
+      "presetA": "b0081bb3209d57d3a5b702d9b095ef7c",
+      "presetB": "a8a8c4793d832cee0917dd1217c58053",
+      "presetC": "3e4c95a38b3d6c72ae8911a881b16598",
+      "presetD": "e104c1c81b0afac00b8da8884f0d97eb",
+      "presetE": "a5ed18ed689d39dea02e0e90edafdd81"
+    }
+  },
+  "visual_validation": {
+    "doorFace_front_shows_hole_on_front": true,
+    "doorFace_left_front_clean_hole_on_left": true,
+    "doorFace_right_shows_hole_on_right": true,
+    "artifacts": [
+      "artifacts/doorface-front-canvas.png",
+      "artifacts/doorface-front-page.png",
+      "artifacts/doorface-left-canvas.png",
+      "artifacts/doorface-left-page.png",
+      "artifacts/doorface-right-canvas.png",
+      "artifacts/doorface-right-page.png"
+    ]
+  },
+  "verification_evidence": "typecheck 4/4 green; test 429 passed (131 core + 4 adapters + 294 ui); lint 4/4 green; apps/demo build green with /tools/nichoir marked ƒ Dynamic; md5sum of all 5 preset*.snapshot.json fixtures UNCHANGED (backward-compat strict); puppeteer 3 screenshots prouvent visuellement le placement du trou par face; 4 new unit tests verrouillent le routing doorInfo + doorPanel placement pour 3 values de doorFace",
+  "evidence_document_written": true
+}

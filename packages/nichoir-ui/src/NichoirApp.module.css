@@ -1,0 +1,24 @@
+/* NichoirApp.module.css — layout racine 2 colonnes */
+
+.root {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--n-bg);
+  color: var(--n-text);
+  font-family: var(--n-font-family);
+}
+
+.viewport {
+  position: relative;
+  overflow: hidden;
+}
+
+@media (max-width: 640px) {
+  .root {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+}

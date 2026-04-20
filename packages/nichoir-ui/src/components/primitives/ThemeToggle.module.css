@@ -1,0 +1,23 @@
+/* ThemeToggle.module.css */
+
+.btn {
+  padding: 4px 10px;
+  background: var(--n-panel-bg);
+  color: var(--n-accent);
+  border: 1px solid var(--n-border);
+  border-radius: 4px;
+  font: inherit;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+
+.btn:hover {
+  background: var(--n-accent-muted);
+  border-color: var(--n-accent);
+}
+
+.btn:focus-visible {
+  outline: var(--n-focus-ring);
+  outline-offset: 1px;
+}

@@ -1,0 +1,33 @@
+{
+  "task_id": "2026-04-19-feature-orbitControls",
+  "status": "completed",
+  "date": "2026-04-19",
+  "acceptance_passed": true,
+  "tests_passed": true,
+  "lint_passed": true,
+  "typecheck_passed": true,
+  "build_passed": true,
+  "retries": 0,
+  "files_changed": 2,
+  "files_added": 0,
+  "files_deleted": 0,
+  "test_count_total": 441,
+  "test_count_delta": 3,
+  "test_count_breakdown": { "core": 135, "adapters": 4, "ui": 302 },
+  "bundle_size_delta": { "before_kB": 185, "after_kB": 190, "delta_kB": 5, "note": "OrbitControls addon code" },
+  "visual_validation": {
+    "drag_horizontal_rotates_azimuth": true,
+    "drag_vertical_rotates_polar": true,
+    "wheel_zooms": true,
+    "setParam_preserves_camera": true,
+    "artifacts": [
+      "artifacts/orbit-00-initial.png",
+      "artifacts/orbit-01-after-drag-right.png",
+      "artifacts/orbit-02-after-drag-up.png",
+      "artifacts/orbit-03-after-zoom.png",
+      "artifacts/orbit-04-after-setParam.png"
+    ]
+  },
+  "verification_evidence": "typecheck 4/4 green ; test 441 passed (135+4+302) ; lint 4/4 green ; apps/demo build green (190 kB, +5 kB for OrbitControls addon) ; puppeteer visual prove drag rotates, wheel zooms, setParam (door=round) preserves rotated+zoomed camera (image orbit-04 shows door hole + same zoomed/rotated angle as orbit-03)",
+  "evidence_document_written": true
+}

@@ -1,0 +1,251 @@
+nichoir
+├── .claude
+│   └── settings.local.json
+├── .github
+│   └── workflows
+│       └── ci.yml
+├── apps
+│   └── demo
+│       ├── app
+│       │   ├── tools
+│       │   │   └── nichoir
+│       │   │       └── page.tsx
+│       │   ├── layout.tsx
+│       │   └── page.tsx
+│       ├── next-env.d.ts
+│       ├── next.config.ts
+│       ├── package.json
+│       └── tsconfig.json
+├── packages
+│   ├── nichoir-adapters
+│   │   ├── src
+│   │   │   ├── fakes
+│   │   │   │   ├── BrowserDownloadService.ts
+│   │   │   │   ├── ConsoleTelemetry.ts
+│   │   │   │   ├── FakeAuthContext.ts
+│   │   │   │   ├── FakeCreditGate.ts
+│   │   │   │   ├── InMemoryProjectStore.ts
+│   │   │   │   └── NoopDownloadService.ts
+│   │   │   ├── ports
+│   │   │   │   ├── AuthContext.ts
+│   │   │   │   ├── CreditGate.ts
+│   │   │   │   ├── DownloadService.ts
+│   │   │   │   ├── ProjectStore.ts
+│   │   │   │   └── Telemetry.ts
+│   │   │   └── index.ts
+│   │   ├── tests
+│   │   │   └── smoke.test.ts
+│   │   ├── ADAPTERS.md
+│   │   ├── package.json
+│   │   ├── tsconfig.build.json
+│   │   ├── tsconfig.json
+│   │   └── vitest.config.ts
+│   ├── nichoir-core
+│   │   ├── src
+│   │   │   ├── exporters
+│   │   │   │   ├── stl.ts
+│   │   │   │   ├── svg.ts
+│   │   │   │   └── zip.ts
+│   │   │   ├── geometry
+│   │   │   │   ├── deco.ts
+│   │   │   │   └── panels.ts
+│   │   │   ├── calculations.ts
+│   │   │   ├── cut-plan.ts
+│   │   │   ├── index.ts
+│   │   │   ├── state.ts
+│   │   │   └── types.ts
+│   │   ├── tests
+│   │   │   ├── fixtures
+│   │   │   │   ├── capture-reference.mjs
+│   │   │   │   ├── presetA.snapshot.json
+│   │   │   │   ├── presetB.snapshot.json
+│   │   │   │   ├── presetC.snapshot.json
+│   │   │   │   ├── presetD.snapshot.json
+│   │   │   │   ├── presetE.snapshot.json
+│   │   │   │   ├── README.md
+│   │   │   │   └── verify-v15-anchors.mjs
+│   │   │   ├── _devils-advocate.mjs
+│   │   │   ├── calculations.test.ts
+│   │   │   ├── cut-layout.test.ts
+│   │   │   ├── deco.test.ts
+│   │   │   ├── exporters.test.ts
+│   │   │   ├── panels.test.ts
+│   │   │   ├── smoke.test.ts
+│   │   │   └── state.test.ts
+│   │   ├── CONTRACTS.md
+│   │   ├── package-lock.json
+│   │   ├── package.json
+│   │   ├── tsconfig.build.json
+│   │   ├── tsconfig.json
+│   │   └── vitest.config.ts
+│   └── nichoir-ui
+│       ├── scripts
+│       │   └── copy-assets.mjs
+│       ├── src
+│       │   ├── adapters
+│       │   │   └── DownloadServiceContext.tsx
+│       │   ├── components
+│       │   │   ├── primitives
+│       │   │   │   ├── Checkbox.module.css
+│       │   │   │   ├── Checkbox.tsx
+│       │   │   │   ├── ExportButton.module.css
+│       │   │   │   ├── ExportButton.tsx
+│       │   │   │   ├── LangSwitcher.module.css
+│       │   │   │   ├── LangSwitcher.tsx
+│       │   │   │   ├── Slider.module.css
+│       │   │   │   ├── Slider.tsx
+│       │   │   │   ├── Tabs.module.css
+│       │   │   │   ├── Tabs.tsx
+│       │   │   │   ├── ThemeToggle.module.css
+│       │   │   │   ├── ThemeToggle.tsx
+│       │   │   │   ├── ToggleBar.module.css
+│       │   │   │   └── ToggleBar.tsx
+│       │   │   ├── tabs
+│       │   │   │   ├── CalcCutsSection.tsx
+│       │   │   │   ├── CalcMaterialSection.tsx
+│       │   │   │   ├── CalcSurfacesSection.tsx
+│       │   │   │   ├── CalcTab.module.css
+│       │   │   │   ├── CalcTab.tsx
+│       │   │   │   ├── CalcVolumesSection.tsx
+│       │   │   │   ├── DecoClipSection.tsx
+│       │   │   │   ├── DecoDimensionsSection.tsx
+│       │   │   │   ├── DecoEnableSection.tsx
+│       │   │   │   ├── DecoFileSection.tsx
+│       │   │   │   ├── DecoModeSection.tsx
+│       │   │   │   ├── DecoReliefSection.tsx
+│       │   │   │   ├── DecoStatusSection.tsx
+│       │   │   │   ├── DecoTab.module.css
+│       │   │   │   ├── DecoTab.tsx
+│       │   │   │   ├── DecoTargetSection.tsx
+│       │   │   │   ├── DimBodySection.tsx
+│       │   │   │   ├── DimDoorSection.tsx
+│       │   │   │   ├── DimPerchSection.tsx
+│       │   │   │   ├── DimTab.module.css
+│       │   │   │   ├── DimTab.tsx
+│       │   │   │   ├── ExportPlanSection.tsx
+│       │   │   │   ├── ExportStlSection.tsx
+│       │   │   │   ├── ExportTab.module.css
+│       │   │   │   ├── ExportTab.tsx
+│       │   │   │   ├── PlanCanvasSection.tsx
+│       │   │   │   ├── PlanSizeSection.tsx
+│       │   │   │   ├── PlanStatsSection.tsx
+│       │   │   │   ├── PlanTab.module.css
+│       │   │   │   ├── PlanTab.tsx
+│       │   │   │   ├── VueClipSection.tsx
+│       │   │   │   ├── VueExplodeSection.tsx
+│       │   │   │   ├── VueModeSection.tsx
+│       │   │   │   └── VueTab.tsx
+│       │   │   ├── Sidebar.module.css
+│       │   │   ├── Sidebar.tsx
+│       │   │   ├── Viewport.tsx
+│       │   │   ├── ViewportBoundary.module.css
+│       │   │   ├── ViewportBoundary.tsx
+│       │   │   └── ViewportErrorFallback.tsx
+│       │   ├── i18n
+│       │   │   ├── messages.ts
+│       │   │   └── useT.ts
+│       │   ├── rendering
+│       │   │   └── materializeDefs.ts
+│       │   ├── styles
+│       │   │   └── theme.css
+│       │   ├── utils
+│       │   │   ├── calcFormatters.ts
+│       │   │   ├── panelPresets.ts
+│       │   │   ├── parseDecoFile.ts
+│       │   │   └── planFormatters.ts
+│       │   ├── viewports
+│       │   │   ├── ImperativeThreeViewport.ts
+│       │   │   └── ViewportAdapter.ts
+│       │   ├── css-modules.d.ts
+│       │   ├── index.ts
+│       │   ├── NichoirApp.module.css
+│       │   ├── NichoirApp.tsx
+│       │   ├── store.ts
+│       │   └── theme-boot.ts
+│       ├── tests
+│       │   ├── fixtures
+│       │   │   └── deco
+│       │   │       ├── invalid.txt
+│       │   │       ├── no-shapes.svg
+│       │   │       └── valid.svg
+│       │   ├── accessibility.test.tsx
+│       │   ├── calcFormatters.test.ts
+│       │   ├── CalcTab.test.tsx
+│       │   ├── DecoClipSection.test.tsx
+│       │   ├── DecoDimensionsSection.test.tsx
+│       │   ├── DecoFileSection.test.tsx
+│       │   ├── DecoModeSection.test.tsx
+│       │   ├── DecoReliefSection.test.tsx
+│       │   ├── DecoStatusSection.test.tsx
+│       │   ├── DecoTab.test.tsx
+│       │   ├── DimTab.test.tsx
+│       │   ├── DownloadServiceContext.test.tsx
+│       │   ├── ExportTab.test.tsx
+│       │   ├── html-lang-sync.test.tsx
+│       │   ├── ImperativeThreeViewport.test.ts
+│       │   ├── lang-theme.test.tsx
+│       │   ├── panelPresets.test.ts
+│       │   ├── parseDecoFile.test.ts
+│       │   ├── planFormatters.test.ts
+│       │   ├── PlanTab.test.tsx
+│       │   ├── primitives.test.tsx
+│       │   ├── Sidebar.test.tsx
+│       │   ├── Slider.test.tsx
+│       │   ├── smoke.test.ts
+│       │   ├── store-setClipAxis.test.ts
+│       │   ├── store-setParam.test.ts
+│       │   ├── Viewport.test.tsx
+│       │   ├── ViewportBoundary.test.tsx
+│       │   └── VueTab.test.tsx
+│       ├── package.json
+│       ├── tsconfig.build.json
+│       ├── tsconfig.json
+│       ├── VIEWPORT.md
+│       └── vitest.config.ts
+├── runs
+│   └── 2026-04-16-nichoir-nextjs-port
+│       ├── artifacts
+│       ├── state
+│       │   ├── attempts.jsonl
+│       │   ├── metrics.json
+│       │   └── NOTES.md
+│       ├── ACCEPTANCE-P1-P2.md
+│       ├── PLAN.md
+│       ├── RESULT.md
+│       └── TASK.md
+├── src
+│   ├── exporters
+│   │   ├── plan.js
+│   │   └── stl.js
+│   ├── geometry
+│   │   ├── deco.js
+│   │   └── panels.js
+│   ├── ui
+│   │   ├── bindings.js
+│   │   ├── camera-input.js
+│   │   ├── deco-panel.js
+│   │   └── tabs.js
+│   ├── calculations.js
+│   ├── cut-plan.js
+│   ├── i18n.js
+│   ├── main.js
+│   ├── state.js
+│   ├── store.js
+│   ├── three-scene.js
+│   └── translations.js
+├── styles
+│   └── main.css
+├── .codex
+├── .eslintrc.cjs
+├── .gitignore
+├── HANDOVER.md
+├── index.html
+├── nichoir_v15.html
+├── package.json
+├── pnpm-lock.yaml
+├── pnpm-workspace.yaml
+├── README.md
+├── REPRISE.md
+├── tree.py
+├── tsconfig.base.json
+└── vitest.workspace.ts

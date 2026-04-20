@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="fr" data-i18n-title="app.title">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nichoir</title>
+<script>
+(function(){
+  var t = localStorage.getItem('nichoir-theme') ||
+          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', t);
+})();
+</script>
+<link rel="stylesheet" href="styles/main.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+
+<div id="sidebar">
+  <div id="sidebar-header">
+    <h1 data-i18n="app.title">⌂ NICHOIR</h1>
+    <p data-i18n="app.subtitle">CALCULATEUR MAISON D'OISEAU</p>
+  </div>
+
+  <div class="tabs" role="tablist" aria-label="Navigation">
+    <button class="tab-btn active" role="tab" aria-selected="true"  aria-controls="tab-dim"    id="tab-btn-dim"    data-tab="dim"    data-i18n="tab.dim">DIM.</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-vue"    id="tab-btn-vue"    data-tab="vue"    data-i18n="tab.vue">VUE</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-deco"   id="tab-btn-deco"   data-tab="deco"   data-i18n="tab.deco">DÉCOR</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-calc"   id="tab-btn-calc"   data-tab="calc"   data-i18n="tab.calc">CALCUL</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-plan"   id="tab-btn-plan"   data-tab="plan"   data-i18n="tab.plan">PLAN</button>
+    <button class="tab-btn"        role="tab" aria-selected="false" aria-controls="tab-export" id="tab-btn-export" data-tab="export" data-i18n="tab.export">EXPORT</button>
+  </div>
+
+  <div class="tab-content">
+
+    <!-- ======================================================= -->
+    <!-- DIMENSIONS                                              -->
+    <!-- ======================================================= -->
+    <div id="tab-dim"    role="tabpanel" aria-labelledby="tab-btn-dim"    class="tab-panel active">
+      <div class="section-label" data-i18n="dim.body">▸ CORPS (BOÎTE)</div>
+
+      <div class="slider-group" id="sg-W">
+        <div class="slider-row"><span data-i18n="dim.width">Largeur (X)</span><span class="slider-val">160 mm</span></div>
+        <input type="range" min="80" max="400" step="1" value="160">
+      </div>
+      <div class="slider-group" id="sg-H">
+        <div class="slider-row"><span data-i18n="dim.height">Hauteur (Y)</span><span class="slider-val">220 mm</span></div>
+        <input type="range" min="80" max="500" step="1" value="220">
+      </div>
+      <div class="slider-group" id="sg-D">
+        <div class="slider-row"><span data-i18n="dim.depth">Profondeur (Z)</span><span class="slider-val">160 mm</span></div>
+        <input type="range" min="80" max="400" step="1" value="160">
+      </div>
+      <div class="slider-group" id="sg-taperX">
+        <div class="slider-row"><span data-i18n="dim.taperX">Évasement X</span><span class="slider-val">0 mm</span></div>
+        <input type="range" min="-60" max="60" step="1" value="0">
+      </div>
+      <div class="hint" data-i18n="dim.taperHint">Largeur bas = largeur haut + 2× évasement. Valeur positive = bas plus large (évasé). Valeur négative = bas plus étroit (rétréci). Le toit reste à la largeur du haut.</div>
+
+      <div class="section-label" data-i18n="dim.floor">▸ ASSEMBLAGE PLANCHER</div>
+      <div class="toggle-bar" id="floor-toggle" role="radiogroup" aria-label="Assemblage plancher">
+        <button class="toggle-btn active" role="radio" aria-checked="true"  data-val="enclave">
+          <span data-i18n="dim.floor.enclave">Enclavé</span><br>
+          <span class="note" data-i18n="dim.floor.enclave.note">plancher entre murs</span>
+        </button>
+        <button class="toggle-btn" role="radio" aria-checked="false" data-val="pose">
+          <span data-i18n="dim.floor.pose">Posé</span><br>
+          <span class="note" data-i18n="dim.floor.pose.note">murs sur plancher</span>
+        </button>
+      </div>
+
+      <div class="section-label" data-i18n="dim.roof">▸ TOITURE</div>
+      <div class="slider-group" id="sg-slope">
+        <div class="slider-row"><span data-i18n="dim.slope">Pente du toit</span><span class="slider-val">35°</span></div>
+        <input type="range" min="10" max="60" step="1" value="35">
+      </div>
+      <div class="slider-group" id="sg-overhang">
+        <div class="slider-row"><span data-i18n="dim.overhang">Débordement (pluie)</span><span class="slider-val">30 mm</span></div>
+        <input type="range" min="0" max="80" step="1" value="30">
+      </div>
+      <div class="hint" id="roof-hint">Hauteur toit: 56 mm</div>
+
+      <div class="section-label" data-i18n="dim.ridge">▸ JONCTION CRÊTE DU TOIT</div>
+      <div class="toggle-bar" id="ridge-toggle" role="radiogroup" aria-label="Jonction crête">
+        <button class="toggle-btn active" role="radio" aria-checked="true"  data-val="left">
+          <span data-i18n="dim.ridge.left">Gauche recouvre</span><br>
+          <span class="note" data-i18n="dim.ridge.left.note">+T sur toit gauche</span>
+        </button>
+        <button class="toggle-btn" role="radio" aria-checked="false" data-val="right">
+          <span data-i18n="dim.ridge.right">Droit recouvre</span><br>
+          <span class="note" data-i18n="dim.ridge.right.note">+T sur toit droit</span>
+        </button>
+        <button class="toggle-btn" role="radio" aria-checked="false" data-val="miter">
+          <span data-i18n="dim.ridge.miter">Onglet</span><br>
+          <span class="note" data-i18n="dim.ridge.miter.note">biseau à θ</span>
+        </button>
+      </div>
+      <div class="hint" id="ridge-hint"></div>
+
+      <div class="section-label" data-i18n="dim.material">▸ MATÉRIAU</div>
+      <div class="slider-group" id="sg-T">
+        <div class="slider-row"><span data-i18n="dim.thickness">Épaisseur parois</span><span class="slider-val">12.0 mm</span></div>
+        <input type="range" min="3" max="25" step="0.5" value="12">
+      </div>
+      <div class="hint" id="thick-hint"></div>
+
+      <div class="section-label" data-i18n="dim.door">▸ PORTE D'ENTRÉE</div>
+      <div class="toggle-bar" id="door-toggle" role="radiogroup" aria-label="Type de porte">
+        <button class="toggle-btn active" role="radio" aria-checked="true"  data-val="none"    data-i18n="dim.door.none">Aucune</button>
+        <button class="toggle-btn" role="radio" aria-checked="false" data-val="round"   data-i18n="dim.door.round">Ronde</button>
+        <button class="toggle-btn" role="radio" aria-checked="false" data-val="square"  data-i18n="dim.door.square">Carrée</button>
+        <button class="toggle-btn" role="radio" aria-checked="false" data-val="pentagon" data-i18n="dim.door.pentagon">Penta.</button>
+      </div>
+
+      <div id="door-controls" style="display:none">
+        <div class="slider-group" id="sg-doorW">
+          <div class="slider-row"><span data-i18n="dim.door.width">Largeur porte</span><span class="slider-val">38 mm</span></div>
+          <input type="range" min="15" max="300" step="1" value="38">
+        </div>
+        <div class="slider-group" id="sg-doorH">
+          <div class="slider-row"><span data-i18n="dim.door.height">Hauteur porte</span><span class="slider-val">38 mm</span></div>
+          <input type="range" min="15" max="400" step="1" value="38">
+        </div>
+        <div class="slider-group" id="sg-doorPX">
+          <div class="slider-row"><span data-i18n="dim.door.posX">Position horiz.</span><span class="slider-val">50%</span></div>
+          <input type="range" min="10" max="90" step="1" value="50">
+        </div>
+        <div class="slider-group" id="sg-doorPY">
+          <div class="slider-row"><span data-i18n="dim.door.posY">Position vert.</span><span class="slider-val">50%</span></div>
+          <input type="range" min="15" max="85" step="1" value="50">
+        </div>
+
+        <div style="margin-top:14px;border-top:1px solid #252830;padding-top:10px">
+          <label id="door-panel-toggle" style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;color:#5a5f6a;margin-bottom:8px">
+            <input type="checkbox" id="cb-door-panel" style="accent-color:#e8a955">
+            <span data-i18n="dim.door.createPanel">Créer le panneau de porte</span>
+          </label>
+          <div id="door-panel-controls" style="display:none">
+            <div class="slider-group" id="sg-doorVar">
+              <div class="slider-row"><span data-i18n="dim.door.adjust">Ajustement</span><span class="slider-val">100%</span></div>
+              <input type="range" min="85" max="125" step="1" value="100">
+            </div>
+            <div class="hint" id="door-panel-hint" data-i18n="dim.door.adjust.hint">100% = même taille que le trou</div>
+          </div>
+        </div>
+
+        <div id="door-follow-taper-wrap" style="margin-top:10px;border-top:1px solid #252830;padding-top:10px;display:none">
+          <label style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;color:#5a5f6a">
+            <input type="checkbox" id="cb-door-follow-taper" style="accent-color:#e8a955">
+            <span data-i18n="dim.door.followTaper">Côtés de la porte suivent l'évasement</span>
+          </label>
+          <div class="hint" style="margin-top:6px" data-i18n="dim.door.followTaper.hint">Porte pentagone uniquement. Les côtés latéraux s'inclinent au même angle que les murs (évasé ou rétréci).</div>
+        </div>
+
+        <div style="margin-top:10px;border-top:1px solid #252830;padding-top:10px">
+          <label id="perch-toggle-label" style="display:flex;align-items:center;gap:6px;font-size:11px;cursor:pointer;color:#5a5f6a;margin-bottom:8px">
+            <input type="checkbox" id="cb-perch" style="accent-color:#e8a955">
+            <span data-i18n="dim.perch.add">Ajouter un perchoir</span>
+          </label>
+          <div id="perch-controls" style="display:none">
+            <div class="slider-group" id="sg-perchDiam">
+              <div class="slider-row"><span data-i18n="dim.perch.diameter">Diamètre</span><span class="slider-val">8 mm</span></div>
+              <input type="range" min="3" max="20" step="0.5" value="8">
+            </div>
+            <div class="slider-group" id="sg-perchLen">
+              <div class="slider-row"><span data-i18n="dim.perch.length">Longueur</span><span class="slider-val">30 mm</span></div>
+              <input type="range" min="10" max="80" step="1" value="30">
+            </div>
+            <div class="slider-group" id="sg-perchOff">
+              <div class="slider-row"><span data-i18n="dim.perch.offset">Sous la porte</span><span class="slider-val">15 mm</span></div>
+              <input type="range" min="5" max="60" step="1" value="15">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hint" id="door-hint"></div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- VUE 3D                                                  -->
+    <!-- ======================================================= -->
+    <div id="tab-vue"    role="tabpanel" aria-labelledby="tab-btn-vue"    class="tab-panel">
+      <div class="section-label" data-i18n="vue.mode">▸ MODE D'AFFICHAGE</div>
+      <div class="mode-bar" role="radiogroup" aria-label="Mode d'affichage">
+        <button class="mode-btn active" role="radio" aria-checked="true"  data-mode="solid"     data-i18n="vue.mode.solid">Solide</button>
+        <button class="mode-btn" role="radio" aria-checked="false" data-mode="wireframe" data-i18n="vue.mode.wireframe">Fil fer</button>
+        <button class="mode-btn" role="radio" aria-checked="false" data-mode="xray"      data-i18n="vue.mode.xray">X-Ray</button>
+        <button class="mode-btn" role="radio" aria-checked="false" data-mode="edges"     data-i18n="vue.mode.edges">Arêtes</button>
+      </div>
+
+      <div class="section-label" data-i18n="vue.explode">▸ VUE ÉCLATÉE</div>
+      <div class="slider-group" id="sg-explode">
+        <div class="slider-row"><span data-i18n="vue.explode.label">Séparation panneaux</span><span class="slider-val">0%</span></div>
+        <input type="range" min="0" max="100" step="1" value="0">
+      </div>
+
+      <div class="section-label" data-i18n="vue.clip">▸ COUPES DE SECTION</div>
+      <div class="clip-row" id="clip-x">
+        <label><input type="checkbox"> <span data-i18n="vue.clip.x">Coupe X</span></label>
+        <div class="clip-slider" style="display:none"><input type="range" min="0" max="100" step="1" value="50" style="width:100%"></div>
+      </div>
+      <div class="clip-row" id="clip-y">
+        <label><input type="checkbox"> <span data-i18n="vue.clip.y">Coupe Y</span></label>
+        <div class="clip-slider" style="display:none"><input type="range" min="0" max="100" step="1" value="50" style="width:100%"></div>
+      </div>
+      <div class="clip-row" id="clip-z">
+        <label><input type="checkbox"> <span data-i18n="vue.clip.z">Coupe Z</span></label>
+        <div class="clip-slider" style="display:none"><input type="range" min="0" max="100" step="1" value="50" style="width:100%"></div>
+      </div>
+
+      <div class="hint" style="margin-top:20px" data-i18n-html="vue.controls.hint">
+        🖱️ Clic gauche = tourner<br>🖱️ Clic droit / Shift = déplacer<br>⚙️ Molette = zoom<br>🔄 Double-clic = recentrer<br>📱 1 doigt = tourner<br>📱 2 doigts = déplacer + zoom
+      </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- DÉCOR                                                   -->
+    <!-- ======================================================= -->
+    <div id="tab-deco"   role="tabpanel" aria-labelledby="tab-btn-deco"   class="tab-panel">
+      <div class="section-label" data-i18n="deco.target">▸ PANNEAU CIBLE</div>
+      <select id="deco-target" class="deco-select">
+        <option value="front" data-i18n="deco.target.front">Façade avant</option>
+        <option value="back" data-i18n="deco.target.back">Façade arrière</option>
+        <option value="left" data-i18n="deco.target.left">Côté gauche</option>
+        <option value="right" data-i18n="deco.target.right">Côté droit</option>
+        <option value="roofL" data-i18n="deco.target.roofL">Toit gauche</option>
+        <option value="roofR" data-i18n="deco.target.roofR">Toit droit</option>
+      </select>
+      <div id="deco-status" class="deco-status" data-i18n="deco.status.empty">Aucun fichier chargé</div>
+
+      <label class="deco-enable-row" id="deco-enable-label">
+        <input type="checkbox" id="deco-enable">
+        <span data-i18n="deco.enable">Activer la décoration sur ce panneau</span>
+      </label>
+
+      <div class="section-label" data-i18n="deco.file">▸ FICHIER</div>
+      <div class="deco-btn-row">
+        <label class="deco-file-label">
+          <span data-i18n="deco.file.load">Charger SVG / PNG / JPG</span>
+          <input type="file" id="deco-file" accept=".svg,image/svg+xml,image/png,image/jpeg">
+        </label>
+        <button class="deco-clear-btn" id="deco-clear" data-i18n-title="deco.file.delete" title="Supprimer">🗑</button>
+      </div>
+
+      <div id="deco-params" style="display:none">
+        <div class="section-label" data-i18n="deco.mode">▸ MODE DE RENDU</div>
+        <div class="toggle-bar" id="deco-mode-toggle" role="radiogroup" aria-label="Mode de rendu décoration">
+          <button class="toggle-btn" role="radio" aria-checked="false" data-val="vector">
+            <span data-i18n="deco.mode.vector">Vectoriel</span><br>
+            <span class="note" data-i18n="deco.mode.vector.note">extrusion + bevel</span>
+          </button>
+          <button class="toggle-btn active" role="radio" aria-checked="true"  data-val="heightmap">
+            <span data-i18n="deco.mode.heightmap">Heightmap</span><br>
+            <span class="note" data-i18n="deco.mode.heightmap.note">relief depuis image</span>
+          </button>
+        </div>
+        <div class="deco-warn" id="deco-mode-warn" style="display:none"></div>
+
+        <div class="section-label" data-i18n="deco.dims">▸ DIMENSIONS</div>
+        <div class="slider-group" id="sg-decoW">
+          <div class="slider-row"><span data-i18n="deco.dim.width">Largeur</span><span class="slider-val">60 mm</span></div>
+          <input type="range" min="10" max="400" step="1" value="60">
+        </div>
+        <div class="slider-group" id="sg-decoH">
+          <div class="slider-row"><span data-i18n="deco.dim.height">Hauteur</span><span class="slider-val">60 mm</span></div>
+          <input type="range" min="10" max="400" step="1" value="60">
+        </div>
+        <div class="slider-group" id="sg-decoPX">
+          <div class="slider-row"><span data-i18n="deco.dim.posX">Position X</span><span class="slider-val">50%</span></div>
+          <input type="range" min="0" max="100" step="1" value="50">
+        </div>
+        <div class="slider-group" id="sg-decoPY">
+          <div class="slider-row"><span data-i18n="deco.dim.posY">Position Y</span><span class="slider-val">50%</span></div>
+          <input type="range" min="0" max="100" step="1" value="50">
+        </div>
+        <div class="slider-group" id="sg-decoRot">
+          <div class="slider-row"><span data-i18n="deco.dim.rotation">Rotation image</span><span class="slider-val">0°</span></div>
+          <input type="range" min="0" max="360" step="1" value="0">
+        </div>
+
+        <div class="section-label" data-i18n="deco.relief">▸ RELIEF</div>
+        <div class="slider-group" id="sg-decoDepth">
+          <div class="slider-row"><span data-i18n="deco.relief.depth">Profondeur</span><span class="slider-val">2.0 mm</span></div>
+          <input type="range" min="0.5" max="20" step="0.1" value="2">
+        </div>
+        <div class="slider-group" id="sg-decoBevel">
+          <div class="slider-row"><span data-i18n="deco.relief.bevel">Bevel</span><span class="slider-val">0%</span></div>
+          <input type="range" min="0" max="100" step="1" value="0">
+        </div>
+        <div class="hint" id="deco-bevel-hint" data-i18n="deco.relief.bevel.hint">Bevel actif uniquement en mode vectoriel.</div>
+
+        <label class="deco-enable-row" id="deco-invert-label" style="margin-top:10px">
+          <input type="checkbox" id="deco-invert">
+          <span data-i18n="deco.relief.invert">Inverser (heightmap)</span>
+        </label>
+
+        <div class="slider-group" id="sg-decoRes">
+          <div class="slider-row"><span data-i18n="deco.relief.resolution">Résolution</span><span class="slider-val">64</span></div>
+          <input type="range" min="32" max="128" step="8" value="64">
+        </div>
+        <div class="hint" data-i18n="deco.relief.resolution.hint">Résolution en mode heightmap. 128 = très détaillé mais export STL long (3–10 s).</div>
+
+        <div class="section-label" data-i18n="deco.clip">▸ CONFINEMENT</div>
+        <label class="deco-enable-row" id="deco-clip-label">
+          <input type="checkbox" id="deco-clip">
+          <span data-i18n="deco.clip.enable">Clipper par la forme du panneau</span>
+        </label>
+        <div class="hint" data-i18n-html="deco.clip.hint">Coupe visuellement la déco qui dépasse du panneau ou recouvre le trou de porte.<br>⚠ N'affecte PAS l'export STL (géométrie complète exportée).</div>
+      </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- CALCULS (sans export STL — déplacé vers EXPORT)         -->
+    <!-- ======================================================= -->
+    <div id="tab-calc"   role="tabpanel" aria-labelledby="tab-btn-calc"   class="tab-panel">
+      <div class="section-label" data-i18n="calc.volumes">▸ VOLUMES</div>
+      <div class="stat-row"><span data-i18n="calc.volume.ext">Volume extérieur</span><span class="val" id="v-ext"></span></div>
+      <div class="stat-row"><span data-i18n="calc.volume.int">Volume intérieur</span><span class="val" id="v-int"></span></div>
+      <div class="stat-row sub"><span data-i18n="calc.volume.mat">Matériau (diff.)</span><span class="val" id="v-mat"></span></div>
+
+      <div class="section-label" data-i18n="calc.surfaces">▸ SURFACES</div>
+      <div class="stat-row"><span data-i18n="calc.surface.total">Aire totale panneaux</span><span class="val" id="s-total"></span></div>
+      <div class="stat-row sub"><span data-i18n="calc.surface.facades">Façades (×2)</span><span class="val" id="s-front"></span></div>
+      <div class="stat-row sub"><span data-i18n="calc.surface.sides">Côtés (×2)</span><span class="val" id="s-side"></span></div>
+      <div class="stat-row sub"><span data-i18n="calc.surface.bottom">Plancher</span><span class="val" id="s-bottom"></span></div>
+      <div class="stat-row sub"><span data-i18n="calc.surface.roof">Toit G + D</span><span class="val" id="s-roof"></span></div>
+
+      <div class="section-label" data-i18n="calc.cuts">▸ LISTE DE COUPE</div>
+      <div class="cut-table" id="cut-table"></div>
+
+      <div class="section-label" data-i18n="calc.material">▸ MATÉRIAU REQUIS</div>
+      <div class="stat-row"><span data-i18n="calc.material.thickness">Épaisseur</span><span class="val" id="m-thick"></span></div>
+      <div class="stat-row"><span data-i18n="calc.material.pieces">Pièces totales</span><span class="val" id="m-pieces">7 pièces</span></div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- PLAN DE COUPE (inclut export PNG/SVG)                   -->
+    <!-- ======================================================= -->
+    <div id="tab-plan"   role="tabpanel" aria-labelledby="tab-btn-plan"   class="tab-panel">
+      <div class="section-label" data-i18n="plan.panelSize">▸ TAILLE DU PANNEAU</div>
+      <select id="panel-size" style="width:100%;background:#1a1d25;color:#e8a955;border:1px solid #2a2d38;border-radius:4px;padding:6px;font-family:inherit;font-size:11px;margin-bottom:8px">
+        <option value="1220x2440" selected>4' × 8' — 1220 × 2440 mm</option>
+        <option value="1220x1220">4' × 4' — 1220 × 1220 mm</option>
+        <option value="1525x1525" id="panel-size-bb">5' × 5' — 1525 × 1525 mm</option>
+        <option value="610x1220">2' × 4' — 610 × 1220 mm</option>
+        <option value="custom" data-i18n="plan.panelSize.custom">Personnalisé…</option>
+      </select>
+      <div id="custom-panel" style="display:none;margin-bottom:8px">
+        <div class="slider-group" id="sg-panelW">
+          <div class="slider-row"><span data-i18n="plan.panelWidth">Largeur panneau</span><span class="slider-val">1220 mm</span></div>
+          <input type="range" min="300" max="3000" step="10" value="1220">
+        </div>
+        <div class="slider-group" id="sg-panelH">
+          <div class="slider-row"><span data-i18n="plan.panelHeight">Hauteur panneau</span><span class="slider-val">2440 mm</span></div>
+          <input type="range" min="300" max="3000" step="10" value="2440">
+        </div>
+      </div>
+
+      <canvas id="cut-canvas" width="234" height="468"></canvas>
+
+      <div class="plan-stat"><span data-i18n="plan.panel">Panneau :</span><span id="plan-size-txt">1220 × 2440 mm</span></div>
+      <div class="plan-stat"><span data-i18n="plan.usage">Utilisation :</span><span id="plan-usage" style="color:#e8a955">—</span></div>
+      <div class="plan-stat"><span data-i18n="plan.area">Aire pièces :</span><span id="plan-area">—</span></div>
+      <div class="plan-stat"><span data-i18n="plan.panelArea">Aire panneau :</span><span id="plan-panel-area">—</span></div>
+
+      <div class="section-label" data-i18n="plan.export">▸ EXPORT PLAN</div>
+      <button class="export-btn" id="btn-export-plan-png" data-i18n="plan.export.png">⬇ Plan de coupe (.png)</button>
+      <button class="export-btn" id="btn-export-plan-svg" data-i18n="plan.export.svg">⬇ Plan de coupe (.svg)</button>
+
+      <div class="plan-legend" data-i18n-html="plan.legend">
+        Disposition automatique (shelf-packing).<br>Rouge = dépasse du panneau.<br>Écart entre pièces : 5 mm.<br>SVG = vectoriel pour découpe laser/CNC.
+      </div>
+    </div>
+
+    <!-- ======================================================= -->
+    <!-- EXPORT STL (nouvel onglet)                              -->
+    <!-- ======================================================= -->
+    <div id="tab-export" role="tabpanel" aria-labelledby="tab-btn-export" class="tab-panel">
+      <div class="section-label" data-i18n="export.stl">▸ EXPORT STL (IMPRESSION 3D)</div>
+      <button class="export-btn" id="btn-export-house" data-i18n="export.stl.house">⬇ Maison complète (.stl)</button>
+      <button class="export-btn" id="btn-export-door" data-i18n="export.stl.door">⬇ Porte seule (.stl)</button>
+      <button class="export-btn" id="btn-export-zip" data-i18n="export.stl.zip">⬇ Panneaux séparés (.zip)</button>
+      <div class="hint" style="margin-top:6px" data-i18n-html="export.stl.hint">
+        Maison = tous panneaux fusionnés (B1).<br>ZIP = 1 fichier STL par panneau (A).<br>Dimensions en mm. Watertight par panneau.
+      </div>
+    </div>
+
+  </div><!-- .tab-content -->
+
+  <!-- Switcher de langue -->
+  <div id="lang-switcher">
+    <span class="lang-label" data-i18n="lang.label">Langue</span>
+    <button data-lang="fr" class="active">FR</button>
+    <button data-lang="en">EN</button>
+    <button id="theme-toggle" aria-label="Basculer le thème clair/sombre" title="Basculer le thème">◑</button>
+  </div>
+</div><!-- #sidebar -->
+
+<div id="viewport">
+  <div id="overlay"><span id="ov-mode">SOLID</span></div>
+  <div id="axis-hint">
+    <span style="color:#e85555">X</span> <span data-i18n="axis.x">largeur</span> &nbsp;
+    <span style="color:#55b855">Y</span> <span data-i18n="axis.y">hauteur</span> &nbsp;
+    <span style="color:#5588ee">Z</span> <span data-i18n="axis.z">profondeur</span>
+  </div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

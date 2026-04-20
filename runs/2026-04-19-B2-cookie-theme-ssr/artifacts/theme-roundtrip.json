@@ -1,0 +1,30 @@
+[
+  {
+    "step": "1_initial_load",
+    "htmlOuter": "<html lang=\"fr\" data-theme=\"light\">",
+    "dataTheme": "light",
+    "cookiePresent": false
+  },
+  {
+    "step": "2_after_click",
+    "clicked": {
+      "clicked": true,
+      "ariaLabel": "Passer en mode sombre"
+    },
+    "dataTheme": "dark",
+    "cookie": "nichoir-theme=dark"
+  },
+  {
+    "step": "3_after_reload",
+    "dataTheme": "dark",
+    "htmlOuter": "<html lang=\"fr\" data-theme=\"dark\">",
+    "rawSsrHtml": "<html lang=\"fr\" data-theme=\"dark\">"
+  },
+  {
+    "step": "4_toggle_back_reload",
+    "clicked2": true,
+    "dataTheme": "light",
+    "cookie": "nichoir-theme=light",
+    "rawSsrHtml": "<html lang=\"fr\" data-theme=\"light\">"
+  }
+]

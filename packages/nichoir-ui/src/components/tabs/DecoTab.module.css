@@ -1,0 +1,139 @@
+/* DecoTab.module.css */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sectionLabel {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--n-text-muted);
+  text-transform: uppercase;
+  margin: 6px 0 4px;
+}
+
+.select {
+  padding: 6px 8px;
+  font-size: 12px;
+  background: var(--n-bg-elev);
+  color: var(--n-text);
+  border: 1px solid var(--n-border);
+  border-radius: 4px;
+  font-family: inherit;
+}
+
+.enableRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--n-text);
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+/* P2.7b — FICHIER */
+
+.fileRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fileLabel {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  background: var(--n-bg-elev);
+  color: var(--n-text);
+  border: 1px solid var(--n-border);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  flex: 1;
+  justify-content: center;
+}
+
+.fileLabel:hover {
+  background: var(--n-bg-hover);
+}
+
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.clearBtn {
+  padding: 6px 10px;
+  background: var(--n-bg-elev);
+  color: var(--n-text);
+  border: 1px solid var(--n-border);
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.clearBtn:hover:not(:disabled) {
+  background: var(--n-bg-hover);
+}
+
+.clearBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.error {
+  color: var(--n-danger, #c44);
+  font-size: 11px;
+  margin: 4px 0 0;
+  padding: 4px 8px;
+  background: var(--n-bg-danger, rgba(200, 60, 60, 0.1));
+  border-radius: 3px;
+}
+
+/* P2.7b — STATUS */
+
+.statusSection {
+  padding: 2px 0;
+}
+
+.statusText {
+  font-size: 11px;
+  color: var(--n-text-muted);
+  line-height: 1.4;
+}
+
+/* P2.7c — hint (sous sliders), warn (mode warnings) */
+
+.hint {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--n-text-muted);
+  padding: 4px 0;
+}
+
+.warn {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--n-warn, #b87);
+  padding: 4px 8px;
+  margin: 4px 0 0;
+  background: var(--n-bg-warn, rgba(184, 135, 87, 0.1));
+  border-radius: 3px;
+}

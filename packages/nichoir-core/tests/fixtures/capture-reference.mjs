@@ -212,7 +212,12 @@ function collectDefsTriangles(defs, keys) {
   const tris = [];
   for (const def of defs) {
     if (keys.includes(def.key)) {
-      tris.push(...geometryTriangles(def.geometry, def.basePos, def.baseRot));
+      // Boucle manuelle (pas de spread) pour éviter "Maximum call stack size exceeded"
+      // sur de grosses géométries décor (parité avec stl.ts:collectDefsTriangles).
+      const defTris = geometryTriangles(def.geometry, def.basePos, def.baseRot);
+      for (let i = 0; i < defTris.length; i++) {
+        tris.push(defTris[i]);
+      }
     }
   }
   return tris;

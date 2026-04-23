@@ -117,7 +117,14 @@ function collectDefsTriangles(defs: readonly PanelDef[], keys: readonly string[]
   const tris: Triangle[] = [];
   for (const def of defs) {
     if (keySet.has(def.key)) {
-      tris.push(...geometryTriangles(def.geometry, def.basePos, def.baseRot));
+      // Use boucle manuelle au lieu de spread. Un SVG décoratif agrandi peut
+      // produire des dizaines de milliers de triangles — `arr.push(...bigArr)`
+      // dépasse la limite d'arguments JS (~100-200k) et lève
+      // "Maximum call stack size exceeded".
+      const defTris = geometryTriangles(def.geometry, def.basePos, def.baseRot);
+      for (let i = 0; i < defTris.length; i++) {
+        tris.push(defTris[i]!);
+      }
     }
   }
   return tris;

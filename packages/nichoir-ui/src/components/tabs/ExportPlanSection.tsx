@@ -1,17 +1,12 @@
 // src/components/tabs/ExportPlanSection.tsx
 //
-// Section PLAN de ExportTab. Port v15 (src/exporters/plan.js:exportPlanSVG)
-// avec divergence structurelle documentée : le bouton plan SVG vivait dans
-// l'onglet PLAN en v15, il est déplacé ici pour centraliser les exports
-// sous un seul DownloadService (codex P2.6 validation).
-//
-// PNG reporté à P3 (rasterization browser, pas prioritaire — SVG reste
-// l'export vectoriel de référence pour découpe laser/CNC).
+// Export ZIP multi-panneaux du plan de coupe. Un SVG par panneau (nommage
+// panel-1.svg, panel-2.svg, ...). Déclenche via DownloadService.
 
 'use client';
 
 import { useState } from 'react';
-import { computeCutLayout, generatePlanSVG } from '@nichoir/core';
+import { computeCutLayout, generatePlanZIP } from '@nichoir/core';
 import { useNichoirStore } from '../../store.js';
 import { useT } from '../../i18n/useT.js';
 import { useDownloadService } from '../../adapters/DownloadServiceContext.js';
@@ -23,14 +18,14 @@ export function ExportPlanSection(): React.JSX.Element {
   const download = useDownloadService();
   const [error, setError] = useState<string | null>(null);
 
-  const handleSvg = async (): Promise<void> => {
+  const handleZip = async (): Promise<void> => {
     setError(null);
     try {
       const state = useNichoirStore.getState();
       const layout = computeCutLayout(state.params);
-      const svg = generatePlanSVG(layout, t);
-      const filename = `nichoir_plan_${layout.shW}x${layout.shH}.svg`;
-      await download.trigger(svg, filename, 'image/svg+xml');
+      const zipBytes = await generatePlanZIP(layout, t);
+      const filename = `nichoir_plan_${state.params.panelW}x${state.params.panelH}.zip`;
+      await download.trigger(zipBytes, filename, 'application/zip');
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setError(t('export.error.generic', { message: msg }));
@@ -41,9 +36,9 @@ export function ExportPlanSection(): React.JSX.Element {
     <div className={styles.section}>
       <div className={styles.sectionLabel}>{t('export.plan')}</div>
       <ExportButton
-        label={t('plan.export.svg')}
-        labelBusy={t('export.busy.svg')}
-        onClick={handleSvg}
+        label={t('plan.export.zip')}
+        labelBusy={t('export.busy.zip.plan')}
+        onClick={handleZip}
       />
       {error !== null && (
         <p role="alert" className={styles.error}>{error}</p>

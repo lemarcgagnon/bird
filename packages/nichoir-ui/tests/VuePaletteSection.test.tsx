@@ -12,7 +12,7 @@ beforeEach(() => {
 describe('VuePaletteSection', () => {
   it('renders 4 palette options in FR with correct labels', () => {
     const { getByText } = render(<VuePaletteSection />);
-    expect(getByText('▸ PALETTE')).toBeDefined();
+    expect(getByText('▸ COULEURS DU MODÈLE')).toBeDefined();
     expect(getByText('Bois naturel')).toBeDefined();
     expect(getByText('Bois contrasté')).toBeDefined();
     expect(getByText('Couleurs distinctes')).toBeDefined();

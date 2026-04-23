@@ -19,6 +19,7 @@ export function DimHangSection(): React.JSX.Element {
 
   return (
     <div className={styles.section}>
+      <div className={styles.sectionLabel}>{t('dim.hang')}</div>
       <Checkbox
         checked={params.hang}
         onChange={(v): void => setParam('hang', v)}

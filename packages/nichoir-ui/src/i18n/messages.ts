@@ -83,13 +83,18 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'dim.door.followTaper': 'Côtés de la porte suivent l\'évasement',
     'dim.door.followTaper.hint': 'Porte pentagone uniquement. Les côtés s\'inclinent au même angle que les murs.',
 
+    // DIM — Accessories (group header)
+    'dim.accessories': '▸ ACCESSOIRES',
+
     // DIM — Perch
+    'dim.perch': '▸ PERCHOIR',
     'dim.perch.add': 'Ajouter un perchoir',
     'dim.perch.diameter': 'Diamètre',
     'dim.perch.length': 'Longueur',
     'dim.perch.offset': 'Sous la porte',
 
     // DIM — Hang (trous de suspension)
+    'dim.hang': '▸ SUSPENSION',
     'dim.hang.add': 'Ajouter trous de suspension (débordement toit)',
     'dim.hang.posY': 'Distance depuis bord',
     'dim.hang.offsetX': 'Distance depuis crête',
@@ -105,7 +110,7 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'vue.mode.edges': 'Arêtes',
     'vue.explode': '▸ VUE ÉCLATÉE',
     'vue.explode.label': 'Séparation panneaux',
-    'vue.palette': '▸ PALETTE',
+    'vue.palette': '▸ COULEURS DU MODÈLE',
     'vue.palette.wood': 'Bois naturel',
     'vue.palette.wood-contrast': 'Bois contrasté',
     'vue.palette.colorful': 'Couleurs distinctes',
@@ -345,13 +350,18 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'dim.door.followTaper': 'Door sides follow taper',
     'dim.door.followTaper.hint': 'Pentagon only. Door sides slant at wall angle.',
 
+    // DIM — Accessories (group header)
+    'dim.accessories': '▸ ACCESSORIES',
+
     // DIM — Perch
+    'dim.perch': '▸ PERCH',
     'dim.perch.add': 'Add perch',
     'dim.perch.diameter': 'Diameter',
     'dim.perch.length': 'Length',
     'dim.perch.offset': 'Below door',
 
     // DIM — Hang (suspension holes)
+    'dim.hang': '▸ HANGING',
     'dim.hang.add': 'Add suspension holes (roof overhang)',
     'dim.hang.posY': 'Distance from edge',
     'dim.hang.offsetX': 'Distance from ridge',
@@ -366,7 +376,7 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'vue.mode.edges': 'Edges',
     'vue.explode': '▸ EXPLODED VIEW',
     'vue.explode.label': 'Panel separation',
-    'vue.palette': '▸ PALETTE',
+    'vue.palette': '▸ MODEL COLORS',
     'vue.palette.wood': 'Natural wood',
     'vue.palette.wood-contrast': 'Wood contrast',
     'vue.palette.colorful': 'Colorful',

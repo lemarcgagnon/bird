@@ -23,6 +23,7 @@ export function DimPerchSection(): React.JSX.Element | null {
 
   return (
     <div className={styles.section}>
+      <div className={styles.sectionLabel}>{t('dim.perch')}</div>
       <Checkbox
         checked={params.perch}
         onChange={(v): void => setParam('perch', v)}

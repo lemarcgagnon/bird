@@ -1,0 +1,45 @@
+<!-- Panel 1 -->
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1220mm" height="2440mm" viewBox="0 0 1220 2440">
+<title>Nichoir - Plan de coupe 1220 x 2440 mm</title>
+<rect x="0" y="0" width="1220" height="2440" fill="none" stroke="#000" stroke-width="1"/>
+<line x1="200" y1="0" x2="200" y2="2440" stroke="#ddd" stroke-width="0.3"/>
+<line x1="400" y1="0" x2="400" y2="2440" stroke="#ddd" stroke-width="0.3"/>
+<line x1="600" y1="0" x2="600" y2="2440" stroke="#ddd" stroke-width="0.3"/>
+<line x1="800" y1="0" x2="800" y2="2440" stroke="#ddd" stroke-width="0.3"/>
+<line x1="1000" y1="0" x2="1000" y2="2440" stroke="#ddd" stroke-width="0.3"/>
+<line x1="1200" y1="0" x2="1200" y2="2440" stroke="#ddd" stroke-width="0.3"/>
+<line x1="0" y1="200" x2="1220" y2="200" stroke="#ddd" stroke-width="0.3"/>
+<line x1="0" y1="400" x2="1220" y2="400" stroke="#ddd" stroke-width="0.3"/>
+<line x1="0" y1="600" x2="1220" y2="600" stroke="#ddd" stroke-width="0.3"/>
+<line x1="0" y1="800" x2="1220" y2="800" stroke="#ddd" stroke-width="0.3"/>
+<line x1="0" y1="1000" x2="1220" y2="1000" stroke="#ddd" stroke-width="0.3"/>
+<line x1="0" y1="1200" x2="1220" y2="1200" stroke="#ddd" stroke-width="0.3"/>
+<line x1="0" y1="1400" x2="1220" y2="1400" stroke="#ddd" stroke-width="0.3"/>
+<line x1="0" y1="1600" x2="1220" y2="1600" stroke="#ddd" stroke-width="0.3"/>
+<line x1="0" y1="1800" x2="1220" y2="1800" stroke="#ddd" stroke-width="0.3"/>
+<line x1="0" y1="2000" x2="1220" y2="2000" stroke="#ddd" stroke-width="0.3"/>
+<line x1="0" y1="2200" x2="1220" y2="2200" stroke="#ddd" stroke-width="0.3"/>
+<line x1="0" y1="2400" x2="1220" y2="2400" stroke="#ddd" stroke-width="0.3"/>
+<polygon points="5,281.0166030567768 165,281.0166030567768 165,61.01660305677677 85,5 5,61.01660305677677" fill="#d4a57440" stroke="#000" stroke-width="0.5"/>
+<text x="85" y="136.60830152838838" font-family="sans-serif" font-size="12.8" text-anchor="middle" fill="#000">calc.cuts.facade 1</text>
+<text x="85" y="153.2483015283884" font-family="sans-serif" font-size="10.240000000000002" text-anchor="middle" fill="#555">160×276 mm</text>
+<polygon points="175,281.0166030567768 335,281.0166030567768 335,61.01660305677677 255,5 175,61.01660305677677" fill="#d4a57440" stroke="#000" stroke-width="0.5"/>
+<text x="255" y="136.60830152838838" font-family="sans-serif" font-size="12.8" text-anchor="middle" fill="#000">calc.cuts.facade 2</text>
+<text x="255" y="153.2483015283884" font-family="sans-serif" font-size="10.240000000000002" text-anchor="middle" fill="#555">160×276 mm</text>
+<rect x="345" y="5" width="146.28520476376016" height="220" fill="#9e704440" stroke="#000" stroke-width="0.5"/>
+<text x="418.14260238188007" y="109.1485918094496" font-family="sans-serif" font-size="11.702816381100813" text-anchor="middle" fill="#000">calc.cuts.roofL</text>
+<text x="418.14260238188007" y="124.36225310488065" font-family="sans-serif" font-size="9.36225310488065" text-anchor="middle" fill="#555">146×220 mm</text>
+<rect x="501.28520476376013" y="5" width="136" height="220" fill="#c4946440" stroke="#000" stroke-width="0.5"/>
+<text x="569.2852047637601" y="109.56" font-family="sans-serif" font-size="10.88" text-anchor="middle" fill="#000">calc.cuts.side G</text>
+<text x="569.2852047637601" y="123.70400000000001" font-family="sans-serif" font-size="8.704" text-anchor="middle" fill="#555">136×220 mm</text>
+<rect x="647.2852047637601" y="5" width="136" height="220" fill="#c4946440" stroke="#000" stroke-width="0.5"/>
+<text x="715.2852047637601" y="109.56" font-family="sans-serif" font-size="10.88" text-anchor="middle" fill="#000">calc.cuts.side D</text>
+<text x="715.2852047637601" y="123.70400000000001" font-family="sans-serif" font-size="8.704" text-anchor="middle" fill="#555">136×220 mm</text>
+<rect x="793.2852047637601" y="5" width="134.28520476376016" height="220" fill="#9e704440" stroke="#000" stroke-width="0.5"/>
+<text x="860.4278071456403" y="109.62859180944959" font-family="sans-serif" font-size="10.742816381100813" text-anchor="middle" fill="#000">calc.cuts.roofR</text>
+<text x="860.4278071456403" y="123.59425310488065" font-family="sans-serif" font-size="8.59425310488065" text-anchor="middle" fill="#555">134×220 mm</text>
+<rect x="937.5704095275203" y="5" width="136" height="136" fill="#b4845440" stroke="#000" stroke-width="0.5"/>
+<text x="1005.5704095275203" y="67.56" font-family="sans-serif" font-size="10.88" text-anchor="middle" fill="#000">calc.cuts.bottom</text>
+<text x="1005.5704095275203" y="81.70400000000001" font-family="sans-serif" font-size="8.704" text-anchor="middle" fill="#555">136×136 mm</text>
+</svg>

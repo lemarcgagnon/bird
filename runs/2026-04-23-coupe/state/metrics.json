@@ -1,0 +1,111 @@
+{
+  "task_id": "coupe-benchmark",
+  "status": "completed",
+  "runs": [
+    {
+      "preset": "A",
+      "algo": "shelf",
+      "panelCount": 1,
+      "meanOccupation": 0.07672225311550088,
+      "minOccupation": 0.07672225311550088,
+      "wasteTotalM2": 2.748413196925777,
+      "overflowCount": 0,
+      "elapsedMs": 0.025105000000000644
+    },
+    {
+      "preset": "A",
+      "algo": "rectpack",
+      "panelCount": 1,
+      "meanOccupation": 0.07672225311550088,
+      "minOccupation": 0.07672225311550088,
+      "wasteTotalM2": 2.748413196925777,
+      "overflowCount": 0,
+      "elapsedMs": 0.03441270000000003
+    },
+    {
+      "preset": "B",
+      "algo": "shelf",
+      "panelCount": 1,
+      "meanOccupation": 0.09073116927344943,
+      "minOccupation": 0.09073116927344943,
+      "wasteTotalM2": 2.7067114553067957,
+      "overflowCount": 0,
+      "elapsedMs": 0.007820699999999191
+    },
+    {
+      "preset": "B",
+      "algo": "rectpack",
+      "panelCount": 1,
+      "meanOccupation": 0.09073116927344943,
+      "minOccupation": 0.09073116927344943,
+      "wasteTotalM2": 2.7067114553067957,
+      "overflowCount": 0,
+      "elapsedMs": 0.03114309999999989
+    },
+    {
+      "preset": "C",
+      "algo": "shelf",
+      "panelCount": 1,
+      "meanOccupation": 0.11290261227916149,
+      "minOccupation": 0.11290261227916149,
+      "wasteTotalM2": 2.6407115037673923,
+      "overflowCount": 0,
+      "elapsedMs": 0.006997900000000357
+    },
+    {
+      "preset": "C",
+      "algo": "rectpack",
+      "panelCount": 1,
+      "meanOccupation": 0.11290261227916149,
+      "minOccupation": 0.11290261227916149,
+      "wasteTotalM2": 2.6407115037673923,
+      "overflowCount": 0,
+      "elapsedMs": 0.019370800000000087
+    },
+    {
+      "preset": "D",
+      "algo": "shelf",
+      "panelCount": 1,
+      "meanOccupation": 0.07672225311550089,
+      "minOccupation": 0.07672225311550089,
+      "wasteTotalM2": 2.748413196925777,
+      "overflowCount": 0,
+      "elapsedMs": 0.005921299999999974
+    },
+    {
+      "preset": "D",
+      "algo": "rectpack",
+      "panelCount": 1,
+      "meanOccupation": 0.07672225311550089,
+      "minOccupation": 0.07672225311550089,
+      "wasteTotalM2": 2.748413196925777,
+      "overflowCount": 0,
+      "elapsedMs": 0.024161800000000254
+    },
+    {
+      "preset": "E",
+      "algo": "shelf",
+      "panelCount": 1,
+      "meanOccupation": 0.07725974303756485,
+      "minOccupation": 0.07725974303756485,
+      "wasteTotalM2": 2.746813196925777,
+      "overflowCount": 0,
+      "elapsedMs": 0.006517300000000148
+    },
+    {
+      "preset": "E",
+      "algo": "rectpack",
+      "panelCount": 1,
+      "meanOccupation": 0.07725974303756485,
+      "minOccupation": 0.07725974303756485,
+      "wasteTotalM2": 2.746813196925777,
+      "overflowCount": 0,
+      "elapsedMs": 0.030601799999999457
+    }
+  ],
+  "machine": {
+    "platform": "linux",
+    "arch": "x64",
+    "node": "v22.14.0"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "entries": [
+    {
+      "path": "preset-A-shelf.svg",
+      "preset": "A",
+      "algo": "shelf"
+    },
+    {
+      "path": "preset-A-rectpack.svg",
+      "preset": "A",
+      "algo": "rectpack"
+    },
+    {
+      "path": "preset-B-shelf.svg",
+      "preset": "B",
+      "algo": "shelf"
+    },
+    {
+      "path": "preset-B-rectpack.svg",
+      "preset": "B",
+      "algo": "rectpack"
+    },
+    {
+      "path": "preset-C-shelf.svg",
+      "preset": "C",
+      "algo": "shelf"
+    },
+    {
+      "path": "preset-C-rectpack.svg",
+      "preset": "C",
+      "algo": "rectpack"
+    },
+    {
+      "path": "preset-D-shelf.svg",
+      "preset": "D",
+      "algo": "shelf"
+    },
+    {
+      "path": "preset-D-rectpack.svg",
+      "preset": "D",
+      "algo": "rectpack"
+    },
+    {
+      "path": "preset-E-shelf.svg",
+      "preset": "E",
+      "algo": "shelf"
+    },
+    {
+      "path": "preset-E-rectpack.svg",
+      "preset": "E",
+      "algo": "rectpack"
+    }
+  ]
+}

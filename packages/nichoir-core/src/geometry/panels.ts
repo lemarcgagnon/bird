@@ -17,6 +17,7 @@
 //      cette vacuité pour ne pas pousser un def deco vide dans `defs`.
 
 import * as THREE from 'three';
+import { Brush, Evaluator, SUBTRACTION } from 'three-bvh-csg';
 import { PALETTES, hexToNumber } from '../palettes.js';
 import { DECO_KEYS } from '../state.js';
 import {
@@ -32,7 +33,6 @@ import type {
   PanelDefKey,
   Vec3,
   RoofPlaneFn,
-  RidgeType,
   DoorInfo,
   PerchHoleInfo,
   DecoCtx,
@@ -292,91 +292,77 @@ export function mkSidePanelWithDoor(
 }
 
 // ---------------------------------------------------------------------------
-// buildRoofPanelWithHoles
+// drillHangHolesCSG
 // ---------------------------------------------------------------------------
 
 /**
- * Construit un panneau de toit avec 2 trous de suspension (cylindres) via
- * ExtrudeGeometry + vue de dessus (plan XZ).
+ * Perce 2 trous cylindriques (front + back) dans une géométrie de panneau
+ * de toit via CSG boolean subtraction. Le panneau original est préservé
+ * exactement (ridge coverage miter/left/right conservés), les trous sont
+ * purement additifs (ne touchent pas la structure du panneau).
  *
- * Convention de coordonnées :
- *   - Le Shape THREE est dans le plan XY local.
- *   - On extrude le long de +Z local (épaisseur T).
- *   - On applique rotateX(-π/2) pour mapper :
- *       shape.x → world.x  (direction de pente)
- *       extruded +Z → world.+Y (épaisseur, vers le haut)
- *       shape.y → world.-Z  (axe D, signe inversé)
- *   - Pour obtenir world.Z = +rL/2 (front), on pose shape.y = -rL/2.
- *     Donc shape.y = -z_world (convention interne de cette fonction).
+ * Les trous sont perpendiculaires au plan du panneau (axe +Y local), traversent
+ * l'épaisseur T du panneau (cylindre de longueur T * 1.05 pour éviter les
+ * problèmes de faces coïncidentes avec les faces top/bottom).
  *
- * Limitation : perd le chanfrein onglet (miter chamfer) sur la crête quand
- * hang=true. Tradeoff validé avec l'utilisateur.
+ * Coordonnées locales du panneau (pré-basePos/baseRot) :
+ *   - X : direction de la pente (0 = ridge pour isL → négatif vers eave)
+ *   - Y : épaisseur (0 à T)
+ *   - Z : direction D (−rL/2 à +rL/2), front = +Z, back = −Z
  *
- * @param isL      true = panneau gauche, false = panneau droit
+ * @param panelGeo géométrie du panneau à percer (BoxGeometry ou ExtrudeGeometry miter)
  * @param sL       longueur de la pente (mm)
- * @param rL       longueur du toit le long de D (mm), = D + 2*overhang
+ * @param rL       longueur du toit le long de D (mm)
  * @param T        épaisseur (mm)
  * @param hangPosY distance depuis chaque bord de pignon le long de l'axe D (mm)
- * @param hangOffsetX distance depuis la crête le long de la pente (mm)
+ * @param hangOffsetX distance depuis la crête (x=0) vers l'avant-toit (mm)
  * @param hangDiam diamètre des trous (mm)
- * @param ridge type de jonction crête ('left'|'right'|'miter')
- * @param bev   valeur du chanfrein miter (mm), utilisé si ridge='miter'
+ * @param isL true pour roofL (ridge à x=0, eave à x=-sL), false pour roofR
  */
-function buildRoofPanelWithHoles(
-  isL: boolean,
-  sL: number,
+function drillHangHolesCSG(
+  panelGeo: THREE.BufferGeometry,
+  _sL: number,
   rL: number,
   T: number,
   hangPosY: number,
   hangOffsetX: number,
   hangDiam: number,
-  ridge: RidgeType,
-  bev: number,
+  isL: boolean,
 ): THREE.BufferGeometry {
-  let xStart: number, xEnd: number;
-  if (isL) {
-    xStart = -sL;
-    if (ridge === 'left')        xEnd = T;   // roofL covers ridge with +T overhang
-    else if (ridge === 'miter')  xEnd = bev; // bev chamfer approximation
-    else /* ridge === 'right' */ xEnd = 0;
-  } else {
-    xEnd = sL;
-    if (ridge === 'right')       xStart = -T;   // roofR covers ridge with +T overhang
-    else if (ridge === 'miter')  xStart = -bev; // bev chamfer approximation
-    else /* ridge === 'left' */  xStart = 0;
-  }
+  const evaluator = new Evaluator();
+  // toNonIndexed() ensures CSG works reliably on both BoxGeometry (indexed)
+  // and ExtrudeGeometry (miter, also indexed). Without this some edges may
+  // produce degenerate triangles at junction seams.
+  const panelGeoNI = panelGeo.toNonIndexed();
+  let result: Brush = new Brush(panelGeoNI);
+  result.updateMatrixWorld();
 
-  // Shape en plan XY local. shape.y = -z_world (voir convention ci-dessus).
-  // Contour rectangulaire (CCW vu de +Z local = +Y world) :
-  //   (xStart, -(-rL/2)) → (xEnd, -(-rL/2)) → (xEnd, -(+rL/2)) → (xStart, -(+rL/2))
-  // = (xStart, rL/2) → (xEnd, rL/2) → (xEnd, -rL/2) → (xStart, -rL/2)
-  const sh = new THREE.Shape();
-  sh.moveTo(xStart,  rL / 2);
-  sh.lineTo(xEnd,    rL / 2);
-  sh.lineTo(xEnd,   -rL / 2);
-  sh.lineTo(xStart, -rL / 2);
-  sh.closePath();
-
-  // 2 trous : symétrie avant/arrière en world.Z.
-  // world.Z front = +rL/2 - hangPosY → shape.y = -(+rL/2 - hangPosY) = -rL/2 + hangPosY
-  // world.Z back  = -rL/2 + hangPosY → shape.y = -(-rL/2 + hangPosY) = +rL/2 - hangPosY
-  const holeX = isL ? -sL + hangOffsetX : sL - hangOffsetX;
   const holeR = hangDiam / 2;
-  const syFront = -rL / 2 + hangPosY;   // shape.y correspondant à world.Z front
-  const syBack  =  rL / 2 - hangPosY;   // shape.y correspondant à world.Z back
-  for (const sy of [syFront, syBack]) {
-    const p = new THREE.Path();
-    p.absellipse(holeX, sy, holeR, holeR, 0, Math.PI * 2, true);
-    sh.holes.push(p);
+  const cylH = T * 1.05; // slightly taller than panel thickness to avoid coplanar faces
+
+  // Hole X position: hangOffsetX measured from ridge (x=0) towards eave.
+  // roofL : eave at x=-sL, so hole is at x = -hangOffsetX
+  // roofR : eave at x=+sL, so hole is at x = +hangOffsetX
+  const holeX = isL ? -hangOffsetX : hangOffsetX;
+
+  // Z positions: symmetric front/back at hangPosY from each edge
+  const zFront = rL / 2 - hangPosY;
+  const zBack = -rL / 2 + hangPosY;
+
+  for (const z of [zFront, zBack]) {
+    // CylinderGeometry default orientation: axis along Y.
+    // Panel thickness is in Y (from 0 to T), so this is correct.
+    const cylGeo = new THREE.CylinderGeometry(holeR, holeR, cylH, 32);
+    // Center cylinder at mid-panel height (T/2) and at hole position
+    cylGeo.translate(holeX, T / 2, z);
+    const holeBrush = new Brush(cylGeo);
+    holeBrush.updateMatrixWorld();
+
+    // SUBTRACTION: result = result − hole
+    result = evaluator.evaluate(result, holeBrush, SUBTRACTION);
   }
 
-  const geo = new THREE.ExtrudeGeometry(sh, { depth: T, bevelEnabled: false });
-  // rotateX(-π/2) : (x,y,z) → (x, z, -y)
-  //   shape.x → world.x          (pente, correct)
-  //   extruded +Z (T) → world.+Y  (épaisseur, vers le haut, correct)
-  //   shape.y → world.-Z          (axe D, convention interne ci-dessus)
-  geo.rotateX(-Math.PI / 2);
-  return geo;
+  return result.geometry;
 }
 
 // ---------------------------------------------------------------------------
@@ -596,70 +582,54 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
   // Toit
   const bev = T * Math.tan(ang);
 
-  if (params.hang) {
-    // Trous de suspension : ExtrudeGeometry vue-de-dessus + 4 trous circulaires.
-    // On remplace la géométrie miter/BoxGeometry pour les 2 panneaux de toit.
-    // Tradeoff : perd le chanfrein onglet (miter) sur la crête. Validé utilisateur.
-    const rlG = buildRoofPanelWithHoles(
-      true, sL, rL, T, params.hangPosY, params.hangOffsetX, params.hangDiam,
-      ridge, bev,
-    );
-    defs.push({
-      key: 'roofL', geometry: rlG,
-      basePos: [0, peakY, 0], baseRot: [0, 0, ang],
-      color: COL_ACTIVE.roofL, explodeDir: [-Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
-    });
-    const rrG = buildRoofPanelWithHoles(
-      false, sL, rL, T, params.hangPosY, params.hangOffsetX, params.hangDiam,
-      ridge, bev,
-    );
-    defs.push({
-      key: 'roofR', geometry: rrG,
-      basePos: [0, peakY, 0], baseRot: [0, 0, -ang],
-      color: COL_ACTIVE.roofR, explodeDir: [Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
-    });
-  } else if (ridge === 'miter') {
+  // Construction des panneaux de toit : géométrie originale TOUJOURS construite
+  // selon le type de jonction crête (miter / left / right), exactement comme
+  // avant. Les trous de suspension sont appliqués EN POST-PROCESSING via CSG
+  // si hang=true — ils ne modifient pas la logique de construction du panneau.
+  let rlG: THREE.BufferGeometry;
+  let rrG: THREE.BufferGeometry;
+
+  if (ridge === 'miter') {
     const shL = new THREE.Shape();
     shL.moveTo(0, 0); shL.lineTo(-sL, 0); shL.lineTo(-sL, T); shL.lineTo(bev, T); shL.closePath();
-    const rlG = new THREE.ExtrudeGeometry(shL, { depth: rL, bevelEnabled: false });
+    rlG = new THREE.ExtrudeGeometry(shL, { depth: rL, bevelEnabled: false });
     rlG.translate(0, 0, -rL / 2);
-    defs.push({
-      key: 'roofL', geometry: rlG,
-      basePos: [0, peakY, 0], baseRot: [0, 0, ang],
-      color: COL_ACTIVE.roofL, explodeDir: [-Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
-    });
 
     const shR = new THREE.Shape();
     shR.moveTo(0, 0); shR.lineTo(sL, 0); shR.lineTo(sL, T); shR.lineTo(-bev, T); shR.closePath();
-    const rrG = new THREE.ExtrudeGeometry(shR, { depth: rL, bevelEnabled: false });
+    rrG = new THREE.ExtrudeGeometry(shR, { depth: rL, bevelEnabled: false });
     rrG.translate(0, 0, -rL / 2);
-    defs.push({
-      key: 'roofR', geometry: rrG,
-      basePos: [0, peakY, 0], baseRot: [0, 0, -ang],
-      color: COL_ACTIVE.roofR, explodeDir: [Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
-    });
   } else {
     const sL_L = ridge === 'left' ? sL + T : sL;
     const sL_R = ridge === 'right' ? sL + T : sL;
 
-    const rlG = new THREE.BoxGeometry(sL_L, T, rL);
+    rlG = new THREE.BoxGeometry(sL_L, T, rL);
     if (ridge === 'left') rlG.translate((-sL + T) / 2, T / 2, 0);
     else                  rlG.translate(-sL / 2, T / 2, 0);
-    defs.push({
-      key: 'roofL', geometry: rlG,
-      basePos: [0, peakY, 0], baseRot: [0, 0, ang],
-      color: COL_ACTIVE.roofL, explodeDir: [-Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
-    });
 
-    const rrG = new THREE.BoxGeometry(sL_R, T, rL);
+    rrG = new THREE.BoxGeometry(sL_R, T, rL);
     if (ridge === 'right') rrG.translate((sL - T) / 2, T / 2, 0);
     else                   rrG.translate(sL / 2, T / 2, 0);
-    defs.push({
-      key: 'roofR', geometry: rrG,
-      basePos: [0, peakY, 0], baseRot: [0, 0, -ang],
-      color: COL_ACTIVE.roofR, explodeDir: [Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
-    });
   }
+
+  // Si hang est activé : perçage CSG des 4 trous de suspension (2 par panneau).
+  // Opération purement additive sur la géométrie existante — le panneau original
+  // (miter parallelogramme ou BoxGeometry avec ridge coverage) est PRÉSERVÉ.
+  if (params.hang) {
+    rlG = drillHangHolesCSG(rlG, sL, rL, T, params.hangPosY, params.hangOffsetX, params.hangDiam, true);
+    rrG = drillHangHolesCSG(rrG, sL, rL, T, params.hangPosY, params.hangOffsetX, params.hangDiam, false);
+  }
+
+  defs.push({
+    key: 'roofL', geometry: rlG,
+    basePos: [0, peakY, 0], baseRot: [0, 0, ang],
+    color: COL_ACTIVE.roofL, explodeDir: [-Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
+  });
+  defs.push({
+    key: 'roofR', geometry: rrG,
+    basePos: [0, peakY, 0], baseRot: [0, 0, -ang],
+    color: COL_ACTIVE.roofR, explodeDir: [Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
+  });
 
   // Panneau de porte (pièce physique séparée). La géométrie est construite en
   // coords locales (u, v) centrées sur dcx (selon la face porteuse), puis

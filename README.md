@@ -8,7 +8,7 @@ Application de démo déployable : **Next.js 15 + React 19 + Three.js r160**. Ar
 
 ## Fonctionnalités utilisateur
 
-- **6 onglets** :
+- **7 onglets** :
   - **DIM** — dimensions, plancher, toiture, crête (left/right/miter), matériau, porte (type + taille + position + face de porte), accessoires (perchoir, suspension 4 trous)
   - **VUE** — mode d'affichage (solide / wireframe / xray / edges), vue éclatée, plans de coupe X/Y/Z, palette de couleurs (4 thèmes : Bois naturel / Bois contrasté / Couleurs distinctes / Monochrome)
   - **DÉCOR** — upload SVG / PNG / JPG par panneau, mode vectoriel (extrusion + bevel) ou heightmap (relief depuis image), **découpe traversante** (motif SVG → vrai trou watertight dans le panneau, laser/CNC-ready), contrôles dimensions / relief / clip
@@ -101,7 +101,7 @@ Le hook `predev` rebuild automatiquement les 3 packages workspace avant de lance
 
 ```bash
 pnpm -r typecheck     # 4/4 packages
-pnpm -r test          # 489 tests verts (168 core + 4 adapters + 317 ui)
+pnpm -r test          # 501 tests verts (176 core + 4 adapters + 321 ui)
 pnpm -r lint          # 4/4 packages
 ```
 

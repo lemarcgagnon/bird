@@ -216,10 +216,17 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'plan.panelWidth': 'Largeur panneau',
     'plan.panelHeight': 'Hauteur panneau',
     'plan.panel': 'Panneau :',
-    'plan.usage': 'Utilisation :',
-    'plan.area': 'Aire pièces :',
-    'plan.panelArea': 'Aire panneau :',
     'plan.rotated': '(tourné 90°)',
+    'plan.panelN': 'Panneau {n}',
+    'plan.occupation': 'Occupation',
+    'plan.panelCount': 'Nombre de panneaux :',
+    'plan.meanOccupation': 'Occupation moyenne :',
+    'plan.area': 'Aire pièces totale :',
+    'plan.totalPanelArea': 'Aire panneaux totale :',
+    'plan.overflowCount': 'Pièces hors panneau :',
+    'plan.summary': '{n} panneau(x), occupation moyenne {occ}',
+    'plan.noPanels': 'Aucun panneau — toutes les pièces sont trop grandes',
+    'plan.overflow.title': '⚠ Pièces plus grandes que le panneau',
 
     // VIEWPORT — fallback rendu par ViewportErrorFallback quand le mount
     // Three.js throw (WebGL absent, context lost, etc.). Phrasing codex P2.5.5.
@@ -248,8 +255,8 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'export.error.noDoor': 'Pas de panneau de porte à exporter. Activez « Créer le panneau de porte » dans l\'onglet DIM.',
     'export.error.generic': 'Erreur export : {message}',
     'export.plan': '▸ EXPORT PLAN DE COUPE',
-    'plan.export.svg': '⬇ Plan de coupe (.svg)',
-    'export.busy.svg': 'Export SVG…',
+    'plan.export.zip': '⬇ Plan de coupe (.zip, 1 SVG par panneau)',
+    'export.busy.zip.plan': 'Export ZIP plan…',
   },
   en: {
     // App
@@ -452,10 +459,17 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'plan.panelWidth': 'Sheet width',
     'plan.panelHeight': 'Sheet height',
     'plan.panel': 'Sheet:',
-    'plan.usage': 'Usage:',
-    'plan.area': 'Pieces area:',
-    'plan.panelArea': 'Sheet area:',
     'plan.rotated': '(rotated 90°)',
+    'plan.panelN': 'Sheet {n}',
+    'plan.occupation': 'Occupation',
+    'plan.panelCount': 'Sheet count:',
+    'plan.meanOccupation': 'Mean occupation:',
+    'plan.area': 'Total pieces area:',
+    'plan.totalPanelArea': 'Total sheet area:',
+    'plan.overflowCount': 'Oversized pieces:',
+    'plan.summary': '{n} sheet(s), mean occupation {occ}',
+    'plan.noPanels': 'No sheet — all pieces are too large',
+    'plan.overflow.title': '⚠ Pieces larger than the sheet',
 
     // VIEWPORT — fallback rendered by ViewportErrorFallback when the
     // Three.js mount throws (WebGL absent, context lost, etc.).
@@ -480,7 +494,7 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'export.error.noDoor': 'No door piece to export. Enable "Create door piece" in the DIM tab.',
     'export.error.generic': 'Export error: {message}',
     'export.plan': '▸ CUT PLAN EXPORT',
-    'plan.export.svg': '⬇ Cut plan (.svg)',
-    'export.busy.svg': 'Exporting SVG…',
+    'plan.export.zip': '⬇ Cut plan (.zip, 1 SVG per sheet)',
+    'export.busy.zip.plan': 'Exporting ZIP plan…',
   },
 };

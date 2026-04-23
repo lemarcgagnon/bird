@@ -17,8 +17,7 @@ export interface WorkingPiece extends LayoutPiece {
 
 /**
  * Construit la cut list des 7 pièces (+ 1 optionnelle porte) depuis `params`.
- * Exporté : partagé avec `cut-plan-rectpack.ts` (branche `coupe`) pour
- * garantir une comparaison d'algos à armes strictement égales.
+ * Exporté pour permettre un usage par d'autres algorithmes de layout.
  */
 export function buildCutList(params: Params): WorkingPiece[] {
   const { W, D, slope, overhang, T, floor, ridge, taperX, door, doorPanel, doorW, doorH, doorVar } = params;

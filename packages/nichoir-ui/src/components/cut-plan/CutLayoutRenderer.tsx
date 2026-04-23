@@ -1,7 +1,6 @@
 // src/components/cut-plan/CutLayoutRenderer.tsx
 //
-// Composant racine du rendu d'un CutLayout multi-panneaux. Partagé entre
-// PlanTab (shelf-packing) et PlanTab2 (rectangle-packer, branche coupe).
+// Composant racine du rendu d'un CutLayout multi-panneaux.
 //
 // Responsabilité : orchestrer header + overflow banner + liste de PanelCard.
 // Zéro logique de calcul — purement présentational.

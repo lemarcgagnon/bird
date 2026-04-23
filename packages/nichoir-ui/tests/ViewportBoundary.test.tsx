@@ -156,11 +156,11 @@ describe('ViewportBoundary × NichoirApp (intégration réelle)', () => {
     // role="alert" présent
     expect(getByRole('alert')).toBeDefined();
 
-    // (b) Sidebar toujours rendue : les 6 tabs sont cliquables
+    // (b) Sidebar toujours rendue : les 7 tabs sont cliquables
     const tabs = getAllByRole('tab');
-    expect(tabs).toHaveLength(6);
+    expect(tabs).toHaveLength(7);
 
-    // (c) Click CALC (index 3 : dim, vue, deco, calc, plan, export).
+    // (c) Click CALC (index 3 : dim, vue, deco, calc, plan, plan2, export).
     // Codex P2.5.5 finding #2 : on clique un onglet NON-default (pas DIM)
     // pour prouver que l'interaction mute réellement le store.
     act(() => { fireEvent.click(tabs[3]!); });

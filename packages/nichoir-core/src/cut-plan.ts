@@ -10,13 +10,17 @@ import type { Params, CutLayout, LayoutPiece, Panel } from './types.js';
 const D2R = Math.PI / 180;
 const GAP = 5;
 
-interface WorkingPiece extends LayoutPiece {
+export interface WorkingPiece extends LayoutPiece {
   _w0: number;  // largeur originale
   _h0: number;  // hauteur originale
 }
 
-/** Construit la cut list des 7 pièces (+ 1 optionnelle porte) depuis `params`. */
-function buildCutList(params: Params): WorkingPiece[] {
+/**
+ * Construit la cut list des 7 pièces (+ 1 optionnelle porte) depuis `params`.
+ * Exporté : partagé avec `cut-plan-rectpack.ts` (branche `coupe`) pour
+ * garantir une comparaison d'algos à armes strictement égales.
+ */
+export function buildCutList(params: Params): WorkingPiece[] {
   const { W, D, slope, overhang, T, floor, ridge, taperX, door, doorPanel, doorW, doorH, doorVar } = params;
   const ang = slope * D2R;
   const isPose = floor === 'pose';

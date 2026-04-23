@@ -63,9 +63,17 @@ répartition sur les 5 presets de référence A-E.
 - Les deux algos reçoivent la même cut list (façades en boîte englobante).
 
 ## Verdict candidat
-- [ ] shelf gagne
+- [x] **shelf gagne** (décision user 2026-04-23)
 - [ ] rectpack gagne
 - [ ] égalité — je garde le plus simple (shelf, pas de dépendance externe)
+
+### Rationale du verdict
+
+Le benchmark sur les 5 presets montrait une **égalité chiffrée** parce que chaque config tient sur 1 panneau 1220×2440 mm — cas où les 2 algos convergent.
+
+**En test manuel avec des panneaux plus petits (forçant le multi-bin)**, l'utilisateur constate empiriquement que `rectangle-packer` est **moins efficace** (plus de panneaux, occupation moindre). Cause identifiée : la lib ne propage pas les `width`/`height` post-rotation dans `usedRectangles`, imposant `allowFlip=false` dans notre wrapper → rectangle-packer ne peut pas utiliser la rotation, alors que shelf-packing le fait et gagne en densité.
+
+**Conclusion** : shelf-packing gagne. Suppression du codebase via branche `cleanup-cut-plan`.
 
 ## Incertitude résiduelle
 - Les 5 presets ne couvrent pas tous les cas atypiques (panneaux très

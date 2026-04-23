@@ -152,9 +152,15 @@ export function buildDecoGeoHeightmap(
     const py = Math.min(res - 1, Math.round(gy * (res - 1) / res));
     const ofs = (py * res + px) * 4;
     const lum = ((data[ofs] ?? 0) + (data[ofs + 1] ?? 0) + (data[ofs + 2] ?? 0)) / 3 / 255;
-    let h01 = 1 - lum;
-    if (invert) h01 = lum;
-    pos.setZ(i, h01 * depth);
+    const h01 = 1 - lum;  // pixels sombres = motif (feature)
+    // `invert` flip la DIRECTION du relief :
+    //   false → motif sort du panneau (emboss, Z positif)
+    //   true  → motif creuse dans le panneau (deboss, Z négatif)
+    // Note : cette sémantique diverge du port src v1 (qui inversait juste le mapping
+    // luminance). Changement explicite pour correspondre à l'UX attendue
+    // du slider "Inverser" : emboss vs deboss.
+    const z = (invert ? -1 : 1) * h01 * depth;
+    pos.setZ(i, z);
   }
   pos.needsUpdate = true;
   plane.computeVertexNormals();

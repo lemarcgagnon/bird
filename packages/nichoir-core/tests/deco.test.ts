@@ -124,10 +124,9 @@ describe('buildDecoGeoHeightmap', () => {
     expect(triangleCount(geo)).toBe(512);
   });
 
-  it('invert=true inverse la hauteur (les Z positifs doivent apparaître pour les pixels sombres)', () => {
+  it('invert=true flip la direction du relief (deboss : pixels sombres creusent)', () => {
     const res = 16;
-    // Tout noir → sans invert : h01=1, depth=2 → Z=2; avec invert : h01=0, Z=0
-    const data = new Uint8ClampedArray(res * res * 4).fill(0); // noir
+    const data = new Uint8ClampedArray(res * res * 4).fill(0); // tout noir
     data.forEach((_, i) => { if (i % 4 === 3) data[i] = 255; }); // alpha=255
 
     const geoNormal = buildDecoGeoHeightmap(data, res, 10, 10, 2, false);
@@ -136,10 +135,12 @@ describe('buildDecoGeoHeightmap', () => {
     const bboxNormal = computeBbox(geoNormal);
     const bboxInverted = computeBbox(geoInverted);
 
-    // Sans invert, pixels noirs → h01=1 → Z=2 (max Z > 0)
-    expect(bboxNormal.max[2]).toBeGreaterThan(0.5);
-    // Avec invert, pixels noirs → h01=0 → Z=0 (max Z ≈ 0)
-    expect(bboxInverted.max[2]).toBeCloseTo(0, 5);
+    // Sans invert (emboss) : tout noir → h01=1 → Z=+depth=+2 (relief sort)
+    expect(bboxNormal.max[2]).toBeCloseTo(2, 5);
+    expect(bboxNormal.min[2]).toBeCloseTo(2, 5);
+    // Avec invert (deboss) : tout noir → h01=1 → Z=-depth=-2 (relief creuse)
+    expect(bboxInverted.max[2]).toBeCloseTo(-2, 5);
+    expect(bboxInverted.min[2]).toBeCloseTo(-2, 5);
   });
 
   it('throws TypeError si heightmapResolution <= 0 (covered par la borne [16, 128])', () => {

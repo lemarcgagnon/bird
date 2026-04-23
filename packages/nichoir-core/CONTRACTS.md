@@ -362,6 +362,28 @@ export function computeCutLayout(params: Params): CutLayout;
 
 > ⚠️ **Non-export** : `drawCutPlan(ctx, layout)` appartient à `nichoir-ui/rendering/` car il dépend de `CanvasRenderingContext2D`. Le core n'en sait rien.
 
+#### `computeCutLayoutRectpack(params: Params): CutLayout`
+
+Alternative 2D layout algorithm using `rectangle-packer` (MIT, v1.0.4).
+Same signature as `computeCutLayout` (CutLayout multi-bin). Uses
+`GuillotineBinPack` (single-bin natively) wrapped in a multi-bin outer
+loop : each iteration creates a new bin, attempts `InsertSizes` (batch),
+moves placed rects to panels, continues with unplaced. A piece strictly
+bigger than the panel goes to `overflow` before the loop.
+
+**Heuristic** : `FreeRectChoiceHeuristic.RectBestAreaFit` +
+`GuillotineSplitHeuristic.SplitShorterLeftoverAxis` (both `0`).
+
+**`allowFlip=false`** : rectangle-packer's `InsertSizes` does NOT update
+the `width`/`height` of rotated rects in `usedRectangles`, making
+rotation detection post-hoc impossible. Disabling flips keeps positions
+and sizes accurate. Trade-off : potentially lower packing efficiency vs
+shelf-packing (which does use rotation). This is revealed by the
+benchmark in `runs/2026-04-23-coupe/RESULT.md`.
+
+Shares `buildCutList` with `computeCutLayout` (intra-package import)
+for a strict apples-to-apples comparison.
+
 ### Geometry
 
 ```ts

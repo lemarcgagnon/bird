@@ -52,6 +52,35 @@ function flipGeoWinding(geo: THREE.BufferGeometry): void {
  * Port fidèle de la branche `mode === 'vector'` de src buildDecoGeo().
  * Divergence : retourne `new BufferGeometry()` vide (pas null) sur cas dégénérés.
  */
+/**
+ * Flip une BufferGeometry dans l'axe Z en préservant les normales correctes.
+ * Pattern Three.js standard : scale(1,1,-1) inverse les positions Z mais
+ * inverse aussi le winding implicite → normales pointent à l'envers. Fix :
+ * reverse le winding order (swap v1 et v2 de chaque triangle) pour
+ * compenser. `computeVertexNormals` recalcule des normales correctes.
+ */
+function flipGeoZ(geo: THREE.BufferGeometry): void {
+  geo.scale(1, 1, -1);
+  const index = geo.getIndex();
+  if (index) {
+    for (let i = 0; i < index.count; i += 3) {
+      const b = index.getX(i + 1);
+      index.setX(i + 1, index.getX(i + 2));
+      index.setX(i + 2, b);
+    }
+    index.needsUpdate = true;
+  } else {
+    const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i += 3) {
+      const ax = pos.getX(i + 1), ay = pos.getY(i + 1), az = pos.getZ(i + 1);
+      pos.setXYZ(i + 1, pos.getX(i + 2), pos.getY(i + 2), pos.getZ(i + 2));
+      pos.setXYZ(i + 2, ax, ay, az);
+    }
+    pos.needsUpdate = true;
+  }
+  geo.computeVertexNormals();
+}
+
 export function buildDecoGeoVector(
   shapes: ParsedShape[],
   bbox: BBox,
@@ -59,6 +88,7 @@ export function buildDecoGeoVector(
   h: number,
   depth: number,
   bevel: number,
+  invert = false,
 ): THREE.BufferGeometry {
   const bb = bbox;
   const bw = bb.maxX - bb.minX, bh = bb.maxY - bb.minY;
@@ -68,7 +98,8 @@ export function buildDecoGeoVector(
   const sx = w / bw, sy = h / bh;
 
   const bevelPct = Math.max(0, Math.min(100, bevel)) / 100;
-  const bevelThickness = depth * 0.3 * bevelPct;
+  const absDepth = Math.abs(depth);
+  const bevelThickness = absDepth * 0.3 * bevelPct;
   const bevelSize = Math.min(w, h) * 0.02 * bevelPct;
 
   const remap = (shape: ParsedShape): THREE.Shape | null => {
@@ -87,12 +118,17 @@ export function buildDecoGeoVector(
   if (!remapped.length) return new THREE.BufferGeometry();
 
   const opts: THREE.ExtrudeGeometryOptions = {
-    depth,
+    depth: absDepth,
     bevelEnabled: bevelPct > 0 && bevelThickness > 0.01,
     bevelThickness, bevelSize,
     bevelSegments: 2, curveSegments: 8,
   };
-  return new THREE.ExtrudeGeometry(remapped, opts);
+  const geo = new THREE.ExtrudeGeometry(remapped, opts);
+  // invert=true : flip en Z + reverse winding → deboss avec normales correctes
+  if (invert) flipGeoZ(geo);
+  // eslint-disable-next-line no-console
+  console.log('[buildDecoGeoVector]', JSON.stringify({ invert, depth: absDepth, bevel, w, h, shapes: remapped.length, tris: geo.index ? geo.index.count / 3 : geo.getAttribute('position').count / 3 }));
+  return geo;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +149,9 @@ export function buildDecoGeoVector(
  *     qui est `min=32 max=128`)
  *   - `heightmapData.length !== heightmapResolution² × 4`
  */
+// eslint-disable-next-line no-console
+console.log('🔥🔥🔥 [deco.ts module loaded] invert-fix-v2 — si tu ne vois PAS ce log, ton bundle est ANCIEN');
+
 export function buildDecoGeoHeightmap(
   heightmapData: Uint8ClampedArray,
   heightmapResolution: number,
@@ -145,6 +184,7 @@ export function buildDecoGeoHeightmap(
   const plane = new THREE.PlaneGeometry(w, h, res, res);
   const pos = plane.getAttribute('position') as THREE.BufferAttribute;
   const verts = pos.count;
+  let minZ = Infinity, maxZ = -Infinity;
   for (let i = 0; i < verts; i++) {
     const gx = i % (res + 1);
     const gy = Math.floor(i / (res + 1));
@@ -153,17 +193,19 @@ export function buildDecoGeoHeightmap(
     const ofs = (py * res + px) * 4;
     const lum = ((data[ofs] ?? 0) + (data[ofs + 1] ?? 0) + (data[ofs + 2] ?? 0)) / 3 / 255;
     const h01 = 1 - lum;  // pixels sombres = motif (feature)
-    // `invert` flip la DIRECTION du relief :
-    //   false → motif sort du panneau (emboss, Z positif)
-    //   true  → motif creuse dans le panneau (deboss, Z négatif)
-    // Note : cette sémantique diverge du port src v1 (qui inversait juste le mapping
-    // luminance). Changement explicite pour correspondre à l'UX attendue
-    // du slider "Inverser" : emboss vs deboss.
-    const z = (invert ? -1 : 1) * h01 * depth;
+    // Toujours extrusion positive. Le flip Z (deboss) se fait après via flipGeoZ
+    // pour préserver les normales correctes.
+    const z = h01 * depth;
     pos.setZ(i, z);
+    if (z < minZ) minZ = z;
+    if (z > maxZ) maxZ = z;
   }
   pos.needsUpdate = true;
   plane.computeVertexNormals();
+  // invert=true : flip en Z + reverse winding → deboss avec normales correctes
+  if (invert) flipGeoZ(plane);
+  // eslint-disable-next-line no-console
+  console.log('[buildDecoGeoHeightmap]', JSON.stringify({ invert, depth, res, w, h, minZ: +minZ.toFixed(3), maxZ: +maxZ.toFixed(3) }));
   return plane;
 }
 

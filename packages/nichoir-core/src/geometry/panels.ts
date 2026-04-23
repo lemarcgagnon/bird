@@ -848,14 +848,35 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     // pousser un def deco vide dans `defs` (src retournait null → skip ; on reproduit
     // ce skip en vérifiant position.count).
     let dGeo: THREE.BufferGeometry | null = null;
+    // DEBUG: trace deco branch decision
+    // eslint-disable-next-line no-console
+    console.log('🧭 [deco branch decision]', JSON.stringify({
+      key: pk,
+      mode: d.mode,
+      hasParsedShapes: !!(d.parsedShapes && d.parsedShapes.length),
+      parsedShapesCount: d.parsedShapes?.length ?? 0,
+      hasBbox: !!d.bbox,
+      hasHeightmapData: !!d.heightmapData,
+      heightmapDataLen: d.heightmapData?.length ?? 0,
+      heightmapResolution: d.heightmapResolution,
+      invert: d.invert,
+      w: d.w, h: d.h, depth: d.depth,
+    }));
     if (d.mode === 'vector' && d.parsedShapes && d.parsedShapes.length && d.bbox) {
-      dGeo = buildDecoGeoVector(d.parsedShapes, d.bbox, d.w, d.h, d.depth, d.bevel);
+      // eslint-disable-next-line no-console
+      console.log('→ VECTOR branch');
+      dGeo = buildDecoGeoVector(d.parsedShapes, d.bbox, d.w, d.h, d.depth, d.bevel, d.invert);
     } else if (d.mode === 'heightmap' && d.heightmapData) {
+      // eslint-disable-next-line no-console
+      console.log('→ HEIGHTMAP branch');
       try {
         dGeo = buildDecoGeoHeightmap(d.heightmapData, d.heightmapResolution, d.w, d.h, d.depth, d.invert);
       } catch (_e) {
         dGeo = null;
       }
+    } else {
+      // eslint-disable-next-line no-console
+      console.log('→ NO BRANCH (deco not rendered)');
     }
     if (!dGeo) return;
     const dGeoPos = dGeo.getAttribute('position');

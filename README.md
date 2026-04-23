@@ -9,14 +9,15 @@ Application de démo déployable : **Next.js 15 + React 19 + Three.js r160**. Ar
 ## Fonctionnalités utilisateur
 
 - **6 onglets** :
-  - **DIM** — dimensions, plancher, toiture, crête, matériau, porte (type + taille + position), perchoir
-  - **VUE** — mode d'affichage (solide / wireframe / xray / edges), vue éclatée, plans de coupe X/Y/Z
-  - **DÉCOR** — upload SVG / PNG / JPG par panneau, mode vectoriel (extrusion + bevel) ou heightmap (relief depuis image), contrôles dimensions / relief / clip
+  - **DIM** — dimensions, plancher, toiture, crête (left/right/miter), matériau, porte (type + taille + position + face de porte), accessoires (perchoir, suspension 4 trous)
+  - **VUE** — mode d'affichage (solide / wireframe / xray / edges), vue éclatée, plans de coupe X/Y/Z, palette de couleurs (4 thèmes : Bois naturel / Bois contrasté / Couleurs distinctes / Monochrome)
+  - **DÉCOR** — upload SVG / PNG / JPG par panneau, mode vectoriel (extrusion + bevel) ou heightmap (relief depuis image), **découpe traversante** (motif SVG → vrai trou watertight dans le panneau, laser/CNC-ready), contrôles dimensions / relief / clip
   - **CALCUL** — volumes (ext/int/matériau), surfaces, liste des pièces à découper
-  - **PLAN** — plan de coupe 2D multi-bin avec layout shelf-packing, export ZIP (1 SVG par panneau)
-  - **EXPORT** — STL maison + porte, ZIP par panneau
+  - **PLAN** — plan de coupe 2D **multi-bin** avec layout shelf-packing (répartit automatiquement les pièces sur N panneaux physiques), export ZIP (1 SVG par panneau)
+  - **EXPORT** — STL maison + porte (orientation Z-up, plancher à Z=0 prêt pour slicer), ZIP par panneau, capture 3D (.png du viewport)
 - **3D interactif** — rotation (drag gauche), pan (drag droit), zoom (molette) via `THREE.OrbitControls`. La caméra est préservée lors des changements de paramètres UI.
 - **Porte sur 3 faces** — devant / gauche / droite via un toggle sous le type de porte.
+- **Trous de suspension** — 4 trous dans les débordements du toit (2 par panneau), symétriques front/back, position + diamètre réglables.
 - **Bilingue FR / EN** — switch en bas de sidebar, thème clair / sombre (cookie SSR, zéro FOUC).
 
 ---
@@ -31,11 +32,12 @@ nichoir/                                  ← monorepo pnpm workspace
 │   │   │   ├── types.ts                  ← contrats TS publics
 │   │   │   ├── state.ts                  ← createInitialState
 │   │   │   ├── calculations.ts           ← volumes, surfaces, cut list
-│   │   │   ├── cut-plan.ts               ← layout shelf-packing 2D
-│   │   │   ├── geometry/{panels,deco}.ts ← construction 3D + décors
-│   │   │   └── exporters/{stl,zip,svg}.ts
-│   │   ├── CONTRACTS.md                  ← source d'autorité des types publics
-│   │   └── tests/                        ← 135 tests + 5 snapshot fixtures
+│   │   │   ├── cut-plan.ts               ← layout shelf-packing 2D multi-bin
+│   │   │   ├── palettes.ts               ← 4 palettes de couleurs (wood / wood-contrast / colorful / mono)
+│   │   │   ├── geometry/{panels,deco}.ts ← construction 3D + décors (incl. through-cut, hang holes, deco 2D boolean)
+│   │   │   └── exporters/{stl,zip,svg,plan-zip}.ts  ← STL Z-up, ZIP STL panels, SVG par panneau, ZIP multi-SVG plan
+│   │   ├── CONTRACTS.md                  ← source d'autorité des types publics (v0.2.0 multi-bin)
+│   │   └── tests/                        ← 168 tests + 5 snapshot fixtures
 │   │
 │   ├── nichoir-ui/                       ← React + Three.js impératif
 │   │   ├── src/
@@ -52,8 +54,8 @@ nichoir/                                  ← monorepo pnpm workspace
 │   │   │   ├── utils/parseDecoFile.ts    ← upload SVG/PNG + rasterisation + letterbox
 │   │   │   ├── store.ts                  ← Zustand
 │   │   │   └── i18n/{messages,useT}.ts
-│   │   ├── VIEWPORT.md                   ← contrat ViewportAdapter (V1-V7)
-│   │   └── tests/                        ← 302 tests React Testing Library + axe-core
+│   │   ├── VIEWPORT.md                   ← contrat ViewportAdapter (V1-V7 + captureAsPng pour export PNG 3D)
+│   │   └── tests/                        ← 317 tests React Testing Library + axe-core
 │   │
 │   └── nichoir-adapters/                 ← ports pour intégration SaaS
 │       ├── src/ports/                    ← 5 interfaces : CreditGate, ProjectStore, AuthContext, Telemetry, DownloadService
@@ -98,7 +100,7 @@ Le hook `predev` rebuild automatiquement les 3 packages workspace avant de lance
 
 ```bash
 pnpm -r typecheck     # 4/4 packages
-pnpm -r test          # 441 tests verts (135 core + 4 adapters + 302 ui)
+pnpm -r test          # 489 tests verts (168 core + 4 adapters + 317 ui)
 pnpm -r lint          # 4/4 packages
 ```
 
@@ -161,9 +163,20 @@ Le wiring complet des 4 ports non-câblés dans la UI (≈ 3–5 jours) reste ou
 - `OrbitControls` instancié au `mount()`, disposé au `unmount()`. `update(state)` ne ré-applique la caméra **que si `state.camera` change de référence** — sinon la rotation souris persiste à travers les autres changements UI.
 
 ### Tests
-- Vitest + jsdom. 302 tests UI couvrent primitives, tabs, viewport (mocks WebGLRenderer/ResizeObserver), accessibility (axe-core), i18n.
+- Vitest + jsdom. 317 tests UI couvrent primitives, tabs, viewport (mocks WebGLRenderer/ResizeObserver), accessibility (axe-core), i18n.
 - Tests matériels imposés par review : `expect(bytes.byteLength).toBeGreaterThan(X)` + cross-check vs appel direct core, pas juste call count.
-- 5 fixtures snapshot `presetA…E.snapshot.json` verrouillent la parité geometry/STL sur 5 configurations de référence.
+- 5 fixtures snapshot `presetA…E.snapshot.json` verrouillent la parité geometry/STL sur 5 configurations de référence (régénérées en branche `multi-bin` pour le nouveau contrat `CutLayout` + orientation Z-up du STL).
+
+### Géométrie des trous (door / perch / hang / through-cut)
+- Pattern uniforme : `THREE.Shape` + `THREE.Path` holes + `THREE.ExtrudeGeometry` → watertight par construction (pas de CSG).
+- **Porte** : forme (round / square / pentagon) soustraite via Path dans la Shape du mur porteur.
+- **Perchoir** : cercle soustrait dans la façade, prisme cylindrique ajouté comme pièce séparée.
+- **Trous de suspension** (4 au toit) : cercles soustraits dans les panneaux de toit via `buildRoofPanelWithHoles`. Quand ridge='miter' + hang=true, le panneau se construit en 2 pièces (corps principal avec trous + bandelette chanfrein) pour préserver le miter.
+- **Découpe traversante déco** (Phase 1 MVP) : motif SVG projeté en 2D dans le frame local du mur, ajouté comme Paths aux holes de la Shape du panneau → vrai trou through-the-panel, pas un mesh déco séparé. Applicable aux 4 murs (front/back/left/right) en mode vector. Roof + heightmap à venir en Phase 2.
+
+### Orientation STL (Z-up)
+- Transformation `(x, y, z)_three → (x, -z, y)_stl` + translation pour min Z=0 appliquée dans `generateHouseSTL` / `generateDoorSTL` / `generatePanelsZIP` (helper `_applyPrintTransform` dans `exporters/stl.ts`).
+- Cabane debout sur le build plate du slicer 3D (Cura, PrusaSlicer, Bambu).
 
 ### CI
 - `.github/workflows/ci.yml` : typecheck → lint → test → build packages → build apps/demo. Le build apps/demo garantit l'intégration end-to-end (pas juste les packages isolés).
@@ -172,8 +185,21 @@ Le wiring complet des 4 ports non-câblés dans la UI (≈ 3–5 jours) reste ou
 
 ## Roadmap
 
-- **Dette fermée** : FOUC / hydration mismatch (B2), letterbox DÉCOR (B3), Error Boundary WebGL (B1), `lastParseWarning` langue figée.
-- **Ouvert** : câblage des ports `AuthContext` / `CreditGate` / `ProjectStore` / `Telemetry` dans la UI pour enabler l'intégration SaaS facturable. PNG plan raster (reporté, SVG couvre la découpe CNC).
+- **Dette fermée** :
+  - FOUC / hydration mismatch (B2), letterbox DÉCOR (B3), Error Boundary WebGL (B1), `lastParseWarning` langue figée.
+  - Plan de coupe multi-bin (v0.2.0, branche `multi-bin`).
+  - STL Z-up orientation (cabane debout sur build plate slicer).
+  - Capture 3D PNG depuis le viewport Three.js.
+  - 4 trous de suspension dans le toit (pattern Shape+holes+Extrude).
+  - Sélecteur de palette 4 couleurs (3D + plan de coupe 2D).
+  - HIG Level 1 : section labels discoverables + groupe ACCESSOIRES.
+  - Through-cut SVG pattern (Phase 1 MVP) : motif SVG → vrai trou dans le mur, laser/CNC-ready.
+- **Ouvert** :
+  - Câblage des ports `AuthContext` / `CreditGate` / `ProjectStore` / `Telemetry` dans la UI pour enabler l'intégration SaaS facturable.
+  - Phase 2 through-cut : mode "deboss/pocket" (gravure peu profonde, pas à travers) via builder 2-layer watertight dédié (pas un simple merge).
+  - Phase 2 through-cut : extension aux panneaux de toit (roofL/roofR) et au mode heightmap.
+  - HIG Level 2 : sections DIM collapsibles (accordions) ; Level 3 : split DIM → Structure / Accessoires.
+  - Benchmark comparatif `shelf-packing` vs `rectangle-packer` (branche `coupe` à venir).
 
 Voir `HANDOVER.md` pour l'état détaillé par phase, `runs/` pour les evidence documents + artefacts (screenshots, traces, metrics).
 

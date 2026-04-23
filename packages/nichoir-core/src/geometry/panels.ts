@@ -32,6 +32,7 @@ import type {
   PanelDefKey,
   Vec3,
   RoofPlaneFn,
+  RidgeType,
   DoorInfo,
   PerchHoleInfo,
   DecoCtx,
@@ -311,13 +312,15 @@ export function mkSidePanelWithDoor(
  * Limitation : perd le chanfrein onglet (miter chamfer) sur la crête quand
  * hang=true. Tradeoff validé avec l'utilisateur.
  *
- * @param isL      true = panneau gauche (xStart=-sL, xEnd=0), false = panneau droit (xStart=0, xEnd=sL)
+ * @param isL      true = panneau gauche, false = panneau droit
  * @param sL       longueur de la pente (mm)
  * @param rL       longueur du toit le long de D (mm), = D + 2*overhang
  * @param T        épaisseur (mm)
  * @param hangPosY distance depuis chaque bord de pignon le long de l'axe D (mm)
  * @param hangOffsetX distance depuis la crête le long de la pente (mm)
  * @param hangDiam diamètre des trous (mm)
+ * @param ridge type de jonction crête ('left'|'right'|'miter')
+ * @param bev   valeur du chanfrein miter (mm), utilisé si ridge='miter'
  */
 function buildRoofPanelWithHoles(
   isL: boolean,
@@ -327,9 +330,21 @@ function buildRoofPanelWithHoles(
   hangPosY: number,
   hangOffsetX: number,
   hangDiam: number,
+  ridge: RidgeType,
+  bev: number,
 ): THREE.BufferGeometry {
-  const xStart = isL ? -sL : 0;
-  const xEnd   = isL ? 0   : sL;
+  let xStart: number, xEnd: number;
+  if (isL) {
+    xStart = -sL;
+    if (ridge === 'left')        xEnd = T;   // roofL covers ridge with +T overhang
+    else if (ridge === 'miter')  xEnd = bev; // bev chamfer approximation
+    else /* ridge === 'right' */ xEnd = 0;
+  } else {
+    xEnd = sL;
+    if (ridge === 'right')       xStart = -T;   // roofR covers ridge with +T overhang
+    else if (ridge === 'miter')  xStart = -bev; // bev chamfer approximation
+    else /* ridge === 'left' */  xStart = 0;
+  }
 
   // Shape en plan XY local. shape.y = -z_world (voir convention ci-dessus).
   // Contour rectangulaire (CCW vu de +Z local = +Y world) :
@@ -587,6 +602,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     // Tradeoff : perd le chanfrein onglet (miter) sur la crête. Validé utilisateur.
     const rlG = buildRoofPanelWithHoles(
       true, sL, rL, T, params.hangPosY, params.hangOffsetX, params.hangDiam,
+      ridge, bev,
     );
     defs.push({
       key: 'roofL', geometry: rlG,
@@ -595,6 +611,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     });
     const rrG = buildRoofPanelWithHoles(
       false, sL, rL, T, params.hangPosY, params.hangOffsetX, params.hangDiam,
+      ridge, bev,
     );
     defs.push({
       key: 'roofR', geometry: rrG,

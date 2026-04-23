@@ -86,6 +86,26 @@ function stateFromDecoFixture(fixture: FixturePreset): NichoirState {
   return state;
 }
 
+function getMaxLocalX(geo: THREE.BufferGeometry): number {
+  const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+  let max = -Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    if (x > max) max = x;
+  }
+  return max;
+}
+
+function getMinLocalX(geo: THREE.BufferGeometry): number {
+  const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+  let min = Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    if (x < min) min = x;
+  }
+  return min;
+}
+
 const TOL = 1e-6; // ACCEPTANCE-P1-P2.md exige 1e-6. Les valeurs sont stockées en Float32 mais les opérations sont en double — les valeurs architecturales (mm, <1000) restent dans 1e-6 après round-trip float32.
 
 function expectClose(actual: number, expected: number, label: string, tol = TOL): void {
@@ -494,31 +514,33 @@ describe('buildPanelDefs — trous de suspension (hang)', () => {
     expect(triangleCount(roofR_hang!.geometry)).toBeGreaterThan(triangleCount(roofR_noHang!.geometry));
   });
 
-  it('hang=true : roofL bbox X couvre [-sL, 0] (tolérance float32)', () => {
+  it('hang=true ridge=left : roofL bbox X couvre [-sL, T] (roofL recouvre la crête)', () => {
     const state = createInitialState();
     const { params } = state;
+    // État initial : ridge='left' (défaut)
+    expect(params.ridge).toBe('left');
     const ang = params.slope * Math.PI / 180;
     const sL = (params.W / 2 + params.overhang) / Math.cos(ang);
     const { defs } = buildPanelDefs({ ...state, params: { ...state.params, hang: true } });
     const roofL = defs.find(d => d.key === 'roofL');
     expect(roofL).toBeDefined();
     const bb = computeBbox(roofL!.geometry);
-    // X doit aller de -sL à 0 (pente gauche) avec tolérance
-    expectClose(bb.min[0], -sL, 'roofL bbox.min.X', 1e-4);
-    expectClose(bb.max[0],  0, 'roofL bbox.max.X', 1e-4);
+    // X doit aller de -sL à +T (roofL couvre la crête de T) avec tolérance
+    expectClose(bb.min[0], -sL,       'roofL bbox.min.X', 1e-4);
+    expectClose(bb.max[0],  params.T, 'roofL bbox.max.X', 1e-4);
   });
 
-  it('hang=true : roofR bbox X couvre [0, sL] (tolérance float32)', () => {
+  it('hang=true ridge=right : roofR bbox X couvre [-T, sL] (roofR recouvre la crête)', () => {
     const state = createInitialState();
     const { params } = state;
     const ang = params.slope * Math.PI / 180;
     const sL = (params.W / 2 + params.overhang) / Math.cos(ang);
-    const { defs } = buildPanelDefs({ ...state, params: { ...state.params, hang: true } });
+    const { defs } = buildPanelDefs({ ...state, params: { ...state.params, hang: true, ridge: 'right' } });
     const roofR = defs.find(d => d.key === 'roofR');
     expect(roofR).toBeDefined();
     const bb = computeBbox(roofR!.geometry);
-    expectClose(bb.min[0], 0,   'roofR bbox.min.X', 1e-4);
-    expectClose(bb.max[0], sL,  'roofR bbox.max.X', 1e-4);
+    expectClose(bb.min[0], -params.T, 'roofR bbox.min.X', 1e-4);
+    expectClose(bb.max[0],  sL,       'roofR bbox.max.X', 1e-4);
   });
 
   it('hang=true : roofL bbox Z couvre [-rL/2, +rL/2] (longueur complète)', () => {
@@ -531,6 +553,72 @@ describe('buildPanelDefs — trous de suspension (hang)', () => {
     const bb = computeBbox(roofL!.geometry);
     expectClose(bb.min[2], -rL / 2, 'roofL bbox.min.Z', 1e-4);
     expectClose(bb.max[2],  rL / 2, 'roofL bbox.max.Z', 1e-4);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Regression tests: ridge respecté quand hang=true (Task 24)
+  // ---------------------------------------------------------------------------
+
+  it('ridge=left hang=true : roofL s\'étend au-delà de x=0 d\'environ T', () => {
+    const state = createInitialState();
+    state.params.hang = true;
+    state.params.ridge = 'left';
+    const { defs } = buildPanelDefs(state);
+    const roofL = defs.find(d => d.key === 'roofL');
+    expect(roofL).toBeDefined();
+    const maxX = getMaxLocalX(roofL!.geometry);
+    expectClose(maxX, state.params.T, 'roofL maxX should equal T for ridge=left', 1e-4);
+  });
+
+  it('ridge=right hang=true : roofR s\'étend avant x=0 d\'environ T', () => {
+    const state = createInitialState();
+    state.params.hang = true;
+    state.params.ridge = 'right';
+    const { defs } = buildPanelDefs(state);
+    const roofR = defs.find(d => d.key === 'roofR');
+    expect(roofR).toBeDefined();
+    const minX = getMinLocalX(roofR!.geometry);
+    expectClose(minX, -state.params.T, 'roofR minX should equal -T for ridge=right', 1e-4);
+  });
+
+  it('ridge=miter hang=true : roofL et roofR s\'étendent chacun de bev (recouvrement 2*bev)', () => {
+    const state = createInitialState();
+    state.params.hang = true;
+    state.params.ridge = 'miter';
+    const ang = state.params.slope * Math.PI / 180;
+    const expectedBev = state.params.T * Math.tan(ang);
+    const { defs } = buildPanelDefs(state);
+    const roofL = defs.find(d => d.key === 'roofL');
+    const roofR = defs.find(d => d.key === 'roofR');
+    expect(roofL).toBeDefined();
+    expect(roofR).toBeDefined();
+    expectClose(getMaxLocalX(roofL!.geometry),  expectedBev, 'roofL maxX should equal bev for miter', 1e-4);
+    expectClose(getMinLocalX(roofR!.geometry), -expectedBev, 'roofR minX should equal -bev for miter', 1e-4);
+  });
+
+  it('ridge types produce 3 geometries distinctes quand hang=true', () => {
+    const makeState = (r: 'left' | 'right' | 'miter') => {
+      const s = createInitialState();
+      s.params.hang = true;
+      s.params.ridge = r;
+      return s;
+    };
+    const leftDefs  = buildPanelDefs(makeState('left')).defs;
+    const rightDefs = buildPanelDefs(makeState('right')).defs;
+    const miterDefs = buildPanelDefs(makeState('miter')).defs;
+
+    const roofL_left  = leftDefs.find(d => d.key === 'roofL')!;
+    const roofL_right = rightDefs.find(d => d.key === 'roofL')!;
+    const roofL_miter = miterDefs.find(d => d.key === 'roofL')!;
+
+    const maxLeft  = getMaxLocalX(roofL_left.geometry);
+    const maxRight = getMaxLocalX(roofL_right.geometry);
+    const maxMiter = getMaxLocalX(roofL_miter.geometry);
+
+    // 3 ridge types → 3 valeurs de maxX distinctes pour roofL
+    expect(maxLeft).not.toBeCloseTo(maxRight, 3);
+    expect(maxLeft).not.toBeCloseTo(maxMiter, 3);
+    expect(maxRight).not.toBeCloseTo(maxMiter, 3);
   });
 
   it('hang=false → presets A/B/C triangleCounts inchangés pour roofL/roofR', () => {

@@ -192,6 +192,110 @@ describe('generateDoorSTL', () => {
 });
 
 // ---------------------------------------------------------------------------
+// STL print orientation invariants (Z-up, min Z = 0)
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse un STL binaire et retourne la bbox globale (min/max x/y/z) de tous
+ * les sommets. Format binaire : header 80 + count 4 + 50 bytes/tri
+ * (12 normal + 36 vertices + 2 attr).
+ */
+function parseStlMinMax(bytes: Uint8Array): { min: [number, number, number]; max: [number, number, number] } {
+  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const n = dv.getUint32(80, true);
+  let minX = Infinity, minY = Infinity, minZ = Infinity;
+  let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+  for (let i = 0; i < n; i++) {
+    const base = 84 + i * 50 + 12; // skip header (84) + normal (12)
+    for (let v = 0; v < 3; v++) {
+      const x = dv.getFloat32(base + v * 12,      true);
+      const y = dv.getFloat32(base + v * 12 + 4,  true);
+      const z = dv.getFloat32(base + v * 12 + 8,  true);
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+      if (z < minZ) minZ = z; if (z > maxZ) maxZ = z;
+    }
+  }
+  return { min: [minX, minY, minZ], max: [maxX, maxY, maxZ] };
+}
+
+describe('STL print orientation (Z-up, min Z=0)', () => {
+  const TOL = 1e-3; // float32 round-trip tolerance
+
+  it('generateHouseSTL — preset A : min Z ≈ 0, max Z > 0 (cabane debout sur son socle)', () => {
+    const state = stateFromFixture(presetA);
+    const buildResult = buildPanelDefs(state);
+    const bytes = generateHouseSTL(buildResult);
+    expect(bytes).not.toBeNull();
+    const { min, max } = parseStlMinMax(bytes!);
+    // Plancher sur la plaque : min Z doit être ≈ 0
+    expect(Math.abs(min[2]), 'min Z ≈ 0 (floor on build plate)').toBeLessThan(TOL);
+    // La cabane doit avoir une hauteur positive
+    expect(max[2], 'max Z > 0 (cabin has height)').toBeGreaterThan(0);
+  });
+
+  it('generateHouseSTL — preset A : Z porte la hauteur, Y porte la profondeur', () => {
+    // Avant la transformation (Y-up Three.js) :
+    //   - Y allait de 0 (plancher) à ~H+rH (faîtage) → span ≈ hauteur totale cabane.
+    //   - Z allait de -(D/2+overhang) à +(D/2+overhang) → span ≈ D + 2*overhang.
+    // Après rotation +π/2 autour de X : l'ancien Y devient le nouveau Z, l'ancien Z
+    // devient le nouveau -Y.  Donc :
+    //   - Z (après) = ancien Y = hauteur totale → max Z > H (param = 220 mm).
+    //   - Y (après) = span de l'ancien Z → profondeur + overhang toit.
+    //   - Invariant clé : max Z (hauteur) > Y-span (profondeur), ce qui ne serait PAS
+    //     vrai si la hauteur restait dans l'axe Y.
+    const state = stateFromFixture(presetA);
+    const H = state.params.H;
+    const buildResult = buildPanelDefs(state);
+    const bytes = generateHouseSTL(buildResult);
+    expect(bytes).not.toBeNull();
+    const { min, max } = parseStlMinMax(bytes!);
+    const ySpan = max[1] - min[1];
+    // Z porte la hauteur : max Z doit dépasser H (le faîtage dépasse H d'au moins rH)
+    expect(max[2], 'Z axis carries height (max Z > H param)').toBeGreaterThan(H);
+    // Y porte la profondeur : le span Y est la profondeur (D + overhang des deux côtés).
+    // On vérifie juste que Y-span < max Z (sinon la hauteur serait dans Y, pas Z).
+    expect(ySpan, 'Y-span (depth) < max Z (height): Z carries height').toBeLessThan(max[2]);
+  });
+
+  it('generateHouseSTL — presets A, B, C : min Z ≈ 0 (invariant)', () => {
+    for (const [label, fixture] of [['A', presetA], ['B', presetB], ['C', presetC]] as const) {
+      const state = stateFromFixture(fixture);
+      const bytes = generateHouseSTL(buildPanelDefs(state));
+      expect(bytes, `preset ${label} bytes non-null`).not.toBeNull();
+      const { min } = parseStlMinMax(bytes!);
+      expect(Math.abs(min[2]), `preset ${label} min Z ≈ 0`).toBeLessThan(TOL);
+    }
+  });
+
+  it('generateDoorSTL — preset B (doorPanel=true) : min Z ≈ 0', () => {
+    // Preset B doit avoir doorPanel=true — si ce n'est pas le cas le test passe trivialmente via null.
+    const state = stateFromFixture(presetB);
+    const bytes = generateDoorSTL(buildPanelDefs(state));
+    if (bytes === null) {
+      // Pas de door panel dans ce preset — invariant non applicable, skip.
+      return;
+    }
+    const { min } = parseStlMinMax(bytes);
+    expect(Math.abs(min[2]), 'doorSTL min Z ≈ 0').toBeLessThan(TOL);
+  });
+
+  it('generateDoorSTL — min Z ≈ 0 sur tout preset ayant un doorPanel', () => {
+    const presetsWithDeco: Array<[string, typeof presetA, boolean]> = [
+      ['A', presetA, false], ['B', presetB, false], ['C', presetC, false],
+      ['D', presetD, true], ['E', presetE, true],
+    ];
+    for (const [label, fixture, withDeco] of presetsWithDeco) {
+      const state = withDeco ? stateFromDecoFixture(fixture) : stateFromFixture(fixture);
+      const bytes = generateDoorSTL(buildPanelDefs(state));
+      if (bytes === null) continue; // pas de door panel — skip
+      const { min } = parseStlMinMax(bytes);
+      expect(Math.abs(min[2]), `doorSTL preset ${label} min Z ≈ 0`).toBeLessThan(TOL);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // generatePanelsZIP
 // ---------------------------------------------------------------------------
 

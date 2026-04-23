@@ -124,6 +124,51 @@ function collectDefsTriangles(defs: readonly PanelDef[], keys: readonly string[]
 }
 
 // ---------------------------------------------------------------------------
+// applyPrintTransform — convertit Y-up (Three.js) → Z-up (slicer 3D printing),
+// plancher à Z=0.
+//
+// Appliqué juste avant l'encoding binaire STL dans generateHouseSTL/generateDoorSTL/
+// generatePanelsZIP — garantit que le STL exporté montre la cabane debout,
+// prête à imprimer sans rotation manuelle.
+//
+// Transformation :
+//   1. Rotation +π/2 autour de X : (x, y, z) → (x, -z, y)
+//      appliquée sur les sommets ET les normales.
+//   2. Trouver le min Z global sur tous les sommets rotatés.
+//   3. Translater les sommets (PAS les normales) par -minZ pour poser le
+//      plancher exactement sur la plaque de construction (Z=0).
+//
+// Propriété : fonction pure — ne mute pas les Triangle d'entrée.
+// ---------------------------------------------------------------------------
+
+function applyPrintTransform(tris: readonly Triangle[]): Triangle[] {
+  // Étape 1 : rotation (x, y, z) → (x, -z, y) sur sommets et normales.
+  const rotated = tris.map(tri => ({
+    n: new THREE.Vector3(tri.n.x, -tri.n.z, tri.n.y),
+    a: new THREE.Vector3(tri.a.x, -tri.a.z, tri.a.y),
+    b: new THREE.Vector3(tri.b.x, -tri.b.z, tri.b.y),
+    c: new THREE.Vector3(tri.c.x, -tri.c.z, tri.c.y),
+  }));
+
+  // Étape 2 : trouver le min Z global sur tous les sommets rotatés.
+  let minZ = Infinity;
+  for (const tri of rotated) {
+    if (tri.a.z < minZ) minZ = tri.a.z;
+    if (tri.b.z < minZ) minZ = tri.b.z;
+    if (tri.c.z < minZ) minZ = tri.c.z;
+  }
+  if (!isFinite(minZ)) minZ = 0;
+
+  // Étape 3 : translater les sommets par -minZ (les normales restent inchangées).
+  return rotated.map(tri => ({
+    n: tri.n,                                              // normales : rotation seule
+    a: new THREE.Vector3(tri.a.x, tri.a.y, tri.a.z - minZ),
+    b: new THREE.Vector3(tri.b.x, tri.b.y, tri.b.z - minZ),
+    c: new THREE.Vector3(tri.c.x, tri.c.y, tri.c.z - minZ),
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // API publique
 // ---------------------------------------------------------------------------
 
@@ -135,7 +180,7 @@ function collectDefsTriangles(defs: readonly PanelDef[], keys: readonly string[]
 export function generateHouseSTL(buildResult: BuildResult): Uint8Array | null {
   const tris = collectDefsTriangles(buildResult.defs, HOUSE_AND_DECO_KEYS);
   if (tris.length === 0) return null;
-  return trisToSTL(tris, 'maison_complete');
+  return trisToSTL(applyPrintTransform(tris), 'maison_complete');
 }
 
 /**
@@ -146,9 +191,15 @@ export function generateHouseSTL(buildResult: BuildResult): Uint8Array | null {
 export function generateDoorSTL(buildResult: BuildResult): Uint8Array | null {
   const tris = collectDefsTriangles(buildResult.defs, DOOR_KEYS);
   if (tris.length === 0) return null;
-  return trisToSTL(tris, 'porte');
+  return trisToSTL(applyPrintTransform(tris), 'porte');
 }
 
-// Exports internes pour réutilisation par zip.ts (collectDefsTriangles, trisToSTL).
-// Marqués comme "privés au package core" — NE PAS consommer depuis UI/adapters.
-export { collectDefsTriangles as _collectDefsTriangles, trisToSTL as _trisToSTL, HOUSE_KEYS as _HOUSE_KEYS };
+// Exports internes pour réutilisation par zip.ts (collectDefsTriangles, trisToSTL,
+// applyPrintTransform). Marqués comme "privés au package core" — NE PAS consommer
+// depuis UI/adapters.
+export {
+  collectDefsTriangles as _collectDefsTriangles,
+  trisToSTL as _trisToSTL,
+  HOUSE_KEYS as _HOUSE_KEYS,
+  applyPrintTransform as _applyPrintTransform,
+};

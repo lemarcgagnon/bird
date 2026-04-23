@@ -20,7 +20,7 @@
 
 import JSZip from 'jszip';
 import type { BuildResult, Params, Translator } from '../types.js';
-import { _collectDefsTriangles, _trisToSTL, _HOUSE_KEYS } from './stl.js';
+import { _collectDefsTriangles, _trisToSTL, _HOUSE_KEYS, _applyPrintTransform } from './stl.js';
 
 // Keys qui, si présentes dans defs, reçoivent aussi leur deco associée fusionnée
 // dans le STL zippé correspondant. Même politique que src/exporters/stl.js:162.
@@ -54,7 +54,9 @@ export async function generatePanelsZIP(
     if (DECO_PARENT_KEYS.has(key)) collectKeys.push('deco_' + key);
     const tris = _collectDefsTriangles(buildResult.defs, collectKeys);
     if (tris.length === 0) continue;
-    const stlBytes = _trisToSTL(tris, key);
+    // Orientation Z-up, plancher à Z=0 pour chaque panneau indépendamment :
+    // chaque STL dans le ZIP est autonome (l'utilisateur imprime un panneau à la fois).
+    const stlBytes = _trisToSTL(_applyPrintTransform(tris), key);
     const fname = translate('panel.' + key) + '.stl';
     zip.file(fname, stlBytes);
   }

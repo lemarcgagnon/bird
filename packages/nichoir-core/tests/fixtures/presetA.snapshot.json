@@ -1,7 +1,7 @@
 {
   "preset": "A",
   "name": "default",
-  "description": "État initial exact — aucun override.",
+  "description": "\u00c9tat initial exact \u2014 aucun override.",
   "source": "src/* modular refactor (visual parity with nichoir_v15.html established) + computeCutLayout depuis TS port multi-bin (branche multi-bin, 2026-04-23)",
   "state": {
     "params": {
@@ -29,7 +29,8 @@
       "perchLen": 30,
       "perchOff": 15,
       "panelW": 1220,
-      "panelH": 2440
+      "panelH": 2440,
+      "palette": "wood"
     },
     "clip": {
       "x": {
@@ -206,32 +207,32 @@
           "nameKey": "calc.cuts.facade",
           "noteKey": "calc.cuts.note.pentagon",
           "qty": 2,
-          "dim": "160 × 276"
+          "dim": "160 \u00d7 276"
         },
         {
           "nameKey": "calc.cuts.side",
           "noteKey": null,
           "noteParams": null,
           "qty": 2,
-          "dim": "136 × 220"
+          "dim": "136 \u00d7 220"
         },
         {
           "nameKey": "calc.cuts.bottom",
           "noteKey": "calc.cuts.note.enclave",
           "qty": 1,
-          "dim": "136 × 136"
+          "dim": "136 \u00d7 136"
         },
         {
           "nameKey": "calc.cuts.roofL",
           "noteKey": "calc.cuts.note.ridgeT",
           "qty": 1,
-          "dim": "146 × 220"
+          "dim": "146 \u00d7 220"
         },
         {
           "nameKey": "calc.cuts.roofR",
           "noteKey": null,
           "qty": 1,
-          "dim": "134 × 220"
+          "dim": "134 \u00d7 220"
         }
       ],
       "nPieces": 7
@@ -514,7 +515,7 @@
         "triangleCount": 12,
         "bbox": {
           "min": [
-            0.0000013686965303350007,
+            1.3686965303350007e-06,
             0,
             -110
           ],

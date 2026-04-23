@@ -1,5 +1,7 @@
 export const CORE_VERSION = '0.2.0';
 export type * from './types.js';
+export { PALETTES, hexToNumber } from './palettes.js';
+export type { PaletteKey, Palette } from './palettes.js';
 export { createInitialState, DECO_KEYS } from './state.js';
 export { computeCalculations, computeCutList } from './calculations.js';
 export { computeCutLayout } from './cut-plan.js';

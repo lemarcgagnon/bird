@@ -1,7 +1,7 @@
 {
   "preset": "C",
   "name": "steep-miter",
-  "description": "Pente forte, toit en onglet (miter), surplomb 50mm, épaisseur 18mm.",
+  "description": "Pente forte, toit en onglet (miter), surplomb 50mm, \u00e9paisseur 18mm.",
   "source": "src/* modular refactor (visual parity with nichoir_v15.html established) + computeCutLayout depuis TS port multi-bin (branche multi-bin, 2026-04-23)",
   "state": {
     "params": {
@@ -29,7 +29,8 @@
       "perchLen": 30,
       "perchOff": 15,
       "panelW": 1220,
-      "panelH": 2440
+      "panelH": 2440,
+      "palette": "wood"
     },
     "clip": {
       "x": {
@@ -206,20 +207,20 @@
           "nameKey": "calc.cuts.facade",
           "noteKey": "calc.cuts.note.pentagon",
           "qty": 2,
-          "dim": "160 × 359"
+          "dim": "160 \u00d7 359"
         },
         {
           "nameKey": "calc.cuts.side",
           "noteKey": null,
           "noteParams": null,
           "qty": 2,
-          "dim": "124 × 220"
+          "dim": "124 \u00d7 220"
         },
         {
           "nameKey": "calc.cuts.bottom",
           "noteKey": "calc.cuts.note.enclave",
           "qty": 1,
-          "dim": "124 × 124"
+          "dim": "124 \u00d7 124"
         },
         {
           "nameKey": "calc.cuts.roof",
@@ -228,7 +229,7 @@
             "slope": 60
           },
           "qty": 2,
-          "dim": "260 × 260"
+          "dim": "260 \u00d7 260"
         }
       ],
       "nPieces": 7

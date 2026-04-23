@@ -52,6 +52,7 @@ export function createInitialState(): NichoirState {
       perch: false, perchDiam: 8, perchLen: 30, perchOff: 15,
       hang: false, hangPosY: 20, hangOffsetX: 15, hangDiam: 5,
       panelW: 1220, panelH: 2440,
+      palette: 'wood',
     },
 
     // Plans de coupe visuels (ex-objet `clip`)

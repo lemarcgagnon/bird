@@ -1,5 +1,6 @@
 // Généré depuis CONTRACTS.md v0.2.0 — ne pas éditer manuellement en dehors d'une révision du contrat.
 import * as THREE from 'three';
+import type { PaletteKey } from './palettes.js';
 
 // ---------------------------------------------------------------------------
 // Enums / literal unions
@@ -83,6 +84,9 @@ export interface Params {
 
   // Feuille de découpe source
   panelW: number; panelH: number;
+
+  /** Palette de couleurs appliquée aux panneaux 3D et au plan de coupe 2D. */
+  palette: PaletteKey;
 }
 
 export interface ClipAxis { on: boolean; pos: number; }

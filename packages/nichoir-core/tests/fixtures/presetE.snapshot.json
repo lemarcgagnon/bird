@@ -1,8 +1,8 @@
 {
   "preset": "E",
   "name": "all-decos-vector",
-  "description": "ridge=left, doorPanel=true, décos vectorielles (triangle) sur les 4 panneaux latéraux. Capturé depuis TS port.",
-  "source": "Capture mixte (TS port pour state+buildPanelDefs+STL+computeCutLayout ; src/* pour computeCalculations+computeCutList). Raison : src.buildDecoGeo heightmap branch DOM-bound ⇒ state+geometry doivent passer par TS ; computeCutLayout bascule sur TS port multi-bin (branche multi-bin, 2026-04-23). Snapshot de régression du port TS, pas référence indépendante vs v15.",
+  "description": "ridge=left, doorPanel=true, d\u00e9cos vectorielles (triangle) sur les 4 panneaux lat\u00e9raux. Captur\u00e9 depuis TS port.",
+  "source": "Capture mixte (TS port pour state+buildPanelDefs+STL+computeCutLayout ; src/* pour computeCalculations+computeCutList). Raison : src.buildDecoGeo heightmap branch DOM-bound \u21d2 state+geometry doivent passer par TS ; computeCutLayout bascule sur TS port multi-bin (branche multi-bin, 2026-04-23). Snapshot de r\u00e9gression du port TS, pas r\u00e9f\u00e9rence ind\u00e9pendante vs v15.",
   "state": {
     "params": {
       "W": 160,
@@ -30,7 +30,8 @@
       "perchLen": 30,
       "perchOff": 15,
       "panelW": 1220,
-      "panelH": 2440
+      "panelH": 2440,
+      "palette": "wood"
     },
     "clip": {
       "x": {
@@ -305,32 +306,32 @@
           "nameKey": "calc.cuts.facade",
           "noteKey": "calc.cuts.note.pentagon",
           "qty": 2,
-          "dim": "160 × 276"
+          "dim": "160 \u00d7 276"
         },
         {
           "nameKey": "calc.cuts.side",
           "noteKey": null,
           "noteParams": null,
           "qty": 2,
-          "dim": "136 × 220"
+          "dim": "136 \u00d7 220"
         },
         {
           "nameKey": "calc.cuts.bottom",
           "noteKey": "calc.cuts.note.enclave",
           "qty": 1,
-          "dim": "136 × 136"
+          "dim": "136 \u00d7 136"
         },
         {
           "nameKey": "calc.cuts.roofL",
           "noteKey": "calc.cuts.note.ridgeT",
           "qty": 1,
-          "dim": "146 × 220"
+          "dim": "146 \u00d7 220"
         },
         {
           "nameKey": "calc.cuts.roofR",
           "noteKey": null,
           "qty": 1,
-          "dim": "134 × 220"
+          "dim": "134 \u00d7 220"
         },
         {
           "nameKey": "calc.cuts.door",
@@ -339,7 +340,7 @@
             "percent": null
           },
           "qty": 1,
-          "dim": "40 × 40"
+          "dim": "40 \u00d7 40"
         }
       ],
       "nPieces": 8
@@ -633,7 +634,7 @@
         "triangleCount": 12,
         "bbox": {
           "min": [
-            0.0000013686965303350007,
+            1.3686965303350007e-06,
             0,
             -110
           ],

@@ -1,7 +1,7 @@
 {
   "preset": "B",
   "name": "pentagon-door-tapered",
-  "description": "Façade évasée avec porte pentagone, perchoir, toit ridge left.",
+  "description": "Fa\u00e7ade \u00e9vas\u00e9e avec porte pentagone, perchoir, toit ridge left.",
   "source": "src/* modular refactor (visual parity with nichoir_v15.html established) + computeCutLayout depuis TS port multi-bin (branche multi-bin, 2026-04-23)",
   "state": {
     "params": {
@@ -29,7 +29,8 @@
       "perchLen": 30,
       "perchOff": 15,
       "panelW": 1220,
-      "panelH": 2440
+      "panelH": 2440,
+      "palette": "wood"
     },
     "clip": {
       "x": {
@@ -206,7 +207,7 @@
           "nameKey": "calc.cuts.facade",
           "noteKey": "calc.cuts.note.narrowed",
           "qty": 2,
-          "dim": "140↕180 × 323"
+          "dim": "140\u2195180 \u00d7 323"
         },
         {
           "nameKey": "calc.cuts.side",
@@ -215,25 +216,25 @@
             "v": "20"
           },
           "qty": 2,
-          "dim": "136 × 261"
+          "dim": "136 \u00d7 261"
         },
         {
           "nameKey": "calc.cuts.bottom",
           "noteKey": "calc.cuts.note.enclave",
           "qty": 1,
-          "dim": "116 × 136"
+          "dim": "116 \u00d7 136"
         },
         {
           "nameKey": "calc.cuts.roofL",
           "noteKey": "calc.cuts.note.ridgeT",
           "qty": 1,
-          "dim": "158 × 220"
+          "dim": "158 \u00d7 220"
         },
         {
           "nameKey": "calc.cuts.roofR",
           "noteKey": null,
           "qty": 1,
-          "dim": "146 × 220"
+          "dim": "146 \u00d7 220"
         },
         {
           "nameKey": "calc.cuts.perch",
@@ -242,7 +243,7 @@
             "d": 8
           },
           "qty": 1,
-          "dim": "∅8 × 30"
+          "dim": "\u22058 \u00d7 30"
         }
       ],
       "nPieces": 8
@@ -525,7 +526,7 @@
         "triangleCount": 12,
         "bbox": {
           "min": [
-            1.0596079391689273e-7,
+            1.0596079391689273e-07,
             0,
             -110
           ],

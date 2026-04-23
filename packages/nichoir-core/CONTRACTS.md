@@ -46,6 +46,7 @@ export type DecoSourceType = 'svg' | 'image';
 export type Lang        = 'fr' | 'en';
 export type TabKey      = 'dim' | 'vue' | 'deco' | 'calc' | 'plan' | 'export';
 export type ClipAxisKey = 'x' | 'y' | 'z';
+export type PaletteKey  = 'wood' | 'wood-contrast' | 'colorful' | 'mono';
 ```
 
 ### Utilitaires
@@ -117,6 +118,9 @@ export interface Params {
 
   // Feuille de découpe source
   panelW: number; panelH: number;
+
+  /** Palette de couleurs appliquée aux panneaux 3D et au plan de coupe 2D. */
+  palette: PaletteKey;
 }
 
 export interface ClipAxis { on: boolean; pos: number; }

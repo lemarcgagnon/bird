@@ -17,6 +17,7 @@
 //      cette vacuité pour ne pas pousser un def deco vide dans `defs`.
 
 import * as THREE from 'three';
+import { PALETTES, hexToNumber } from '../palettes.js';
 import { DECO_KEYS } from '../state.js';
 import {
   buildDecoGeoVector,
@@ -37,14 +38,6 @@ import type {
 } from '../types.js';
 
 const D2R = Math.PI / 180;
-
-const COL = {
-  front: 0xd4a574, back: 0xd4a574,
-  left: 0xc49464, right: 0xc49464,
-  bottom: 0xb48454,
-  roofL: 0x9e7044, roofR: 0x9e7044,
-  doorPanel: 0xe8c088,
-};
 
 // ---------------------------------------------------------------------------
 // mkPent
@@ -387,6 +380,19 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
   const { params, clip, decos } = state;
   const { W, H, D, slope, overhang, T, explode, floor, ridge, taperX } = params;
 
+  // Palette lookup — convert the current palette's string hexes to numbers
+  const pal = PALETTES[params.palette];
+  const COL_ACTIVE = {
+    front:     hexToNumber(pal.facade),
+    back:      hexToNumber(pal.facade),
+    left:      hexToNumber(pal.side),
+    right:     hexToNumber(pal.side),
+    bottom:    hexToNumber(pal.bottom),
+    roofL:     hexToNumber(pal.roof),
+    roofR:     hexToNumber(pal.roof),
+    doorPanel: hexToNumber(pal.door),
+  };
+
   const ang = slope * D2R;
   const eDist = (explode / 100) * Math.max(W, H, D) * 0.65;
   const isPose = floor === 'pose';
@@ -486,7 +492,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     geometry: mkPent(Wtop, Wbot, wallH, rH, T, doorInfoFront, perchHoleFront),
     basePos: [0, baseY, D / 2 - T],
     baseRot: [0, 0, 0],
-    color: COL.front,
+    color: COL_ACTIVE.front,
     explodeDir: [0, 0, 1],
   });
   defs.push({
@@ -494,7 +500,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     geometry: mkPent(Wtop, Wbot, wallH, rH, T, null, null),
     basePos: [0, baseY, -D / 2],
     baseRot: [0, 0, 0],
-    color: COL.back,
+    color: COL_ACTIVE.back,
     explodeDir: [0, 0, -1],
   });
 
@@ -516,7 +522,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     const leftGeo = (isDoorLeft && doorInfoSide)
       ? mkSidePanelWithDoor(Lv1, Lv0, Lv3, Lv2, leftNormal, T, roofPlaneL, doorInfoSide, perchHoleSide)
       : mkHexPanel(Lv0, Lv1, Lv2, Lv3, leftNormal, T, roofPlaneL);
-    defs.push({ key: 'left', geometry: leftGeo, basePos: [0, 0, 0], baseRot: [0, 0, 0], color: COL.left, explodeDir: leftNormal });
+    defs.push({ key: 'left', geometry: leftGeo, basePos: [0, 0, 0], baseRot: [0, 0, 0], color: COL_ACTIVE.left, explodeDir: leftNormal });
     leftAnchorPos  = [-W / 2 + T / 2, baseY + wallH / 2, 0];
     leftAnchorRot  = [0, 0, 0];
 
@@ -529,7 +535,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     const rightGeo = (isDoorRight && doorInfoSide)
       ? mkSidePanelWithDoor(Rv0, Rv1, Rv2, Rv3, rightNormal, T, roofPlaneR, doorInfoSide, perchHoleSide)
       : mkHexPanel(Rv0, Rv1, Rv2, Rv3, rightNormal, T, roofPlaneR);
-    defs.push({ key: 'right', geometry: rightGeo, basePos: [0, 0, 0], baseRot: [0, 0, 0], color: COL.right, explodeDir: rightNormal });
+    defs.push({ key: 'right', geometry: rightGeo, basePos: [0, 0, 0], baseRot: [0, 0, 0], color: COL_ACTIVE.right, explodeDir: rightNormal });
     rightAnchorPos = [+W / 2 - T / 2, baseY + wallH / 2, 0];
     rightAnchorRot = [0, 0, 0];
   } else {
@@ -541,7 +547,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     const leftGeo = (isDoorLeft && doorInfoSide)
       ? mkSidePanelWithDoor(Lv1, Lv0, Lv3, Lv2, Ln, T, roofPlaneL, doorInfoSide, perchHoleSide)
       : mkHexPanel(Lv0, Lv1, Lv2, Lv3, Ln, T, roofPlaneL);
-    defs.push({ key: 'left', geometry: leftGeo, basePos: [0, 0, 0], baseRot: [0, 0, 0], color: COL.left, explodeDir: [-Math.cos(alpha), Math.sin(alpha), 0] });
+    defs.push({ key: 'left', geometry: leftGeo, basePos: [0, 0, 0], baseRot: [0, 0, 0], color: COL_ACTIVE.left, explodeDir: [-Math.cos(alpha), Math.sin(alpha), 0] });
 
     const innerCenterL: Vec3 = [(Lv0[0] + Lv2[0]) / 2, (Lv0[1] + Lv2[1]) / 2, 0];
     leftAnchorPos = [innerCenterL[0] + T / 2 * Ln[0], innerCenterL[1] + T / 2 * Ln[1], 0];
@@ -555,7 +561,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     const rightGeo = (isDoorRight && doorInfoSide)
       ? mkSidePanelWithDoor(Rv0, Rv1, Rv2, Rv3, Rn, T, roofPlaneR, doorInfoSide, perchHoleSide)
       : mkHexPanel(Rv0, Rv1, Rv2, Rv3, Rn, T, roofPlaneR);
-    defs.push({ key: 'right', geometry: rightGeo, basePos: [0, 0, 0], baseRot: [0, 0, 0], color: COL.right, explodeDir: [Math.cos(alpha), Math.sin(alpha), 0] });
+    defs.push({ key: 'right', geometry: rightGeo, basePos: [0, 0, 0], baseRot: [0, 0, 0], color: COL_ACTIVE.right, explodeDir: [Math.cos(alpha), Math.sin(alpha), 0] });
 
     const innerCenterR: Vec3 = [(Rv0[0] + Rv2[0]) / 2, (Rv0[1] + Rv2[1]) / 2, 0];
     rightAnchorPos = [innerCenterR[0] + T / 2 * Rn[0], innerCenterR[1] + T / 2 * Rn[1], 0];
@@ -568,7 +574,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     geometry: new THREE.BoxGeometry(floorW, T, floorD),
     basePos: [0, T / 2, 0],
     baseRot: [0, 0, 0],
-    color: COL.bottom,
+    color: COL_ACTIVE.bottom,
     explodeDir: [0, -1, 0],
   });
 
@@ -585,7 +591,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     defs.push({
       key: 'roofL', geometry: rlG,
       basePos: [0, peakY, 0], baseRot: [0, 0, ang],
-      color: COL.roofL, explodeDir: [-Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
+      color: COL_ACTIVE.roofL, explodeDir: [-Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
     });
     const rrG = buildRoofPanelWithHoles(
       false, sL, rL, T, params.hangPosY, params.hangOffsetX, params.hangDiam,
@@ -593,7 +599,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     defs.push({
       key: 'roofR', geometry: rrG,
       basePos: [0, peakY, 0], baseRot: [0, 0, -ang],
-      color: COL.roofR, explodeDir: [Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
+      color: COL_ACTIVE.roofR, explodeDir: [Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
     });
   } else if (ridge === 'miter') {
     const shL = new THREE.Shape();
@@ -603,7 +609,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     defs.push({
       key: 'roofL', geometry: rlG,
       basePos: [0, peakY, 0], baseRot: [0, 0, ang],
-      color: COL.roofL, explodeDir: [-Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
+      color: COL_ACTIVE.roofL, explodeDir: [-Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
     });
 
     const shR = new THREE.Shape();
@@ -613,7 +619,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     defs.push({
       key: 'roofR', geometry: rrG,
       basePos: [0, peakY, 0], baseRot: [0, 0, -ang],
-      color: COL.roofR, explodeDir: [Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
+      color: COL_ACTIVE.roofR, explodeDir: [Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
     });
   } else {
     const sL_L = ridge === 'left' ? sL + T : sL;
@@ -625,7 +631,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     defs.push({
       key: 'roofL', geometry: rlG,
       basePos: [0, peakY, 0], baseRot: [0, 0, ang],
-      color: COL.roofL, explodeDir: [-Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
+      color: COL_ACTIVE.roofL, explodeDir: [-Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
     });
 
     const rrG = new THREE.BoxGeometry(sL_R, T, rL);
@@ -634,7 +640,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     defs.push({
       key: 'roofR', geometry: rrG,
       basePos: [0, peakY, 0], baseRot: [0, 0, -ang],
-      color: COL.roofR, explodeDir: [Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
+      color: COL_ACTIVE.roofR, explodeDir: [Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
     });
   }
 
@@ -709,7 +715,7 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
         geometry: dpGeo,
         basePos: dpBasePos,
         baseRot: dpBaseRot,
-        color: COL.doorPanel,
+        color: COL_ACTIVE.doorPanel,
         explodeDir: dpExplodeDir,
       });
     }

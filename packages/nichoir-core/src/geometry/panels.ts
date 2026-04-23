@@ -375,6 +375,72 @@ function buildRoofPanelWithHoles(
 }
 
 // ---------------------------------------------------------------------------
+// buildMiterChamferStrip
+// ---------------------------------------------------------------------------
+
+/**
+ * Construit le prisme triangulaire du chanfrein miter à placer au bord
+ * du ridge. Cross-section = petit triangle à angle droit (legs T et bev),
+ * extrudé le long de Z pour rL. Watertight par construction.
+ *
+ * Ne contient pas de trous — les trous sont dans le corps principal.
+ */
+function buildMiterChamferStrip(
+  isL: boolean,
+  bev: number,
+  T: number,
+  rL: number,
+): THREE.BufferGeometry {
+  const shape = new THREE.Shape();
+  if (isL) {
+    // roofL : triangle (0, 0) → (0, T) → (bev, T) → close
+    shape.moveTo(0, 0);
+    shape.lineTo(0, T);
+    shape.lineTo(bev, T);
+    shape.closePath();
+  } else {
+    // roofR : triangle (0, 0) → (-bev, T) → (0, T) → close (miroir)
+    shape.moveTo(0, 0);
+    shape.lineTo(-bev, T);
+    shape.lineTo(0, T);
+    shape.closePath();
+  }
+  const geo = new THREE.ExtrudeGeometry(shape, { depth: rL, bevelEnabled: false });
+  geo.translate(0, 0, -rL / 2);
+  return geo;
+}
+
+// ---------------------------------------------------------------------------
+// concatGeometries
+// ---------------------------------------------------------------------------
+
+/**
+ * Fusionne les positions de N BufferGeometry non-indexées en une seule.
+ * Pas de partage de vertices, pas de CSG — simple concaténation de triangles.
+ * Le résultat n'est pas un 2-manifold unique au sens strict (les pièces peuvent
+ * se chevaucher à une face partagée), mais l'export STL du projet est déjà
+ * une concaténation, donc cohérent avec l'architecture existante.
+ */
+function concatGeometries(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  const positions: number[] = [];
+  const normals: number[] = [];
+  for (const geo of geos) {
+    const g = geo.index ? geo.toNonIndexed() : geo.clone();
+    g.computeVertexNormals();
+    const pos = g.getAttribute('position');
+    const nrm = g.getAttribute('normal');
+    for (let i = 0; i < pos.count; i++) {
+      positions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
+      normals.push(nrm.getX(i), nrm.getY(i), nrm.getZ(i));
+    }
+  }
+  const result = new THREE.BufferGeometry();
+  result.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  result.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  return result;
+}
+
+// ---------------------------------------------------------------------------
 // buildPanelDefs
 // ---------------------------------------------------------------------------
 
@@ -596,9 +662,17 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
   let rrG: THREE.BufferGeometry;
 
   if (params.hang) {
-    // Pattern Shape+holes+Extrude (watertight). Tradeoff : miter chamfer perdu.
+    // Pattern Shape+holes+Extrude (watertight) pour le corps principal.
     rlG = buildRoofPanelWithHoles(true,  sL, rL, T, params.hangPosY, params.hangOffsetX, params.hangDiam, ridge);
     rrG = buildRoofPanelWithHoles(false, sL, rL, T, params.hangPosY, params.hangOffsetX, params.hangDiam, ridge);
+    // Quand ridge=miter + hang, le corps principal est rectangulaire (chanfrein perdu).
+    // On ajoute la bandelette chanfrein triangulaire séparément puis on concatène.
+    if (ridge === 'miter') {
+      const chamferL = buildMiterChamferStrip(true,  bev, T, rL);
+      const chamferR = buildMiterChamferStrip(false, bev, T, rL);
+      rlG = concatGeometries([rlG, chamferL]);
+      rrG = concatGeometries([rrG, chamferR]);
+    }
   } else if (ridge === 'miter') {
     // Miter parallélogramme avec chanfrein bev — code original préservé
     const shL = new THREE.Shape();

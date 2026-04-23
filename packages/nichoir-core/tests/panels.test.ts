@@ -581,21 +581,40 @@ describe('buildPanelDefs — trous de suspension (hang)', () => {
     expectClose(minX, -state.params.T, 'roofR minX should equal -T for ridge=right', 1e-4);
   });
 
-  it('ridge=miter hang=true : roofL et roofR s\'arrêtent à x=0 (chanfrein perdu — tradeoff documenté)', () => {
-    // Tradeoff documenté : avec Shape+holes+Extrude, la section miter (parallélogramme)
-    // ne peut pas être représentée — les deux panneaux deviennent des rectangles
-    // s'arrêtant à x=0 sans bev overhang.
+  it('ridge=miter + hang=true: chamfer strip présent sur roofL (bbox maxX ≈ bev)', () => {
     const state = createInitialState();
     state.params.hang = true;
     state.params.ridge = 'miter';
-    const { defs } = buildPanelDefs(state);
-    const roofL = defs.find(d => d.key === 'roofL');
-    const roofR = defs.find(d => d.key === 'roofR');
-    expect(roofL).toBeDefined();
-    expect(roofR).toBeDefined();
-    // Avec le pattern Shape+Extrude, miter → xEnd=0 pour roofL, xStart=0 pour roofR
-    expect(Math.abs(getMaxLocalX(roofL!.geometry))).toBeLessThan(1e-3);  // maxX ≈ 0
-    expect(Math.abs(getMinLocalX(roofR!.geometry))).toBeLessThan(1e-3);  // minX ≈ 0
+    const bl = buildPanelDefs(state);
+    const roofL = bl.defs.find(d => d.key === 'roofL')!;
+    const bbox = computeBbox(roofL.geometry);
+    const expectedBev = state.params.T * Math.tan(state.params.slope * Math.PI / 180);
+    expectClose(bbox.max[0], expectedBev, 'roofL maxX should equal bev (chamfer present)', 1e-4);
+  });
+
+  it('ridge=miter + hang=true: chamfer strip mirrored sur roofR (bbox minX ≈ -bev)', () => {
+    const state = createInitialState();
+    state.params.hang = true;
+    state.params.ridge = 'miter';
+    const bl = buildPanelDefs(state);
+    const roofR = bl.defs.find(d => d.key === 'roofR')!;
+    const bbox = computeBbox(roofR.geometry);
+    const expectedBev = state.params.T * Math.tan(state.params.slope * Math.PI / 180);
+    expectClose(bbox.min[0], -expectedBev, 'roofR minX should equal -bev (chamfer present)', 1e-4);
+  });
+
+  it('ridge=miter + hang=true: triangle count > hang=false case (chamfer adds triangles)', () => {
+    const state = createInitialState();
+    state.params.hang = true;
+    state.params.ridge = 'miter';
+    const bl = buildPanelDefs(state);
+    const roofL_hang = bl.defs.find(d => d.key === 'roofL')!;
+    state.params.hang = false;
+    const bl2 = buildPanelDefs(state);
+    const roofL_nohang = bl2.defs.find(d => d.key === 'roofL')!;
+    const hangCount   = (roofL_hang.geometry.getAttribute('position') as THREE.BufferAttribute).count;
+    const noHangCount = (roofL_nohang.geometry.getAttribute('position') as THREE.BufferAttribute).count;
+    expect(hangCount).toBeGreaterThan(noHangCount);
   });
 
   it('ridge types produisent des géométries distinctes quand hang=true', () => {

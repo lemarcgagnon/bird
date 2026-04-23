@@ -1,0 +1,57 @@
+/* Renderer partagé pour CutLayout multi-panneaux. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.header {
+  font-size: 11px;
+  color: var(--n-text-muted);
+  padding: 4px 0;
+}
+
+.banner {
+  background: #441a1a;
+  color: #ff8888;
+  border: 1px solid #ff4444;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bannerTitle {
+  font-weight: bold;
+}
+
+.bannerList {
+  margin: 0;
+  padding-left: 16px;
+}
+
+.panelCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+  border-top: 1px solid var(--n-border);
+}
+
+.panelHeader {
+  font-size: 11px;
+  color: var(--n-accent);
+  display: flex;
+  justify-content: space-between;
+}
+
+.svgPreview {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 4px;
+  background: #252018;
+}

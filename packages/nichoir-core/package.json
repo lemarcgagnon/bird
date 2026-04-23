@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "jszip": "^3.10.1",
+    "rectangle-packer": "^1.0.4",
     "three": "^0.160.0"
   },
   "devDependencies": {

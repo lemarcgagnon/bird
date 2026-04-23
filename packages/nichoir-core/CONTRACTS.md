@@ -44,7 +44,7 @@ export type DecoMode    = 'heightmap' | 'vector';
 export type DecoSourceType = 'svg' | 'image';
 
 export type Lang        = 'fr' | 'en';
-export type TabKey      = 'dim' | 'vue' | 'deco' | 'calc' | 'plan' | 'export';
+export type TabKey      = 'dim' | 'vue' | 'deco' | 'calc' | 'plan' | 'plan2' | 'export';
 export type ClipAxisKey = 'x' | 'y' | 'z';
 export type PaletteKey  = 'wood' | 'wood-contrast' | 'colorful' | 'mono';
 ```

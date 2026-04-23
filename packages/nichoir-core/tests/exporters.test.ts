@@ -278,7 +278,7 @@ describe('generatePlanSVG', () => {
     it(`preset ${label} — structure SVG (polygon/rect/text counts) match`, () => {
       const state = withDeco ? stateFromDecoFixture(fixture) : stateFromFixture(fixture);
       const layout = computeCutLayout(state.params);
-      const svg = generatePlanSVG(layout, identityTranslator);
+      const svg = generatePlanSVG(layout.panels[0], identityTranslator);
 
       expect(typeof svg).toBe('string');
       expect(svg.startsWith('<?xml')).toBe(true);
@@ -303,7 +303,7 @@ describe('generatePlanSVG', () => {
     const badTranslator = (() => undefined) as unknown as Translator;
     const state = createInitialState();
     const layout = computeCutLayout(state.params);
-    const svg = generatePlanSVG(layout, badTranslator);
+    const svg = generatePlanSVG(layout.panels[0], badTranslator);
     expect(svg.includes('undefined')).toBe(true);
     expect(svg.includes('</svg>')).toBe(true);
   });

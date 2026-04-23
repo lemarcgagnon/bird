@@ -1,27 +1,20 @@
 // src/exporters/svg.ts
 //
-// Port **fidèle avec divergences documentées** de la partie "string-building"
-// de src/exporters/plan.js:exportPlanSVG. Retourne une string SVG — le trigger
-// du download est de la responsabilité de `nichoir-adapters/DownloadService`.
-// "Port fidèle" ≠ "1:1 littéral" : les divergences ci-dessous sont intentionnelles.
+// Génère la string SVG d'UN panneau du plan de coupe. Retourne une string —
+// le trigger du download (ZIP multi-SVG) est dans `exporters/plan-zip.ts`.
 //
-// Divergences vs src/exporters/plan.js:exportPlanSVG (lignes 24-76) :
-//   1. Retourne la string SVG au lieu de déclencher un Blob download.
-//      Les appels `new Blob([svg], ...)`, `URL.createObjectURL`,
-//      `document.createElement('a')` sont supprimés (UI).
-//   2. `t(p.nameKey)` et `t('plan.rotated')` remplacés par le paramètre
-//      `translate` injecté (au lieu de l'import global `t()` dans src).
+// Le contrat multi-bin implique un SVG par panneau (pas un SVG unique
+// multi-pages — ce format n'existe pas en SVG).
 
-import type { CutLayout, Translator } from '../types.js';
+import type { Panel, Translator } from '../types.js';
 
 /**
- * Génère la string SVG du plan de découpe.
- * `translate` résout :
- *   - les noms de pièces via `p.nameKey`
- *   - le label "pivoté" via `'plan.rotated'`
+ * Génère la string SVG d'un panneau unique.
+ * `translate` résout les noms de pièces via `p.nameKey` et le label "pivoté"
+ * via `'plan.rotated'`.
  */
-export function generatePlanSVG(layout: CutLayout, translate: Translator): string {
-  const { pieces, shW, shH } = layout;
+export function generatePlanSVG(panel: Panel, translate: Translator): string {
+  const { pieces, shW, shH } = panel;
 
   let svg = `<?xml version="1.0" encoding="UTF-8"?>\n`;
   svg += `<svg xmlns="http://www.w3.org/2000/svg" width="${shW}mm" height="${shH}mm" viewBox="0 0 ${shW} ${shH}">\n`;
@@ -38,8 +31,8 @@ export function generatePlanSVG(layout: CutLayout, translate: Translator): strin
   pieces.forEach(p => {
     if (p.px === undefined) return;
     const x = p.px, y = p.py!, w = p.w, h = p.h;
-    const stroke = p.overflow ? '#e04040' : '#000';
-    const fill = p.overflow ? '#fadede' : p.color + '40';
+    const stroke = '#000';
+    const fill = p.color + '40';
 
     if (p.shape === 'pent' && !p.rot) {
       const wHs = p.wallH!;

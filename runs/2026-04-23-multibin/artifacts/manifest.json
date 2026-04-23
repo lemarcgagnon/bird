@@ -1,0 +1,4 @@
+{
+  "description": "Artifacts minimal — la validation visuelle manuelle s'est limitée au preset par défaut (option A choisie par user). Pas de screenshot systématique archivé. La couverture est portée par les 440 unit tests + la réponse user 'tout semble bien' sur preset A.",
+  "entries": []
+}

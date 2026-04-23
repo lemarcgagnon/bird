@@ -1,0 +1,27 @@
+{
+  "task_id": "multi-bin-cut-plan",
+  "status": "completed",
+  "acceptance_passed": true,
+  "tests_passed": true,
+  "lint_passed": true,
+  "typecheck_passed": true,
+  "build_passed": true,
+  "retries": 0,
+  "files_changed": 33,
+  "lines_added": 1417,
+  "lines_removed": 1054,
+  "commits_on_branch": 13,
+  "tests_total": 440,
+  "tests_by_package": {
+    "core": 143,
+    "adapters": 4,
+    "ui": 293
+  },
+  "verification_evidence": "RESULT.md, state/NOTES.md, manual browser check preset A by user (response: 'tout semble bien')",
+  "evidence_document_written": true,
+  "core_version_before": "0.1.0",
+  "core_version_after": "0.2.0",
+  "breaking_change": true,
+  "deviations_count": 4,
+  "deviations_summary": "test panel size adjusted, 2 integration tests removed, fixture source field updated, visual validation limited to preset A"
+}

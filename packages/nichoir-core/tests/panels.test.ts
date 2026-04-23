@@ -581,22 +581,27 @@ describe('buildPanelDefs — trous de suspension (hang)', () => {
     expectClose(minX, -state.params.T, 'roofR minX should equal -T for ridge=right', 1e-4);
   });
 
-  it('ridge=miter hang=true : roofL et roofR s\'étendent chacun de bev (recouvrement 2*bev)', () => {
+  it('ridge=miter hang=true : roofL et roofR s\'arrêtent à x=0 (chanfrein perdu — tradeoff documenté)', () => {
+    // Tradeoff documenté : avec Shape+holes+Extrude, la section miter (parallélogramme)
+    // ne peut pas être représentée — les deux panneaux deviennent des rectangles
+    // s'arrêtant à x=0 sans bev overhang.
     const state = createInitialState();
     state.params.hang = true;
     state.params.ridge = 'miter';
-    const ang = state.params.slope * Math.PI / 180;
-    const expectedBev = state.params.T * Math.tan(ang);
     const { defs } = buildPanelDefs(state);
     const roofL = defs.find(d => d.key === 'roofL');
     const roofR = defs.find(d => d.key === 'roofR');
     expect(roofL).toBeDefined();
     expect(roofR).toBeDefined();
-    expectClose(getMaxLocalX(roofL!.geometry),  expectedBev, 'roofL maxX should equal bev for miter', 1e-4);
-    expectClose(getMinLocalX(roofR!.geometry), -expectedBev, 'roofR minX should equal -bev for miter', 1e-4);
+    // Avec le pattern Shape+Extrude, miter → xEnd=0 pour roofL, xStart=0 pour roofR
+    expect(Math.abs(getMaxLocalX(roofL!.geometry))).toBeLessThan(1e-3);  // maxX ≈ 0
+    expect(Math.abs(getMinLocalX(roofR!.geometry))).toBeLessThan(1e-3);  // minX ≈ 0
   });
 
-  it('ridge types produce 3 geometries distinctes quand hang=true', () => {
+  it('ridge types produisent des géométries distinctes quand hang=true', () => {
+    // Avec Shape+Extrude, miter et right donnent tous les deux maxX≈0 pour roofL,
+    // et miter et left donnent minX≈0 pour roofR. On distingue les 3 par paire
+    // (roofL left≠right, roofR left≠right, et left≠miter via roofL).
     const makeState = (r: 'left' | 'right' | 'miter') => {
       const s = createInitialState();
       s.params.hang = true;
@@ -610,15 +615,14 @@ describe('buildPanelDefs — trous de suspension (hang)', () => {
     const roofL_left  = leftDefs.find(d => d.key === 'roofL')!;
     const roofL_right = rightDefs.find(d => d.key === 'roofL')!;
     const roofL_miter = miterDefs.find(d => d.key === 'roofL')!;
+    const roofR_left  = leftDefs.find(d => d.key === 'roofR')!;
+    const roofR_right = rightDefs.find(d => d.key === 'roofR')!;
 
-    const maxLeft  = getMaxLocalX(roofL_left.geometry);
-    const maxRight = getMaxLocalX(roofL_right.geometry);
-    const maxMiter = getMaxLocalX(roofL_miter.geometry);
-
-    // 3 ridge types → 3 valeurs de maxX distinctes pour roofL
-    expect(maxLeft).not.toBeCloseTo(maxRight, 3);
-    expect(maxLeft).not.toBeCloseTo(maxMiter, 3);
-    expect(maxRight).not.toBeCloseTo(maxMiter, 3);
+    // ridge=left → roofL couvre +T, ridge=right/miter → roofL s'arrête à 0
+    expect(getMaxLocalX(roofL_left.geometry)).not.toBeCloseTo(getMaxLocalX(roofL_right.geometry), 3);
+    expect(getMaxLocalX(roofL_left.geometry)).not.toBeCloseTo(getMaxLocalX(roofL_miter.geometry), 3);
+    // ridge=right → roofR couvre -T, ridge=left/miter → roofR commence à 0
+    expect(getMinLocalX(roofR_right.geometry)).not.toBeCloseTo(getMinLocalX(roofR_left.geometry), 3);
   });
 
   it('hang=false → presets A/B/C triangleCounts inchangés pour roofL/roofR', () => {

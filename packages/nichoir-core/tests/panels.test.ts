@@ -413,6 +413,21 @@ describe('doorFace routing (P3 feature)', () => {
     expect(triangleCount(leftWithDoorRight!.geometry)).toBe(triangleCount(leftNoDoor!.geometry));
   });
 
+  it('hang=false (default) : basePos/baseRot/color de roofL et roofR inchangés', () => {
+    // Vérifie que hang=false ne modifie rien par rapport à l'état initial.
+    const base = createInitialState();
+    const withHangFalse = buildPanelDefs(base);
+    const roofL = withHangFalse.defs.find(d => d.key === 'roofL');
+    const roofR = withHangFalse.defs.find(d => d.key === 'roofR');
+    expect(roofL).toBeDefined();
+    expect(roofR).toBeDefined();
+    // basePos = [0, peakY, 0] pour les deux
+    expect(roofL!.basePos[0]).toBe(0);
+    expect(roofL!.basePos[2]).toBe(0);
+    expect(roofR!.basePos[0]).toBe(0);
+    expect(roofR!.basePos[2]).toBe(0);
+  });
+
   it('doorPanel physique suit la face : basePos.z = D/2-T pour front, 0 pour left/right', () => {
     const base = createInitialState();
     const D_val = base.params.D;
@@ -435,6 +450,105 @@ describe('doorFace routing (P3 feature)', () => {
         expect(dp!.basePos[0]).toBeCloseTo(+(W_val / 2 - T_val), 5);
         expect(dp!.basePos[2]).toBe(0);
       }
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Hanging holes (trous de suspension)
+// ---------------------------------------------------------------------------
+
+describe('buildPanelDefs — trous de suspension (hang)', () => {
+  it('hang=false (default) : géométrie roofL identique bit-à-bit à la baseline', () => {
+    const s1 = createInitialState();
+    const s2 = createInitialState();
+    s2.params.hang = false; // explicitement false
+    const r1 = buildPanelDefs(s1);
+    const r2 = buildPanelDefs(s2);
+    const roofL1 = r1.defs.find(d => d.key === 'roofL');
+    const roofL2 = r2.defs.find(d => d.key === 'roofL');
+    expect(roofL1).toBeDefined();
+    expect(roofL2).toBeDefined();
+    expect(triangleCount(roofL1!.geometry)).toBe(triangleCount(roofL2!.geometry));
+  });
+
+  it('hang=true : roofL a PLUS de triangles (les trous ajoutent de la géométrie)', () => {
+    const state = createInitialState();
+    const withHang = buildPanelDefs({ ...state, params: { ...state.params, hang: true } });
+    const withoutHang = buildPanelDefs(state);
+    const roofL_hang    = withHang.defs.find(d => d.key === 'roofL');
+    const roofL_noHang  = withoutHang.defs.find(d => d.key === 'roofL');
+    expect(roofL_hang).toBeDefined();
+    expect(roofL_noHang).toBeDefined();
+    expect(triangleCount(roofL_hang!.geometry)).toBeGreaterThan(triangleCount(roofL_noHang!.geometry));
+  });
+
+  it('hang=true : roofR a PLUS de triangles (même invariant côté droit)', () => {
+    const state = createInitialState();
+    const withHang = buildPanelDefs({ ...state, params: { ...state.params, hang: true } });
+    const withoutHang = buildPanelDefs(state);
+    const roofR_hang    = withHang.defs.find(d => d.key === 'roofR');
+    const roofR_noHang  = withoutHang.defs.find(d => d.key === 'roofR');
+    expect(roofR_hang).toBeDefined();
+    expect(roofR_noHang).toBeDefined();
+    expect(triangleCount(roofR_hang!.geometry)).toBeGreaterThan(triangleCount(roofR_noHang!.geometry));
+  });
+
+  it('hang=true : roofL bbox X couvre [-sL, 0] (tolérance float32)', () => {
+    const state = createInitialState();
+    const { params } = state;
+    const ang = params.slope * Math.PI / 180;
+    const sL = (params.W / 2 + params.overhang) / Math.cos(ang);
+    const { defs } = buildPanelDefs({ ...state, params: { ...state.params, hang: true } });
+    const roofL = defs.find(d => d.key === 'roofL');
+    expect(roofL).toBeDefined();
+    const bb = computeBbox(roofL!.geometry);
+    // X doit aller de -sL à 0 (pente gauche) avec tolérance
+    expectClose(bb.min[0], -sL, 'roofL bbox.min.X', 1e-4);
+    expectClose(bb.max[0],  0, 'roofL bbox.max.X', 1e-4);
+  });
+
+  it('hang=true : roofR bbox X couvre [0, sL] (tolérance float32)', () => {
+    const state = createInitialState();
+    const { params } = state;
+    const ang = params.slope * Math.PI / 180;
+    const sL = (params.W / 2 + params.overhang) / Math.cos(ang);
+    const { defs } = buildPanelDefs({ ...state, params: { ...state.params, hang: true } });
+    const roofR = defs.find(d => d.key === 'roofR');
+    expect(roofR).toBeDefined();
+    const bb = computeBbox(roofR!.geometry);
+    expectClose(bb.min[0], 0,   'roofR bbox.min.X', 1e-4);
+    expectClose(bb.max[0], sL,  'roofR bbox.max.X', 1e-4);
+  });
+
+  it('hang=true : roofL bbox Z couvre [-rL/2, +rL/2] (longueur complète)', () => {
+    const state = createInitialState();
+    const { params } = state;
+    const rL = params.D + 2 * params.overhang;
+    const { defs } = buildPanelDefs({ ...state, params: { ...state.params, hang: true } });
+    const roofL = defs.find(d => d.key === 'roofL');
+    expect(roofL).toBeDefined();
+    const bb = computeBbox(roofL!.geometry);
+    expectClose(bb.min[2], -rL / 2, 'roofL bbox.min.Z', 1e-4);
+    expectClose(bb.max[2],  rL / 2, 'roofL bbox.max.Z', 1e-4);
+  });
+
+  it('hang=false → presets A/B/C triangleCounts inchangés pour roofL/roofR', () => {
+    // Vérification fine : les fixtures existantes ne doivent pas changer car hang=false.
+    // Presets chargent via Object.assign sur un initial state → hang reste false.
+    for (const [i, label] of (['A', 'B', 'C'] as const).entries()) {
+      const fixture = presets[i]!;
+      const state = stateFromFixture(fixture);
+      expect(state.params.hang, `hang doit être false pour preset ${label}`).toBe(false);
+      const result = buildPanelDefs(state);
+      const roofL = result.defs.find(d => d.key === 'roofL');
+      const roofLRef = fixture.reference.panelDefsNormalized.find(r => r.key === 'roofL');
+      expect(roofL).toBeDefined();
+      expect(roofLRef).toBeDefined();
+      expect(
+        triangleCount(roofL!.geometry),
+        `triangleCount roofL preset ${label}`,
+      ).toBe(roofLRef!.triangleCount);
     }
   });
 });

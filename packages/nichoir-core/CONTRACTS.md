@@ -109,6 +109,12 @@ export interface Params {
   perch: boolean;
   perchDiam: number; perchLen: number; perchOff: number;
 
+  // Suspension (trous dans le débordement du toit)
+  hang: boolean;
+  hangPosY: number;    // mm, distance from each gable end along D axis (symmetric front/back)
+  hangOffsetX: number; // mm, distance from ridge along slope direction (mirrored left/right)
+  hangDiam: number;    // mm, hole diameter
+
   // Feuille de découpe source
   panelW: number; panelH: number;
 }

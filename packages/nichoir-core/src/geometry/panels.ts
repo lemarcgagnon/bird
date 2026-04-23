@@ -298,6 +298,80 @@ export function mkSidePanelWithDoor(
 }
 
 // ---------------------------------------------------------------------------
+// buildRoofPanelWithHoles
+// ---------------------------------------------------------------------------
+
+/**
+ * Construit un panneau de toit avec 2 trous de suspension (cylindres) via
+ * ExtrudeGeometry + vue de dessus (plan XZ).
+ *
+ * Convention de coordonnées :
+ *   - Le Shape THREE est dans le plan XY local.
+ *   - On extrude le long de +Z local (épaisseur T).
+ *   - On applique rotateX(-π/2) pour mapper :
+ *       shape.x → world.x  (direction de pente)
+ *       extruded +Z → world.+Y (épaisseur, vers le haut)
+ *       shape.y → world.-Z  (axe D, signe inversé)
+ *   - Pour obtenir world.Z = +rL/2 (front), on pose shape.y = -rL/2.
+ *     Donc shape.y = -z_world (convention interne de cette fonction).
+ *
+ * Limitation : perd le chanfrein onglet (miter chamfer) sur la crête quand
+ * hang=true. Tradeoff validé avec l'utilisateur.
+ *
+ * @param isL      true = panneau gauche (xStart=-sL, xEnd=0), false = panneau droit (xStart=0, xEnd=sL)
+ * @param sL       longueur de la pente (mm)
+ * @param rL       longueur du toit le long de D (mm), = D + 2*overhang
+ * @param T        épaisseur (mm)
+ * @param hangPosY distance depuis chaque bord de pignon le long de l'axe D (mm)
+ * @param hangOffsetX distance depuis la crête le long de la pente (mm)
+ * @param hangDiam diamètre des trous (mm)
+ */
+function buildRoofPanelWithHoles(
+  isL: boolean,
+  sL: number,
+  rL: number,
+  T: number,
+  hangPosY: number,
+  hangOffsetX: number,
+  hangDiam: number,
+): THREE.BufferGeometry {
+  const xStart = isL ? -sL : 0;
+  const xEnd   = isL ? 0   : sL;
+
+  // Shape en plan XY local. shape.y = -z_world (voir convention ci-dessus).
+  // Contour rectangulaire (CCW vu de +Z local = +Y world) :
+  //   (xStart, -(-rL/2)) → (xEnd, -(-rL/2)) → (xEnd, -(+rL/2)) → (xStart, -(+rL/2))
+  // = (xStart, rL/2) → (xEnd, rL/2) → (xEnd, -rL/2) → (xStart, -rL/2)
+  const sh = new THREE.Shape();
+  sh.moveTo(xStart,  rL / 2);
+  sh.lineTo(xEnd,    rL / 2);
+  sh.lineTo(xEnd,   -rL / 2);
+  sh.lineTo(xStart, -rL / 2);
+  sh.closePath();
+
+  // 2 trous : symétrie avant/arrière en world.Z.
+  // world.Z front = +rL/2 - hangPosY → shape.y = -(+rL/2 - hangPosY) = -rL/2 + hangPosY
+  // world.Z back  = -rL/2 + hangPosY → shape.y = -(-rL/2 + hangPosY) = +rL/2 - hangPosY
+  const holeX = isL ? -sL + hangOffsetX : sL - hangOffsetX;
+  const holeR = hangDiam / 2;
+  const syFront = -rL / 2 + hangPosY;   // shape.y correspondant à world.Z front
+  const syBack  =  rL / 2 - hangPosY;   // shape.y correspondant à world.Z back
+  for (const sy of [syFront, syBack]) {
+    const p = new THREE.Path();
+    p.absellipse(holeX, sy, holeR, holeR, 0, Math.PI * 2, true);
+    sh.holes.push(p);
+  }
+
+  const geo = new THREE.ExtrudeGeometry(sh, { depth: T, bevelEnabled: false });
+  // rotateX(-π/2) : (x,y,z) → (x, z, -y)
+  //   shape.x → world.x          (pente, correct)
+  //   extruded +Z (T) → world.+Y  (épaisseur, vers le haut, correct)
+  //   shape.y → world.-Z          (axe D, convention interne ci-dessus)
+  geo.rotateX(-Math.PI / 2);
+  return geo;
+}
+
+// ---------------------------------------------------------------------------
 // buildPanelDefs
 // ---------------------------------------------------------------------------
 
@@ -501,7 +575,27 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
   // Toit
   const bev = T * Math.tan(ang);
 
-  if (ridge === 'miter') {
+  if (params.hang) {
+    // Trous de suspension : ExtrudeGeometry vue-de-dessus + 4 trous circulaires.
+    // On remplace la géométrie miter/BoxGeometry pour les 2 panneaux de toit.
+    // Tradeoff : perd le chanfrein onglet (miter) sur la crête. Validé utilisateur.
+    const rlG = buildRoofPanelWithHoles(
+      true, sL, rL, T, params.hangPosY, params.hangOffsetX, params.hangDiam,
+    );
+    defs.push({
+      key: 'roofL', geometry: rlG,
+      basePos: [0, peakY, 0], baseRot: [0, 0, ang],
+      color: COL.roofL, explodeDir: [-Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
+    });
+    const rrG = buildRoofPanelWithHoles(
+      false, sL, rL, T, params.hangPosY, params.hangOffsetX, params.hangDiam,
+    );
+    defs.push({
+      key: 'roofR', geometry: rrG,
+      basePos: [0, peakY, 0], baseRot: [0, 0, -ang],
+      color: COL.roofR, explodeDir: [Math.sin(ang) * 0.7, Math.cos(ang) * 0.7, 0],
+    });
+  } else if (ridge === 'miter') {
     const shL = new THREE.Shape();
     shL.moveTo(0, 0); shL.lineTo(-sL, 0); shL.lineTo(-sL, T); shL.lineTo(bev, T); shL.closePath();
     const rlG = new THREE.ExtrudeGeometry(shL, { depth: rL, bevelEnabled: false });

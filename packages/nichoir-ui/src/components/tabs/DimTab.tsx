@@ -8,6 +8,7 @@
 import { DimBodySection } from './DimBodySection.js';
 import { DimDoorSection } from './DimDoorSection.js';
 import { DimPerchSection } from './DimPerchSection.js';
+import { DimHangSection } from './DimHangSection.js';
 import styles from './DimTab.module.css';
 
 export function DimTab(): React.JSX.Element {
@@ -16,6 +17,7 @@ export function DimTab(): React.JSX.Element {
       <DimBodySection />
       <DimDoorSection />
       <DimPerchSection />
+      <DimHangSection />
     </div>
   );
 }

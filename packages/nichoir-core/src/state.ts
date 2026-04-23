@@ -50,6 +50,7 @@ export function createInitialState(): NichoirState {
       doorW: 38, doorH: 38, doorPX: 50, doorPY: 50, doorVar: 100,
       doorPanel: false, doorFollowTaper: false,
       perch: false, perchDiam: 8, perchLen: 30, perchOff: 15,
+      hang: false, hangPosY: 20, hangOffsetX: 15, hangDiam: 5,
       panelW: 1220, panelH: 2440,
     },
 

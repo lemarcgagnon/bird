@@ -89,6 +89,12 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'dim.perch.length': 'Longueur',
     'dim.perch.offset': 'Sous la porte',
 
+    // DIM — Hang (trous de suspension)
+    'dim.hang.add': 'Ajouter trous de suspension (débordement toit)',
+    'dim.hang.posY': 'Distance depuis bord',
+    'dim.hang.offsetX': 'Distance depuis crête',
+    'dim.hang.diameter': 'Diamètre trou',
+
     // VUE — port v15 fidèle (src/translations.js:93-103). `vue.controls.hint`
     // reporté volontairement : le hint v15 utilise du HTML inline avec <br>,
     // incompatible avec notre politique "pas de dangerouslySetInnerHTML".
@@ -339,6 +345,12 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'dim.perch.diameter': 'Diameter',
     'dim.perch.length': 'Length',
     'dim.perch.offset': 'Below door',
+
+    // DIM — Hang (suspension holes)
+    'dim.hang.add': 'Add suspension holes (roof overhang)',
+    'dim.hang.posY': 'Distance from edge',
+    'dim.hang.offsetX': 'Distance from ridge',
+    'dim.hang.diameter': 'Hole diameter',
 
     // VUE — port v15 fidèle (src/translations.js:318-328). `vue.controls.hint`
     // volontairement reporté (voir commentaire FR).

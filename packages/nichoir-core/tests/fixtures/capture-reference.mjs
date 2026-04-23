@@ -43,6 +43,7 @@ const TS_DIST = path.resolve(__dirname, '../../dist');
 const { createInitialState: tsCreateInitialState } = await import(path.join(TS_DIST, 'state.js'));
 const { buildPanelDefs: tsBuildPanelDefs } = await import(path.join(TS_DIST, 'geometry/panels.js'));
 const { computeCutLayout: tsComputeCutLayout } = await import(path.join(TS_DIST, 'cut-plan.js'));
+const { _applyPrintTransform: applyPrintTransform } = await import(path.join(TS_DIST, 'exporters/stl.js'));
 
 // ─── 3. Définitions des presets ──────────────────────────────────────────────
 const PRESETS = [
@@ -455,10 +456,11 @@ async function capturePreset(preset) {
   console.log(`  → generating STL house...`);
   let stlHouse = null;
   {
-    const tris = collectDefsTriangles(defs, HOUSE_AND_DECO_KEYS);
+    let tris = collectDefsTriangles(defs, HOUSE_AND_DECO_KEYS);
+    tris = applyPrintTransform(tris); // Y-up → Z-up + min Z=0 (parité avec stl.ts)
     if (tris.length > 0) {
       const buf = trisToSTL(tris, 'maison_complete');
-      // Calculer la bbox agrégée depuis les triangles
+      // Calculer la bbox agrégée depuis les triangles transformés
       let minX = Infinity, minY = Infinity, minZ = Infinity;
       let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
       for (const tri of tris) {
@@ -480,7 +482,8 @@ async function capturePreset(preset) {
   console.log(`  → generating STL door...`);
   let stlDoor = null;
   {
-    const tris = collectDefsTriangles(defs, DOOR_KEYS);
+    let tris = collectDefsTriangles(defs, DOOR_KEYS);
+    tris = applyPrintTransform(tris); // Y-up → Z-up + min Z=0 (parité avec stl.ts)
     if (tris.length > 0) {
       const buf = trisToSTL(tris, 'porte');
       let minX = Infinity, minY = Infinity, minZ = Infinity;
@@ -516,7 +519,8 @@ async function capturePreset(preset) {
     for (const key of allKeys) {
       const collectKeys = [key];
       if (DECO_KEYS_SET.has(key)) collectKeys.push('deco_' + key);
-      const tris = collectDefsTriangles(defs, collectKeys);
+      let tris = collectDefsTriangles(defs, collectKeys);
+      tris = applyPrintTransform(tris); // Y-up → Z-up + min Z=0 (parité avec zip.ts)
       if (tris.length > 0) {
         const stlBuf = trisToSTL(tris, key);
         const fname = key + '.stl';

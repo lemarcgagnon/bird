@@ -37,12 +37,19 @@ node tests/fixtures/capture-reference.mjs C
 ## MD5 des fixtures (idempotentes)
 
 ```
-74932d1b6ff968a92040f5d8c681d9d1  presetA.snapshot.json  (régénéré 2026-04-23, branche multi-bin, cutLayout depuis TS port)
-926464dfc492ede37523ee2d720606a2  presetB.snapshot.json  (régénéré 2026-04-23, branche multi-bin, cutLayout depuis TS port)
-7014d2606b61cf1621a5ca1e86afd975  presetC.snapshot.json  (régénéré 2026-04-23, branche multi-bin, cutLayout depuis TS port)
-ceb04d8e7b3addc63af616e202cb528d  presetD.snapshot.json  (régénéré 2026-04-23, branche multi-bin, cutLayout depuis TS port)
-84eee66bf92de543b86f46328b9fc5c5  presetE.snapshot.json  (régénéré 2026-04-23, branche multi-bin, cutLayout depuis TS port)
+fc23bef20192df6874e3e8434f489570  presetA.snapshot.json  (régénéré 2026-04-23 bis, branche multi-bin, orientation STL Z-up)
+ec824fe6e0a1b3101f21fd575426c8f3  presetB.snapshot.json  (régénéré 2026-04-23 bis, branche multi-bin, orientation STL Z-up)
+05ce35fd79dd080d286035bfd739139f  presetC.snapshot.json  (régénéré 2026-04-23 bis, branche multi-bin, orientation STL Z-up)
+988029d1d62687aaed1dfd26907f3e95  presetD.snapshot.json  (régénéré 2026-04-23 bis, branche multi-bin, orientation STL Z-up)
+fd05f72606fc24467fb0d785a0826b6d  presetE.snapshot.json  (régénéré 2026-04-23 bis, branche multi-bin, orientation STL Z-up)
 ```
+
+**Régénération 2026-04-23 bis (branche `multi-bin`, orientation STL)** :
+Sections `stlHouse`, `stlDoor`, `panelsZip` régénérées pour refléter la
+transformation Y-up → Z-up + min Z = 0 appliquée dans `_applyPrintTransform`
+de `src/exporters/stl.ts`. Les autres sections (state, calculations,
+cutList, cutLayout, panelDefsNormalized, planSvg) sont inchangées.
+Régénération approuvée explicitement par gestionnaire de phase (user).
 
 **Régénération 2026-04-23 (branche `multi-bin`)** :
 Section `reference.cutLayout` régénérée pour refléter le nouveau contrat

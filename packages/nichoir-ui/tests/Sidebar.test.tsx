@@ -44,12 +44,12 @@ describe('Sidebar', () => {
     expect(getByText('Langue')).toBeDefined();
   });
 
-  it('7 onglets visibles avec labels i18n', () => {
+  it('6 onglets visibles avec labels i18n', () => {
     const { getAllByRole } = render(<Sidebar />);
     const tabs = getAllByRole('tab');
-    expect(tabs).toHaveLength(7);
+    expect(tabs).toHaveLength(6);
     const labels = tabs.map((t) => t.textContent);
-    expect(labels).toEqual(['DIM.', 'VUE', 'DÉCOR', 'CALCUL', 'PLAN', 'PLAN 2', 'EXPORT']);
+    expect(labels).toEqual(['DIM.', 'VUE', 'DÉCOR', 'CALCUL', 'PLAN', 'EXPORT']);
   });
 
   it('onglet DIM actif par défaut (matches store.activeTab)', () => {
@@ -138,7 +138,7 @@ describe('Sidebar', () => {
     act(() => { useNichoirStore.getState().setLang('en'); });
     rerender(<Sidebar />);
     expect(getAllByRole('tab').map((t) => t.textContent)).toEqual(
-      ['DIM.', 'VIEW', 'DECOR', 'CALC', 'PLAN', 'PLAN 2', 'EXPORT'],
+      ['DIM.', 'VIEW', 'DECOR', 'CALC', 'PLAN', 'EXPORT'],
     );
   });
 });

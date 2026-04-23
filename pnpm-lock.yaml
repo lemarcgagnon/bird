@@ -73,9 +73,6 @@ importers:
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
-      rectangle-packer:
-        specifier: ^1.0.4
-        version: 1.0.4
       three:
         specifier: ^0.160.0
         version: 0.160.1
@@ -1848,9 +1845,6 @@ packages:
   readable-stream@3.6.2:
     resolution: {integrity: sha512-9u/sniCrY3D5WdsERHzHE4G2YCXqoG5FTHUiCC4SIbr6XcLZBY05ya9EKjYek9O5xOAwjGq+1JdGBAS7Q9ScoA==}
     engines: {node: '>= 6'}
-
-  rectangle-packer@1.0.4:
-    resolution: {integrity: sha512-W98uPlDZjhEK2Zf1IqYI2QtziR9VgdzE9pXARQ/qLAPCxKWckMtT7MZvJMpt/X5K5vH6hYJaVwA8OsUDA5v8fw==}
 
   require-directory@2.1.1:
     resolution: {integrity: sha512-fGxEI7+wsG9xrvdjsrlmL22OMTTiHRwAMroiEeMgq8gzoLC/PQr7RsRDSTLUg/bZAZtF+TVIkHc6/4RIKrui+Q==}
@@ -3935,8 +3929,6 @@ snapshots:
       string_decoder: 1.1.1
       util-deprecate: 1.0.2
     optional: true
-
-  rectangle-packer@1.0.4: {}
 
   require-directory@2.1.1: {}
 

@@ -18,12 +18,11 @@ import { VueTab } from './tabs/VueTab.js';
 import { DecoTab } from './tabs/DecoTab.js';
 import { CalcTab } from './tabs/CalcTab.js';
 import { PlanTab } from './tabs/PlanTab.js';
-import { PlanTab2 } from './tabs/PlanTab2.js';
 import { ExportTab } from './tabs/ExportTab.js';
 import type { TabKey } from '@nichoir/core';
 import styles from './Sidebar.module.css';
 
-const TAB_ORDER: readonly TabKey[] = ['dim', 'vue', 'deco', 'calc', 'plan', 'plan2', 'export'];
+const TAB_ORDER: readonly TabKey[] = ['dim', 'vue', 'deco', 'calc', 'plan', 'export'];
 
 export function Sidebar(): React.JSX.Element {
   const activeTab = useNichoirStore((s) => s.activeTab);
@@ -68,8 +67,6 @@ export function Sidebar(): React.JSX.Element {
           <CalcTab />
         ) : activeTab === 'plan' ? (
           <PlanTab />
-        ) : activeTab === 'plan2' ? (
-          <PlanTab2 />
         ) : activeTab === 'export' ? (
           <ExportTab />
         ) : (

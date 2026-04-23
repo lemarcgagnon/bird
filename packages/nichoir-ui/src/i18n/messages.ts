@@ -22,7 +22,6 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'tab.deco': 'DÉCOR',
     'tab.calc': 'CALCUL',
     'tab.plan': 'PLAN',
-    'tab.plan2': 'PLAN 2',
     'tab.export': 'EXPORT',
     'tab.placeholder.construction': 'Onglet en cours de construction. Les contrôles arrivent aux phases suivantes.',
 
@@ -292,7 +291,6 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'tab.deco': 'DECOR',
     'tab.calc': 'CALC',
     'tab.plan': 'PLAN',
-    'tab.plan2': 'PLAN 2',
     'tab.export': 'EXPORT',
     'tab.placeholder.construction': 'Tab under construction. Controls coming in later phases.',
 

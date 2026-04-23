@@ -272,4 +272,21 @@ Installe `rectangle-packer@1.0.4` + ajoute l'onglet "Plan de coupe 2" + produit 
 - `shelf-packing` est ~5× plus rapide que `rectangle-packer` sur les 5 presets.
 - **Recommandation** : garder `shelf-packing` (plus simple, zéro dépendance externe). `rectangle-packer` pourrait gagner sur des configurations multi-bin plus agressives (petit panneau forçant la répartition), mais pas testé ici.
 
-**Décision finale** : à l'utilisateur après inspection visuelle des 10 SVG dans `artifacts/`. La case "Verdict candidat" dans `RESULT.md` attend sa décision. Post-décision, une branche `cleanup-cut-plan` pourra supprimer l'algo perdant + son tab + son fichier core.
+**Décision finale (2026-04-23)** : shelf-packing gagne empiriquement en test manuel avec panneaux plus petits (multi-bin forcé) — rectangle-packer ne peut pas utiliser la rotation dans notre wrapper, ce qui lui fait perdre en densité. Suppression complète du code rectangle-packer via branche `cleanup-cut-plan` (mergée après `coupe`).
+
+---
+
+## Branche `cleanup-cut-plan` (2026-04-23)
+
+Suppression complète de `rectangle-packer` du codebase après verdict "shelf gagne" (voir `runs/2026-04-23-coupe/RESULT.md`).
+
+**Supprimé** :
+- `packages/nichoir-core/src/cut-plan-rectpack.ts` + tests
+- `packages/nichoir-ui/src/components/tabs/PlanTab2.tsx` + `PlanCanvasSection2.tsx` + tests
+- `TabKey 'plan2'` dans core types + CONTRACTS.md
+- `'tab.plan2'` i18n (fr+en) + entrée Sidebar TAB_ORDER
+- `rectangle-packer` dans `@nichoir/core/package.json`
+- `scripts/benchmark-cut-plan.ts` + script root `benchmark:cut-plan`
+- Doc `computeCutLayoutRectpack` dans CONTRACTS.md
+
+**Conservé** : `runs/2026-04-23-coupe/*` (evidence historique).

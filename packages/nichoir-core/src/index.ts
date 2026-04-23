@@ -5,7 +5,6 @@ export type { PaletteKey, Palette } from './palettes.js';
 export { createInitialState, DECO_KEYS } from './state.js';
 export { computeCalculations, computeCutList } from './calculations.js';
 export { computeCutLayout } from './cut-plan.js';
-export { computeCutLayoutRectpack } from './cut-plan-rectpack.js';
 export { mkPent, mkHexPanel, buildPanelDefs } from './geometry/panels.js';
 export {
   buildDecoGeoVector,

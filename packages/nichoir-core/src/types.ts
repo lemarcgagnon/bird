@@ -1,4 +1,4 @@
-// Généré depuis CONTRACTS.md v0.1.0 — ne pas éditer manuellement en dehors d'une révision du contrat.
+// Généré depuis CONTRACTS.md v0.2.0 — ne pas éditer manuellement en dehors d'une révision du contrat.
 import * as THREE from 'three';
 
 // ---------------------------------------------------------------------------

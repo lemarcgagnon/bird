@@ -4,7 +4,7 @@
 > Toute modification de ce document doit précéder la modification du code.
 > Les consommateurs (`nichoir-ui`, `nichoir-adapters`) ne peuvent importer QUE ce qui est listé ici.
 
-**Version du contrat** : 0.1.0 (figée pour P0–P1)
+**Version du contrat** : 0.2.0 (multi-bin cut plan)
 **Dépendances runtime** : `three` (≥ r160), `jszip` (≥ 3.10). Aucune autre.
 
 ---
@@ -215,6 +215,7 @@ export interface CutList { cuts: CutItem[]; nPieces: number; }
 /**
  * LayoutPiece.nameKey est une CLÉ i18n opaque (ex: 'panel.front'),
  * résolue par le consumer via `Translator`. `computeCutLayout` ne traduit jamais.
+ * Les coordonnées `px, py` sont RELATIVES au panneau (Panel.pieces).
  */
 export interface LayoutPiece {
   nameKey: string;
@@ -225,13 +226,29 @@ export interface LayoutPiece {
   rH?: number; wallH?: number; Wtop?: number; Wbot?: number;
   px?: number; py?: number;
   rot?: boolean;
-  overflow?: boolean;
   idx?: number;
 }
-export interface CutLayout {
+
+/**
+ * Panneau physique : toutes les `pieces` sont dans [0, shW] × [0, shH].
+ */
+export interface Panel {
   pieces: LayoutPiece[];
-  shW: number; shH: number;
-  totalArea: number;
+  shW: number;
+  shH: number;
+  usedArea: number;
+  occupation: number;   // ∈ [0, 1]
+}
+
+/**
+ * Résultat multi-bin de `computeCutLayout`.
+ * `overflow` contient les pièces strictement plus grandes que le panneau.
+ */
+export interface CutLayout {
+  panels: Panel[];
+  overflow: LayoutPiece[];
+  totalUsedArea: number;
+  meanOccupation: number;
 }
 ```
 
@@ -473,12 +490,18 @@ export function generatePanelsZIP(
   translate: Translator
 ): Promise<Uint8Array>;
 
-/** Génère la string SVG du plan de découpe.
- *  `translate` est utilisé pour les labels de pièces + `plan.rotated`. */
+/** Génère la string SVG d'UN panneau du plan de découpe.
+ *  `translate` résout les labels de pièces et `plan.rotated`. */
 export function generatePlanSVG(
-  layout: CutLayout,
+  panel: Panel,
   translate: Translator
 ): string;
+
+/** Génère un ZIP contenant un SVG par panneau (`panel-1.svg`, `panel-2.svg`, …). */
+export function generatePlanZIP(
+  layout: CutLayout,
+  translate: Translator
+): Promise<Uint8Array>;
 ```
 
 ---

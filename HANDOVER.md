@@ -255,3 +255,21 @@ débordantes sans re-placement) n'a aucune valeur actionnable. Le multi-bin
 répartit automatiquement les pièces sur autant de panneaux physiques que
 nécessaire. Overflow strict signale uniquement les pièces plus grandes que
 le panneau lui-même (cas d'utilisateur qui a mal dimensionné panelW/panelH).
+
+---
+
+## Branche `coupe` (2026-04-23)
+
+Installe `rectangle-packer@1.0.4` + ajoute l'onglet "Plan de coupe 2" + produit le benchmark comparatif.
+
+**Commits** : voir `git log --oneline multi-bin..coupe`.
+
+**Évidence chiffrée** : `runs/2026-04-23-coupe/RESULT.md` (+ 10 SVG dans `artifacts/`).
+
+**Verdict empirique** :
+- Les 5 presets A-E tiennent tous sur 1 seul panneau (1220×2440 mm par défaut).
+- Dans ce cas single-panel, les 2 algorithmes convergent au même résultat (même occupation, même gaspillage).
+- `shelf-packing` est ~5× plus rapide que `rectangle-packer` sur les 5 presets.
+- **Recommandation** : garder `shelf-packing` (plus simple, zéro dépendance externe). `rectangle-packer` pourrait gagner sur des configurations multi-bin plus agressives (petit panneau forçant la répartition), mais pas testé ici.
+
+**Décision finale** : à l'utilisateur après inspection visuelle des 10 SVG dans `artifacts/`. La case "Verdict candidat" dans `RESULT.md` attend sa décision. Post-décision, une branche `cleanup-cut-plan` pourra supprimer l'algo perdant + son tab + son fichier core.

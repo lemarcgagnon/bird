@@ -14,6 +14,7 @@ Application de démo déployable : **Next.js 15 + React 19 + Three.js r160**. Ar
   - **DÉCOR** — upload SVG / PNG / JPG par panneau, mode vectoriel (extrusion + bevel) ou heightmap (relief depuis image), **découpe traversante** (motif SVG → vrai trou watertight dans le panneau, laser/CNC-ready), contrôles dimensions / relief / clip
   - **CALCUL** — volumes (ext/int/matériau), surfaces, liste des pièces à découper
   - **PLAN** — plan de coupe 2D **multi-bin** avec layout shelf-packing (répartit automatiquement les pièces sur N panneaux physiques), export ZIP (1 SVG par panneau)
+  - **PLAN 2** — même rendu que PLAN mais avec l'algorithme `rectangle-packer` (MIT) au lieu du shelf-packing. Permet une comparaison visuelle directe. Voir `runs/2026-04-23-coupe/RESULT.md` pour le benchmark chiffré.
   - **EXPORT** — STL maison + porte (orientation Z-up, plancher à Z=0 prêt pour slicer), ZIP par panneau, capture 3D (.png du viewport)
 - **3D interactif** — rotation (drag gauche), pan (drag droit), zoom (molette) via `THREE.OrbitControls`. La caméra est préservée lors des changements de paramètres UI.
 - **Porte sur 3 faces** — devant / gauche / droite via un toggle sous le type de porte.
@@ -194,12 +195,12 @@ Le wiring complet des 4 ports non-câblés dans la UI (≈ 3–5 jours) reste ou
   - Sélecteur de palette 4 couleurs (3D + plan de coupe 2D).
   - HIG Level 1 : section labels discoverables + groupe ACCESSOIRES.
   - Through-cut SVG pattern (Phase 1 MVP) : motif SVG → vrai trou dans le mur, laser/CNC-ready.
+  - Benchmark shelf vs rectpack (branche `coupe`) — égalité sur les 5 presets (tous tiennent sur 1 panneau), évidence chiffrée dans `runs/2026-04-23-coupe/RESULT.md`.
 - **Ouvert** :
   - Câblage des ports `AuthContext` / `CreditGate` / `ProjectStore` / `Telemetry` dans la UI pour enabler l'intégration SaaS facturable.
   - Phase 2 through-cut : mode "deboss/pocket" (gravure peu profonde, pas à travers) via builder 2-layer watertight dédié (pas un simple merge).
   - Phase 2 through-cut : extension aux panneaux de toit (roofL/roofR) et au mode heightmap.
   - HIG Level 2 : sections DIM collapsibles (accordions) ; Level 3 : split DIM → Structure / Accessoires.
-  - Benchmark comparatif `shelf-packing` vs `rectangle-packer` (branche `coupe` à venir).
 
 Voir `HANDOVER.md` pour l'état détaillé par phase, `runs/` pour les evidence documents + artefacts (screenshots, traces, metrics).
 

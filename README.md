@@ -13,7 +13,7 @@ Application de démo déployable : **Next.js 15 + React 19 + Three.js r160**. Ar
   - **VUE** — mode d'affichage (solide / wireframe / xray / edges), vue éclatée, plans de coupe X/Y/Z
   - **DÉCOR** — upload SVG / PNG / JPG par panneau, mode vectoriel (extrusion + bevel) ou heightmap (relief depuis image), contrôles dimensions / relief / clip
   - **CALCUL** — volumes (ext/int/matériau), surfaces, liste des pièces à découper
-  - **PLAN** — plan de coupe 2D avec layout shelf-packing, export SVG
+  - **PLAN** — plan de coupe 2D multi-bin avec layout shelf-packing, export ZIP (1 SVG par panneau)
   - **EXPORT** — STL maison + porte, ZIP par panneau
 - **3D interactif** — rotation (drag gauche), pan (drag droit), zoom (molette) via `THREE.OrbitControls`. La caméra est préservée lors des changements de paramètres UI.
 - **Porte sur 3 faces** — devant / gauche / droite via un toggle sous le type de porte.

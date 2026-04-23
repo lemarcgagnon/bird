@@ -233,3 +233,25 @@ Passe navigateur DÉCOR exécutée avec succès sur `http://localhost:3001/tools
 Note opératoire utile : l'app Next consomme `packages/nichoir-ui/dist`, donc un rebuild `pnpm -C packages/nichoir-ui build` a été nécessaire avant la passe pour aligner le package exporté avec `src`.
 
 **Pas d'action de reprise bloquante restante sur P2.**
+
+---
+
+### Breaking change 0.2.0 — CutLayout multi-bin (2026-04-23)
+
+Le contrat `CutLayout` de `@nichoir/core` a été refait pour supporter plusieurs
+panneaux. Forme avant : `{ pieces, shW, shH, totalArea }`. Forme après :
+`{ panels: Panel[], overflow, totalUsedArea, meanOccupation }`.
+
+L'ancienne export `generatePlanSVG(layout, t)` prend maintenant un `Panel`
+(pas un `CutLayout`). Un nouveau helper `generatePlanZIP(layout, t)` agrège N
+SVG dans un ZIP (1 fichier `panel-N.svg` par panneau).
+
+Impact SaaS host : un consumer externe qui utilisait `CutLayout.pieces` doit
+migrer vers `CutLayout.panels[i].pieces`. L'export SVG consommateur doit
+passer un panneau ou utiliser `generatePlanZIP` pour un ZIP multi-panneau.
+
+Motivation : en atelier, le single-bin (flag `overflow=true` sur pièces
+débordantes sans re-placement) n'a aucune valeur actionnable. Le multi-bin
+répartit automatiquement les pièces sur autant de panneaux physiques que
+nécessaire. Overflow strict signale uniquement les pièces plus grandes que
+le panneau lui-même (cas d'utilisateur qui a mal dimensionné panelW/panelH).

@@ -308,3 +308,52 @@ describe('generatePlanSVG', () => {
     expect(svg.includes('</svg>')).toBe(true);
   });
 });
+
+// ---------------------------------------------------------------------------
+// generatePlanZIP
+// ---------------------------------------------------------------------------
+
+describe('generatePlanZIP', () => {
+  it('produces one SVG entry per panel', async () => {
+    const { computeCutLayout, generatePlanZIP, createInitialState } = await import('../src/index.js');
+    const JSZip = (await import('jszip')).default;
+    const t = (k: string) => k;
+
+    const base = createInitialState().params;
+    // Force multi-panel with narrow panel
+    const layout = computeCutLayout({ ...base, panelW: 200, panelH: 300 });
+    expect(layout.panels.length, 'multiple panels expected').toBeGreaterThan(1);
+
+    const zipBytes = await generatePlanZIP(layout, t);
+    const zip = await JSZip.loadAsync(zipBytes);
+
+    const names = Object.keys(zip.files).sort();
+    expect(names.length).toBe(layout.panels.length);
+    for (let i = 0; i < layout.panels.length; i++) {
+      expect(names[i]).toBe(`panel-${i + 1}.svg`);
+    }
+  });
+
+  it('returns a non-empty ZIP even with a single panel', async () => {
+    const { computeCutLayout, generatePlanZIP, createInitialState } = await import('../src/index.js');
+    const JSZip = (await import('jszip')).default;
+    const t = (k: string) => k;
+    const layout = computeCutLayout(createInitialState().params);
+    const zipBytes = await generatePlanZIP(layout, t);
+    expect(zipBytes.byteLength).toBeGreaterThan(100);
+    const zip = await JSZip.loadAsync(zipBytes);
+    expect(Object.keys(zip.files).length).toBe(1);
+  });
+
+  it('empty layout (all overflow) produces empty ZIP', async () => {
+    const { computeCutLayout, generatePlanZIP, createInitialState } = await import('../src/index.js');
+    const JSZip = (await import('jszip')).default;
+    const t = (k: string) => k;
+    const base = createInitialState().params;
+    const layout = computeCutLayout({ ...base, panelW: 10, panelH: 10 });
+    expect(layout.panels.length).toBe(0);
+    const zipBytes = await generatePlanZIP(layout, t);
+    const zip = await JSZip.loadAsync(zipBytes);
+    expect(Object.keys(zip.files).length).toBe(0);
+  });
+});

@@ -15,3 +15,4 @@ export {
 export { generateHouseSTL, generateDoorSTL } from './exporters/stl.js';
 export { generatePanelsZIP } from './exporters/zip.js';
 export { generatePlanSVG } from './exporters/svg.js';
+export { generatePlanZIP } from './exporters/plan-zip.js';

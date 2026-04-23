@@ -18,6 +18,7 @@ import { Viewport } from './components/Viewport.js';
 import { ViewportBoundary } from './components/ViewportBoundary.js';
 import { ViewportErrorFallback } from './components/ViewportErrorFallback.js';
 import { DownloadServiceProvider } from './adapters/DownloadServiceContext.js';
+import { ViewportRefProvider, useCreateViewportRef } from './viewports/ViewportRefContext.js';
 import { useNichoirStore } from './store.js';
 import styles from './NichoirApp.module.css';
 
@@ -42,6 +43,9 @@ export function NichoirApp({
   downloadService,
 }: NichoirAppProps = {}): React.JSX.Element {
   const lang = useNichoirStore((s) => s.lang);
+  // Ref partagé entre Viewport (qui le peuple au mount) et ExportPng3dSection
+  // (qui l'appelle pour capturer). Créé une seule fois via useCreateViewportRef.
+  const viewportRef = useCreateViewportRef();
 
   // Fallback DownloadService instancié client-side. useMemo pour éviter de
   // recréer une instance à chaque render ; `downloadService` en deps pour
@@ -61,15 +65,17 @@ export function NichoirApp({
   }, [lang]);
 
   return (
-    <DownloadServiceProvider service={effectiveDownloadService}>
-      <div className={`${styles.root}${className ? ` ${className}` : ''}`}>
-        <Sidebar />
-        <main className={styles.viewport}>
-          <ViewportBoundary fallback={<ViewportErrorFallback />}>
-            <Viewport />
-          </ViewportBoundary>
-        </main>
-      </div>
-    </DownloadServiceProvider>
+    <ViewportRefProvider viewportRef={viewportRef}>
+      <DownloadServiceProvider service={effectiveDownloadService}>
+        <div className={`${styles.root}${className ? ` ${className}` : ''}`}>
+          <Sidebar />
+          <main className={styles.viewport}>
+            <ViewportBoundary fallback={<ViewportErrorFallback />}>
+              <Viewport />
+            </ViewportBoundary>
+          </main>
+        </div>
+      </DownloadServiceProvider>
+    </ViewportRefProvider>
   );
 }

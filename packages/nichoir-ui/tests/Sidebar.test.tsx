@@ -17,10 +17,13 @@ vi.mock('../src/viewports/ImperativeThreeViewport.js', () => ({
   ImperativeThreeViewport: mockCtor,
 }));
 
+import { useRef } from 'react';
 import { Sidebar } from '../src/components/Sidebar.js';
 import { useNichoirStore } from '../src/store.js';
 import { DownloadServiceProvider } from '../src/adapters/DownloadServiceContext.js';
+import { ViewportRefProvider } from '../src/viewports/ViewportRefContext.js';
 import { createInitialState } from '@nichoir/core';
+import type { ViewportAdapter } from '../src/viewports/ViewportAdapter.js';
 
 beforeEach(() => {
   cleanup();
@@ -107,16 +110,23 @@ describe('Sidebar', () => {
   });
 
   it('onglet EXPORT rend ExportTab (P2.6)', () => {
-    // ExportTab consomme useDownloadService → wrap avec un Provider stub.
+    // ExportTab consomme useDownloadService + useViewportRef → wraps providers.
     const stub = { trigger: vi.fn(async () => {}) };
     act(() => { useNichoirStore.getState().setActiveTab('export'); });
-    const { getByText, queryByText } = render(
-      <DownloadServiceProvider service={stub}>
-        <Sidebar />
-      </DownloadServiceProvider>,
-    );
+    function Wrapper({ children }: { children: React.ReactNode }): React.JSX.Element {
+      const ref = useRef<ViewportAdapter | null>(null);
+      return (
+        <ViewportRefProvider viewportRef={ref}>
+          <DownloadServiceProvider service={stub}>
+            {children}
+          </DownloadServiceProvider>
+        </ViewportRefProvider>
+      );
+    }
+    const { getByText, queryByText } = render(<Sidebar />, { wrapper: Wrapper });
     expect(getByText('▸ EXPORT STL (IMPRESSION 3D)')).toBeDefined();
     expect(getByText('▸ EXPORT PLAN DE COUPE')).toBeDefined();
+    expect(getByText('▸ EXPORT CAPTURE 3D')).toBeDefined();
     expect(queryByText(/construction/i)).toBeNull();
   });
 

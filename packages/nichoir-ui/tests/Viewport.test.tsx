@@ -46,9 +46,23 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 import { render, cleanup, act, fireEvent } from '@testing-library/react';
+import { useRef } from 'react';
 import { Viewport } from '../src/components/Viewport.js';
+import { ViewportRefProvider } from '../src/viewports/ViewportRefContext.js';
 import { useNichoirStore } from '../src/store.js';
 import { createInitialState } from '@nichoir/core';
+import type { ViewportAdapter } from '../src/viewports/ViewportAdapter.js';
+
+// Wrapper qui fournit ViewportRefContext aux tests de Viewport.
+// Viewport.tsx appelle useViewportRef() pour peupler le ref partagé.
+function ViewportWithProvider(): React.JSX.Element {
+  const ref = useRef<ViewportAdapter | null>(null);
+  return (
+    <ViewportRefProvider viewportRef={ref}>
+      <Viewport />
+    </ViewportRefProvider>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -56,7 +70,7 @@ import { createInitialState } from '@nichoir/core';
 
 describe('Viewport (React wrapper)', () => {
   it('rend un <div> host et instancie ImperativeThreeViewport', () => {
-    const { container } = render(<Viewport />);
+    const { container } = render(<ViewportWithProvider />);
     const host = container.querySelector('div');
     expect(host).not.toBeNull();
     expect(mockCtor).toHaveBeenCalledTimes(1);
@@ -64,13 +78,13 @@ describe('Viewport (React wrapper)', () => {
   });
 
   it('appelle mount() avec le host ref et le state du store', () => {
-    const { container } = render(<Viewport />);
+    const { container } = render(<ViewportWithProvider />);
     expect(mockInstances.length).toBe(1);
     const calls = mockInstances[0]!;
     expect(calls.mount.length).toBe(1);
     const mountCall = calls.mount[0]!;
-    // L'élément monté est le <div> rendu par le wrapper
-    expect(mountCall.el).toBe(container.querySelector('div'));
+    // L'élément monté est le <div> rendu par le wrapper (enfant du provider div)
+    expect(mountCall.el).toBe(container.querySelector('div > div'));
     // Le state reçu est strictement celui du store (shape NichoirState)
     const initial = createInitialState();
     const received = mountCall.state as Record<string, unknown>;
@@ -82,7 +96,7 @@ describe('Viewport (React wrapper)', () => {
   });
 
   it('appelle unmount() quand le composant est démonté', () => {
-    const { unmount } = render(<Viewport />);
+    const { unmount } = render(<ViewportWithProvider />);
     const calls = mockInstances[0]!;
     expect(calls.unmount).toBe(0);
     unmount();
@@ -91,7 +105,7 @@ describe('Viewport (React wrapper)', () => {
   });
 
   it('appelle update() lors d\'un changement de state', () => {
-    render(<Viewport />);
+    render(<ViewportWithProvider />);
     const calls = mockInstances[0]!;
     const updateCountBefore = calls.update.length;
 

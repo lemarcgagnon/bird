@@ -257,6 +257,10 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'export.plan': '▸ EXPORT PLAN DE COUPE',
     'plan.export.zip': '⬇ Plan de coupe (.zip, 1 SVG par panneau)',
     'export.busy.zip.plan': 'Export ZIP plan…',
+    'export.png': '▸ EXPORT CAPTURE 3D',
+    'png.export.3d': '⬇ Capture 3D (.png)',
+    'export.busy.png.3d': 'Capture en cours…',
+    'export.error.noViewport': 'Aperçu 3D pas encore prêt — attends quelques secondes puis réessaie.',
   },
   en: {
     // App
@@ -496,5 +500,9 @@ export const MESSAGES: Record<Lang, Record<string, string>> = {
     'export.plan': '▸ CUT PLAN EXPORT',
     'plan.export.zip': '⬇ Cut plan (.zip, 1 SVG per sheet)',
     'export.busy.zip.plan': 'Exporting ZIP plan…',
+    'export.png': '▸ 3D CAPTURE EXPORT',
+    'png.export.3d': '⬇ 3D capture (.png)',
+    'export.busy.png.3d': 'Capturing…',
+    'export.error.noViewport': '3D preview not ready yet — wait a few seconds and retry.',
   },
 };

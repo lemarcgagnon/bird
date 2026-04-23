@@ -14,8 +14,10 @@ vi.mock('../src/viewports/ImperativeThreeViewport.js', () => ({
   ImperativeThreeViewport: mockCtor,
 }));
 
+import { useRef } from 'react';
 import { ExportTab } from '../src/components/tabs/ExportTab.js';
 import { DownloadServiceProvider } from '../src/adapters/DownloadServiceContext.js';
+import { ViewportRefProvider } from '../src/viewports/ViewportRefContext.js';
 import { useNichoirStore } from '../src/store.js';
 import {
   createInitialState,
@@ -25,6 +27,7 @@ import {
   generatePlanSVG,
   computeCutLayout,
 } from '@nichoir/core';
+import type { ViewportAdapter } from '../src/viewports/ViewportAdapter.js';
 
 // Stub DownloadService qui capture tous les triggers. Le type laxiste évite
 // un désalignement entre Mock<[], Promise<void>> et la signature publique.
@@ -40,10 +43,22 @@ function makeSpyService(): { service: DownloadService; trigger: ReturnType<typeo
 function renderWithService(
   ui: React.ReactElement,
   service: DownloadService,
+  viewportAdapter: ViewportAdapter | null = null,
 ): ReturnType<typeof render> {
-  return render(
-    <DownloadServiceProvider service={service}>{ui}</DownloadServiceProvider>,
-  );
+  // ViewportRefProvider wrapper nécessaire car ExportPng3dSection appelle useViewportRef().
+  // On crée le ref statiquement ici — React hooks ne peuvent pas être appelés ici,
+  // donc on utilise un composant intermédiaire.
+  function Wrapper({ children }: { children: React.ReactNode }): React.JSX.Element {
+    const ref = useRef<ViewportAdapter | null>(viewportAdapter);
+    return (
+      <ViewportRefProvider viewportRef={ref}>
+        <DownloadServiceProvider service={service}>
+          {children}
+        </DownloadServiceProvider>
+      </ViewportRefProvider>
+    );
+  }
+  return render(ui, { wrapper: Wrapper });
 }
 
 beforeEach(() => {
@@ -53,20 +68,22 @@ beforeEach(() => {
 });
 
 describe('ExportTab (unit)', () => {
-  it('rend les 2 sections labels i18n fr par défaut', () => {
+  it('rend les 3 sections labels i18n fr par défaut', () => {
     const { service } = makeSpyService();
     const { getByText } = renderWithService(<ExportTab />, service);
     expect(getByText('▸ EXPORT STL (IMPRESSION 3D)')).toBeDefined();
     expect(getByText('▸ EXPORT PLAN DE COUPE')).toBeDefined();
+    expect(getByText('▸ EXPORT CAPTURE 3D')).toBeDefined();
   });
 
-  it('4 boutons rendus : maison, porte, zip, svg', () => {
+  it('5 boutons rendus : maison, porte, zip, plan svg, capture 3D', () => {
     const { service } = makeSpyService();
     const { getByText } = renderWithService(<ExportTab />, service);
     expect(getByText('⬇ Maison complète (.stl)')).toBeDefined();
     expect(getByText('⬇ Porte seule (.stl)')).toBeDefined();
     expect(getByText('⬇ Panneaux séparés (.zip)')).toBeDefined();
     expect(getByText('⬇ Plan de coupe (.zip, 1 SVG par panneau)')).toBeDefined();
+    expect(getByText('⬇ Capture 3D (.png)')).toBeDefined();
   });
 
   it('bouton "Porte seule" disabled par défaut (door=none)', () => {
@@ -108,16 +125,13 @@ describe('ExportTab (unit)', () => {
 
   it('switch lang fr → en : labels traduits', () => {
     const { service } = makeSpyService();
-    const { getByText, rerender } = renderWithService(<ExportTab />, service);
+    const { getByText } = renderWithService(<ExportTab />, service);
     act(() => { useNichoirStore.getState().setLang('en'); });
-    rerender(
-      <DownloadServiceProvider service={service}>
-        <ExportTab />
-      </DownloadServiceProvider>,
-    );
     expect(getByText('▸ STL EXPORT (3D PRINTING)')).toBeDefined();
     expect(getByText('⬇ Complete house (.stl)')).toBeDefined();
     expect(getByText('⬇ Cut plan (.zip, 1 SVG per sheet)')).toBeDefined();
+    expect(getByText('▸ 3D CAPTURE EXPORT')).toBeDefined();
+    expect(getByText('⬇ 3D capture (.png)')).toBeDefined();
   });
 });
 

@@ -14,6 +14,7 @@ import { useEffect, useRef } from 'react';
 import { ImperativeThreeViewport } from '../viewports/ImperativeThreeViewport.js';
 import type { ViewportAdapter } from '../viewports/ViewportAdapter.js';
 import { useNichoirStore } from '../store.js';
+import { useViewportRef } from '../viewports/ViewportRefContext.js';
 
 export interface ViewportProps {
   /** Style CSS du conteneur hôte. Par défaut : plein écran. */
@@ -25,6 +26,9 @@ export interface ViewportProps {
 export function Viewport({ style, className }: ViewportProps): React.JSX.Element {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const adapterRef = useRef<ViewportAdapter | null>(null);
+  // Ref partagé via ViewportRefContext : permet à ExportPng3dSection (sidebar)
+  // d'appeler captureAsPng() sur l'adapter monté sans prop drilling.
+  const viewportRefCtx = useViewportRef();
   // Sélecteur qui renvoie l'état complet. Zustand re-render à chaque changement
   // (même référence sur même contenu via sa logique interne). Suffisant pour P2.1
   // où il n'y a qu'un state initial figé. P2.2+ pourra split les sélecteurs pour
@@ -39,14 +43,16 @@ export function Viewport({ style, className }: ViewportProps): React.JSX.Element
     // le 2e useEffect rafraîchit via update().
     adapter.mount(hostRef.current, state);
     adapterRef.current = adapter;
+    // Populer le ref partagé pour que les composants sidebar puissent capturer.
+    viewportRefCtx.current = adapter;
     return (): void => {
       adapter.unmount();
       adapterRef.current = null;
+      viewportRefCtx.current = null;
     };
     // deps=[] intentionnel : mount une seule fois au premier render.
     // Le 2e useEffect ci-dessous synchronise l'adapter avec les changements
-    // de state via update(). Pas de rule react-hooks/exhaustive-deps dans
-    // notre eslint config → pas de directive disable nécessaire.
+    // de state via update(). viewportRefCtx est stable (useRef dans NichoirApp).
   }, []);
 
   // Update sur changement de state

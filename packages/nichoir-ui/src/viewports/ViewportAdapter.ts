@@ -45,4 +45,14 @@ export interface ViewportAdapter {
    * @throws si l'adapter n'est pas monté
    */
   readCameraState(): NichoirState['camera'];
+
+  /**
+   * Capture le viewport actuel (canvas WebGL) sous forme PNG.
+   * Doit renvoyer un Uint8Array contenant les bytes du PNG.
+   * L'adapter doit avoir été monté (appel `mount()`) avant — sinon rejeter
+   * la promesse avec une erreur.
+   *
+   * Cf. Feature 3D capture (branche `multi-bin`).
+   */
+  captureAsPng(): Promise<Uint8Array>;
 }

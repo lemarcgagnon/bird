@@ -104,6 +104,7 @@ describe('ViewportAdapter (V1, V2)', () => {
     expect(typeof adapter.update).toBe('function');
     expect(typeof adapter.unmount).toBe('function');
     expect(typeof adapter.readCameraState).toBe('function');
+    expect(typeof adapter.captureAsPng).toBe('function');
   });
 
   it('V2 : readCameraState retourne NichoirState[camera], pas de Vector3 / Camera leak', () => {
@@ -493,5 +494,65 @@ describe('OrbitControls (P3)', () => {
 
     adapter.unmount();
     document.body.removeChild(host);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// captureAsPng — Feature 3D capture (branche multi-bin)
+// ---------------------------------------------------------------------------
+
+describe('captureAsPng', () => {
+  it('captureAsPng avant mount() → rejette avec une erreur', async () => {
+    const adapter = new ImperativeThreeViewport();
+    await expect(adapter.captureAsPng()).rejects.toThrow(/capture before mount/i);
+  });
+
+  it('captureAsPng après mount() → retourne un Uint8Array via canvas.toBlob stubé', async () => {
+    const host = makeHost();
+    const adapter = new ImperativeThreeViewport();
+    adapter.mount(host, createInitialState());
+
+    // jsdom ne fournit pas toBlob sur canvas ni arrayBuffer sur Blob.
+    // On stub les deux : toBlob appelle le callback avec un fake blob qui a
+    // arrayBuffer() retournant un ArrayBuffer avec des bytes PNG magiques.
+    const pngBytes = new Uint8Array([137, 80, 78, 71]); // PNG magic header
+    const fakeArrayBuffer = pngBytes.buffer.slice(
+      pngBytes.byteOffset,
+      pngBytes.byteOffset + pngBytes.byteLength,
+    );
+    const fakeBlob = {
+      arrayBuffer: async (): Promise<ArrayBuffer> => fakeArrayBuffer,
+    } as unknown as Blob;
+
+    const canvas = (adapter as unknown as {
+      canvas: HTMLCanvasElement;
+    }).canvas!;
+    canvas.toBlob = (_cb: BlobCallback, _type?: string): void => {
+      // Simuler un appel async (microtask)
+      Promise.resolve().then(() => { _cb(fakeBlob); }).catch(() => {});
+    };
+
+    const result = await adapter.captureAsPng();
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(result[0]).toBe(137); // PNG magic byte
+
+    adapter.unmount();
+    host.remove();
+  });
+
+  it('captureAsPng : canvas.toBlob retourne null → rejette', async () => {
+    const host = makeHost();
+    const adapter = new ImperativeThreeViewport();
+    adapter.mount(host, createInitialState());
+
+    const canvas = (adapter as unknown as { canvas: HTMLCanvasElement }).canvas!;
+    canvas.toBlob = (_cb: BlobCallback): void => {
+      Promise.resolve().then(() => { _cb(null); }).catch(() => {});
+    };
+
+    await expect(adapter.captureAsPng()).rejects.toThrow(/toBlob returned null/i);
+
+    adapter.unmount();
+    host.remove();
   });
 });

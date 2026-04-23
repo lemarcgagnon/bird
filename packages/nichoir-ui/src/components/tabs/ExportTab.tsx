@@ -19,6 +19,7 @@
 
 import { ExportStlSection } from './ExportStlSection.js';
 import { ExportPlanSection } from './ExportPlanSection.js';
+import { ExportPng3dSection } from './ExportPng3dSection.js';
 import styles from './ExportTab.module.css';
 
 export function ExportTab(): React.JSX.Element {
@@ -26,6 +27,7 @@ export function ExportTab(): React.JSX.Element {
     <div className={styles.root}>
       <ExportStlSection />
       <ExportPlanSection />
+      <ExportPng3dSection />
     </div>
   );
 }

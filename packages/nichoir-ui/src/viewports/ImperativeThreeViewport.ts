@@ -70,7 +70,7 @@ export class ImperativeThreeViewport implements ViewportAdapter {
 
       this.camera = new THREE.PerspectiveCamera(45, w / h, 1, 5000);
 
-      this.renderer = new THREE.WebGLRenderer({ antialias: true });
+      this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
       this.renderer.setSize(w, h, false);
       this.renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
       this.renderer.localClippingEnabled = true;
@@ -289,6 +289,26 @@ export class ImperativeThreeViewport implements ViewportAdapter {
       ty: this.lookTarget.y - bodyHeight * 0.4,
       tz: this.lookTarget.z,
     };
+  }
+
+  async captureAsPng(): Promise<Uint8Array> {
+    if (this.renderer === null || this.scene === null || this.camera === null) {
+      throw new Error('ViewportAdapter: cannot capture before mount()');
+    }
+    // Force un render pour que le framebuffer soit à jour (preserveDrawingBuffer=true
+    // garantit que le buffer n'est pas effacé entre les frames).
+    this.renderer.render(this.scene, this.camera);
+    const canvas = this.renderer.domElement;
+    return new Promise<Uint8Array>((resolve, reject) => {
+      canvas.toBlob(async (blob) => {
+        if (blob === null) {
+          reject(new Error('canvas.toBlob returned null'));
+          return;
+        }
+        const buf = new Uint8Array(await blob.arrayBuffer());
+        resolve(buf);
+      }, 'image/png');
+    });
   }
 
   // ─── Internes ──────────────────────────────────────────────────────────────

@@ -429,32 +429,134 @@ function buildMiterChamferStrip(
 }
 
 // ---------------------------------------------------------------------------
-// concatGeometries
+// concatGeometries — weld opposing interior faces
 // ---------------------------------------------------------------------------
 
 /**
- * Fusionne les positions de N BufferGeometry non-indexées en une seule.
- * Pas de partage de vertices, pas de CSG — simple concaténation de triangles.
- * Le résultat n'est pas un 2-manifold unique au sens strict (les pièces peuvent
- * se chevaucher à une face partagée), mais l'export STL du projet est déjà
- * une concaténation, donc cohérent avec l'architecture existante.
+ * Fusionne N BufferGeometry en un seul mesh watertight (2-manifold fermé)
+ * en annulant les paires de triangles opposés (même 3 sommets, winding inversé).
+ *
+ * Cas d'usage : quand on juxtapose 2 solides séparés mais adjacents (ex:
+ * corps principal + bandelette chanfrein du miter+hang roof), la face de
+ * contact est couverte par des triangles des DEUX côtés avec des normales
+ * opposées. Ces paires forment une frontière INTÉRIEURE qui rend le mesh
+ * combiné non-manifold (edges partagés par 4 triangles). Les annuler
+ * (supprimer les 2 côtés) laisse une topologie propre : l'edge devient
+ * une arête interne sans face, et les triangles restants forment un seul
+ * solide fermé.
+ *
+ * Algorithme :
+ *   1. Quantifier les positions (tolerance `decimals` décimales) → indices
+ *      canoniques de sommets uniques.
+ *   2. Pour chaque triangle, calculer :
+ *      - uKey = tri trié des 3 indices (identifie la forme géométrique)
+ *      - wKey = cycle canonique (min index en premier, préserve winding)
+ *   3. Grouper par uKey. Si 2 wKey différents existent pour un même uKey
+ *      (paire opposée détectée), les supprimer mutuellement (pair-up).
+ *   4. Si même uKey + même wKey apparaît 2+ fois (duplicate exact), garder
+ *      un seul.
+ *
+ * Préserve les triangles isolés (outer faces du mesh combiné).
  */
 function concatGeometries(geos: THREE.BufferGeometry[]): THREE.BufferGeometry {
-  const positions: number[] = [];
-  const normals: number[] = [];
+  // Tolérance de quantification : 4 décimales = 0.0001 mm. Suffisant
+  // pour séparer des sommets distincts sans fausse coalescence.
+  const DECIMALS = 4;
+  const FACTOR = Math.pow(10, DECIMALS);
+
+  const uniqueVerts: Array<{ x: number; y: number; z: number }> = [];
+  const keyToIdx = new Map<string, number>();
+  const triangles: Array<[number, number, number]> = [];
+
   for (const geo of geos) {
     const g = geo.index ? geo.toNonIndexed() : geo.clone();
-    g.computeVertexNormals();
     const pos = g.getAttribute('position');
-    const nrm = g.getAttribute('normal');
-    for (let i = 0; i < pos.count; i++) {
-      positions.push(pos.getX(i), pos.getY(i), pos.getZ(i));
-      normals.push(nrm.getX(i), nrm.getY(i), nrm.getZ(i));
+    for (let i = 0; i < pos.count; i += 3) {
+      const idx3: number[] = [];
+      for (let j = 0; j < 3; j++) {
+        const x = Math.round(pos.getX(i + j) * FACTOR) / FACTOR;
+        const y = Math.round(pos.getY(i + j) * FACTOR) / FACTOR;
+        const z = Math.round(pos.getZ(i + j) * FACTOR) / FACTOR;
+        const k = `${x},${y},${z}`;
+        let idx = keyToIdx.get(k);
+        if (idx === undefined) {
+          idx = uniqueVerts.length;
+          keyToIdx.set(k, idx);
+          uniqueVerts.push({ x, y, z });
+        }
+        idx3.push(idx);
+      }
+      triangles.push([idx3[0]!, idx3[1]!, idx3[2]!]);
     }
   }
+
+  // uKey (sorted) → wKey (cyclic canonical) → list of triangle indices
+  const grouped = new Map<string, Map<string, number[]>>();
+  const cyclicCanonical = (a: number, b: number, c: number): string => {
+    const min = Math.min(a, b, c);
+    if (a === min) return `${a}-${b}-${c}`;
+    if (b === min) return `${b}-${c}-${a}`;
+    return `${c}-${a}-${b}`;
+  };
+  const sortedKey = (a: number, b: number, c: number): string => {
+    const arr = [a, b, c].sort((x, y) => x - y);
+    return `${arr[0]}-${arr[1]}-${arr[2]}`;
+  };
+
+  for (let i = 0; i < triangles.length; i++) {
+    const [a, b, c] = triangles[i]!;
+    const uKey = sortedKey(a, b, c);
+    const wKey = cyclicCanonical(a, b, c);
+    let map = grouped.get(uKey);
+    if (map === undefined) {
+      map = new Map();
+      grouped.set(uKey, map);
+    }
+    const list = map.get(wKey) ?? [];
+    list.push(i);
+    map.set(wKey, list);
+  }
+
+  const keep: boolean[] = new Array(triangles.length).fill(true);
+  for (const [, windingMap] of grouped) {
+    const entries = Array.from(windingMap.entries());
+    if (entries.length === 1) {
+      // Un seul winding : duplicates exacts → garder 1, supprimer le reste
+      const list = entries[0]![1];
+      for (let i = 1; i < list.length; i++) keep[list[i]!] = false;
+    } else {
+      // 2 windings (opposés) → annuler paires 1-à-1 entre les 2 listes
+      const [, listA] = entries[0]!;
+      const [, listB] = entries[1]!;
+      const n = Math.min(listA.length, listB.length);
+      for (let i = 0; i < n; i++) {
+        keep[listA[i]!] = false;
+        keep[listB[i]!] = false;
+      }
+      // Si listA.length ≠ listB.length, les restes sont des duplicates du
+      // même côté → traiter comme duplicates (garder 1)
+      if (listA.length > n) {
+        for (let i = n + 1; i < listA.length; i++) keep[listA[i]!] = false;
+      }
+      if (listB.length > n) {
+        for (let i = n + 1; i < listB.length; i++) keep[listB[i]!] = false;
+      }
+    }
+  }
+
+  const outPositions: number[] = [];
+  for (let i = 0; i < triangles.length; i++) {
+    if (!keep[i]) continue;
+    const [a, b, c] = triangles[i]!;
+    for (const idx of [a, b, c]) {
+      const v = uniqueVerts[idx]!;
+      outPositions.push(v.x, v.y, v.z);
+    }
+  }
+
   const result = new THREE.BufferGeometry();
-  result.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  result.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  result.setAttribute('position', new THREE.Float32BufferAttribute(outPositions, 3));
+  result.computeVertexNormals();
   return result;
 }
 

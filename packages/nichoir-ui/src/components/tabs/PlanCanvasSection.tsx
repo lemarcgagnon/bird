@@ -14,5 +14,5 @@ export function PlanCanvasSection(): React.JSX.Element {
   const params = useNichoirStore((s) => s.params);
   const t = useT();
   const layout = computeCutLayout(params);
-  return <CutLayoutRenderer layout={layout} t={t} />;
+  return <CutLayoutRenderer layout={layout} t={t} algoBadge="shelf-packing" />;
 }

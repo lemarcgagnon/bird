@@ -172,6 +172,10 @@ export interface CutList { cuts: CutItem[]; nPieces: number; }
 /**
  * LayoutPiece.nameKey est une CLÉ i18n opaque (ex: 'panel.front'),
  * résolue par le consumer via `Translator`. `computeCutLayout` ne traduit jamais.
+ *
+ * Les coordonnées `px, py` sont RELATIVES au panneau qui contient la pièce
+ * (Panel.pieces). Une pièce dans `CutLayout.overflow` n'a ni `px`, ni `py`,
+ * ni `rot` : elle est plus grande que le panneau lui-même.
  */
 export interface LayoutPiece {
   nameKey: string;
@@ -182,13 +186,32 @@ export interface LayoutPiece {
   rH?: number; wallH?: number; Wtop?: number; Wbot?: number;
   px?: number; py?: number;
   rot?: boolean;
-  overflow?: boolean;
   idx?: number;
 }
-export interface CutLayout {
+
+/**
+ * Un panneau physique de contreplaqué. Toutes les `pieces` y sont placées
+ * dans les bornes `[0, shW] × [0, shH]` avec leurs coordonnées relatives.
+ */
+export interface Panel {
   pieces: LayoutPiece[];
-  shW: number; shH: number;
-  totalArea: number;
+  shW: number;
+  shH: number;
+  usedArea: number;     // somme des (w * h) des pièces placées
+  occupation: number;   // usedArea / (shW * shH), ∈ [0, 1]
+}
+
+/**
+ * Résultat de `computeCutLayout`.
+ * - `panels` : 1..N panneaux physiques. Vide si toutes les pièces sont en overflow.
+ * - `overflow` : pièces plus grandes que le panneau lui-même (w > shW && h > shW).
+ *                Jamais placées, jamais dessinées dans un panneau.
+ */
+export interface CutLayout {
+  panels: Panel[];
+  overflow: LayoutPiece[];
+  totalUsedArea: number;
+  meanOccupation: number;
 }
 
 // ---------------------------------------------------------------------------

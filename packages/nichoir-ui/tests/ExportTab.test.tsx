@@ -66,7 +66,7 @@ describe('ExportTab (unit)', () => {
     expect(getByText('⬇ Maison complète (.stl)')).toBeDefined();
     expect(getByText('⬇ Porte seule (.stl)')).toBeDefined();
     expect(getByText('⬇ Panneaux séparés (.zip)')).toBeDefined();
-    expect(getByText('⬇ Plan de coupe (.svg)')).toBeDefined();
+    expect(getByText('⬇ Plan de coupe (.zip, 1 SVG par panneau)')).toBeDefined();
   });
 
   it('bouton "Porte seule" disabled par défaut (door=none)', () => {
@@ -117,7 +117,7 @@ describe('ExportTab (unit)', () => {
     );
     expect(getByText('▸ STL EXPORT (3D PRINTING)')).toBeDefined();
     expect(getByText('⬇ Complete house (.stl)')).toBeDefined();
-    expect(getByText('⬇ Cut plan (.svg)')).toBeDefined();
+    expect(getByText('⬇ Cut plan (.zip, 1 SVG per sheet)')).toBeDefined();
   });
 });
 
@@ -251,25 +251,31 @@ describe('ExportTab (intégration matérielle : trigger avec contenu vérifié)'
     expect(triangleCount).toBeGreaterThan(0);
   });
 
-  it('click "Plan de coupe SVG" → trigger(string SVG, "nichoir_plan_1220x2440.svg", "image/svg+xml")', async () => {
+  it('click "Plan de coupe ZIP" → trigger(Uint8Array ZIP, "nichoir_plan_1220x2440.zip", "application/zip")', async () => {
     const { service, trigger } = makeSpyService();
     const { getByText } = renderWithService(<ExportTab />, service);
 
-    await act(async () => { fireEvent.click(getByText('⬇ Plan de coupe (.svg)').closest('button')!); });
+    await act(async () => { fireEvent.click(getByText('⬇ Plan de coupe (.zip, 1 SVG par panneau)').closest('button')!); });
     await waitFor(() => { expect(trigger).toHaveBeenCalled(); });
 
-    const [svg, filename, mime] = trigger.mock.calls[0]!;
-    expect(typeof svg).toBe('string');
-    expect((svg as string).startsWith('<?xml')).toBe(true);
-    expect(svg as string).toContain('<svg');
-    expect(filename).toBe('nichoir_plan_1220x2440.svg');
-    expect(mime).toBe('image/svg+xml');
+    const [bytes, filename, mime] = trigger.mock.calls[0]!;
+    expect(bytes).toBeInstanceOf(Uint8Array);
+    expect(filename).toBe('nichoir_plan_1220x2440.zip');
+    expect(mime).toBe('application/zip');
 
-    // Matérialité : contenu === generatePlanSVG(computeCutLayout, t) pour state initial
+    // Matérialité : le ZIP contient au moins 1 entry SVG valide (panel-1.svg)
+    // pour le state initial (1 panneau).
+    const zip = await JSZip.loadAsync(bytes as Uint8Array);
+    const entries = Object.keys(zip.files);
+    expect(entries.length).toBeGreaterThanOrEqual(1);
+    const firstEntry = entries[0]!;
+    const svgContent = await zip.files[firstEntry]!.async('string');
+    expect(svgContent.startsWith('<?xml')).toBe(true);
+    expect(svgContent).toContain('<svg');
+
+    // Matérialité unitaire : premier SVG == generatePlanSVG(layout.panels[0], t)
     const state = useNichoirStore.getState();
-    // Le translator passé par le composant résout 'calc.cuts.facade' etc.
     const tFake = (k: string): string => {
-      // Fallback identique à useT : clé brute si non trouvée
       const fr: Record<string, string> = {
         'calc.cuts.facade': 'Façade', 'calc.cuts.side': 'Côté', 'calc.cuts.bottom': 'Plancher',
         'calc.cuts.roof': 'Toit', 'calc.cuts.roofL': 'Toit G', 'calc.cuts.roofR': 'Toit D',
@@ -277,11 +283,12 @@ describe('ExportTab (intégration matérielle : trigger avec contenu vérifié)'
       };
       return fr[k] ?? k;
     };
-    const expected = generatePlanSVG(computeCutLayout(state.params), tFake);
-    expect(svg as string).toBe(expected);
+    const layout = computeCutLayout(state.params);
+    const expected = generatePlanSVG(layout.panels[0]!, tFake);
+    expect(svgContent).toBe(expected);
   });
 
-  it('filename SVG suit shW × shH du store (custom panel 610×1220)', async () => {
+  it('filename ZIP suit panelW × panelH du store (custom panel 610×1220)', async () => {
     act(() => {
       useNichoirStore.getState().setParam('panelW', 610);
       useNichoirStore.getState().setParam('panelH', 1220);
@@ -289,10 +296,10 @@ describe('ExportTab (intégration matérielle : trigger avec contenu vérifié)'
     const { service, trigger } = makeSpyService();
     const { getByText } = renderWithService(<ExportTab />, service);
 
-    await act(async () => { fireEvent.click(getByText('⬇ Plan de coupe (.svg)').closest('button')!); });
+    await act(async () => { fireEvent.click(getByText('⬇ Plan de coupe (.zip, 1 SVG par panneau)').closest('button')!); });
     await waitFor(() => { expect(trigger).toHaveBeenCalled(); });
     const [, filename] = trigger.mock.calls[0]!;
-    expect(filename).toBe('nichoir_plan_610x1220.svg');
+    expect(filename).toBe('nichoir_plan_610x1220.zip');
   });
 
   it('pendant export en cours : aria-busy="true" + label busy affiché', async () => {

@@ -133,6 +133,14 @@ export interface DecoSlotCore {
   invert: boolean;
   resolution: number;
   clipToPanel: boolean;
+  /**
+   * Quand `true`, le motif SVG vectoriel devient un VRAI trou dans le panneau
+   * via 2D boolean (Shape + Path holes + ExtrudeGeometry). Applicable uniquement
+   * aux 4 murs (front/back/left/right) en mode 'vector' avec parsedShapes non-vide.
+   * Default : `false` (comportement inchangé — déco mesh séparé).
+   * Phase 1 MVP : roof et heightmap non supportés (ignorés silencieusement).
+   */
+  carveThrough: boolean;
   lastParseWarning: DecoWarning | null;
 }
 

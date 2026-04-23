@@ -24,6 +24,7 @@ import {
   buildDecoGeoHeightmap,
   placeDecoOnPanel,
   buildPanelClipPlanes,
+  projectSvgShapesToWall2D,
 } from './deco.js';
 import type {
   NichoirState,
@@ -58,6 +59,7 @@ export function mkPent(
   T: number,
   door: DoorInfo | null,
   perch: PerchHoleInfo | null,
+  patternHoles?: THREE.Path[],
 ): THREE.ExtrudeGeometry {
   const s = new THREE.Shape();
   s.moveTo(-Wbot / 2, 0);
@@ -105,6 +107,12 @@ export function mkPent(
     const ph = new THREE.Path();
     ph.absellipse(perch.cx, perch.cy, perch.diam / 2, perch.diam / 2, 0, Math.PI * 2, true);
     s.holes.push(ph);
+  }
+
+  if (patternHoles && patternHoles.length > 0) {
+    for (const ph of patternHoles) {
+      s.holes.push(ph);
+    }
   }
 
   return new THREE.ExtrudeGeometry(s, { depth: T, bevelEnabled: false });
@@ -197,8 +205,9 @@ export function mkSidePanelWithDoor(
   outwardNormal: Vec3,
   T: number,
   roofPlane: RoofPlaneFn | null,
-  door: DoorInfo,
+  door: DoorInfo | null,
   perch: PerchHoleInfo | null,
+  patternHoles?: THREE.Path[],
 ): THREE.BufferGeometry {
   // Roof-cut sur v2, v3 (idem mkHexPanel)
   const tv2: Vec3 = roofPlane ? [v2[0], roofPlane(v2[0], v2[2]), v2[2]] : v2;
@@ -242,38 +251,40 @@ export function mkSidePanelWithDoor(
 
   // Door hole. door.cx est en convention centrée (u=0 au milieu du mur) ;
   // notre frame a origin=v0 (coin), donc on translate de +uLen/2.
-  const doorCu = uLen / 2 + door.cx;
-  const doorCv = door.cy;
-  const hole = new THREE.Path();
-  if (door.type === 'round') {
-    hole.absellipse(doorCu, doorCv, door.w / 2, door.h / 2, 0, Math.PI * 2, true);
-  } else if (door.type === 'square') {
-    hole.moveTo(doorCu - door.w / 2, doorCv - door.h / 2);
-    hole.lineTo(doorCu - door.w / 2, doorCv + door.h / 2);
-    hole.lineTo(doorCu + door.w / 2, doorCv + door.h / 2);
-    hole.lineTo(doorCu + door.w / 2, doorCv - door.h / 2);
-    hole.closePath();
-  } else if (door.type === 'pentagon') {
-    const peakH = door.w * 0.35;
-    const boxH = door.h - peakH;
-    const slope = (door.followTaper && door.taperX !== undefined && door.wallH)
-      ? door.taperX / door.wallH
-      : 0;
-    const cx = doorCu, cy = doorCv, w = door.w, h = door.h;
-    const yBot = cy - h / 2;
-    const yShoulder = cy - h / 2 + boxH;
-    const xL_bot      = cx - w / 2 + slope * (yBot      - cy);
-    const xL_shoulder = cx - w / 2 + slope * (yShoulder - cy);
-    const xR_bot      = cx + w / 2 - slope * (yBot      - cy);
-    const xR_shoulder = cx + w / 2 - slope * (yShoulder - cy);
-    hole.moveTo(xL_bot,      yBot);
-    hole.lineTo(xR_bot,      yBot);
-    hole.lineTo(xR_shoulder, yShoulder);
-    hole.lineTo(cx,          cy + h / 2);
-    hole.lineTo(xL_shoulder, yShoulder);
-    hole.closePath();
+  if (door !== null) {
+    const doorCu = uLen / 2 + door.cx;
+    const doorCv = door.cy;
+    const hole = new THREE.Path();
+    if (door.type === 'round') {
+      hole.absellipse(doorCu, doorCv, door.w / 2, door.h / 2, 0, Math.PI * 2, true);
+    } else if (door.type === 'square') {
+      hole.moveTo(doorCu - door.w / 2, doorCv - door.h / 2);
+      hole.lineTo(doorCu - door.w / 2, doorCv + door.h / 2);
+      hole.lineTo(doorCu + door.w / 2, doorCv + door.h / 2);
+      hole.lineTo(doorCu + door.w / 2, doorCv - door.h / 2);
+      hole.closePath();
+    } else if (door.type === 'pentagon') {
+      const peakH = door.w * 0.35;
+      const boxH = door.h - peakH;
+      const slope = (door.followTaper && door.taperX !== undefined && door.wallH)
+        ? door.taperX / door.wallH
+        : 0;
+      const cx = doorCu, cy = doorCv, w = door.w, h = door.h;
+      const yBot = cy - h / 2;
+      const yShoulder = cy - h / 2 + boxH;
+      const xL_bot      = cx - w / 2 + slope * (yBot      - cy);
+      const xL_shoulder = cx - w / 2 + slope * (yShoulder - cy);
+      const xR_bot      = cx + w / 2 - slope * (yBot      - cy);
+      const xR_shoulder = cx + w / 2 - slope * (yShoulder - cy);
+      hole.moveTo(xL_bot,      yBot);
+      hole.lineTo(xR_bot,      yBot);
+      hole.lineTo(xR_shoulder, yShoulder);
+      hole.lineTo(cx,          cy + h / 2);
+      hole.lineTo(xL_shoulder, yShoulder);
+      hole.closePath();
+    }
+    shape.holes.push(hole);
   }
-  shape.holes.push(hole);
 
   if (perch) {
     const perchCu = uLen / 2 + perch.cx;
@@ -281,6 +292,13 @@ export function mkSidePanelWithDoor(
     const ph = new THREE.Path();
     ph.absellipse(perchCu, perchCv, perch.diam / 2, perch.diam / 2, 0, Math.PI * 2, true);
     shape.holes.push(ph);
+  }
+
+  // Trous de motif SVG (carveThrough) : déjà projetés dans le frame (u, v) du mur.
+  if (patternHoles && patternHoles.length > 0) {
+    for (const ph of patternHoles) {
+      shape.holes.push(ph);
+    }
   }
 
   // Extrude le long de +Z (convention THREE), puis transformer pour aligner
@@ -562,10 +580,63 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
   const perchHoleSide: PerchHoleInfo | null = (perchActive && (isDoorLeft || isDoorRight))
     ? { cx: perchCxSide, cy: perchY, diam: params.perchDiam } : null;
 
+  // ---- Pré-calcul des trous carveThrough pour les 4 murs ----
+  // Condition carveThrough : flag activé, déco enabled, mode vector, shapes non-vides, bbox présente.
+  // Les pattern holes sont calculés dans le frame 2D local du panneau correspondant.
+  // front/back → frame mkPent : X centré [-Wbot/2..+Wbot/2], Y de 0..wallH → uOriginOffset=-Wbot/2
+  // left/right → frame mkSidePanelWithDoor : origine=coin, u de 0..sideD, v de 0..wallH
+  const isCarveActive = (key: 'front' | 'back' | 'left' | 'right'): boolean => {
+    const d = decos[key];
+    return !!(d.carveThrough && d.enabled && d.mode === 'vector'
+              && d.parsedShapes && d.parsedShapes.length && d.bbox);
+  };
+
+  const carveHolesFront = isCarveActive('front') ? (() => {
+    const d = decos['front'];
+    return projectSvgShapesToWall2D(
+      d.parsedShapes!, d.bbox!, d.w, d.h,
+      d.posX / 100, d.posY / 100, d.rotation,
+      Wbot, wallH, /* uOriginOffset */ -Wbot / 2,
+    );
+  })() : [];
+
+  const carveHolesBack = isCarveActive('back') ? (() => {
+    const d = decos['back'];
+    return projectSvgShapesToWall2D(
+      d.parsedShapes!, d.bbox!, d.w, d.h,
+      d.posX / 100, d.posY / 100, d.rotation,
+      Wbot, wallH, /* uOriginOffset */ -Wbot / 2,
+    );
+  })() : [];
+
+  // Pour left/right : le u-axis de mkSidePanelWithDoor va de Lv1→Lv0 = sideD (axe Z monde).
+  // wallVLen : wallHreal pour murs taperés, wallH pour murs droits.
+  const leftWallVLen = hasTaper ? wallHreal : wallH;
+  const rightWallVLen = hasTaper ? wallHreal : wallH;
+
+  const carveHolesLeft = isCarveActive('left') ? (() => {
+    const d = decos['left'];
+    return projectSvgShapesToWall2D(
+      d.parsedShapes!, d.bbox!, d.w, d.h,
+      d.posX / 100, d.posY / 100, d.rotation,
+      sideD, leftWallVLen,
+    );
+  })() : [];
+
+  const carveHolesRight = isCarveActive('right') ? (() => {
+    const d = decos['right'];
+    return projectSvgShapesToWall2D(
+      d.parsedShapes!, d.bbox!, d.w, d.h,
+      d.posX / 100, d.posY / 100, d.rotation,
+      sideD, rightWallVLen,
+    );
+  })() : [];
+
   // Façades avant + arrière. Le front porte la porte uniquement si doorFace='front'.
   defs.push({
     key: 'front',
-    geometry: mkPent(Wtop, Wbot, wallH, rH, T, doorInfoFront, perchHoleFront),
+    geometry: mkPent(Wtop, Wbot, wallH, rH, T, doorInfoFront, perchHoleFront,
+      carveHolesFront.length > 0 ? carveHolesFront : undefined),
     basePos: [0, baseY, D / 2 - T],
     baseRot: [0, 0, 0],
     color: COL_ACTIVE.front,
@@ -573,7 +644,8 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
   });
   defs.push({
     key: 'back',
-    geometry: mkPent(Wtop, Wbot, wallH, rH, T, null, null),
+    geometry: mkPent(Wtop, Wbot, wallH, rH, T, null, null,
+      carveHolesBack.length > 0 ? carveHolesBack : undefined),
     basePos: [0, baseY, -D / 2],
     baseRot: [0, 0, 0],
     color: COL_ACTIVE.back,
@@ -595,9 +667,13 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     const leftNormal: Vec3 = [-1, 0, 0];
     // Pour mkSidePanelWithDoor : réorder v0→v1 pour que u-axis pointe vers +Z
     // monde (doorPX=100 = porte vers l'avant de la maison, convention user-visible).
+    // carveThrough : route via mkSidePanelWithDoor (supporte holes) même sans porte.
     const leftGeo = (isDoorLeft && doorInfoSide)
-      ? mkSidePanelWithDoor(Lv1, Lv0, Lv3, Lv2, leftNormal, T, roofPlaneL, doorInfoSide, perchHoleSide)
-      : mkHexPanel(Lv0, Lv1, Lv2, Lv3, leftNormal, T, roofPlaneL);
+      ? mkSidePanelWithDoor(Lv1, Lv0, Lv3, Lv2, leftNormal, T, roofPlaneL, doorInfoSide, perchHoleSide,
+          carveHolesLeft.length > 0 ? carveHolesLeft : undefined)
+      : (carveHolesLeft.length > 0
+          ? mkSidePanelWithDoor(Lv1, Lv0, Lv3, Lv2, leftNormal, T, roofPlaneL, null, null, carveHolesLeft)
+          : mkHexPanel(Lv0, Lv1, Lv2, Lv3, leftNormal, T, roofPlaneL));
     defs.push({ key: 'left', geometry: leftGeo, basePos: [0, 0, 0], baseRot: [0, 0, 0], color: COL_ACTIVE.left, explodeDir: leftNormal });
     leftAnchorPos  = [-W / 2 + T / 2, baseY + wallH / 2, 0];
     leftAnchorRot  = [0, 0, 0];
@@ -609,8 +685,11 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     const Rv3: Vec3 = [+(W / 2 - T), baseY + wallH, -(D / 2 - T)];
     const rightNormal: Vec3 = [+1, 0, 0];
     const rightGeo = (isDoorRight && doorInfoSide)
-      ? mkSidePanelWithDoor(Rv0, Rv1, Rv2, Rv3, rightNormal, T, roofPlaneR, doorInfoSide, perchHoleSide)
-      : mkHexPanel(Rv0, Rv1, Rv2, Rv3, rightNormal, T, roofPlaneR);
+      ? mkSidePanelWithDoor(Rv0, Rv1, Rv2, Rv3, rightNormal, T, roofPlaneR, doorInfoSide, perchHoleSide,
+          carveHolesRight.length > 0 ? carveHolesRight : undefined)
+      : (carveHolesRight.length > 0
+          ? mkSidePanelWithDoor(Rv0, Rv1, Rv2, Rv3, rightNormal, T, roofPlaneR, null, null, carveHolesRight)
+          : mkHexPanel(Rv0, Rv1, Rv2, Rv3, rightNormal, T, roofPlaneR));
     defs.push({ key: 'right', geometry: rightGeo, basePos: [0, 0, 0], baseRot: [0, 0, 0], color: COL_ACTIVE.right, explodeDir: rightNormal });
     rightAnchorPos = [+W / 2 - T / 2, baseY + wallH / 2, 0];
     rightAnchorRot = [0, 0, 0];
@@ -621,8 +700,11 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     const Lv3: Vec3 = [-(Wtop / 2 - T), baseY + wallH, +(D / 2 - T)];
     const Ln: Vec3 = [-Math.cos(alpha), Math.sin(alpha), 0];
     const leftGeo = (isDoorLeft && doorInfoSide)
-      ? mkSidePanelWithDoor(Lv1, Lv0, Lv3, Lv2, Ln, T, roofPlaneL, doorInfoSide, perchHoleSide)
-      : mkHexPanel(Lv0, Lv1, Lv2, Lv3, Ln, T, roofPlaneL);
+      ? mkSidePanelWithDoor(Lv1, Lv0, Lv3, Lv2, Ln, T, roofPlaneL, doorInfoSide, perchHoleSide,
+          carveHolesLeft.length > 0 ? carveHolesLeft : undefined)
+      : (carveHolesLeft.length > 0
+          ? mkSidePanelWithDoor(Lv1, Lv0, Lv3, Lv2, Ln, T, roofPlaneL, null, null, carveHolesLeft)
+          : mkHexPanel(Lv0, Lv1, Lv2, Lv3, Ln, T, roofPlaneL));
     defs.push({ key: 'left', geometry: leftGeo, basePos: [0, 0, 0], baseRot: [0, 0, 0], color: COL_ACTIVE.left, explodeDir: [-Math.cos(alpha), Math.sin(alpha), 0] });
 
     const innerCenterL: Vec3 = [(Lv0[0] + Lv2[0]) / 2, (Lv0[1] + Lv2[1]) / 2, 0];
@@ -635,8 +717,11 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     const Rv3: Vec3 = [ (Wtop / 2 - T), baseY + wallH, -(D / 2 - T)];
     const Rn: Vec3 = [ Math.cos(alpha), Math.sin(alpha), 0];
     const rightGeo = (isDoorRight && doorInfoSide)
-      ? mkSidePanelWithDoor(Rv0, Rv1, Rv2, Rv3, Rn, T, roofPlaneR, doorInfoSide, perchHoleSide)
-      : mkHexPanel(Rv0, Rv1, Rv2, Rv3, Rn, T, roofPlaneR);
+      ? mkSidePanelWithDoor(Rv0, Rv1, Rv2, Rv3, Rn, T, roofPlaneR, doorInfoSide, perchHoleSide,
+          carveHolesRight.length > 0 ? carveHolesRight : undefined)
+      : (carveHolesRight.length > 0
+          ? mkSidePanelWithDoor(Rv0, Rv1, Rv2, Rv3, Rn, T, roofPlaneR, null, null, carveHolesRight)
+          : mkHexPanel(Rv0, Rv1, Rv2, Rv3, Rn, T, roofPlaneR));
     defs.push({ key: 'right', geometry: rightGeo, basePos: [0, 0, 0], baseRot: [0, 0, 0], color: COL_ACTIVE.right, explodeDir: [Math.cos(alpha), Math.sin(alpha), 0] });
 
     const innerCenterR: Vec3 = [(Rv0[0] + Rv2[0]) / 2, (Rv0[1] + Rv2[1]) / 2, 0];
@@ -841,6 +926,11 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     const anchor = decoAnchors[pk];
     if (!anchor) return;
 
+    // carveThrough sur les 4 murs : le motif est déjà baked dans la géométrie du panneau.
+    // Ne pas ajouter de PanelDef deco_<pk> séparé — double-rendu intentionnellement évité.
+    const isWallKey = pk === 'front' || pk === 'back' || pk === 'left' || pk === 'right';
+    if (isWallKey && isCarveActive(pk)) return;
+
     // Branchement sur d.mode (à la place de buildDecoGeo(d) du src).
     // Les fonctions du contrat retournent BufferGeometry (non-nullable) mais
     // peuvent retourner une BufferGeometry VIDE si les inputs sont dégénérés
@@ -848,35 +938,14 @@ export function buildPanelDefs(state: NichoirState): BuildResult {
     // pousser un def deco vide dans `defs` (src retournait null → skip ; on reproduit
     // ce skip en vérifiant position.count).
     let dGeo: THREE.BufferGeometry | null = null;
-    // DEBUG: trace deco branch decision
-    // eslint-disable-next-line no-console
-    console.log('🧭 [deco branch decision]', JSON.stringify({
-      key: pk,
-      mode: d.mode,
-      hasParsedShapes: !!(d.parsedShapes && d.parsedShapes.length),
-      parsedShapesCount: d.parsedShapes?.length ?? 0,
-      hasBbox: !!d.bbox,
-      hasHeightmapData: !!d.heightmapData,
-      heightmapDataLen: d.heightmapData?.length ?? 0,
-      heightmapResolution: d.heightmapResolution,
-      invert: d.invert,
-      w: d.w, h: d.h, depth: d.depth,
-    }));
     if (d.mode === 'vector' && d.parsedShapes && d.parsedShapes.length && d.bbox) {
-      // eslint-disable-next-line no-console
-      console.log('→ VECTOR branch');
       dGeo = buildDecoGeoVector(d.parsedShapes, d.bbox, d.w, d.h, d.depth, d.bevel, d.invert);
     } else if (d.mode === 'heightmap' && d.heightmapData) {
-      // eslint-disable-next-line no-console
-      console.log('→ HEIGHTMAP branch');
       try {
         dGeo = buildDecoGeoHeightmap(d.heightmapData, d.heightmapResolution, d.w, d.h, d.depth, d.invert);
       } catch (_e) {
         dGeo = null;
       }
-    } else {
-      // eslint-disable-next-line no-console
-      console.log('→ NO BRANCH (deco not rendered)');
     }
     if (!dGeo) return;
     const dGeoPos = dGeo.getAttribute('position');

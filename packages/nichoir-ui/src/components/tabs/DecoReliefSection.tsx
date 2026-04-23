@@ -163,6 +163,15 @@ export function DecoReliefSection(): React.JSX.Element {
         min={32} max={128} step={8} unit="" dec={0}
       />
       <div className={styles.hint}>{t('deco.relief.resolution.hint')}</div>
+      <label className={styles.enableRow}>
+        <input
+          type="checkbox"
+          checked={slot.carveThrough}
+          onChange={(e): void => setDecoSlot(activeDecoKey, { carveThrough: e.target.checked })}
+        />
+        <span>{t('deco.carveThrough')}</span>
+      </label>
+      <div className={styles.hint}>{t('deco.carveThrough.hint')}</div>
       {error !== null && (
         <p role="alert" className={styles.error}>{error}</p>
       )}

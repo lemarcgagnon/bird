@@ -58,19 +58,21 @@ afterEach(() => {
 });
 
 describe('DecoReliefSection — rendu + mutations simples', () => {
-  it('rend 3 sliders + checkbox invert + hint bevel + hint resolution', () => {
+  it('rend 3 sliders + 2 checkboxes (invert + carveThrough) + hint bevel + hint resolution', () => {
     loadFront();
-    const { getByText, getAllByRole, getByRole } = render(<DecoReliefSection />);
+    const { getByText, getAllByRole } = render(<DecoReliefSection />);
     expect(getByText('▸ RELIEF')).toBeDefined();
     expect(getByText('Profondeur')).toBeDefined();
     expect(getByText('Bevel')).toBeDefined();
     expect(getByText('Inverser (heightmap)')).toBeDefined();
+    expect(getByText('Découpe traversante (mode vectoriel)')).toBeDefined();
     expect(getByText('Résolution')).toBeDefined();
     expect(getByText('Bevel actif uniquement en mode vectoriel.')).toBeDefined();
     expect(getByText(/128 = très détaillé/)).toBeDefined();
     const sliders = getAllByRole('slider');
     expect(sliders).toHaveLength(3);   // depth, bevel, resolution
-    expect(getByRole('checkbox')).toBeDefined();
+    const checkboxes = getAllByRole('checkbox');
+    expect(checkboxes).toHaveLength(2);   // invert, carveThrough
   });
 
   it('slide depth → slot.depth muté', () => {
@@ -91,10 +93,20 @@ describe('DecoReliefSection — rendu + mutations simples', () => {
 
   it('toggle invert → slot.invert muté', () => {
     loadFront();
-    const { getByRole } = render(<DecoReliefSection />);
+    const { getAllByRole } = render(<DecoReliefSection />);
     expect(useNichoirStore.getState().decos.front.invert).toBe(false);
-    act(() => { fireEvent.click(getByRole('checkbox')); });
+    // Index 0 = invert (rendu avant carveThrough)
+    act(() => { fireEvent.click(getAllByRole('checkbox')[0]!); });
     expect(useNichoirStore.getState().decos.front.invert).toBe(true);
+  });
+
+  it('toggle carveThrough → slot.carveThrough muté', () => {
+    loadFront();
+    const { getAllByRole } = render(<DecoReliefSection />);
+    expect(useNichoirStore.getState().decos.front.carveThrough).toBe(false);
+    // Index 1 = carveThrough (rendu après invert)
+    act(() => { fireEvent.click(getAllByRole('checkbox')[1]!); });
+    expect(useNichoirStore.getState().decos.front.carveThrough).toBe(true);
   });
 });
 

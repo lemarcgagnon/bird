@@ -27,6 +27,7 @@ function makeDecoSlot(): DecoSlotCore {
     w: 60, h: 60, posX: 50, posY: 50, rotation: 0,
     depth: 2, bevel: 0, invert: false, resolution: 64,
     clipToPanel: false,
+    carveThrough: false,
     lastParseWarning: null,
   };
 }

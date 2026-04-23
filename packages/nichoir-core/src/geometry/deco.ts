@@ -126,8 +126,6 @@ export function buildDecoGeoVector(
   const geo = new THREE.ExtrudeGeometry(remapped, opts);
   // invert=true : flip en Z + reverse winding → deboss avec normales correctes
   if (invert) flipGeoZ(geo);
-  // eslint-disable-next-line no-console
-  console.log('[buildDecoGeoVector]', JSON.stringify({ invert, depth: absDepth, bevel, w, h, shapes: remapped.length, tris: geo.index ? geo.index.count / 3 : geo.getAttribute('position').count / 3 }));
   return geo;
 }
 
@@ -149,9 +147,6 @@ export function buildDecoGeoVector(
  *     qui est `min=32 max=128`)
  *   - `heightmapData.length !== heightmapResolution² × 4`
  */
-// eslint-disable-next-line no-console
-console.log('🔥🔥🔥 [deco.ts module loaded] invert-fix-v2 — si tu ne vois PAS ce log, ton bundle est ANCIEN');
-
 export function buildDecoGeoHeightmap(
   heightmapData: Uint8ClampedArray,
   heightmapResolution: number,
@@ -204,8 +199,6 @@ export function buildDecoGeoHeightmap(
   plane.computeVertexNormals();
   // invert=true : flip en Z + reverse winding → deboss avec normales correctes
   if (invert) flipGeoZ(plane);
-  // eslint-disable-next-line no-console
-  console.log('[buildDecoGeoHeightmap]', JSON.stringify({ invert, depth, res, w, h, minZ: +minZ.toFixed(3), maxZ: +maxZ.toFixed(3) }));
   return plane;
 }
 
@@ -350,4 +343,111 @@ export function buildPanelClipPlanes(
     return planes;
   }
   return planes;
+}
+
+// ---------------------------------------------------------------------------
+// projectSvgShapesToWall2D
+// ---------------------------------------------------------------------------
+
+/**
+ * Projette des ParsedShape[] (contours SVG discrétisés) dans le frame 2D local
+ * d'un mur `mkSidePanelWithDoor`, pour les utiliser comme trous (THREE.Path[])
+ * dans la THREE.Shape de ce mur.
+ *
+ * Correspondance des axes :
+ *   - u (horizontal) = axe bord bas du mur (V0→V1 dans mkSidePanelWithDoor)
+ *   - v (vertical)   = perpendiculaire dans le plan du mur, vers le haut
+ *
+ * Origine (u=0, v=0) = coin bas-arrière du mur (V0).
+ *
+ * Transformation appliquée à chaque point SVG :
+ *   1. Normaliser la coordonnée SVG dans le bbox : [minX..maxX] × [minY..maxY]
+ *   2. Mapper vers le repère centré de la déco :
+ *        mx = (x - bbox.minX) / bboxW * decoW - decoW/2      (u centré)
+ *        my = decoH/2 - (y - bbox.minY) / bboxH * decoH      (v centré, flip Y SVG)
+ *   3. Appliquer la rotation (deco.rotation en degrés) autour du centre
+ *   4. Translater vers la position dans le mur :
+ *        u_center = posX01 * wallULen
+ *        v_center = posY01 * wallVLen
+ *      Résultat final : (mx + u_center, my + v_center)
+ *
+ * @param parsedShapes  contours discrétisés depuis le SVG (chacun = un contour fermé)
+ * @param bbox          bounding-box du SVG (minX, minY, maxX, maxY)
+ * @param decoW         largeur de la déco en mm (slot.w)
+ * @param decoH         hauteur de la déco en mm (slot.h)
+ * @param posX01        position horizontale dans le mur, normalisée [0..1] (slot.posX / 100)
+ * @param posY01        position verticale dans le mur, normalisée [0..1] (slot.posY / 100)
+ * @param rotDeg        rotation de la déco en degrés (slot.rotation)
+ * @param wallULen      longueur du mur dans l'axe u (= longueur du bord bas)
+ * @param wallVLen      hauteur du mur dans l'axe v (= wallH pour murs droits)
+ * @param uOriginOffset décalage en u appliqué à tout le résultat (défaut : 0).
+ *                      Utiliser `-Wbot/2` pour mkPent (frame centré en X),
+ *                      `0` pour mkSidePanelWithDoor (frame origin=coin bas).
+ * @returns             tableau de THREE.Path (un par contour) utilisables comme shape.holes
+ */
+export function projectSvgShapesToWall2D(
+  parsedShapes: ParsedShape[],
+  bbox: BBox,
+  decoW: number,
+  decoH: number,
+  posX01: number,
+  posY01: number,
+  rotDeg: number,
+  wallULen: number,
+  wallVLen: number,
+  uOriginOffset = 0,
+): THREE.Path[] {
+  const bboxW = bbox.maxX - bbox.minX;
+  const bboxH = bbox.maxY - bbox.minY;
+  if (bboxW <= 0 || bboxH <= 0) return [];
+
+  const sx = decoW / bboxW;
+  const sy = decoH / bboxH;
+
+  // Fonctions de remappage SVG → repère centré de la déco.
+  // mx : normalise X et centre sur [-decoW/2, +decoW/2]
+  // my : normalise Y, flip (SVG Y vers le bas, mur v vers le haut), centre sur [-decoH/2, +decoH/2]
+  const mx = (x: number): number => (x - bbox.minX) * sx - decoW / 2;
+  const my = (y: number): number => decoH / 2 - (y - bbox.minY) * sy;
+
+  // Rotation optionnelle autour du centre du repère déco
+  const rotRad = rotDeg * Math.PI / 180;
+  const cosR = Math.cos(rotRad);
+  const sinR = Math.sin(rotRad);
+
+  const rotate = (u: number, v: number): [number, number] => {
+    return [u * cosR - v * sinR, u * sinR + v * cosR];
+  };
+
+  // Centre de la déco dans le frame du mur.
+  // uOriginOffset : 0 pour frame origin=coin (mkSidePanelWithDoor),
+  //                 -Wbot/2 pour frame centré en X (mkPent).
+  const uCenter = posX01 * wallULen + uOriginOffset;
+  const vCenter = posY01 * wallVLen;
+
+  const paths: THREE.Path[] = [];
+
+  for (const shape of parsedShapes) {
+    if (shape.length < 3) continue;
+
+    const path = new THREE.Path();
+    let first = true;
+
+    for (const pt of shape) {
+      const [du, dv] = rotate(mx(pt.x), my(pt.y));
+      const u = du + uCenter;
+      const v = dv + vCenter;
+
+      if (first) {
+        path.moveTo(u, v);
+        first = false;
+      } else {
+        path.lineTo(u, v);
+      }
+    }
+    path.closePath();
+    paths.push(path);
+  }
+
+  return paths;
 }

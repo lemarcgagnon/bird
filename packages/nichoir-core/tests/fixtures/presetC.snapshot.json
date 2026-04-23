@@ -2,7 +2,7 @@
   "preset": "C",
   "name": "steep-miter",
   "description": "Pente forte, toit en onglet (miter), surplomb 50mm, épaisseur 18mm.",
-  "source": "src/* modular refactor (visual parity with nichoir_v15.html established)",
+  "source": "src/* modular refactor (visual parity with nichoir_v15.html established) + computeCutLayout depuis TS port multi-bin (branche multi-bin, 2026-04-23)",
   "state": {
     "params": {
       "W": 160,
@@ -234,100 +234,108 @@
       "nPieces": 7
     },
     "cutLayout": {
-      "pieces": [
+      "panels": [
         {
-          "nameKey": "calc.cuts.facade",
-          "suffix": " 1",
-          "w": 160,
-          "h": 358.5640646055101,
-          "color": "#d4a574",
-          "shape": "pent",
-          "rH": 138.56406460551014,
-          "wallH": 220,
-          "Wtop": 160,
-          "Wbot": 160,
-          "idx": 0,
-          "px": 5,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.facade",
-          "suffix": " 2",
-          "w": 160,
-          "h": 358.5640646055101,
-          "color": "#d4a574",
-          "shape": "pent",
-          "rH": 138.56406460551014,
-          "wallH": 220,
-          "Wtop": 160,
-          "Wbot": 160,
-          "idx": 1,
-          "px": 170,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.roofL",
-          "w": 291.17691453623974,
-          "h": 260,
-          "color": "#9e7044",
-          "shape": "rect",
-          "idx": 5,
-          "px": 335,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.roofR",
-          "w": 291.17691453623974,
-          "h": 260,
-          "color": "#9e7044",
-          "shape": "rect",
-          "idx": 6,
-          "px": 631.1769145362398,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.side",
-          "suffix": " G",
-          "w": 124,
-          "h": 220,
-          "color": "#c49464",
-          "shape": "rect",
-          "idx": 2,
-          "px": 927.3538290724796,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.side",
-          "suffix": " D",
-          "w": 124,
-          "h": 220,
-          "color": "#c49464",
-          "shape": "rect",
-          "idx": 3,
-          "px": 1056.3538290724796,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.bottom",
-          "w": 124,
-          "h": 124,
-          "color": "#b48454",
-          "shape": "rect",
-          "idx": 4,
-          "px": 5,
-          "py": 368.5640646055101,
-          "rot": false
+          "pieces": [
+            {
+              "nameKey": "calc.cuts.facade",
+              "suffix": " 1",
+              "w": 160,
+              "h": 358.5640646055101,
+              "color": "#d4a574",
+              "shape": "pent",
+              "rH": 138.56406460551014,
+              "wallH": 220,
+              "Wtop": 160,
+              "Wbot": 160,
+              "idx": 0,
+              "px": 5,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.facade",
+              "suffix": " 2",
+              "w": 160,
+              "h": 358.5640646055101,
+              "color": "#d4a574",
+              "shape": "pent",
+              "rH": 138.56406460551014,
+              "wallH": 220,
+              "Wtop": 160,
+              "Wbot": 160,
+              "idx": 1,
+              "px": 170,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.roofL",
+              "w": 291.17691453623974,
+              "h": 260,
+              "color": "#9e7044",
+              "shape": "rect",
+              "idx": 5,
+              "px": 335,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.roofR",
+              "w": 291.17691453623974,
+              "h": 260,
+              "color": "#9e7044",
+              "shape": "rect",
+              "idx": 6,
+              "px": 631.1769145362398,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.side",
+              "suffix": " G",
+              "w": 124,
+              "h": 220,
+              "color": "#c49464",
+              "shape": "rect",
+              "idx": 2,
+              "px": 927.3538290724796,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.side",
+              "suffix": " D",
+              "w": 124,
+              "h": 220,
+              "color": "#c49464",
+              "shape": "rect",
+              "idx": 3,
+              "px": 1056.3538290724796,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.bottom",
+              "w": 124,
+              "h": 124,
+              "color": "#b48454",
+              "shape": "rect",
+              "idx": 4,
+              "px": 5,
+              "py": 368.5640646055101,
+              "rot": false
+            }
+          ],
+          "shW": 1220,
+          "shH": 2440,
+          "usedArea": 336088.4962326079,
+          "occupation": 0.11290261227916149
         }
       ],
-      "shW": 1220,
-      "shH": 2440,
-      "totalArea": 336088.4962326079
+      "overflow": [],
+      "totalUsedArea": 336088.4962326079,
+      "meanOccupation": 0.11290261227916149
     },
     "panelDefsNormalized": [
       {
@@ -585,7 +593,7 @@
       ]
     },
     "planSvg": {
-      "byteLength": 4406,
+      "byteLength": 4304,
       "polygonCount": 2,
       "rectCount": 6,
       "textCount": 14

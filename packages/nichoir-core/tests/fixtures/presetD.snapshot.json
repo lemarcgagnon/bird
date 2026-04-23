@@ -2,7 +2,7 @@
   "preset": "D",
   "name": "pose-heightmap-deco",
   "description": "floor=pose, ridge=right, déco heightmap 64×64 procédurale sur front. Capturé depuis TS port (src requiert DOM pour la branche heightmap).",
-  "source": "Capture mixte (TS port pour state+buildPanelDefs+STL ; src/* pour computeCalculations+computeCutList+computeCutLayout+planSvg). Raison : src.buildDecoGeo heightmap branch DOM-bound ⇒ state+geometry doivent passer par TS ; les fonctions pures calc/cutLayout sont identiques src↔TS (parité 1e-6 prouvée en P1.1) donc on conserve l'import src par inertie. Snapshot de régression du port TS, pas référence indépendante vs v15.",
+  "source": "Capture mixte (TS port pour state+buildPanelDefs+STL+computeCutLayout ; src/* pour computeCalculations+computeCutList). Raison : src.buildDecoGeo heightmap branch DOM-bound ⇒ state+geometry doivent passer par TS ; computeCutLayout bascule sur TS port multi-bin (branche multi-bin, 2026-04-23). Snapshot de régression du port TS, pas référence indépendante vs v15.",
   "state": {
     "params": {
       "W": 160,
@@ -17,6 +17,7 @@
       "ridge": "right",
       "taperX": 0,
       "door": "none",
+      "doorFace": "front",
       "doorW": 38,
       "doorH": 38,
       "doorPX": 50,
@@ -16640,100 +16641,108 @@
       "nPieces": 7
     },
     "cutLayout": {
-      "pieces": [
+      "panels": [
         {
-          "nameKey": "calc.cuts.facade",
-          "suffix": " 1",
-          "w": 160,
-          "h": 264.0166030567768,
-          "color": "#d4a574",
-          "shape": "pent",
-          "rH": 56.01660305677677,
-          "wallH": 208,
-          "Wtop": 160,
-          "Wbot": 160,
-          "idx": 0,
-          "px": 5,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.facade",
-          "suffix": " 2",
-          "w": 160,
-          "h": 264.0166030567768,
-          "color": "#d4a574",
-          "shape": "pent",
-          "rH": 56.01660305677677,
-          "wallH": 208,
-          "Wtop": 160,
-          "Wbot": 160,
-          "idx": 1,
-          "px": 170,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.roofL",
-          "w": 134.28520476376016,
-          "h": 220,
-          "color": "#9e7044",
-          "shape": "rect",
-          "idx": 5,
-          "px": 335,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.roofR",
-          "w": 146.28520476376016,
-          "h": 220,
-          "color": "#9e7044",
-          "shape": "rect",
-          "idx": 6,
-          "px": 474.28520476376013,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.side",
-          "suffix": " G",
-          "w": 136,
-          "h": 208,
-          "color": "#c49464",
-          "shape": "rect",
-          "idx": 2,
-          "px": 625.5704095275203,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.side",
-          "suffix": " D",
-          "w": 136,
-          "h": 208,
-          "color": "#c49464",
-          "shape": "rect",
-          "idx": 3,
-          "px": 766.5704095275203,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.bottom",
-          "w": 160,
-          "h": 160,
-          "color": "#b48454",
-          "shape": "rect",
-          "idx": 4,
-          "px": 907.5704095275203,
-          "py": 5,
-          "rot": false
+          "pieces": [
+            {
+              "nameKey": "calc.cuts.facade",
+              "suffix": " 1",
+              "w": 160,
+              "h": 264.0166030567768,
+              "color": "#d4a574",
+              "shape": "pent",
+              "rH": 56.01660305677677,
+              "wallH": 208,
+              "Wtop": 160,
+              "Wbot": 160,
+              "idx": 0,
+              "px": 5,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.facade",
+              "suffix": " 2",
+              "w": 160,
+              "h": 264.0166030567768,
+              "color": "#d4a574",
+              "shape": "pent",
+              "rH": 56.01660305677677,
+              "wallH": 208,
+              "Wtop": 160,
+              "Wbot": 160,
+              "idx": 1,
+              "px": 170,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.roofL",
+              "w": 134.28520476376016,
+              "h": 220,
+              "color": "#9e7044",
+              "shape": "rect",
+              "idx": 5,
+              "px": 335,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.roofR",
+              "w": 146.28520476376016,
+              "h": 220,
+              "color": "#9e7044",
+              "shape": "rect",
+              "idx": 6,
+              "px": 474.28520476376013,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.side",
+              "suffix": " G",
+              "w": 136,
+              "h": 208,
+              "color": "#c49464",
+              "shape": "rect",
+              "idx": 2,
+              "px": 625.5704095275203,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.side",
+              "suffix": " D",
+              "w": 136,
+              "h": 208,
+              "color": "#c49464",
+              "shape": "rect",
+              "idx": 3,
+              "px": 766.5704095275203,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.bottom",
+              "w": 160,
+              "h": 160,
+              "color": "#b48454",
+              "shape": "rect",
+              "idx": 4,
+              "px": 907.5704095275203,
+              "py": 5,
+              "rot": false
+            }
+          ],
+          "shW": 1220,
+          "shH": 2440,
+          "usedArea": 228386.80307422305,
+          "occupation": 0.07672225311550089
         }
       ],
-      "shW": 1220,
-      "shH": 2440,
-      "totalArea": 228386.80307422305
+      "overflow": [],
+      "totalUsedArea": 228386.80307422305,
+      "meanOccupation": 0.07672225311550089
     },
     "panelDefsNormalized": [
       {
@@ -17019,7 +17028,7 @@
       ]
     },
     "planSvg": {
-      "byteLength": 4576,
+      "byteLength": 4474,
       "polygonCount": 2,
       "rectCount": 6,
       "textCount": 14

@@ -2,7 +2,7 @@
   "preset": "E",
   "name": "all-decos-vector",
   "description": "ridge=left, doorPanel=true, décos vectorielles (triangle) sur les 4 panneaux latéraux. Capturé depuis TS port.",
-  "source": "Capture mixte (TS port pour state+buildPanelDefs+STL ; src/* pour computeCalculations+computeCutList+computeCutLayout+planSvg). Raison : src.buildDecoGeo heightmap branch DOM-bound ⇒ state+geometry doivent passer par TS ; les fonctions pures calc/cutLayout sont identiques src↔TS (parité 1e-6 prouvée en P1.1) donc on conserve l'import src par inertie. Snapshot de régression du port TS, pas référence indépendante vs v15.",
+  "source": "Capture mixte (TS port pour state+buildPanelDefs+STL+computeCutLayout ; src/* pour computeCalculations+computeCutList). Raison : src.buildDecoGeo heightmap branch DOM-bound ⇒ state+geometry doivent passer par TS ; computeCutLayout bascule sur TS port multi-bin (branche multi-bin, 2026-04-23). Snapshot de régression du port TS, pas référence indépendante vs v15.",
   "state": {
     "params": {
       "W": 160,
@@ -17,6 +17,7 @@
       "ridge": "left",
       "taperX": 0,
       "door": "round",
+      "doorFace": "front",
       "doorW": 40,
       "doorH": 40,
       "doorPX": 50,
@@ -344,111 +345,119 @@
       "nPieces": 8
     },
     "cutLayout": {
-      "pieces": [
+      "panels": [
         {
-          "nameKey": "calc.cuts.facade",
-          "suffix": " 1",
-          "w": 160,
-          "h": 276.0166030567768,
-          "color": "#d4a574",
-          "shape": "pent",
-          "rH": 56.01660305677677,
-          "wallH": 220,
-          "Wtop": 160,
-          "Wbot": 160,
-          "idx": 0,
-          "px": 5,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.facade",
-          "suffix": " 2",
-          "w": 160,
-          "h": 276.0166030567768,
-          "color": "#d4a574",
-          "shape": "pent",
-          "rH": 56.01660305677677,
-          "wallH": 220,
-          "Wtop": 160,
-          "Wbot": 160,
-          "idx": 1,
-          "px": 170,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.side",
-          "suffix": " G",
-          "w": 136,
-          "h": 220,
-          "color": "#c49464",
-          "shape": "rect",
-          "idx": 2,
-          "px": 335,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.side",
-          "suffix": " D",
-          "w": 136,
-          "h": 220,
-          "color": "#c49464",
-          "shape": "rect",
-          "idx": 3,
-          "px": 476,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.roofL",
-          "w": 146.28520476376016,
-          "h": 220,
-          "color": "#9e7044",
-          "shape": "rect",
-          "idx": 5,
-          "px": 617,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.roofR",
-          "w": 134.28520476376016,
-          "h": 220,
-          "color": "#9e7044",
-          "shape": "rect",
-          "idx": 6,
-          "px": 768.2852047637601,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.bottom",
-          "w": 136,
-          "h": 136,
-          "color": "#b48454",
-          "shape": "rect",
-          "idx": 4,
-          "px": 907.5704095275203,
-          "py": 5,
-          "rot": false
-        },
-        {
-          "nameKey": "calc.cuts.door",
-          "w": 40,
-          "h": 40,
-          "color": "#e8c088",
-          "shape": "rect",
-          "idx": 7,
-          "px": 1048.5704095275203,
-          "py": 5,
-          "rot": false
+          "pieces": [
+            {
+              "nameKey": "calc.cuts.facade",
+              "suffix": " 1",
+              "w": 160,
+              "h": 276.0166030567768,
+              "color": "#d4a574",
+              "shape": "pent",
+              "rH": 56.01660305677677,
+              "wallH": 220,
+              "Wtop": 160,
+              "Wbot": 160,
+              "idx": 0,
+              "px": 5,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.facade",
+              "suffix": " 2",
+              "w": 160,
+              "h": 276.0166030567768,
+              "color": "#d4a574",
+              "shape": "pent",
+              "rH": 56.01660305677677,
+              "wallH": 220,
+              "Wtop": 160,
+              "Wbot": 160,
+              "idx": 1,
+              "px": 170,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.side",
+              "suffix": " G",
+              "w": 136,
+              "h": 220,
+              "color": "#c49464",
+              "shape": "rect",
+              "idx": 2,
+              "px": 335,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.side",
+              "suffix": " D",
+              "w": 136,
+              "h": 220,
+              "color": "#c49464",
+              "shape": "rect",
+              "idx": 3,
+              "px": 476,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.roofL",
+              "w": 146.28520476376016,
+              "h": 220,
+              "color": "#9e7044",
+              "shape": "rect",
+              "idx": 5,
+              "px": 617,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.roofR",
+              "w": 134.28520476376016,
+              "h": 220,
+              "color": "#9e7044",
+              "shape": "rect",
+              "idx": 6,
+              "px": 768.2852047637601,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.bottom",
+              "w": 136,
+              "h": 136,
+              "color": "#b48454",
+              "shape": "rect",
+              "idx": 4,
+              "px": 907.5704095275203,
+              "py": 5,
+              "rot": false
+            },
+            {
+              "nameKey": "calc.cuts.door",
+              "w": 40,
+              "h": 40,
+              "color": "#e8c088",
+              "shape": "rect",
+              "idx": 7,
+              "px": 1048.5704095275203,
+              "py": 5,
+              "rot": false
+            }
+          ],
+          "shW": 1220,
+          "shH": 2440,
+          "usedArea": 229986.80307422302,
+          "occupation": 0.07725974303756485
         }
       ],
-      "shW": 1220,
-      "shH": 2440,
-      "totalArea": 229986.80307422302
+      "overflow": [],
+      "totalUsedArea": 229986.80307422302,
+      "meanOccupation": 0.07725974303756485
     },
     "panelDefsNormalized": [
       {
@@ -866,7 +875,7 @@
       ]
     },
     "planSvg": {
-      "byteLength": 4838,
+      "byteLength": 4736,
       "polygonCount": 2,
       "rectCount": 7,
       "textCount": 16

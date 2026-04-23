@@ -37,12 +37,19 @@ node tests/fixtures/capture-reference.mjs C
 ## MD5 des fixtures (idempotentes)
 
 ```
-b0081bb3209d57d3a5b702d9b095ef7c  presetA.snapshot.json  (capturé 2026-04-16, P1.0, src/*)
-a8a8c4793d832cee0917dd1217c58053  presetB.snapshot.json  (capturé 2026-04-16, P1.0, src/*)
-3e4c95a38b3d6c72ae8911a881b16598  presetC.snapshot.json  (capturé 2026-04-16, P1.0, src/*)
-e104c1c81b0afac00b8da8884f0d97eb  presetD.snapshot.json  (capturé 2026-04-17, P1.2.β, capture mixte TS+src)
-a5ed18ed689d39dea02e0e90edafdd81  presetE.snapshot.json  (capturé 2026-04-17, P1.2.β, capture mixte TS+src)
+74932d1b6ff968a92040f5d8c681d9d1  presetA.snapshot.json  (régénéré 2026-04-23, branche multi-bin, cutLayout depuis TS port)
+926464dfc492ede37523ee2d720606a2  presetB.snapshot.json  (régénéré 2026-04-23, branche multi-bin, cutLayout depuis TS port)
+7014d2606b61cf1621a5ca1e86afd975  presetC.snapshot.json  (régénéré 2026-04-23, branche multi-bin, cutLayout depuis TS port)
+ceb04d8e7b3addc63af616e202cb528d  presetD.snapshot.json  (régénéré 2026-04-23, branche multi-bin, cutLayout depuis TS port)
+84eee66bf92de543b86f46328b9fc5c5  presetE.snapshot.json  (régénéré 2026-04-23, branche multi-bin, cutLayout depuis TS port)
 ```
+
+**Régénération 2026-04-23 (branche `multi-bin`)** :
+Section `reference.cutLayout` régénérée pour refléter le nouveau contrat
+multi-bin `{ panels, overflow, totalUsedArea, meanOccupation }`. Les autres
+sections (`state`, `calculations`, `cutList`, `panelDefsNormalized`,
+`stlHouse`, `stlDoor`, `panelsZip`, `planSvg`) sont inchangées structurellement.
+Régénération approuvée explicitement par gestionnaire de phase (user).
 
 **Source par preset** :
 - **A, B, C** : capturés entièrement depuis `src/*` modular (parité visuelle v15 établie + garde-fou puppeteer A+).

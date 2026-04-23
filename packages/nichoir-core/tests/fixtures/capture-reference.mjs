@@ -42,6 +42,7 @@ const { buildPanelDefs } = await import(path.join(ROOT, 'src/geometry/panels.js'
 const TS_DIST = path.resolve(__dirname, '../../dist');
 const { createInitialState: tsCreateInitialState } = await import(path.join(TS_DIST, 'state.js'));
 const { buildPanelDefs: tsBuildPanelDefs } = await import(path.join(TS_DIST, 'geometry/panels.js'));
+const { computeCutLayout: tsComputeCutLayout } = await import(path.join(TS_DIST, 'cut-plan.js'));
 
 // ─── 3. Définitions des presets ──────────────────────────────────────────────
 const PRESETS = [
@@ -245,11 +246,24 @@ function geoTriangleCount(geo) {
 // Import t() depuis i18n pour les noms de pièces dans le SVG
 const { t } = await import(path.join(ROOT, 'src/i18n.js'));
 
+// NOTE post-P1 : buildSVGString aggregate les N panneaux pour continuer à
+// produire UNE chaîne SVG à fin de métriques (polygonCount, rectCount,
+// textCount). Le format agrégé n'est PAS le format d'export final —
+// l'export runtime produit un ZIP multi-SVG. On conserve l'agrégation ici
+// uniquement pour que le champ `planSvg` de la fixture reste comparable.
 function buildSVGString(layout) {
-  const { pieces, shW, shH } = layout;
   let svg = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-  svg += `<svg xmlns="http://www.w3.org/2000/svg" width="${shW}mm" height="${shH}mm" viewBox="0 0 ${shW} ${shH}">\n`;
-  svg += `<title>Nichoir - Plan de coupe ${shW} x ${shH} mm</title>\n`;
+  svg += `<svg xmlns="http://www.w3.org/2000/svg">\n`;
+  for (const panel of layout.panels) {
+    svg += buildPanelSVG(panel);
+  }
+  svg += '</svg>\n';
+  return svg;
+}
+
+function buildPanelSVG(panel) {
+  const { pieces, shW, shH } = panel;
+  let svg = `<g>`;
   svg += `<rect x="0" y="0" width="${shW}" height="${shH}" fill="none" stroke="#000" stroke-width="1"/>\n`;
 
   for (let g = 200; g < shW; g += 200) {
@@ -262,8 +276,8 @@ function buildSVGString(layout) {
   pieces.forEach(p => {
     if (p.px === undefined) return;
     const x = p.px, y = p.py, w = p.w, h = p.h;
-    const stroke = p.overflow ? '#e04040' : '#000';
-    const fill = p.overflow ? '#fadede' : p.color + '40';
+    const stroke = '#000';
+    const fill = p.color + '40';
 
     if (p.shape === 'pent' && !p.rot) {
       const wHs = p.wallH;
@@ -294,7 +308,7 @@ function buildSVGString(layout) {
     }
   });
 
-  svg += '</svg>\n';
+  svg += `</g>`;
   return svg;
 }
 
@@ -406,8 +420,11 @@ async function capturePreset(preset) {
   const cutListResult = computeCutList(params, derived);
 
   // ── Cut layout ──
-  console.log(`  → computeCutLayout...`);
-  const cutLayout = computeCutLayout(params);
+  // NOTE post-P1 : on capture depuis TS port pour tous les presets (A..E).
+  // Raison : le contrat multi-bin est défini côté TS ; src/cut-plan.js reste
+  // en single-bin (legacy, parité v15 préservée).
+  console.log(`  → computeCutLayout (TS port multi-bin)...`);
+  const cutLayout = tsComputeCutLayout(params);
 
   // ── Panel defs (géométries 3D) — branching src / TS selon preset ──
   console.log(`  → buildPanelDefs (${useTsPort ? 'TS port' : 'src/*'})...`);
@@ -536,8 +553,8 @@ async function capturePreset(preset) {
     // capturedAt retiré : rend les MD5 non-idempotents sans apporter de valeur comparative.
     // La date de capture est documentée dans README.md une fois par génération approuvée.
     source: useTsPort
-      ? 'Capture mixte (TS port pour state+buildPanelDefs+STL ; src/* pour computeCalculations+computeCutList+computeCutLayout+planSvg). Raison : src.buildDecoGeo heightmap branch DOM-bound ⇒ state+geometry doivent passer par TS ; les fonctions pures calc/cutLayout sont identiques src↔TS (parité 1e-6 prouvée en P1.1) donc on conserve l\'import src par inertie. Snapshot de régression du port TS, pas référence indépendante vs v15.'
-      : 'src/* modular refactor (visual parity with nichoir_v15.html established)',
+      ? 'Capture mixte (TS port pour state+buildPanelDefs+STL+computeCutLayout ; src/* pour computeCalculations+computeCutList). Raison : src.buildDecoGeo heightmap branch DOM-bound ⇒ state+geometry doivent passer par TS ; computeCutLayout bascule sur TS port multi-bin (branche multi-bin, 2026-04-23). Snapshot de régression du port TS, pas référence indépendante vs v15.'
+      : 'src/* modular refactor (visual parity with nichoir_v15.html established) + computeCutLayout depuis TS port multi-bin (branche multi-bin, 2026-04-23)',
     state: serializeState(state),
     reference: {
       calculations: {
@@ -547,10 +564,10 @@ async function capturePreset(preset) {
       },
       cutList: cutListResult,
       cutLayout: {
-        pieces: cutLayout.pieces,
-        shW: cutLayout.shW,
-        shH: cutLayout.shH,
-        totalArea: cutLayout.totalArea,
+        panels: cutLayout.panels,
+        overflow: cutLayout.overflow,
+        totalUsedArea: cutLayout.totalUsedArea,
+        meanOccupation: cutLayout.meanOccupation,
       },
       panelDefsNormalized,
       stlHouse,

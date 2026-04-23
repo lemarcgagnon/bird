@@ -74,7 +74,7 @@ Le shelf-packing single-bin de `computeCutLayout` flaguait `overflow=true` sur l
 ## Validation
 
 - [x] `pnpm -r typecheck` vert (4/4 packages).
-- [x] `pnpm -r test` vert (440 tests total).
+- [x] `pnpm -r test` vert (**453 tests total** post-STL-orientation + PNG).
 - [x] `pnpm -r lint` vert (4/4 packages).
 - [x] `pnpm -r build` vert (4/4 packages + apps/demo).
 - [x] `apps/demo` dev mode testé manuellement par user. Réponse : "tout semble bien" sur le preset par défaut (1220 × 2440 mm, 1 panneau).
@@ -82,6 +82,34 @@ Le shelf-packing single-bin de `computeCutLayout` flaguait `overflow=true` sur l
 - [x] `README.md` mentionne multi-bin.
 - [x] `HANDOVER.md` documente le breaking change 0.2.0.
 - [x] `CutLayoutRenderer` + sous-composants créés et prêts pour réutilisation en branche `coupe`.
+
+## Features additionnelles intégrées (demandées en cours de session)
+
+### STL orientation "cabane repose sur son socle" — commits `1787079`, `e78e4fc`
+
+Transformation Y-up Three.js → Z-up slicer 3D appliquée au moment de l'export STL (pas dans `buildResult` — les `basePos/baseRot` internes Three.js restent inchangés).
+
+- **Rotation** : `(x, y, z)_three` → `(x, -z, y)_stl` (rotation +π/2 autour de X).
+- **Translation** : sommets (pas normales) décalés de `-min_Z_global` pour que `min Z = 0` (plancher touche le build plate).
+- **Portée** : `generateHouseSTL`, `generateDoorSTL`, `generatePanelsZIP` (ce dernier par-panneau pour que chaque STL individuel du ZIP stand debout indépendamment).
+- **Helper exporté** : `_applyPrintTransform` dans `stl.ts` (internal convention underscore).
+- **Tests invariants** : `min Z = 0`, `max Z > 0`, axe Y devient profondeur (pas hauteur).
+- **Fixtures régénérées** : `stlHouse.aggregateBbox`, `stlHouse.byteLength`, `stlDoor.*`, `panelsZip.entries[*].stlByteLength` sur les 5 presets. `capture-reference.mjs` importe maintenant `_applyPrintTransform` depuis TS dist/. Autres sections (state, calculations, cutList, cutLayout, panelDefs, planSvg) inchangées. Approuvée explicitement par user.
+
+**Bboxes post-transform (preset A exemple)** :
+- Avant : `min=[-117, 0, -110], max=[117, 293, 110]` (Y-up, hauteur en Y)
+- Après : `min=[-117, -110, 0], max=[117, 110, 293]` (Z-up, hauteur en Z, plancher à Z=0)
+
+### PNG 3D export — commit `f728926`
+
+Capture du viewport Three.js actuel (orientation caméra choisie par user à la souris) sous forme PNG.
+
+- **`WebGLRenderer`** : `preserveDrawingBuffer: true` activé pour que le framebuffer reste lisible post-render.
+- **Nouvelle méthode** : `captureAsPng(): Promise<Uint8Array>` sur `ViewportAdapter` (impl `ImperativeThreeViewport` force un re-render puis `canvas.toBlob('image/png')`).
+- **Accès sidebar → viewport** : nouveau `ViewportRefContext` + `useViewportRef()` hook. `Viewport.tsx` enregistre l'adapter dans le ref au mount, le déréférence au unmount. `NichoirApp.tsx` wrappe l'arbre avec `<ViewportRefProvider>`.
+- **UI** : nouveau `ExportPng3dSection.tsx` dans l'onglet EXPORT. Bouton "Capture 3D (.png)" + gestion d'erreur si viewport pas prêt.
+- **i18n** : 4 nouvelles clés FR+EN (`export.png`, `png.export.3d`, `export.busy.png.3d`, `export.error.noViewport`).
+- **Tests** : 8 nouveaux tests couvrent rendering + success + error paths (viewport null + captureAsPng reject).
 
 ## Déviations du plan
 

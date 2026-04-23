@@ -7,16 +7,17 @@
   "typecheck_passed": true,
   "build_passed": true,
   "retries": 0,
-  "files_changed": 33,
-  "lines_added": 1417,
-  "lines_removed": 1054,
-  "commits_on_branch": 13,
-  "tests_total": 440,
+  "commits_on_branch": 17,
+  "tests_total": 453,
   "tests_by_package": {
-    "core": 143,
+    "core": 148,
     "adapters": 4,
-    "ui": 293
+    "ui": 301
   },
+  "additional_features": [
+    "STL Z-up orientation (_applyPrintTransform) — commits 1787079, e78e4fc",
+    "PNG 3D capture (ViewportRefContext + captureAsPng + ExportPng3dSection) — commit f728926"
+  ],
   "verification_evidence": "RESULT.md, state/NOTES.md, manual browser check preset A by user (response: 'tout semble bien')",
   "evidence_document_written": true,
   "core_version_before": "0.1.0",

@@ -124,6 +124,10 @@ fn default_decos() -> HashMap<String, DecorSettings> {
         .collect()
 }
 
+fn default_panel_preset() -> String {
+    "auto".to_string()
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 struct NichoirParams {
@@ -181,6 +185,8 @@ struct NichoirParams {
     panel_w: f64,
     #[serde(rename = "panelH", alias = "panel_h")]
     panel_h: f64,
+    #[serde(rename = "panelPreset", alias = "panel_preset", default = "default_panel_preset")]
+    panel_preset: String,
     #[serde(rename = "kerf", alias = "saw_kerf")]
     kerf: f64,
     #[serde(rename = "hangHoles", alias = "hang_holes")]
@@ -234,6 +240,7 @@ impl Default for NichoirParams {
             perch_off: 15.0,
             panel_w: 1220.0,
             panel_h: 2440.0,
+            panel_preset: "auto".to_string(),
             kerf: 3.2,
             hang_holes: false,
             hang_fl: true,
@@ -636,6 +643,9 @@ fn choice_button(label: &str, key: &str, value: &str, current: &str) -> String {
 }
 
 fn selected_panel_preset(p: &NichoirParams, value: &str) -> &'static str {
+    if p.panel_preset == value {
+        return "selected";
+    }
     let mut parts = value.split('x');
     let w = parts.next().and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0);
     let h = parts.next().and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0);
@@ -648,6 +658,7 @@ fn selected_panel_preset(p: &NichoirParams, value: &str) -> &'static str {
 
 fn panel_preset_select(p: &NichoirParams, lang: &str) -> String {
     let presets = [
+        ("auto", "Auto - plus petit panneau compatible"),
         ("custom", "Custom / manuel"),
         ("1219.2x2438.4", "4 x 8 ft - 1219 x 2438 mm"),
         ("1219.2x1219.2", "4 x 4 ft - 1219 x 1219 mm"),
@@ -661,7 +672,14 @@ fn panel_preset_select(p: &NichoirParams, lang: &str) -> String {
     let mut options = String::new();
     let mut matched = false;
     for (value, label) in presets {
-        let selected = if value == "custom" {
+        let selected = if value == "custom" || value == "auto" {
+            if p.panel_preset == value {
+                matched = true;
+                "selected"
+            } else {
+                ""
+            }
+        } else if p.panel_preset == "auto" {
             ""
         } else {
             let s = selected_panel_preset(p, value);
@@ -1063,7 +1081,7 @@ pub fn compute_stats(input: &str) -> String {
     compute_summary(input)
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 struct LayoutPiece {
     name: String,
     qty: u32,
@@ -1085,6 +1103,8 @@ struct LayoutPiece {
 struct CutLayoutPayload {
     panel_w: f64,
     panel_h: f64,
+    panel_label: String,
+    auto_panel: bool,
     gap: f64,
     total_area: f64,
     placed_area: f64,
@@ -1092,54 +1112,29 @@ struct CutLayoutPayload {
     pieces: Vec<LayoutPiece>,
 }
 
-#[wasm_bindgen]
-pub fn compute_cut_layout(input: &str) -> String {
-    let p = match parse_input(input) {
-        Ok(v) => v,
-        Err(err) => return err_json(&err),
-    };
+fn market_panel_presets() -> Vec<(&'static str, f64, f64)> {
+    vec![
+        ("2 x 4 ft - 610 x 1219 mm", 609.6, 1219.2),
+        ("4 x 4 ft - 1219 x 1219 mm", 1219.2, 1219.2),
+        ("4 x 8 ft - 1219 x 2438 mm", 1219.2, 2438.4),
+        ("Metric 1220 x 2440 mm", 1220.0, 2440.0),
+        ("5 x 5 ft - 1524 x 1524 mm", 1524.0, 1524.0),
+        ("Metric 1250 x 2500 mm", 1250.0, 2500.0),
+        ("5 x 10 ft - 1524 x 3048 mm", 1524.0, 3048.0),
+        ("Metric 1500 x 3000 mm", 1500.0, 3000.0),
+    ]
+}
 
-    let geom = GeometryPayload::from_p(&p);
-    let gap = p.kerf.max(0.0);
-    let ridge = effective_ridge(&p);
-
+fn build_layout_pieces(p: &NichoirParams, geom: &GeometryPayload) -> Vec<LayoutPiece> {
+    let ridge = effective_ridge(p);
     let base_defs = [
-        (
-            "Façade 1",
-            "#d4a574",
-            "pent",
-            geom.w_bot.max(geom.w_top),
-            geom.wall_h + geom.roof_h,
-            1,
-        ),
-        (
-            "Façade 2",
-            "#d4a574",
-            "pent",
-            geom.w_bot.max(geom.w_top),
-            geom.wall_h + geom.roof_h,
-            1,
-        ),
-        (
-            "Côté G",
-            "#c49464",
-            "rect",
-            geom.side_d,
-            geom.wall_h_real + geom.roof_side_cut,
-            1,
-        ),
-        (
-            "Côté D",
-            "#c49464",
-            "rect",
-            geom.side_d,
-            geom.wall_h_real + geom.roof_side_cut,
-            1,
-        ),
+        ("Façade 1", "#d4a574", "pent", geom.w_bot.max(geom.w_top), geom.wall_h + geom.roof_h, 1),
+        ("Façade 2", "#d4a574", "pent", geom.w_bot.max(geom.w_top), geom.wall_h + geom.roof_h, 1),
+        ("Côté G", "#c49464", "rect", geom.side_d, geom.wall_h_real + geom.roof_side_cut, 1),
+        ("Côté D", "#c49464", "rect", geom.side_d, geom.wall_h_real + geom.roof_side_cut, 1),
         ("Plancher", "#b48454", "rect", geom.floor_w.max(geom.floor_top_w), geom.floor_d, 1),
     ];
-
-    let mut sorted: Vec<LayoutPiece> = base_defs
+    let mut pieces: Vec<LayoutPiece> = base_defs
         .iter()
         .map(|(name, color, shape, w, h, qty)| LayoutPiece {
             name: (*name).to_string(),
@@ -1159,64 +1154,19 @@ pub fn compute_cut_layout(input: &str) -> String {
         })
         .collect();
 
-    let (roof_w_left, _) = poly_bounds(&roof_profile_points(&p, &geom, true));
-    let (roof_w_right, _) = poly_bounds(&roof_profile_points(&p, &geom, false));
-
-    if matches!(ridge, RidgeMode::Miter) {
-        sorted.push(LayoutPiece {
-            name: "Toit 1".to_string(),
-            qty: 1,
-            w: geom.s_l,
-            h: geom.roof_len,
-            color: "#9e7044".to_string(),
-            shape: "rect".to_string(),
-            rot: false,
-            px: 0.0,
-            py: 0.0,
-            overflow: false,
-            wall_h: None,
-            roof_h: None,
-            w_top: None,
-            w_bot: None,
-        });
-        sorted.push(LayoutPiece {
-            name: "Toit 2".to_string(),
-            qty: 1,
-            w: geom.s_l,
-            h: geom.roof_len,
-            color: "#9e7044".to_string(),
-            shape: "rect".to_string(),
-            rot: false,
-            px: 0.0,
-            py: 0.0,
-            overflow: false,
-            wall_h: None,
-            roof_h: None,
-            w_top: None,
-            w_bot: None,
-        });
+    let (roof_w_left, _) = poly_bounds(&roof_profile_points(p, geom, true));
+    let (roof_w_right, _) = poly_bounds(&roof_profile_points(p, geom, false));
+    let roof_defs = if matches!(ridge, RidgeMode::Miter) {
+        vec![("Toit 1", geom.s_l, geom.roof_len), ("Toit 2", geom.s_l, geom.roof_len)]
     } else {
-        sorted.push(LayoutPiece {
-            name: "Toit G".to_string(),
+        vec![("Toit G", roof_w_left, geom.roof_len), ("Toit D", roof_w_right, geom.roof_len)]
+    };
+    for (name, w, h) in roof_defs {
+        pieces.push(LayoutPiece {
+            name: name.to_string(),
             qty: 1,
-            w: roof_w_left,
-            h: geom.roof_len,
-            color: "#9e7044".to_string(),
-            shape: "rect".to_string(),
-            rot: false,
-            px: 0.0,
-            py: 0.0,
-            overflow: false,
-            wall_h: None,
-            roof_h: None,
-            w_top: None,
-            w_bot: None,
-        });
-        sorted.push(LayoutPiece {
-            name: "Toit D".to_string(),
-            qty: 1,
-            w: roof_w_right,
-            h: geom.roof_len,
+            w,
+            h,
             color: "#9e7044".to_string(),
             shape: "rect".to_string(),
             rot: false,
@@ -1232,7 +1182,7 @@ pub fn compute_cut_layout(input: &str) -> String {
 
     if !matches!(p.door, DoorMode::None) && p.door_panel {
         let v = (p.door_var / 100.0).max(0.0);
-        sorted.push(LayoutPiece {
+        pieces.push(LayoutPiece {
             name: "Porte".to_string(),
             qty: 1,
             w: p.door_w * v,
@@ -1249,9 +1199,11 @@ pub fn compute_cut_layout(input: &str) -> String {
             w_bot: None,
         });
     }
+    pieces
+}
 
+fn pack_layout(mut sorted: Vec<LayoutPiece>, panel_w: f64, panel_h: f64, gap: f64) -> (Vec<LayoutPiece>, f64, f64) {
     sorted.sort_by(|a, b| b.h.partial_cmp(&a.h).unwrap_or(std::cmp::Ordering::Equal));
-
     let mut shelf_y = gap;
     let mut shelf_h: f64 = 0.0;
     let mut cur_x = gap;
@@ -1260,10 +1212,8 @@ pub fn compute_cut_layout(input: &str) -> String {
     for pce in sorted.iter_mut() {
         let orig_w = pce.w;
         let orig_h = pce.h;
-
-        let fit_normal = cur_x + pce.w + gap <= p.panel_w && shelf_y + pce.h + gap <= p.panel_h;
-        let fit_rot = cur_x + pce.h + gap <= p.panel_w && shelf_y + pce.w + gap <= p.panel_h;
-
+        let fit_normal = cur_x + pce.w + gap <= panel_w && shelf_y + pce.h + gap <= panel_h;
+        let fit_rot = cur_x + pce.h + gap <= panel_w && shelf_y + pce.w + gap <= panel_h;
         if fit_normal {
             pce.px = cur_x;
             pce.py = shelf_y;
@@ -1274,7 +1224,6 @@ pub fn compute_cut_layout(input: &str) -> String {
             pce.rot = false;
             continue;
         }
-
         if fit_rot {
             pce.rot = true;
             std::mem::swap(&mut pce.w, &mut pce.h);
@@ -1286,19 +1235,16 @@ pub fn compute_cut_layout(input: &str) -> String {
             pce.overflow = false;
             continue;
         }
-
-        // new shelf
         shelf_y += shelf_h + gap;
         shelf_h = orig_h;
         cur_x = gap;
-
-        if cur_x + orig_w + gap <= p.panel_w {
+        if cur_x + orig_w + gap <= panel_w {
             pce.rot = false;
             pce.w = orig_w;
             pce.h = orig_h;
             pce.px = gap;
             pce.py = shelf_y;
-            if shelf_y + pce.h > p.panel_h {
+            if shelf_y + pce.h > panel_h {
                 pce.overflow = true;
             }
             cur_x = orig_w + gap + gap;
@@ -1307,7 +1253,6 @@ pub fn compute_cut_layout(input: &str) -> String {
             }
             continue;
         }
-
         pce.rot = true;
         pce.w = orig_h;
         pce.h = orig_w;
@@ -1315,25 +1260,72 @@ pub fn compute_cut_layout(input: &str) -> String {
         pce.py = shelf_y;
         shelf_h = pce.h;
         cur_x = pce.w + gap + gap;
-        if pce.w + gap > p.panel_w || shelf_y + pce.h > p.panel_h {
+        if pce.w + gap > panel_w || shelf_y + pce.h > panel_h {
             pce.overflow = true;
         } else {
             placed_area += orig_w * orig_h;
         }
     }
-
-    let area = sorted.iter().map(|i| i.w * i.h).sum::<f64>();
-    let usage = if p.panel_w > 0.0 && p.panel_h > 0.0 {
-        placed_area / (p.panel_w * p.panel_h) * 100.0
+    let usage = if panel_w > 0.0 && panel_h > 0.0 {
+        placed_area / (panel_w * panel_h) * 100.0
     } else {
         0.0
     };
+    (sorted, placed_area, usage)
+}
+
+#[wasm_bindgen]
+pub fn compute_cut_layout(input: &str) -> String {
+    let p = match parse_input(input) {
+        Ok(v) => v,
+        Err(err) => return err_json(&err),
+    };
+
+    let geom = GeometryPayload::from_p(&p);
+    let gap = p.kerf.max(0.0);
+    let pieces = build_layout_pieces(&p, &geom);
+    let total_piece_area = pieces.iter().map(|i| i.w * i.h).sum::<f64>();
+    let auto_panel = p.panel_preset == "auto";
+    let (panel_label, panel_w, panel_h, sorted, placed_area, usage) = if auto_panel {
+        let mut best: Option<(String, f64, f64, Vec<LayoutPiece>, f64, f64)> = None;
+        for (label, w, h) in market_panel_presets() {
+            let (candidate, placed, use_ratio) = pack_layout(pieces.clone(), w, h, gap);
+            let overflow = candidate.iter().any(|piece| piece.overflow);
+            if overflow {
+                continue;
+            }
+            let area = w * h;
+            let replace = best
+                .as_ref()
+                .map(|(_, bw, bh, _, _, _)| {
+                    let best_w = *bw;
+                    let best_h = *bh;
+                    let best_area = best_w * best_h;
+                    area < best_area - 0.01
+                        || ((area - best_area).abs() < 0.01
+                            && (w.min(h), w.max(h)) < (best_w.min(best_h), best_w.max(best_h)))
+                })
+                .unwrap_or(true);
+            if replace {
+                best = Some((label.to_string(), w, h, candidate, placed, use_ratio));
+            }
+        }
+        best.unwrap_or_else(|| {
+            let (candidate, placed, use_ratio) = pack_layout(pieces.clone(), p.panel_w, p.panel_h, gap);
+            ("Custom manuel (auto impossible)".to_string(), p.panel_w, p.panel_h, candidate, placed, use_ratio)
+        })
+    } else {
+        let (candidate, placed, use_ratio) = pack_layout(pieces, p.panel_w, p.panel_h, gap);
+        ("Custom / manuel".to_string(), p.panel_w, p.panel_h, candidate, placed, use_ratio)
+    };
 
     let payload = CutLayoutPayload {
-        panel_w: p.panel_w,
-        panel_h: p.panel_h,
+        panel_w,
+        panel_h,
+        panel_label,
+        auto_panel,
         gap,
-        total_area: area,
+        total_area: total_piece_area,
         placed_area,
         usage_ratio: usage,
         pieces: sorted,
@@ -4132,6 +4124,8 @@ pub fn mesh_report_json(input: &str) -> String {
 #[wasm_bindgen]
 pub fn plan_preview_svg(input: &str) -> String {
     let p = parse_input(input).unwrap_or_default();
+    let g = GeometryPayload::from_p(&p);
+    let cuts = build_cuts(&p, &g);
     let layout_json = compute_cut_layout(input);
     let v: serde_json::Value = match serde_json::from_str(&layout_json) {
         Ok(v) => v,
@@ -4152,6 +4146,11 @@ pub fn plan_preview_svg(input: &str) -> String {
         .and_then(|p| p.get("panel_h"))
         .and_then(|x| x.as_f64())
         .unwrap_or(1220.0);
+    let panel_label = v
+        .get("payload")
+        .and_then(|p| p.get("panel_label"))
+        .and_then(|x| x.as_str())
+        .unwrap_or("Custom / manuel");
 
     let mut svg = String::new();
     svg.push_str(&format!(
@@ -4169,7 +4168,8 @@ pub fn plan_preview_svg(input: &str) -> String {
         "<rect x=\"0\" y=\"0\" width=\"{panel_w:.3}\" height=\"{panel_h:.3}\" fill=\"#252018\" stroke=\"#4a4030\" stroke-width=\"2\"/>\n"
     ));
     svg.push_str(&format!(
-        "<text x=\"12\" y=\"28\" font-size=\"20\" fill=\"#e8a955\">Panneau {} x {} {} | lame {}</text>\n",
+        "<text x=\"12\" y=\"28\" font-size=\"18\" fill=\"#e8a955\">Panneau: {} | Format: {} x {} {} | lame {}</text>\n",
+        html_escape(panel_label),
         format_len(panel_w, &p.unit),
         format_len(panel_h, &p.unit),
         html_escape(unit_def(&p.unit).label),
@@ -4200,6 +4200,25 @@ pub fn plan_preview_svg(input: &str) -> String {
             let w_bot = i.get("w_bot").and_then(|x| x.as_f64()).unwrap_or(w);
             let overflow = i.get("overflow").and_then(|x| x.as_bool()).unwrap_or(false);
             let fill = if overflow { "#661a1a" } else { color };
+            let base_name = name
+                .split_whitespace()
+                .next()
+                .unwrap_or(name)
+                .trim();
+            let cut = cuts.iter().find(|c| {
+                let cut_base = c.name.split_whitespace().next().unwrap_or(&c.name);
+                cut_base == base_name
+            });
+            let dim_label = if let Some(cut) = cut {
+                format!("{} x {} {}", cut.w_display, cut.h_display, unit_def(&p.unit).label)
+            } else {
+                format!(
+                    "{} x {} {}",
+                    format_len(w, &p.unit),
+                    format_len(h, &p.unit),
+                    unit_def(&p.unit).label,
+                )
+            };
             if shape == "pent" && wall_h > 0.0 {
                 let w_max = w_bot.max(w_top);
                 let bottom_inset = (w_max - w_bot) / 2.0;
@@ -4225,12 +4244,31 @@ pub fn plan_preview_svg(input: &str) -> String {
                     "<rect x=\"{x:.3}\" y=\"{y:.3}\" width=\"{w:.3}\" height=\"{h:.3}\" fill=\"{fill}\" fill-opacity=\"0.78\" stroke=\"#e8a955\" stroke-width=\"2\"/>\n"
                 ));
             }
+            let font = if w.min(h) < 90.0 { 10.0 } else { 13.0 };
+            let label_lines: Vec<String> = [name.to_string(), dim_label]
+                .iter()
+                .filter(|line| !line.trim().is_empty())
+                .cloned()
+                .collect();
+            let line_h = font + 3.0;
+            let label_h = line_h * label_lines.len() as f64 + 6.0;
+            let label_w = (w - 12.0).max(40.0);
+            let label_x = x + 6.0;
+            let label_box_y = y + (h - label_h) / 2.0;
             svg.push_str(&format!(
-                "<text x=\"{:.3}\" y=\"{:.3}\" font-size=\"20\" fill=\"#fff\">{}</text>\n",
-                x + 6.0,
-                y + 22.0,
-                html_escape(name)
+                "<rect x=\"{label_x:.3}\" y=\"{label_box_y:.3}\" width=\"{label_w:.3}\" height=\"{label_h:.3}\" fill=\"#1d1912\" fill-opacity=\"0.58\"/>\n"
             ));
+            let mut label_y = label_box_y + font + 4.0;
+            for line in label_lines {
+                svg.push_str(&format!(
+                    "<text x=\"{label_x:.3}\" y=\"{label_y:.3}\" font-size=\"{font:.1}\" fill=\"#fff\">{}</text>\n",
+                    html_escape(&line)
+                ));
+                label_y += line_h;
+                if label_y > y + h - 6.0 {
+                    break;
+                }
+            }
         }
     }
 
@@ -4401,56 +4439,96 @@ pub fn render_app_html(input: &str) -> String {
     } else {
         format!("{}: {} forme(s)", t(lang, "deco_svg_loaded"), parsed_deco_count)
     };
-    let deco_controls = format!(
-        r#"
-      <label class="select-control"><span>{target_label}</span><select data-deco-target>{deco_options}</select></label>
-      <div class="deco-status">{deco_status}</div>
-      <label class="check"><input data-deco-bool="enabled" type="checkbox" {enabled}>{enable_label}</label>
-      <div class="deco-file-row">
-        <label class="deco-file-label">{load_label}<input data-deco-file type="file" accept=".svg,image/svg+xml,image/png,image/jpeg,image/gif,image/webp"></label>
-        <button class="tool-button deco-clear" data-deco-clear type="button">{clear_label}</button>
-      </div>
-      <div class="field-group">
+    let deco_has_source = !active_deco.source_text.trim().is_empty()
+        || !active_deco.source_data.trim().is_empty();
+    let deco_mode_controls = if deco_has_source {
+        format!(
+            r#"<div class="field-group disclosure-group">
         <p>{mode_label}</p>
         <div class="choices">
           <button class="choice {vector_active}" data-deco-choice="mode" data-value="vector" type="button">Vectoriel</button>
           <button class="choice {heightmap_active}" data-deco-choice="mode" data-value="heightmap" type="button">Heightmap</button>
         </div>
         <p class="control-note">{deco_note}</p>
+      </div>"#,
+            mode_label = html_escape(t(lang, "deco_mode")),
+            vector_active = active_str(&active_deco.mode, "vector"),
+            heightmap_active = active_str(&active_deco.mode, "heightmap"),
+            deco_note = html_escape(t(lang, "deco_heightmap_note")),
+        )
+    } else {
+        r#"<p class="control-note">Choisis un fichier pour afficher les reglages de forme.</p>"#.to_string()
+    };
+    let deco_shape_controls = if deco_has_source {
+        let mode_specific = if active_deco.mode == "heightmap" {
+            format!(
+                r#"<div class="subcontrols mode-settings">
+        <label class="check"><input data-deco-bool="invert" type="checkbox" {invert}>{invert_label}</label>
+        <label class="check"><input data-deco-bool="removeBg" type="checkbox" {remove_bg}>{remove_bg_label}</label>
+        {res}{smooth}{bevel}{threshold}
+      </div>"#,
+                invert = checked(active_deco.invert),
+                invert_label = html_escape(t(lang, "deco_invert")),
+                remove_bg = checked(active_deco.remove_bg),
+                remove_bg_label = html_escape(t(lang, "deco_remove_bg")),
+                res = deco_range_control(t(lang, "deco_resolution"), "resolution", 8.0, 256.0, 8.0, active_deco.resolution, 1.0),
+                smooth = deco_range_control(t(lang, "deco_smooth"), "smooth", 0.0, 100.0, 5.0, active_deco.smooth, 1.0),
+                bevel = deco_range_control(t(lang, "deco_bevel"), "bevel", 0.0, 100.0, 5.0, active_deco.bevel, 1.0),
+                threshold = deco_range_control(t(lang, "deco_threshold"), "threshold", 0.0, 60.0, 1.0, active_deco.threshold, 1.0),
+            )
+        } else {
+            String::new()
+        };
+        format!(
+            r#"<div class="subcontrols deco-settings">
+        {w}{h}{px}{py}{rot}{depth}
+        {mode_specific}
+        <label class="check"><input data-deco-bool="clipToPanel" type="checkbox" {clip}>{clip_label}</label>
+      </div>"#,
+            w = deco_length_control(t(lang, "width"), "w", 5.0, 400.0, 1.0, active_deco.w, &p.unit),
+            h = deco_length_control(t(lang, "height"), "h", 5.0, 400.0, 1.0, active_deco.h, &p.unit),
+            px = deco_range_control(t(lang, "door_x"), "posX", 0.0, 100.0, 1.0, active_deco.pos_x, 1.0),
+            py = deco_range_control(t(lang, "door_y"), "posY", 0.0, 100.0, 1.0, active_deco.pos_y, 1.0),
+            rot = deco_range_control(t(lang, "deco_rotation"), "rotation", 0.0, 360.0, 1.0, active_deco.rotation, 1.0),
+            depth = deco_length_control(t(lang, "deco_depth"), "depth", 0.2, 20.0, 0.1, active_deco.depth, &p.unit),
+            mode_specific = mode_specific,
+            clip = checked(active_deco.clip_to_panel),
+            clip_label = html_escape(t(lang, "deco_clip")),
+        )
+    } else {
+        String::new()
+    };
+    let deco_active_controls = if active_deco.enabled {
+        format!(
+            r#"<div class="subcontrols deco-active">
+      <div class="deco-file-row">
+        <label class="deco-file-label">{load_label}<input data-deco-file type="file" accept=".svg,image/svg+xml,image/png,image/jpeg,image/gif,image/webp"></label>
+        <button class="tool-button deco-clear" data-deco-clear type="button">{clear_label}</button>
       </div>
-      {w}{h}{px}{py}{rot}{depth}
-      <label class="check"><input data-deco-bool="invert" type="checkbox" {invert}>{invert_label}</label>
-      <label class="check"><input data-deco-bool="removeBg" type="checkbox" {remove_bg}>{remove_bg_label}</label>
-      {res}{smooth}{bevel}{threshold}
-      <label class="check"><input data-deco-bool="clipToPanel" type="checkbox" {clip}>{clip_label}</label>
+      {mode_controls}
+      {shape_controls}
+    </div>"#,
+            load_label = html_escape(t(lang, "deco_load_svg")),
+            clear_label = html_escape(t(lang, "deco_clear")),
+            mode_controls = deco_mode_controls,
+            shape_controls = deco_shape_controls,
+        )
+    } else {
+        String::new()
+    };
+    let deco_controls = format!(
+        r#"
+      <label class="select-control"><span>{target_label}</span><select data-deco-target>{deco_options}</select></label>
+      <div class="deco-status">{deco_status}</div>
+      <label class="check"><input data-deco-bool="enabled" type="checkbox" {enabled}>{enable_label}</label>
+      {active_controls}
     "#,
         target_label = html_escape(t(lang, "deco_target")),
         deco_options = deco_options,
         deco_status = html_escape(&deco_status),
         enabled = checked(active_deco.enabled),
         enable_label = html_escape(t(lang, "deco_enable")),
-        load_label = html_escape(t(lang, "deco_load_svg")),
-        clear_label = html_escape(t(lang, "deco_clear")),
-        mode_label = html_escape(t(lang, "deco_mode")),
-        vector_active = active_str(&active_deco.mode, "vector"),
-        heightmap_active = active_str(&active_deco.mode, "heightmap"),
-        deco_note = html_escape(t(lang, "deco_heightmap_note")),
-        w = deco_length_control(t(lang, "width"), "w", 5.0, 400.0, 1.0, active_deco.w, &p.unit),
-        h = deco_length_control(t(lang, "height"), "h", 5.0, 400.0, 1.0, active_deco.h, &p.unit),
-        px = deco_range_control(t(lang, "door_x"), "posX", 0.0, 100.0, 1.0, active_deco.pos_x, 1.0),
-        py = deco_range_control(t(lang, "door_y"), "posY", 0.0, 100.0, 1.0, active_deco.pos_y, 1.0),
-        rot = deco_range_control(t(lang, "deco_rotation"), "rotation", 0.0, 360.0, 1.0, active_deco.rotation, 1.0),
-        depth = deco_length_control(t(lang, "deco_depth"), "depth", 0.2, 20.0, 0.1, active_deco.depth, &p.unit),
-        invert = checked(active_deco.invert),
-        invert_label = html_escape(t(lang, "deco_invert")),
-        remove_bg = checked(active_deco.remove_bg),
-        remove_bg_label = html_escape(t(lang, "deco_remove_bg")),
-        res = deco_range_control(t(lang, "deco_resolution"), "resolution", 8.0, 256.0, 8.0, active_deco.resolution, 1.0),
-        smooth = deco_range_control(t(lang, "deco_smooth"), "smooth", 0.0, 100.0, 5.0, active_deco.smooth, 1.0),
-        bevel = deco_range_control(t(lang, "deco_bevel"), "bevel", 0.0, 100.0, 5.0, active_deco.bevel, 1.0),
-        threshold = deco_range_control(t(lang, "deco_threshold"), "threshold", 0.0, 60.0, 1.0, active_deco.threshold, 1.0),
-        clip = checked(active_deco.clip_to_panel),
-        clip_label = html_escape(t(lang, "deco_clip")),
+        active_controls = deco_active_controls,
     );
     let layout_json = compute_cut_layout(input);
     let layout_value: serde_json::Value = serde_json::from_str(&layout_json).unwrap_or_default();
@@ -4463,9 +4541,25 @@ pub fn render_app_html(input: &str) -> String {
         .and_then(|v| v.get("total_area"))
         .and_then(|v| v.as_f64())
         .unwrap_or(0.0);
-    let panel_area = p.panel_w * p.panel_h;
+    let effective_panel_w = layout_payload
+        .and_then(|v| v.get("panel_w"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(p.panel_w);
+    let effective_panel_h = layout_payload
+        .and_then(|v| v.get("panel_h"))
+        .and_then(|v| v.as_f64())
+        .unwrap_or(p.panel_h);
+    let panel_label = layout_payload
+        .and_then(|v| v.get("panel_label"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("Custom / manuel");
+    let panel_area = effective_panel_w * effective_panel_h;
     let plan_stats = format!(
-        r#"<div class="plan-stats"><div class="stat-row"><span>Utilisation</span><strong>{:.1}%</strong></div><div class="stat-row"><span>Aire pieces</span><strong>{} {}</strong></div><div class="stat-row"><span>Aire panneau</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{:.1}°</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div></div>"#,
+        r#"<div class="plan-stats"><div class="stat-row"><span>Panneau choisi</span><strong>{}</strong></div><div class="stat-row"><span>Format utilise</span><strong>{} x {} {}</strong></div><div class="stat-row"><span>Utilisation</span><strong>{:.1}%</strong></div><div class="stat-row"><span>Aire pieces</span><strong>{} {}</strong></div><div class="stat-row"><span>Aire panneau</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{:.1}°</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div></div>"#,
+        html_escape(panel_label),
+        format_len(effective_panel_w, &p.unit),
+        format_len(effective_panel_h, &p.unit),
+        unit.label,
         usage_ratio,
         format_area(total_cut_area, &p.unit),
         unit_area_label(&p.unit),
@@ -4548,6 +4642,9 @@ pub fn render_app_html(input: &str) -> String {
       <div class="stat-row"><span>{floor_bevel}</span><strong>{floor_bevel_value:.1}°</strong></div>
       <div class="stat-row"><span>{floor_side_cut}</span><strong>{floor_side_cut_value} {unit_label}</strong></div>
       <div class="stat-row"><span>{kerf_label}</span><strong>{kerf_value} {unit_label}</strong></div>
+      <div class="buttons calc-actions">
+        <button data-action="download-calcs-pdf" type="button">Telecharger les calculs PDF</button>
+      </div>
       <h2>{pieces}</h2>
       <div class="cut-list">{cut_rows}</div>
     </section>
@@ -4556,13 +4653,31 @@ pub fn render_app_html(input: &str) -> String {
       <h2>{cut_plan}</h2>{panel_controls}
       {plan_stats}
       <div id="plan-preview" class="plan-preview"></div>
-      <div class="buttons">
-        <button data-action="export-house">{export_house}</button>
-        <button data-action="export-door">{export_door}</button>
-        <button data-action="export-panels">{export_panels}</button>
-        <button data-action="export-plan">{export_plan}</button>
-        <button data-action="export-obj">{export_obj}</button>
-        <button data-action="mesh-report">{mesh_report}</button>
+      <div class="download-groups">
+        <div class="download-group">
+          <h3>Modèles 3D</h3>
+          <div class="buttons compact-buttons">
+            <button data-action="export-house"><span>Maison</span><strong>.STL</strong></button>
+            <button data-action="export-door"><span>Porte</span><strong>.STL</strong></button>
+            <button data-action="export-panels"><span>Panneaux</span><strong>.ZIP</strong></button>
+          </div>
+        </div>
+        <div class="download-group">
+          <h3>Plans</h3>
+          <div class="buttons compact-buttons">
+            <button data-action="export-plan"><span>Plan</span><strong>.SVG</strong></button>
+            <button data-action="download-plan-png" type="button"><span>Plan</span><strong>.PNG</strong></button>
+            <button data-action="download-explosion-png" type="button"><span>Explosion</span><strong>.PNG</strong></button>
+            <button data-action="download-plan-pdf" type="button"><span>Plan</span><strong>.PDF</strong></button>
+          </div>
+        </div>
+        <div class="download-group">
+          <h3>Diagnostic</h3>
+          <div class="buttons compact-buttons">
+            <button data-action="export-obj"><span>Debug</span><strong>.OBJ</strong></button>
+            <button data-action="mesh-report"><span>Rapport</span><strong>.JSON</strong></button>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -4591,12 +4706,6 @@ pub fn render_app_html(input: &str) -> String {
         door_controls = door_controls,
         panel_controls = panel_controls,
         plan_stats = plan_stats,
-        export_house = t(lang, "export_house"),
-        export_door = t(lang, "export_door"),
-        export_panels = t(lang, "export_panels"),
-        export_plan = t(lang, "export_plan"),
-        export_obj = t(lang, "export_obj"),
-        mesh_report = t(lang, "mesh_report"),
         reset_view = t(lang, "reset_view"),
         volume_ext = t(lang, "volume_ext"),
         volume_int = t(lang, "volume_int"),

@@ -8,10 +8,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260611-hig-dim-v1';
+} from '../wasm/pkg/wasm.js?v=20260611-plan-hig-actions-v1';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js';
 
-const APP_BUILD_ID = '20260611-hig-dim-v1';
+const APP_BUILD_ID = '20260611-plan-hig-actions-v1';
 const root = document.getElementById('app');
 const THEME_KEY = 'nichoir-theme';
 let params = null;
@@ -134,7 +134,10 @@ function rasterizeSvgToPngBase64(svgText, size = 256) {
 
 function setExportStatus(message, tone = 'info') {
   let status = root.querySelector('#export-status');
-  const buttons = root.querySelector('[data-action="export-house"]')?.closest('.buttons');
+  const activePanel = root.querySelector('.control-section.active');
+  const buttons = activePanel?.querySelector('.download-groups')
+    || activePanel?.querySelector('.buttons')
+    || root.querySelector('[data-action="export-house"]')?.closest('.buttons');
   if (!status && buttons) {
     status = document.createElement('div');
     status.id = 'export-status';
@@ -157,6 +160,667 @@ function exportBinary(filename, type, producer, emptyMessage) {
   } catch (err) {
     console.error(err);
     setExportStatus(`Erreur export: ${err?.message || err}`, 'error');
+  }
+}
+
+function cleanPdfText(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[°]/g, ' deg')
+    .replace(/[×]/g, ' x ')
+    .replace(/[’‘]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[^\x20-\x7E]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function escapePdfString(value) {
+  return cleanPdfText(value).replace(/[\\()]/g, '\\$&');
+}
+
+function wrapPdfLine(line, max = 86) {
+  const words = cleanPdfText(line).split(' ').filter(Boolean);
+  const wrapped = [];
+  let current = '';
+  words.forEach((word) => {
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > max && current) {
+      wrapped.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  });
+  if (current) wrapped.push(current);
+  return wrapped.length ? wrapped : [''];
+}
+
+function collectCalculationLines() {
+  const panel = root.querySelector('[data-panel="calcs"]');
+  const lines = [
+    'NICHOIR - Calculs',
+    `Genere le ${new Date().toLocaleString('fr-CA')}`,
+    '',
+    'CALCULS',
+  ];
+  panel?.querySelectorAll('.stat-row').forEach((row) => {
+    const label = row.querySelector('span')?.textContent || '';
+    const value = row.querySelector('strong')?.textContent || '';
+    lines.push(`${label}: ${value}`);
+  });
+  lines.push('', 'PIECES');
+  panel?.querySelectorAll('.cut-row').forEach((row) => {
+    const name = row.querySelector('span')?.textContent || '';
+    const qty = row.querySelector('strong')?.textContent || '';
+    const dims = row.querySelector('small')?.textContent || '';
+    const note = row.querySelector('em')?.textContent || '';
+    lines.push(`${name} | qte ${qty} | ${dims}${note ? ` | ${note}` : ''}`);
+  });
+  return lines.flatMap((line) => wrapPdfLine(line));
+}
+
+function buildSimplePdf(lines) {
+  const pageWidth = 595;
+  const pageHeight = 842;
+  const marginX = 46;
+  const topY = 796;
+  const lineHeight = 14;
+  const bottomY = 46;
+  const pages = [];
+  let pageLines = [];
+  let y = topY;
+
+  lines.forEach((line) => {
+    if (y < bottomY) {
+      pages.push(pageLines);
+      pageLines = [];
+      y = topY;
+    }
+    pageLines.push(line);
+    y -= lineHeight;
+  });
+  if (pageLines.length) pages.push(pageLines);
+
+  const objects = [
+    '',
+    '',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  const pageObjectNumbers = [];
+
+  pages.forEach((page) => {
+    const contentLines = [];
+    let cursorY = topY;
+    page.forEach((line, index) => {
+      const size = index === 0 && pageObjectNumbers.length === 0 ? 16 : 10;
+      const leading = index === 0 && pageObjectNumbers.length === 0 ? 20 : lineHeight;
+      contentLines.push(`BT /F1 ${size} Tf 1 0 0 1 ${marginX} ${cursorY} Tm (${escapePdfString(line)}) Tj ET`);
+      cursorY -= leading;
+    });
+    const stream = contentLines.join('\n');
+    const contentObj = objects.length + 1;
+    objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    const pageObj = objects.length + 1;
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObj} 0 R >>`);
+    pageObjectNumbers.push(pageObj);
+  });
+
+  objects[0] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objects[1] = `<< /Type /Pages /Kids [${pageObjectNumbers.map((num) => `${num} 0 R`).join(' ')}] /Count ${pageObjectNumbers.length} >>`;
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((body, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return pdf;
+}
+
+function downloadCalculationsPdf() {
+  try {
+    const lines = collectCalculationLines();
+    const pdf = buildSimplePdf(lines);
+    download(pdf, 'nichoir_calculs.pdf', 'application/pdf');
+    setExportStatus('Fichier cree: nichoir_calculs.pdf', 'ok');
+  } catch (err) {
+    console.error(err);
+    setExportStatus(`Erreur PDF calcul: ${err?.message || err}`, 'error');
+  }
+}
+
+function bytesToHex(bytes) {
+  let hex = '';
+  for (let i = 0; i < bytes.length; i += 1) {
+    hex += bytes[i].toString(16).padStart(2, '0');
+  }
+  return `${hex}>`;
+}
+
+function dataUrlToBytes(dataUrl) {
+  const base64 = dataUrlBytes(dataUrl);
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function renderSvgToImage(svgText, options = {}) {
+  const {
+    maxWidth = 1500,
+    mime = 'image/jpeg',
+    quality = 0.92,
+    background = '#fffaf1',
+  } = options;
+  return new Promise((resolve, reject) => {
+    const blob = new Blob([svgText], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const sourceW = img.naturalWidth || 1200;
+        const sourceH = img.naturalHeight || 800;
+        const scale = Math.min(1, maxWidth / sourceW);
+        const width = Math.max(320, Math.round(sourceW * scale));
+        const height = Math.max(240, Math.round(sourceH * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = background;
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL(mime, quality);
+        URL.revokeObjectURL(url);
+        resolve({ bytes: dataUrlToBytes(dataUrl), width, height });
+      } catch (err) {
+        URL.revokeObjectURL(url);
+        reject(err);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('Impossible de convertir le plan SVG en image PDF'));
+    };
+    img.src = url;
+  });
+}
+
+function renderSvgToJpeg(svgText, maxWidth = 1500) {
+  return renderSvgToImage(svgText, { maxWidth, mime: 'image/jpeg', quality: 0.92 });
+}
+
+function renderSvgToPng(svgText, maxWidth = 1800) {
+  return renderSvgToImage(svgText, { maxWidth, mime: 'image/png', quality: 1 });
+}
+
+function buildPlanPdf(pages, imagePages = []) {
+  const pageWidth = 595;
+  const pageHeight = 842;
+  const marginX = 42;
+  const topY = 796;
+  const lineHeight = 13;
+  const objects = [
+    '',
+    '',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  const pageObjectNumbers = [];
+
+  const addTextPage = (currentLines) => {
+    const content = [];
+    let cursorY = topY;
+    currentLines.forEach((line, index) => {
+      const size = index === 0 && pageObjectNumbers.length === 0 ? 16 : 9;
+      const leading = index === 0 && pageObjectNumbers.length === 0 ? 20 : lineHeight;
+      content.push(`BT /F1 ${size} Tf 1 0 0 1 ${marginX} ${cursorY} Tm (${escapePdfString(line)}) Tj ET`);
+      cursorY -= leading;
+    });
+    const stream = content.join('\n');
+    const contentObj = objects.length + 1;
+    objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    const pageObj = objects.length + 1;
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${contentObj} 0 R >>`);
+    pageObjectNumbers.push(pageObj);
+  };
+
+  pages.forEach((pageLines) => addTextPage(pageLines));
+
+  const addImagePage = (title, image) => {
+    if (!image?.bytes?.length) return;
+    const imageObj = objects.length + 1;
+    const hex = bytesToHex(image.bytes);
+    objects.push(`<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter [/ASCIIHexDecode /DCTDecode] /Length ${hex.length} >>\nstream\n${hex}\nendstream`);
+    const maxW = pageWidth - 60;
+    const maxH = pageHeight - 90;
+    const scale = Math.min(maxW / image.width, maxH / image.height);
+    const drawW = image.width * scale;
+    const drawH = image.height * scale;
+    const drawX = (pageWidth - drawW) / 2;
+    const drawY = (pageHeight - drawH) / 2 - 12;
+    const stream = [
+      `BT /F1 14 Tf 1 0 0 1 ${marginX} 806 Tm (${escapePdfString(title)}) Tj ET`,
+      `q ${drawW.toFixed(2)} 0 0 ${drawH.toFixed(2)} ${drawX.toFixed(2)} ${drawY.toFixed(2)} cm /PlanImage Do Q`,
+    ].join('\n');
+    const contentObj = objects.length + 1;
+    objects.push(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
+    const pageObj = objects.length + 1;
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 3 0 R >> /XObject << /PlanImage ${imageObj} 0 R >> >> /Contents ${contentObj} 0 R >>`);
+    pageObjectNumbers.push(pageObj);
+  };
+
+  imagePages.forEach(({ title, image }) => addImagePage(title, image));
+
+  objects[0] = '<< /Type /Catalog /Pages 2 0 R >>';
+  objects[1] = `<< /Type /Pages /Kids [${pageObjectNumbers.map((num) => `${num} 0 R`).join(' ')}] /Count ${pageObjectNumbers.length} >>`;
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((body, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach((offset) => {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return pdf;
+}
+
+function collectPlanPdfPages() {
+  const planPanel = root.querySelector('[data-panel="plan"]');
+  const calcPanel = root.querySelector('[data-panel="calcs"]');
+  const generatedAt = new Date().toLocaleString('fr-CA');
+  const planStats = [];
+  planPanel?.querySelectorAll('.stat-row').forEach((row) => {
+    const label = row.querySelector('span')?.textContent || '';
+    const value = row.querySelector('strong')?.textContent || '';
+    planStats.push(`${label}: ${value}`);
+  });
+  const angleLines = [];
+  calcPanel?.querySelectorAll('.stat-row').forEach((row) => {
+    const label = row.querySelector('span')?.textContent || '';
+    const value = row.querySelector('strong')?.textContent || '';
+    if (/pente|angle|retrait|coupe|biseau|lame|trait/i.test(label)) {
+      angleLines.push(`${label}: ${value}`);
+    }
+  });
+  const pages = [];
+  calcPanel?.querySelectorAll('.cut-row').forEach((row, index) => {
+    const name = row.querySelector('span')?.textContent || '';
+    const qty = row.querySelector('strong')?.textContent || '';
+    const dims = row.querySelector('small')?.textContent || '';
+    const note = row.querySelector('em')?.textContent || '';
+    const page = [
+      `NICHOIR - Piece ${index + 1}: ${name}`,
+      `Genere le ${generatedAt}`,
+      '',
+      'IDENTIFICATION',
+      `Nom: ${name}`,
+      `Quantite: ${qty}`,
+      `Dimensions: ${dims}`,
+      `Coupes / angles de cette piece: ${note || 'coupe droite / aucun angle special'}`,
+      '',
+      'ANGLES ET COUPES DU MODELE',
+      ...angleLines,
+      '',
+      'PARAMETRES DU PLAN DE COUPE',
+      ...planStats,
+      '',
+      'NOTE FABRICATION',
+      'Verifier le sens de pose, les chants biseautes et la crete avant coupe finale.',
+    ];
+    pages.push(page.flatMap((line) => wrapPdfLine(line)));
+  });
+  if (!pages.length) {
+    pages.push([
+      'NICHOIR - Plan de coupe',
+      `Genere le ${generatedAt}`,
+      '',
+      'Aucune piece trouvee dans la table de calcul.',
+    ]);
+  }
+  return pages;
+}
+
+function collectPlanPieces() {
+  const calcPanel = root.querySelector('[data-panel="calcs"]');
+  const pieces = [];
+  Array.from(calcPanel?.querySelectorAll('.cut-row') || []).forEach((row) => {
+    const rawName = row.querySelector('span')?.textContent || '';
+    const rawQty = Number.parseInt(row.querySelector('strong')?.textContent || '1', 10);
+    const qty = Number.isFinite(rawQty) && rawQty > 0 ? rawQty : 1;
+    const dims = row.querySelector('small')?.textContent || '';
+    const note = row.querySelector('em')?.textContent || '';
+    const normalized = cleanPdfText(rawName).toLowerCase();
+    let names = [rawName];
+    if (normalized === 'facade' && qty >= 2) names = ['Façade avant', 'Façade arrière'];
+    else if (normalized === 'cote' && qty >= 2) names = ['Côté gauche', 'Côté droit'];
+    else if (normalized === 'toit' && qty >= 2) names = ['Toit gauche', 'Toit droit'];
+    else if (qty > 1) names = Array.from({ length: qty }, (_, i) => `${rawName} ${i + 1}`);
+    names.forEach((name) => {
+      pieces.push({
+        index: pieces.length,
+        name,
+        qty: '1',
+        dims,
+        note,
+        sourceName: rawName,
+      });
+    });
+  });
+  return pieces.map((piece, index) => ({ ...piece, index }));
+}
+
+function collectAngleLines() {
+  const calcPanel = root.querySelector('[data-panel="calcs"]');
+  return Array.from(calcPanel?.querySelectorAll('.stat-row') || [])
+    .map((row) => ({
+      label: row.querySelector('span')?.textContent || '',
+      value: row.querySelector('strong')?.textContent || '',
+    }))
+    .filter((item) => /pente|angle|retrait|coupe|biseau|lame|trait/i.test(item.label))
+    .map((item) => `${item.label}: ${item.value}`);
+}
+
+function drawWrappedCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = cleanPdfText(text).split(' ').filter(Boolean);
+  let line = '';
+  words.forEach((word) => {
+    const test = line ? `${line} ${word}` : word;
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, y);
+      y += lineHeight;
+      line = word;
+    } else {
+      line = test;
+    }
+  });
+  if (line) {
+    ctx.fillText(line, x, y);
+    y += lineHeight;
+  }
+  return y;
+}
+
+function renderPieceCard(piece, angleLines, mime = 'image/jpeg') {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1700;
+  canvas.height = 1100;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fffaf1';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = '#b56f18';
+  ctx.lineWidth = 5;
+  ctx.strokeRect(36, 36, canvas.width - 72, canvas.height - 72);
+
+  ctx.fillStyle = '#24211d';
+  ctx.font = 'bold 44px monospace';
+  ctx.fillText(`Piece ${piece.index + 1}: ${cleanPdfText(piece.name)}`, 70, 105);
+  ctx.font = '24px monospace';
+  ctx.fillStyle = '#6d6255';
+  ctx.fillText(`Quantite: ${cleanPdfText(piece.qty)}`, 70, 150);
+  ctx.fillText(`Dimensions: ${cleanPdfText(piece.dims)}`, 70, 190);
+
+  const shapeX = 90;
+  const shapeY = 280;
+  const shapeW = 760;
+  const shapeH = 500;
+  const normalizedName = cleanPdfText(piece.name).toLowerCase();
+  ctx.fillStyle = '#d4a574';
+  ctx.strokeStyle = '#7b4308';
+  ctx.lineWidth = 4;
+  if (/facade/.test(normalizedName)) {
+    ctx.beginPath();
+    ctx.moveTo(shapeX, shapeY + shapeH);
+    ctx.lineTo(shapeX + shapeW, shapeY + shapeH);
+    ctx.lineTo(shapeX + shapeW, shapeY + shapeH * 0.35);
+    ctx.lineTo(shapeX + shapeW / 2, shapeY);
+    ctx.lineTo(shapeX, shapeY + shapeH * 0.35);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    if (/avant/.test(normalizedName) && params.door !== 'none') {
+      const holeX = shapeX + shapeW * (Number(params.doorPX || 50) / 100);
+      const holeY = shapeY + shapeH * (1 - Number(params.doorPY || 50) / 100);
+      const holeW = Math.max(42, Math.min(shapeW * 0.42, Number(params.doorW || 38) * 4.2));
+      const holeH = Math.max(42, Math.min(shapeH * 0.48, Number(params.doorH || 38) * 4.2));
+      ctx.save();
+      ctx.fillStyle = '#fffaf1';
+      ctx.strokeStyle = '#24211d';
+      ctx.lineWidth = 5;
+      if (params.door === 'round') {
+        ctx.beginPath();
+        ctx.ellipse(holeX, holeY, holeW / 2, holeH / 2, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } else if (params.door === 'pentagon') {
+        ctx.beginPath();
+        ctx.moveTo(holeX - holeW / 2, holeY + holeH / 2);
+        ctx.lineTo(holeX + holeW / 2, holeY + holeH / 2);
+        ctx.lineTo(holeX + holeW / 2, holeY - holeH * 0.12);
+        ctx.lineTo(holeX, holeY - holeH / 2);
+        ctx.lineTo(holeX - holeW / 2, holeY - holeH * 0.12);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        ctx.fillRect(holeX - holeW / 2, holeY - holeH / 2, holeW, holeH);
+        ctx.strokeRect(holeX - holeW / 2, holeY - holeH / 2, holeW, holeH);
+      }
+      if (params.perch) {
+        const perchY = holeY + holeH / 2 + Math.max(28, Number(params.perchOff || 15) * 2.2);
+        ctx.beginPath();
+        ctx.ellipse(holeX, perchY, 28, 16, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  } else if (/perchoir/.test(normalizedName)) {
+    ctx.beginPath();
+    ctx.roundRect(shapeX, shapeY + shapeH * 0.38, shapeW, shapeH * 0.24, 80);
+    ctx.fill();
+    ctx.stroke();
+  } else {
+    ctx.fillRect(shapeX, shapeY, shapeW, shapeH);
+    ctx.strokeRect(shapeX, shapeY, shapeW, shapeH);
+  }
+
+  ctx.strokeStyle = '#24211d';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(shapeX, shapeY + shapeH + 40);
+  ctx.lineTo(shapeX + shapeW, shapeY + shapeH + 40);
+  ctx.moveTo(shapeX, shapeY + shapeH + 30);
+  ctx.lineTo(shapeX, shapeY + shapeH + 50);
+  ctx.moveTo(shapeX + shapeW, shapeY + shapeH + 30);
+  ctx.lineTo(shapeX + shapeW, shapeY + shapeH + 50);
+  ctx.stroke();
+
+  ctx.fillStyle = '#24211d';
+  ctx.font = '24px monospace';
+  ctx.fillText(cleanPdfText(piece.dims), shapeX + 10, shapeY + shapeH + 76);
+  ctx.font = '18px monospace';
+  ctx.fillStyle = '#6d6255';
+  ctx.fillText('Schema indicatif de la piece. Voir dimensions exactes et coupes a droite.', shapeX, shapeY + shapeH + 112);
+
+  const textX = 960;
+  const textWidth = 620;
+  let y = 280;
+  ctx.fillStyle = '#24211d';
+  ctx.font = 'bold 26px monospace';
+  ctx.fillText('Coupes et angles', textX, y);
+  y += 42;
+  ctx.font = '23px monospace';
+  y = drawWrappedCanvasText(ctx, piece.note || 'coupe droite / aucun angle special', textX, y, textWidth, 32);
+  y += 24;
+  ctx.font = 'bold 24px monospace';
+  ctx.fillText('Angles du modele', textX, y);
+  y += 36;
+  ctx.font = '19px monospace';
+  angleLines.slice(0, 10).forEach((line) => {
+    y = drawWrappedCanvasText(ctx, line, textX, y, textWidth, 26);
+  });
+
+  return {
+    bytes: dataUrlToBytes(canvas.toDataURL(mime, mime === 'image/jpeg' ? 0.92 : 1)),
+    width: canvas.width,
+    height: canvas.height,
+  };
+}
+
+function renderExplosionImage(mime = 'image/png') {
+  const exportParams = { ...params, explode: Math.max(Number(params.explode || 0), 72), mode: 'solid' };
+  const payload = parseResponse(scene_meshes_json(JSON.stringify(exportParams)));
+  if (!payload?.meshes?.length) throw new Error('aucun mesh pour image eclatee');
+
+  const width = 1600;
+  const height = 1100;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color('#fffaf1');
+  const camera = new THREE.PerspectiveCamera(38, width / height, 1, 6000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(1);
+  renderer.setSize(width, height);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+  const key = new THREE.DirectionalLight(0xfff4df, 1.0);
+  key.position.set(360, 520, 340);
+  scene.add(key);
+  const fill = new THREE.DirectionalLight(0xdcecff, 0.45);
+  fill.position.set(-320, 220, -360);
+  scene.add(fill);
+
+  const group = new THREE.Group();
+  const disposables = [];
+  const labelPoints = [];
+  payload.meshes.forEach((m) => {
+    if (!m.vertices || m.vertices.length < 9) return;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(m.vertices, 3));
+    geo.computeVertexNormals();
+    const mat = new THREE.MeshPhongMaterial({
+      color: new THREE.Color(m.color || '#d4a574'),
+      side: THREE.DoubleSide,
+      shininess: 18,
+      specular: 0x222222,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    group.add(mesh);
+    const edges = new THREE.EdgesGeometry(geo, 18);
+    const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x6b4320 }));
+    group.add(line);
+    const meshBox = new THREE.Box3().setFromObject(mesh);
+    labelPoints.push({
+      name: m.name || m.key || 'piece',
+      point: meshBox.getCenter(new THREE.Vector3()),
+    });
+    disposables.push(geo, mat, edges, line.material);
+  });
+  scene.add(group);
+  const box = new THREE.Box3().setFromObject(group);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  group.position.sub(center);
+  const maxSize = Math.max(size.x, size.y, size.z, 1);
+  camera.position.set(maxSize * 1.1, maxSize * 0.85, maxSize * 1.55);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld(true);
+  renderer.render(scene, camera);
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(renderer.domElement, 0, 0);
+  ctx.font = 'bold 30px monospace';
+  ctx.textBaseline = 'middle';
+  labelPoints.forEach((item) => {
+    const p = item.point.clone().add(group.position).project(camera);
+    const x = (p.x * 0.5 + 0.5) * width;
+    const y = (-p.y * 0.5 + 0.5) * height;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const label = cleanPdfText(item.name);
+    const metrics = ctx.measureText(label);
+    const padX = 10;
+    const boxW = metrics.width + padX * 2;
+    const boxH = 38;
+    const bx = Math.max(8, Math.min(width - boxW - 8, x - boxW / 2));
+    const by = Math.max(8, Math.min(height - boxH - 8, y - 24));
+    ctx.fillStyle = 'rgba(255, 250, 241, 0.86)';
+    ctx.strokeStyle = '#b56f18';
+    ctx.lineWidth = 2;
+    ctx.fillRect(bx, by, boxW, boxH);
+    ctx.strokeRect(bx, by, boxW, boxH);
+    ctx.fillStyle = '#24211d';
+    ctx.fillText(label, bx + padX, by + boxH / 2);
+  });
+  const dataUrl = canvas.toDataURL(mime, mime === 'image/jpeg' ? 0.92 : 1);
+  disposables.forEach((item) => item.dispose && item.dispose());
+  renderer.dispose();
+  return { bytes: dataUrlToBytes(dataUrl), width, height };
+}
+
+async function downloadPlanPdf() {
+  try {
+    const payload = parseResponse(plan_preview_svg(JSON.stringify(params)));
+    if (!payload?.svg) {
+      setExportStatus('PDF plan impossible: aucun plan SVG genere.', 'warn');
+      return;
+    }
+    const planImage = await renderSvgToJpeg(payload.svg);
+    const angleLines = collectAngleLines();
+    const pieceImages = collectPlanPieces().map((piece) => ({
+      title: `Piece ${piece.index + 1}: ${piece.name}`,
+      image: renderPieceCard(piece, angleLines, 'image/jpeg'),
+    }));
+    const explosionImage = renderExplosionImage('image/jpeg');
+    const pdf = buildPlanPdf([], [
+      ...pieceImages,
+      { title: 'Assemblage eclate', image: explosionImage },
+      { title: 'Plan de coupe', image: planImage },
+    ]);
+    download(pdf, 'nichoir_plan_de_coupe.pdf', 'application/pdf');
+    setExportStatus('Fichier cree: nichoir_plan_de_coupe.pdf', 'ok');
+  } catch (err) {
+    console.error(err);
+    setExportStatus(`Erreur PDF plan: ${err?.message || err}`, 'error');
+  }
+}
+
+async function downloadPlanPng() {
+  try {
+    const payload = parseResponse(plan_preview_svg(JSON.stringify(params)));
+    if (!payload?.svg) {
+      setExportStatus('PNG plan impossible: aucun plan SVG genere.', 'warn');
+      return;
+    }
+    const image = await renderSvgToPng(payload.svg);
+    download(image.bytes, 'nichoir_plan_de_coupe.png', 'image/png');
+    setExportStatus('Fichier cree: nichoir_plan_de_coupe.png', 'ok');
+  } catch (err) {
+    console.error(err);
+    setExportStatus(`Erreur PNG plan: ${err?.message || err}`, 'error');
+  }
+}
+
+function downloadExplosionPng() {
+  try {
+    const image = renderExplosionImage('image/png');
+    download(image.bytes, 'nichoir_assemblage_eclate.png', 'image/png');
+    setExportStatus('Fichier cree: nichoir_assemblage_eclate.png', 'ok');
+  } catch (err) {
+    console.error(err);
+    setExportStatus(`Erreur PNG explosion: ${err?.message || err}`, 'error');
   }
 }
 
@@ -247,6 +911,7 @@ function decoValueToParam(input) {
 }
 
 function ensureDecos() {
+  if (!params.panelPreset) params.panelPreset = 'auto';
   if (!params.decos || typeof params.decos !== 'object') params.decos = {};
   ['front', 'back', 'left', 'right', 'roofL', 'roofR'].forEach((key) => {
     if (!params.decos[key]) {
@@ -493,12 +1158,14 @@ function render() {
 
   root.querySelectorAll('[data-param]').forEach((input) => {
     input.addEventListener('input', () => {
+      if (input.dataset.param === 'panelW' || input.dataset.param === 'panelH') params.panelPreset = 'custom';
       params[input.dataset.param] = valueToParam(input);
       normalizeDependentParams(input.dataset.param);
       syncRangeControl(input.dataset.param, input.value);
       refreshGeneratedViews();
     });
     input.addEventListener('change', () => {
+      if (input.dataset.param === 'panelW' || input.dataset.param === 'panelH') params.panelPreset = 'custom';
       params[input.dataset.param] = valueToParam(input);
       normalizeDependentParams(input.dataset.param);
       syncRangeControl(input.dataset.param, input.value);
@@ -510,6 +1177,7 @@ function render() {
     input.addEventListener('input', () => {
       const value = valueToParam(input);
       if (!Number.isFinite(value)) return;
+      if (input.dataset.paramNumber === 'panelW' || input.dataset.paramNumber === 'panelH') params.panelPreset = 'custom';
       params[input.dataset.paramNumber] = value;
       normalizeDependentParams(input.dataset.paramNumber);
       syncRangeControl(input.dataset.paramNumber, input.value);
@@ -518,6 +1186,7 @@ function render() {
     input.addEventListener('change', () => {
       const value = valueToParam(input);
       if (!Number.isFinite(value)) return;
+      if (input.dataset.paramNumber === 'panelW' || input.dataset.paramNumber === 'panelH') params.panelPreset = 'custom';
       params[input.dataset.paramNumber] = value;
       normalizeDependentParams(input.dataset.paramNumber);
       syncRangeControl(input.dataset.paramNumber, input.value);
@@ -663,7 +1332,12 @@ function render() {
 
   root.querySelector('[data-panel-preset]')?.addEventListener('change', (event) => {
     const value = event.target.value;
-    if (!value || value === 'custom') return;
+    if (!value) return;
+    params.panelPreset = value;
+    if (value === 'auto' || value === 'custom') {
+      render();
+      return;
+    }
     const [w, h] = value.split('x').map(Number);
     if (!Number.isFinite(w) || !Number.isFinite(h)) return;
     params.panelW = w;
@@ -725,6 +1399,18 @@ function render() {
     }
   });
 
+  root.querySelector('[data-action="download-plan-png"]')?.addEventListener('click', () => {
+    downloadPlanPng();
+  });
+
+  root.querySelector('[data-action="download-explosion-png"]')?.addEventListener('click', () => {
+    downloadExplosionPng();
+  });
+
+  root.querySelector('[data-action="download-plan-pdf"]')?.addEventListener('click', () => {
+    downloadPlanPdf();
+  });
+
   root.querySelector('[data-action="export-obj"]')?.addEventListener('click', () => {
     exportText(
       'nichoir_maison_debug.obj',
@@ -732,6 +1418,10 @@ function render() {
       () => export_house_obj(JSON.stringify(params)),
       'Export OBJ vide: le modele n a genere aucun triangle.'
     );
+  });
+
+  root.querySelector('[data-action="download-calcs-pdf"]')?.addEventListener('click', () => {
+    downloadCalculationsPdf();
   });
 
   root.querySelector('[data-action="mesh-report"]')?.addEventListener('click', () => {

@@ -272,13 +272,14 @@ Decision technique a prendre pour decorations:
 - Afficher version WASM.
 - Ajouter statut licence/autorisation quand le serveur sera branche.
 
-10. Autorisation serveur.
+10. Gestion client externe + autorisation serveur.
 
-- Ajouter mini FastAPI + SQLite.
-- Le serveur ne calcule pas la geometrie.
-- Le serveur retourne seulement l'etat d'autorisation/licence.
-- Les exports ou features premium verifient cette autorisation avant execution.
-- Stripe sera ajoute plus tard.
+- La gestion compte/client reste hors WASM.
+- Le backend/API gere utilisateurs, sessions, credits, abonnements, paiements Stripe, messages et tickets.
+- Le serveur ne calcule pas la geometrie et ne recoit pas les fichiers STL/PDF/ZIP generes.
+- Le serveur retourne seulement un etat compte + une autorisation courte pour le telechargement demande.
+- Les exports premium demandent une autorisation avant generation/telechargement.
+- Le WASM garde le calcul, la geometrie, le plan, les exports et l'interface metier.
 
 ## 4. Plan recommande de migration restante
 
@@ -303,12 +304,42 @@ Decision technique a prendre pour decorations:
 - Integrer decoration dans viewer, STL maison et ZIP panneaux.
 - Tester SVG et heightmap.
 
-### Phase D - Autorisation
+### Phase D - Gestion compte/API + autorisation d'export
 
-- Ajouter FastAPI + SQLite.
-- Ajouter endpoint licence/dev-token.
-- Brancher l'app sur le statut d'autorisation.
-- Verrouiller exports premium si non autorise.
+- Etat actuel au 2026-06-11:
+  - Backend local PHP/SQLite cree dans `server-php/`.
+  - Migration SQLite initiale creee.
+  - Endpoints `health`, `register`, `login`, `logout`, `me`, `stripe-link`, `exports/authorize`, `exports/consume`, `tickets` ajoutes.
+  - Utilisateur demo cree pour developpement: `demo@nichoir.local` / `password123`.
+  - Credits serveur fonctionnels: autorisation STL testee, debit de 3 credits confirme.
+  - Modal `Compte` ajoute dans l'app, avec identifiants demo visibles temporairement.
+  - Bouton Stripe placeholder branche sur `POST /api/checkout/stripe-link`.
+
+- Ajouter un backend local PHP + SQLite pour tester le flux reel.
+- Ajouter les tables utilisateurs, sessions, credits, abonnements, paiements, consommations, tickets et messages.
+- Ajouter endpoint `GET /api/me` pour retourner l'etat du compte, le solde credits et le statut abonnement.
+- Ajouter endpoint `POST /api/checkout/stripe-link` pour obtenir un lien Stripe Checkout genere cote serveur.
+- Ajouter endpoint `POST /api/exports/authorize` qui recoit seulement le type d'export demande (`stl`, `pdf`, `zip`, `png`, `svg`) et retourne une autorisation courte si le compte est valide.
+- Ajouter endpoint `POST /api/exports/consume` pour confirmer/debiter les credits apres export local reussi.
+- Brancher le modal Compte sur ces endpoints.
+- Verrouiller les exports premium si le backend refuse l'autorisation.
+- Garder les fichiers et le calcul cote client: aucune geometrie lourde ne doit etre envoyee au serveur.
+
+Travail restant dans cette phase:
+
+- Remplacer les placeholders visuels du modal par les donnees reelles de `GET /api/me`.
+- Ajouter login/logout explicites dans le modal au lieu du login dev automatique seulement.
+- Brancher tous les boutons de telechargement sur `exports/authorize` avant export.
+- Appeler `exports/consume` seulement apres generation locale reussie.
+- Afficher les couts en credits dans l'interface avant l'action.
+- Ajouter l'interface tickets/messages dans le modal.
+- Garder Stripe en placeholder jusqu'a l'integration Checkout/Webhook reelle.
+
+Controle anti-drift:
+
+- Le WASM ne doit pas devenir la source de verite pour le compte, le solde, l'abonnement ou les paiements.
+- Le backend ne doit pas generer les STL/PDF/ZIP ni recevoir la geometrie complete.
+- Le front-end orchestre seulement: demander autorisation, lancer export local, confirmer consommation.
 
 ## 5. Definition de termine
 
@@ -321,4 +352,5 @@ La migration peut etre consideree terminee quand:
 - Le plan de coupe est exportable.
 - Les decorations sont visibles et exportables.
 - Le serveur ne recoit pas la geometrie et ne fait aucun calcul lourd.
-- L'autorisation peut activer/desactiver les exports sans exposer la logique serveur.
+- La gestion client, les credits, les abonnements, Stripe, les messages et les tickets sont geres hors WASM.
+- L'autorisation serveur peut activer/desactiver les exports sans exposer les secrets ni faire les calculs a la place du client.

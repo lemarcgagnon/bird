@@ -8,16 +8,21 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260611-plan-hig-actions-v1';
+} from '../wasm/pkg/wasm.js?v=20260611-bogus-stripe-v1';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js';
 
-const APP_BUILD_ID = '20260611-plan-hig-actions-v1';
+const APP_BUILD_ID = '20260611-bogus-stripe-v1';
 const root = document.getElementById('app');
 const THEME_KEY = 'nichoir-theme';
+const API_BASE = 'http://127.0.0.1:8021';
+const AUTH_TOKEN_KEY = 'nichoir-auth-token';
+const DEV_EMAIL = 'demo@nichoir.local';
+const DEV_PASSWORD = 'password123';
 let params = null;
 let frameId = null;
 let activeTab = 'dim';
 let cleanupViewer = null;
+let lastAccountFocus = null;
 let theme = localStorage.getItem(THEME_KEY)
   || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
@@ -135,7 +140,9 @@ function rasterizeSvgToPngBase64(svgText, size = 256) {
 function setExportStatus(message, tone = 'info') {
   let status = root.querySelector('#export-status');
   const activePanel = root.querySelector('.control-section.active');
-  const buttons = activePanel?.querySelector('.download-groups')
+  const activeModal = root.querySelector('.account-modal.is-open');
+  const buttons = activeModal?.querySelector('.download-groups')
+    || activePanel?.querySelector('.download-groups')
     || activePanel?.querySelector('.buttons')
     || root.querySelector('[data-action="export-house"]')?.closest('.buttons');
   if (!status && buttons) {
@@ -146,6 +153,57 @@ function setExportStatus(message, tone = 'info') {
   if (!status) return;
   status.className = `export-status ${tone}`;
   status.textContent = message;
+}
+
+async function apiRequest(path, options = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const response = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers,
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.error || `api_${response.status}`);
+  }
+  return payload;
+}
+
+async function ensureDevSession() {
+  if (localStorage.getItem(AUTH_TOKEN_KEY)) return;
+
+  let payload;
+  try {
+    payload = await apiRequest('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email: DEV_EMAIL, password: DEV_PASSWORD }),
+    });
+  } catch (err) {
+    payload = await apiRequest('/api/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: DEV_EMAIL,
+        password: DEV_PASSWORD,
+        display_name: 'Demo',
+      }),
+    });
+  }
+
+  if (payload.token) {
+    localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
+  }
+}
+
+async function requestBogusStripeLink() {
+  setExportStatus('Compte dev: connexion locale avant appel Stripe placeholder...', 'info');
+  await ensureDevSession();
+  const payload = await apiRequest('/api/checkout/stripe-link', { method: 'POST' });
+  setExportStatus(`Stripe placeholder recu: ${payload.checkout_url}`, 'ok');
 }
 
 function exportBinary(filename, type, producer, emptyMessage) {
@@ -912,6 +970,7 @@ function decoValueToParam(input) {
 
 function ensureDecos() {
   if (!params.panelPreset) params.panelPreset = 'auto';
+  if (!params.thicknessPreset) params.thicknessPreset = '12';
   if (!params.decos || typeof params.decos !== 'object') params.decos = {};
   ['front', 'back', 'left', 'right', 'roofL', 'roofR'].forEach((key) => {
     if (!params.decos[key]) {
@@ -1156,9 +1215,72 @@ function render() {
   root.innerHTML = render_app_html(JSON.stringify(params));
   applyTheme();
 
+  const accountModal = root.querySelector('[data-account-modal]');
+  const accountOpenButton = root.querySelector('[data-action="account-modal-open"]');
+  const closeAccountModal = () => {
+    if (!accountModal || accountModal.hidden) return;
+    accountModal.classList.remove('is-open');
+    accountModal.hidden = true;
+    if (lastAccountFocus && document.contains(lastAccountFocus)) lastAccountFocus.focus();
+  };
+  const openAccountModal = () => {
+    if (!accountModal) return;
+    lastAccountFocus = document.activeElement;
+    accountModal.hidden = false;
+    accountModal.classList.add('is-open');
+    accountModal.querySelector('[data-account-modal-close]')?.focus();
+  };
+  accountOpenButton?.addEventListener('click', openAccountModal);
+  accountModal?.querySelectorAll('[data-account-modal-close]').forEach((button) => {
+    button.addEventListener('click', closeAccountModal);
+  });
+  accountModal?.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeAccountModal();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(accountModal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'))
+      .filter((el) => !el.disabled && el.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+
+  [
+    ['account-login', 'Compte: connexion placeholder. Le backend PHP/SQL sera branche plus tard.'],
+    ['account-register', 'Compte: creation placeholder. Validation courriel et mot de passe viendront du backend.'],
+    ['buy-credits', 'Credits: achat placeholder. Stripe sera branche dans une phase suivante.'],
+    ['token-pricing', 'Credits: grille tarifaire placeholder. Les couts par export restent a definir.'],
+    ['choose-subscription', 'Abonnement: choix de formule placeholder.'],
+    ['manage-renewal', 'Abonnement: gestion du renouvellement placeholder.'],
+  ].forEach(([action, message]) => {
+    root.querySelector(`[data-action="${action}"]`)?.addEventListener('click', () => {
+      setExportStatus(message, 'info');
+    });
+  });
+
+  root.querySelector('[data-action="stripe-link"]')?.addEventListener('click', async () => {
+    try {
+      await requestBogusStripeLink();
+    } catch (err) {
+      console.error(err);
+      setExportStatus(`Erreur Stripe placeholder: ${err?.message || err}. Verifie que le backend PHP tourne sur ${API_BASE}.`, 'error');
+    }
+  });
+
   root.querySelectorAll('[data-param]').forEach((input) => {
     input.addEventListener('input', () => {
       if (input.dataset.param === 'panelW' || input.dataset.param === 'panelH') params.panelPreset = 'custom';
+      if (input.dataset.param === 'T') params.thicknessPreset = 'custom';
       params[input.dataset.param] = valueToParam(input);
       normalizeDependentParams(input.dataset.param);
       syncRangeControl(input.dataset.param, input.value);
@@ -1166,6 +1288,7 @@ function render() {
     });
     input.addEventListener('change', () => {
       if (input.dataset.param === 'panelW' || input.dataset.param === 'panelH') params.panelPreset = 'custom';
+      if (input.dataset.param === 'T') params.thicknessPreset = 'custom';
       params[input.dataset.param] = valueToParam(input);
       normalizeDependentParams(input.dataset.param);
       syncRangeControl(input.dataset.param, input.value);
@@ -1178,6 +1301,7 @@ function render() {
       const value = valueToParam(input);
       if (!Number.isFinite(value)) return;
       if (input.dataset.paramNumber === 'panelW' || input.dataset.paramNumber === 'panelH') params.panelPreset = 'custom';
+      if (input.dataset.paramNumber === 'T') params.thicknessPreset = 'custom';
       params[input.dataset.paramNumber] = value;
       normalizeDependentParams(input.dataset.paramNumber);
       syncRangeControl(input.dataset.paramNumber, input.value);
@@ -1187,6 +1311,7 @@ function render() {
       const value = valueToParam(input);
       if (!Number.isFinite(value)) return;
       if (input.dataset.paramNumber === 'panelW' || input.dataset.paramNumber === 'panelH') params.panelPreset = 'custom';
+      if (input.dataset.paramNumber === 'T') params.thicknessPreset = 'custom';
       params[input.dataset.paramNumber] = value;
       normalizeDependentParams(input.dataset.paramNumber);
       syncRangeControl(input.dataset.paramNumber, input.value);
@@ -1342,6 +1467,20 @@ function render() {
     if (!Number.isFinite(w) || !Number.isFinite(h)) return;
     params.panelW = w;
     params.panelH = h;
+    render();
+  });
+
+  root.querySelector('[data-thickness-preset]')?.addEventListener('change', (event) => {
+    const value = event.target.value;
+    if (!value) return;
+    params.thicknessPreset = value;
+    if (value === 'custom') {
+      render();
+      return;
+    }
+    const mm = Number(value);
+    if (!Number.isFinite(mm) || mm <= 0) return;
+    params.T = mm;
     render();
   });
 

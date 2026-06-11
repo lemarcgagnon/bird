@@ -432,6 +432,246 @@ input[type="range"] {
   letter-spacing: 0.6px;
 }
 
+.account-summary {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.account-balance {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel-2));
+}
+
+.account-balance span,
+.account-balance em {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.account-balance strong {
+  display: block;
+  margin: 4px 0;
+  color: var(--accent);
+  font-size: 34px;
+  line-height: 1;
+}
+
+.account-actions .control-note {
+  margin: 0 0 8px;
+}
+
+.dev-credentials {
+  display: grid;
+  gap: 5px;
+  margin: 0 0 14px;
+  padding: 11px 12px;
+  border: 1px dashed var(--accent);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent) 9%, var(--panel-2));
+}
+
+.dev-credentials span {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.dev-credentials strong {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.dev-credentials code {
+  color: var(--text);
+  font-size: 11px;
+  word-break: break-all;
+}
+
+.ledger-list {
+  display: grid;
+  gap: 6px;
+}
+
+.ledger-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.ledger-row:last-child {
+  border-bottom: 0;
+}
+
+.ledger-row strong {
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.account-modal[hidden] {
+  display: none;
+}
+
+.account-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.account-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--bg) 58%, black);
+  opacity: 0.82;
+}
+
+.account-sheet {
+  position: relative;
+  width: min(1120px, calc(100vw - 28px));
+  max-height: min(940px, calc(100vh - 24px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.35);
+}
+
+.account-sheet-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 16px;
+  align-items: start;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.account-sheet-header h2 {
+  margin: 2px 0 6px;
+  color: var(--text);
+  font-size: 22px;
+}
+
+.account-sheet-header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.modal-close {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--button-border);
+  border-radius: 999px;
+  background: var(--button-bg);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.modal-close:hover,
+.modal-close:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  outline: none;
+}
+
+.account-sheet-body {
+  padding: 22px 24px 26px;
+}
+
+.account-sheet-body .download-groups {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+}
+
+.account-sheet-body .download-group:last-child {
+  grid-column: 1 / -1;
+}
+
+.stripe-link-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel-2));
+}
+
+.stripe-link-card span,
+.stripe-link-card em {
+  display: block;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.stripe-link-card strong {
+  display: block;
+  margin: 3px 0;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.stripe-link-card button {
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-contrast, #111);
+  cursor: pointer;
+}
+
+@media (max-width: 720px) {
+  .account-modal {
+    place-items: end center;
+    padding: 10px;
+  }
+
+  .account-sheet {
+    width: 100%;
+    max-height: calc(100vh - 20px);
+    border-radius: 14px;
+  }
+
+  .account-sheet-header {
+    grid-template-columns: 1fr;
+  }
+
+  .account-sheet-body .download-groups,
+  .stripe-link-card {
+    grid-template-columns: 1fr;
+  }
+}
+
 .calc-actions {
   margin: 14px 0 18px;
 }

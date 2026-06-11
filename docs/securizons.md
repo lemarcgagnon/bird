@@ -169,15 +169,28 @@ Plafonds proposes:
 
 Le client/WASM ne doit pas etre considere comme une protection forte.
 
-Pour la future facturation/licence:
+Pour la future facturation/licence/gestion client:
 
 - le serveur valide session/licence;
+- le serveur gere comptes, credits, abonnements, paiements, messages et tickets;
 - le serveur ne fait pas les calculs lourds;
-- le serveur emet un token court terme;
-- l'app verifie ce token pour debloquer certaines fonctions;
-- Stripe ou autre paiement reste cote serveur;
+- le serveur emet une autorisation court terme pour un export precis;
+- l'app verifie cette autorisation pour debloquer le telechargement;
+- Stripe reste cote serveur via un lien Checkout genere par l'API;
 - ne jamais mettre les secrets Stripe dans le WASM;
+- ne jamais stocker le solde de credits comme verite dans le WASM;
 - ne jamais faire confiance a une verification uniquement cote client.
+
+Flux cible pour un telechargement:
+
+1. L'utilisateur demande un export dans l'app WASM.
+2. Le front-end appelle `POST /api/exports/authorize` avec le type d'export.
+3. Le serveur verifie session, abonnement, credits et regles commerciales.
+4. Si autorise, le serveur retourne une autorisation courte et reserve/debite les credits selon la strategie retenue.
+5. Le WASM genere le fichier localement.
+6. Le front-end appelle `POST /api/exports/consume` pour confirmer la consommation si necessaire.
+
+Le serveur ne doit pas recevoir le STL, le PDF, le ZIP, les panneaux ou la geometrie complete sauf besoin volontaire de support/debug.
 
 Objectif realiste:
 
@@ -212,11 +225,12 @@ Objectif realiste:
 - Ajouter refus export si STL trop gros.
 - Ajouter diagnostic clair dans `mesh_report_json`.
 
-### Phase 4: autorisation/facturation
+### Phase 4: autorisation/facturation/compte
 
-- Ajouter mini serveur d'autorisation.
+- Ajouter mini serveur PHP/SQLite d'autorisation et compte.
 - Tester SQLite local.
-- Ajouter Stripe plus tard.
+- Ajouter API pour compte, credits, abonnement, tickets et messages.
+- Ajouter Stripe Checkout link plus tard.
 - Garder calcul client-side.
 
 ## 8. Checklist rapide

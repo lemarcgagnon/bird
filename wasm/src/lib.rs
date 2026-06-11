@@ -128,6 +128,10 @@ fn default_panel_preset() -> String {
     "auto".to_string()
 }
 
+fn default_thickness_preset() -> String {
+    "12".to_string()
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 struct NichoirParams {
@@ -143,6 +147,8 @@ struct NichoirParams {
     overhang: f64,
     #[serde(rename = "T", alias = "t")]
     t: f64,
+    #[serde(rename = "thicknessPreset", alias = "thickness_preset", default = "default_thickness_preset")]
+    thickness_preset: String,
     #[serde(rename = "unit")]
     unit: String,
     #[serde(rename = "lang")]
@@ -219,6 +225,7 @@ impl Default for NichoirParams {
             slope: 45.0,
             overhang: 30.0,
             t: 12.0,
+            thickness_preset: "12".to_string(),
             unit: "mm".to_string(),
             lang: "fr".to_string(),
             mode: "solid".to_string(),
@@ -366,6 +373,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "decor") => "Decor",
         ("en", "calcs") => "Calcs",
         ("en", "cut_plan") => "Cut plan",
+        ("en", "account") => "Account",
         ("en", "exports") => "Exports",
         ("en", "view_mode") => "View mode",
         ("en", "explode") => "Explode",
@@ -390,6 +398,8 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "hang_end_offset") => "Offset from front/back edge",
         ("en", "material") => "Material",
         ("en", "thickness") => "Wall thickness",
+        ("en", "thickness_preset") => "Market board thickness",
+        ("en", "thickness_note") => "This thickness drives STL wall thickness and cut-plan bevel dimensions. For fabrication, choose the real board thickness available on the market.",
         ("en", "door") => "Entrance door",
         ("en", "door_width") => "Door width",
         ("en", "door_height") => "Door height",
@@ -451,6 +461,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "decor") => "Decor",
         (_, "calcs") => "Calculs",
         (_, "cut_plan") => "Plan",
+        (_, "account") => "Compte",
         (_, "exports") => "Exports",
         (_, "view_mode") => "Mode de vue",
         (_, "explode") => "Eclate",
@@ -475,6 +486,8 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "hang_end_offset") => "Retrait depuis avant/arriere",
         (_, "material") => "Materiau",
         (_, "thickness") => "Epaisseur parois",
+        (_, "thickness_preset") => "Epaisseur panneau commercial",
+        (_, "thickness_note") => "Cette epaisseur pilote le STL, les angles et les dimensions du plan de coupe. Pour fabriquer en panneau, choisis l'epaisseur reelle disponible sur le marche.",
         (_, "door") => "Porte d'entree",
         (_, "door_width") => "Largeur porte",
         (_, "door_height") => "Hauteur porte",
@@ -700,6 +713,67 @@ fn panel_preset_select(p: &NichoirParams, lang: &str) -> String {
     format!(
         r#"<label class="select-control"><span>{}</span><select data-panel-preset>{}</select></label>"#,
         html_escape(t(lang, "panel_preset")),
+        options,
+    )
+}
+
+fn selected_thickness_preset(p: &NichoirParams, value: &str) -> &'static str {
+    if p.thickness_preset == value {
+        return "selected";
+    }
+    let mm = value.parse::<f64>().unwrap_or(0.0);
+    if mm > 0.0 && (p.t - mm).abs() < 0.05 {
+        "selected"
+    } else {
+        ""
+    }
+}
+
+fn thickness_preset_select(p: &NichoirParams, lang: &str) -> String {
+    let presets = [
+        ("custom", "Custom / STL libre"),
+        ("3", "3 mm"),
+        ("6", "6 mm"),
+        ("9", "9 mm"),
+        ("12", "12 mm"),
+        ("15", "15 mm"),
+        ("18", "18 mm"),
+        ("6.35", "1/4 in - 6.35 mm"),
+        ("9.525", "3/8 in - 9.53 mm"),
+        ("12.7", "1/2 in - 12.7 mm"),
+        ("15.875", "5/8 in - 15.88 mm"),
+        ("19.05", "3/4 in - 19.05 mm"),
+    ];
+    let mut options = String::new();
+    let mut matched = false;
+    for (value, label) in presets {
+        let selected = if value == "custom" {
+            if p.thickness_preset == "custom" {
+                matched = true;
+                "selected"
+            } else {
+                ""
+            }
+        } else {
+            let s = selected_thickness_preset(p, value);
+            if !s.is_empty() {
+                matched = true;
+            }
+            s
+        };
+        options.push_str(&format!(
+            r#"<option value="{}" {}>{}</option>"#,
+            html_escape(value),
+            selected,
+            html_escape(label),
+        ));
+    }
+    if !matched {
+        options = options.replacen("<option value=\"custom\" >", "<option value=\"custom\" selected>", 1);
+    }
+    format!(
+        r#"<label class="select-control"><span>{}</span><select data-thickness-preset>{}</select></label>"#,
+        html_escape(t(lang, "thickness_preset")),
         options,
     )
 }
@@ -4340,6 +4414,14 @@ pub fn render_app_html(input: &str) -> String {
         hang_details,
     );
 
+    let material_controls = format!(
+        r#"<div class="field-group disclosure-group"><p>{}</p>{}{}<p class="control-note">{}</p></div>"#,
+        t(lang, "material"),
+        thickness_preset_select(&p, lang),
+        length_control(t(lang, "thickness"), "T", 3.0, 25.0, 0.5, p.t, &p.unit),
+        html_escape(t(lang, "thickness_note")),
+    );
+
     let roof_controls = format!(
         "{}{}<div class=\"field-group\"><p>{}</p><div class=\"choices\">{}{}{}</div>{}</div>{}{}",
         range_control(t(lang, "slope"), "slope", 10.0, 60.0, 1.0, p.slope, "deg"),
@@ -4353,7 +4435,7 @@ pub fn render_app_html(input: &str) -> String {
         } else {
             String::new()
         },
-        length_control(t(lang, "thickness"), "T", 3.0, 25.0, 0.5, p.t, &p.unit),
+        material_controls,
         hang_controls,
     );
 
@@ -4580,6 +4662,73 @@ pub fn render_app_html(input: &str) -> String {
         format_len(g.roof_ridge_cut, &p.unit),
         unit.label,
     );
+    let account_controls = r#"
+      <div class="account-summary">
+        <div class="account-balance">
+          <span>Solde credits</span>
+          <strong>0</strong>
+          <em>placeholder local</em>
+        </div>
+        <div class="stat-row"><span>Etat</span><strong>Non connecte</strong></div>
+        <div class="stat-row"><span>Courriel</span><strong>demo@nichoir.local</strong></div>
+        <div class="stat-row"><span>Plan</span><strong>Aucun abonnement</strong></div>
+      </div>
+      <div class="dev-credentials">
+        <span>Dev seulement</span>
+        <strong>Identifiants locaux</strong>
+        <code>username: demo@nichoir.local</code>
+        <code>password: password123</code>
+      </div>
+      <div class="download-groups account-actions">
+        <div class="download-group">
+          <h3>Identification</h3>
+          <p class="control-note">Placeholder seulement. Le backend PHP/SQL gerera session, mot de passe et autorisation.</p>
+          <div class="buttons compact-buttons">
+            <button data-action="account-login" type="button"><span>Connexion</span><strong>PHP</strong></button>
+            <button data-action="account-register" type="button"><span>Creer compte</span><strong>PHP</strong></button>
+          </div>
+        </div>
+        <div class="download-group">
+          <h3>Credits</h3>
+          <div class="stat-row"><span>Credits disponibles</span><strong>0</strong></div>
+          <div class="stat-row"><span>Reserve export courant</span><strong>0</strong></div>
+          <div class="stat-row"><span>Cout prevu STL/PDF/ZIP</span><strong>a definir</strong></div>
+          <div class="buttons compact-buttons">
+            <button data-action="buy-credits" type="button"><span>Acheter</span><strong>credits</strong></button>
+            <button data-action="token-pricing" type="button"><span>Tarifs</span><strong>info</strong></button>
+          </div>
+        </div>
+        <div class="download-group">
+          <h3>Abonnement</h3>
+          <div class="stat-row"><span>Formule active</span><strong>Aucune</strong></div>
+          <div class="stat-row"><span>Renouvellement</span><strong>non configure</strong></div>
+          <div class="buttons compact-buttons">
+            <button data-action="choose-subscription" type="button"><span>Choisir</span><strong>plan</strong></button>
+            <button data-action="manage-renewal" type="button"><span>Renouvellement</span><strong>gerer</strong></button>
+          </div>
+        </div>
+        <div class="download-group">
+          <h3>Paiement</h3>
+          <p class="control-note">Un seul mecanisme sera implemente: lien Stripe genere par le backend. Aucune cle secrete ne doit entrer dans le WASM.</p>
+          <div class="stripe-link-card">
+            <div>
+              <span>Paiement externe securise</span>
+              <strong>Stripe Checkout Link</strong>
+              <em>placeholder: le backend PHP generera le lien</em>
+            </div>
+            <button data-action="stripe-link" type="button">Ouvrir le lien Stripe</button>
+          </div>
+        </div>
+        <div class="download-group">
+          <h3>Consommation</h3>
+          <div class="ledger-list">
+            <div class="ledger-row"><span>Maison STL</span><strong>- credits</strong></div>
+            <div class="ledger-row"><span>Plan PDF</span><strong>- credits</strong></div>
+            <div class="ledger-row"><span>Panneaux ZIP</span><strong>- credits</strong></div>
+          </div>
+        </div>
+      </div>
+    "#;
     let view_controls = format!(
         r#"<div class="viewer-controls" aria-label="Controles de vue"><div class="viewer-control-group"><p>{}</p><div class="choices">{}{}{}{}</div></div>{}</div>"#,
         t(lang, "view_mode"),
@@ -4614,6 +4763,7 @@ pub fn render_app_html(input: &str) -> String {
     <button data-tab="decor">{decor}</button>
     <button data-tab="calcs">{calcs}</button>
     <button data-tab="plan">{cut_plan}</button>
+    <button data-action="account-modal-open" type="button">{account}</button>
   </nav>
 
   <div class="tab-scroll">
@@ -4680,6 +4830,7 @@ pub fn render_app_html(input: &str) -> String {
         </div>
       </div>
     </section>
+
   </div>
 </aside>
 
@@ -4689,12 +4840,31 @@ pub fn render_app_html(input: &str) -> String {
   <div id="viewer" class="viewer" aria-label="Apercu 3D"></div>
   <div class="axis-hint"><span class="x">X</span> largeur <span class="y">Y</span> hauteur <span class="z">Z</span> profondeur</div>
 </main>
+
+<div class="account-modal" data-account-modal hidden>
+  <div class="account-modal-backdrop" data-account-modal-close></div>
+  <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="account-title" tabindex="-1">
+    <header class="account-sheet-header">
+      <div>
+        <p class="eyebrow">Gestion usager</p>
+        <h2 id="account-title">{account}</h2>
+        <p>Compte, credits, abonnement et paiements seront branches au backend plus tard.</p>
+      </div>
+      <button class="modal-close" data-account-modal-close type="button" aria-label="Fermer le compte">Fermer</button>
+    </header>
+    <div class="account-sheet-body">
+      {account_controls}
+    </div>
+  </section>
+</div>
 "##,
         body = t(lang, "body"),
         calcs = t(lang, "calcs"),
         roof_label = t(lang, "roof"),
         door_label = t(lang, "door"),
         cut_plan = t(lang, "cut_plan"),
+        account = t(lang, "account"),
+        account_controls = account_controls,
         decor = t(lang, "decor"),
         deco_controls = deco_controls,
         unit_mm = choice_button("mm", "unit", "mm", &p.unit),

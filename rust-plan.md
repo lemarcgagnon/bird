@@ -83,17 +83,26 @@ Le but produit est de facturer l'utilisation sans livrer toute la logique métie
 
 1. Garder seulement une coquille HTML/JS minimale côté navigateur.
 2. Déplacer les calculs, la géométrie, les exports et les validations dans Rust/WASM.
-3. Ajouter une validation serveur avant activation des fonctions payantes.
-4. Garder côté serveur ce qui doit rester secret :
+3. Garder la gestion client hors WASM : compte, session, credits, abonnement, paiement, messages et tickets.
+4. Ajouter une validation serveur avant chaque téléchargement/export payant.
+5. Garder côté serveur ce qui doit rester secret :
    - clés de licence,
    - vérification d'abonnement,
    - quotas,
    - génération de jetons signés,
-   - éventuellement exports premium si on veut une protection plus forte.
+   - liens Stripe Checkout,
+   - historique de consommation,
+   - messages et tickets support.
 
 Important : WASM complique fortement la copie directe du code par rapport à HTML/JS, mais ce n'est pas une protection absolue. Un binaire WASM peut être analysé. Pour la facturation, la vraie barrière doit être une licence ou session validée côté serveur.
 
-Pour le test local, l'autorisation utilise FastAPI + SQLite. MySQL et Stripe viendront plus tard quand le flux licence/paiement sera stabilisé.
+Pour le test local, l'autorisation doit utiliser PHP + SQLite afin de rester proche du serveur de production vise. MySQL et Stripe viendront plus tard quand le flux compte/credits/paiement sera stabilisé.
+
+Règle d'architecture :
+
+- WASM calcule et génère les fichiers localement.
+- L'API ne reçoit pas la géométrie et ne génère pas les STL/PDF/ZIP.
+- L'API répond seulement aux questions commerciales : qui est l'utilisateur, combien de credits reste-t-il, ce téléchargement est-il autorisé, combien faut-il débiter.
 
 ### 2.2 Option “full Rust rendering” (phase 2)
 
@@ -414,9 +423,11 @@ Puis itérer vers:
    HTML/JS garde l'interface, WASM prend les calculs et exports.
 2. Version WASM métier :
    Rust devient la source de vérité pour `Params`, calculs, plans, STL, ZIP, géométrie.
-3. Version protégée :
-   les exports ou fonctions premium appellent une validation serveur avant exécution. En dev, validation FastAPI/SQLite. En production, validation serveur + Stripe.
-4. Version app complète :
+3. Version compte/API :
+   le modal Compte se branche sur une API externe pour session, credits, abonnement, Stripe link, messages et tickets.
+4. Version protégée :
+   les exports premium appellent `POST /api/exports/authorize` avant téléchargement. En dev, validation PHP/SQLite. En production, validation serveur + MySQL + Stripe.
+5. Version app complète :
    interface migrée vers Yew/Leptos ou shell JS minimal, avec rendu 3D alimenté par Rust.
 
 ## 12) Nouvelle règle de travail
@@ -435,7 +446,7 @@ Le fichier hôte HTML restera nécessaire parce qu'un navigateur ne lance pas un
 
 Priorité haute :
 
-1. Ajouter l'autorisation FastAPI/SQLite dans la nouvelle app `app/index.html`.
+1. Ajouter l'autorisation PHP/SQLite dans la nouvelle app `app/index.html`.
 2. Terminer le plan de coupe Rust avec rotation/pentagones exacts et statistiques d'occupation visibles.
 3. Corriger les exports ZIP pour que chaque panneau ait la forme exacte quand évasement/onglet sont actifs.
 4. Remplacer la tessellation de façade par une triangulation polygonale plus propre si la qualité STL l'exige.

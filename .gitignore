@@ -1,15 +1,7 @@
-node_modules
-dist
-.next
-coverage
-.turbo
-*.tsbuildinfo
-
-# Session-local (machine-specific permissions, not source of truth)
-.claude/settings.local.json
-
-# OS / editor cruft
-.DS_Store
+/wasm/target/
+/node_modules/
+/.agents/
+/.codex/
 *.log
-.idea
-.vscode
+*.tmp
+.DS_Store

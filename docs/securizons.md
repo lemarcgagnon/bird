@@ -173,13 +173,26 @@ Pour la future facturation/licence/gestion client:
 
 - le serveur valide session/licence;
 - le serveur gere comptes, credits, abonnements, paiements, messages et tickets;
+- le serveur sert aussi les pages publiques, l'espace client, l'admin prive et les webhooks Stripe;
 - le serveur ne fait pas les calculs lourds;
 - le serveur emet une autorisation court terme pour un export precis;
 - l'app verifie cette autorisation pour debloquer le telechargement;
 - Stripe reste cote serveur via un lien Checkout genere par l'API;
+- Stripe synchronise les paiements/abonnements via un webhook PHP, jamais via le WASM;
 - ne jamais mettre les secrets Stripe dans le WASM;
 - ne jamais stocker le solde de credits comme verite dans le WASM;
+- ne jamais mettre l'admin client dans le WASM;
 - ne jamais faire confiance a une verification uniquement cote client.
+
+Architecture serveur cible:
+
+- `/`: landing page publique.
+- `/pricing`: credits et abonnements.
+- `/app/`: application Rust/WASM.
+- `/account`: espace client authentifie.
+- `/admin`: back-office prive pour gerer clients, credits, abonnements, paiements, consommations et tickets.
+- `/api/...`: API JSON.
+- `/stripe/webhook`: reception des evenements Stripe.
 
 Flux cible pour un telechargement:
 
@@ -230,7 +243,8 @@ Objectif realiste:
 - Ajouter mini serveur PHP/SQLite d'autorisation et compte.
 - Tester SQLite local.
 - Ajouter API pour compte, credits, abonnement, tickets et messages.
-- Ajouter Stripe Checkout link plus tard.
+- Ajouter landing page, espace client et admin PHP.
+- Ajouter Stripe Checkout link puis webhook PHP.
 - Garder calcul client-side.
 
 ## 8. Checklist rapide

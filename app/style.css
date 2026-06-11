@@ -495,6 +495,48 @@ input[type="range"] {
   word-break: break-all;
 }
 
+.account-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.account-form label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.account-form input {
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.account-form input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.account-error {
+  min-height: 16px;
+  margin: 0 0 10px;
+  color: var(--danger, #b3362d);
+  font-size: 11px;
+}
+
 .ledger-list {
   display: grid;
   gap: 6px;
@@ -667,6 +709,7 @@ input[type="range"] {
   }
 
   .account-sheet-body .download-groups,
+  .account-form,
   .stripe-link-card {
     grid-template-columns: 1fr;
   }

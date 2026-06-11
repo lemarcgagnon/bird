@@ -98,11 +98,22 @@ Important : WASM complique fortement la copie directe du code par rapport à HTM
 
 Pour le test local, l'autorisation doit utiliser PHP + SQLite afin de rester proche du serveur de production vise. MySQL et Stripe viendront plus tard quand le flux compte/credits/paiement sera stabilisé.
 
+Architecture produit cible autour de l'app:
+
+- `/`: landing page PHP publique, avec proposition de valeur et appel vers inscription/app.
+- `/pricing`: credits, abonnements et limites commerciales.
+- `/app/`: app Rust/WASM.
+- `/account`: espace client PHP pour profil, credits, abonnement, factures et tickets.
+- `/admin`: admin PHP prive pour gerer clients, credits, abonnements, paiements, consommations et tickets.
+- `/api/...`: API JSON PHP consommee par l'app et l'espace client.
+- `/stripe/webhook`: endpoint PHP appele par Stripe pour synchroniser paiements et abonnements.
+
 Règle d'architecture :
 
 - WASM calcule et génère les fichiers localement.
 - L'API ne reçoit pas la géométrie et ne génère pas les STL/PDF/ZIP.
 - L'API répond seulement aux questions commerciales : qui est l'utilisateur, combien de credits reste-t-il, ce téléchargement est-il autorisé, combien faut-il débiter.
+- Les pages publiques, l'espace client, l'admin, les webhooks Stripe et les secrets restent hors WASM.
 
 ### 2.2 Option “full Rust rendering” (phase 2)
 
@@ -424,10 +435,12 @@ Puis itérer vers:
 2. Version WASM métier :
    Rust devient la source de vérité pour `Params`, calculs, plans, STL, ZIP, géométrie.
 3. Version compte/API :
-   le modal Compte se branche sur une API externe pour session, credits, abonnement, Stripe link, messages et tickets.
+   le modal Compte se branche sur une API externe pour session, credits, abonnement, Stripe link, messages et tickets. Statut: login/register/logout, `GET /api/me`, autorisation et consommation d'exports sont branches en dev.
 4. Version protégée :
    les exports premium appellent `POST /api/exports/authorize` avant téléchargement. En dev, validation PHP/SQLite. En production, validation serveur + MySQL + Stripe.
-5. Version app complète :
+5. Version site produit :
+   PHP sert `/`, `/pricing`, `/account`, `/admin`, `/api` et `/stripe/webhook`; `/app/` reste l'app Rust/WASM.
+6. Version app complète :
    interface migrée vers Yew/Leptos ou shell JS minimal, avec rendu 3D alimenté par Rust.
 
 ## 12) Nouvelle règle de travail
@@ -440,23 +453,27 @@ La cible officielle devient :
 http://127.0.0.1:8016/app/index.html
 ```
 
-Le fichier hôte HTML restera nécessaire parce qu'un navigateur ne lance pas un `.wasm` directement. L'objectif est que ce HTML reste minimal et que les calculs, exports, rendu d'interface et règles payantes soient pilotés par Rust/WASM.
+En dev, l'app statique tourne sur `8016` et l'API PHP sur `8021`. En production, PHP devrait servir le site complet et l'app sous `/app/`.
+
+Le fichier hôte HTML restera nécessaire parce qu'un navigateur ne lance pas un `.wasm` directement. L'objectif est que ce HTML reste minimal et que les calculs, exports, rendu d'interface et règles payantes soient pilotés par Rust/WASM, tandis que compte/admin/Stripe restent pilotés par PHP.
 
 ## 13) Inventaire v16 a porter dans l'app WASM
 
 Priorité haute :
 
-1. Ajouter l'autorisation PHP/SQLite dans la nouvelle app `app/index.html`.
-2. Terminer le plan de coupe Rust avec rotation/pentagones exacts et statistiques d'occupation visibles.
-3. Corriger les exports ZIP pour que chaque panneau ait la forme exacte quand évasement/onglet sont actifs.
-4. Remplacer la tessellation de façade par une triangulation polygonale plus propre si la qualité STL l'exige.
+1. Creer le site PHP public autour de l'app: landing `/`, page prix `/pricing`, lien vers `/app/`.
+2. Creer l'espace client `/account` et l'admin prive `/admin`.
+3. Terminer le plan de coupe Rust avec rotation/pentagones exacts et statistiques d'occupation visibles.
+4. Corriger les exports ZIP pour que chaque panneau ait la forme exacte quand évasement/onglet sont actifs.
+5. Remplacer la tessellation de façade par une triangulation polygonale plus propre si la qualité STL l'exige.
 
 Priorité moyenne :
 
-1. Recréer les coupes X/Y/Z.
-2. Porter décorations SVG/image (`vector`, `heightmap`) après la géométrie coeur.
-3. Ajouter export PNG du plan depuis le preview SVG/canvas.
-4. Ajouter ZIP panneaux avec formes exactes pour toit onglet et murs évasés.
+1. Remplacer Stripe placeholder par Checkout + webhook PHP.
+2. Recréer les coupes X/Y/Z.
+3. Porter décorations SVG/image (`vector`, `heightmap`) après la géométrie coeur.
+4. Ajouter export PNG du plan depuis le preview SVG/canvas.
+5. Ajouter ZIP panneaux avec formes exactes pour toit onglet et murs évasés.
 
 Priorité i18n :
 

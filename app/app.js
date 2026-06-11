@@ -8,21 +8,33 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260611-bogus-stripe-v1';
+} from '../wasm/pkg/wasm.js?v=20260611-account-auth-v1';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js';
 
-const APP_BUILD_ID = '20260611-bogus-stripe-v1';
+const APP_BUILD_ID = '20260611-account-auth-v1';
 const root = document.getElementById('app');
 const THEME_KEY = 'nichoir-theme';
 const API_BASE = 'http://127.0.0.1:8021';
 const AUTH_TOKEN_KEY = 'nichoir-auth-token';
 const DEV_EMAIL = 'demo@nichoir.local';
 const DEV_PASSWORD = 'password123';
+const EXPORT_COSTS = {
+  svg: 1,
+  png: 1,
+  pdf: 2,
+  stl: 3,
+  zip: 5,
+};
 let params = null;
 let frameId = null;
 let activeTab = 'dim';
 let cleanupViewer = null;
 let lastAccountFocus = null;
+let accountState = {
+  user: null,
+  loading: false,
+  error: '',
+};
 let theme = localStorage.getItem(THEME_KEY)
   || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
@@ -174,6 +186,66 @@ async function apiRequest(path, options = {}) {
   return payload;
 }
 
+function accountInputValue(name, fallback = '') {
+  return root.querySelector(`[data-account-${name}]`)?.value?.trim() || fallback;
+}
+
+function setAccountText(selector, value) {
+  root.querySelectorAll(selector).forEach((el) => {
+    el.textContent = value;
+  });
+}
+
+function accountStatusLabel() {
+  if (accountState.loading) return 'Chargement...';
+  if (accountState.user) return 'Connecte';
+  if (localStorage.getItem(AUTH_TOKEN_KEY)) return 'Session expiree';
+  return 'Non connecte';
+}
+
+function updateAccountDom() {
+  const user = accountState.user;
+  setAccountText('[data-account-balance]', user ? String(user.credits ?? 0) : '0');
+  setAccountText('[data-account-state]', accountStatusLabel());
+  setAccountText('[data-account-email-label]', user?.email || '-');
+  setAccountText('[data-account-plan]', user?.subscription_status || 'none');
+  setAccountText('[data-account-error]', accountState.error || '');
+  root.querySelectorAll('[data-account-authed]').forEach((el) => {
+    el.hidden = !user;
+  });
+  root.querySelectorAll('[data-account-guest]').forEach((el) => {
+    el.hidden = Boolean(user);
+  });
+}
+
+async function refreshAccountState({ silent = false } = {}) {
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  if (!token) {
+    accountState = { user: null, loading: false, error: '' };
+    updateAccountDom();
+    return null;
+  }
+
+  accountState.loading = true;
+  if (!silent) accountState.error = '';
+  updateAccountDom();
+  try {
+    const payload = await apiRequest('/api/me');
+    accountState = { user: payload.user || null, loading: false, error: '' };
+    updateAccountDom();
+    return accountState.user;
+  } catch (err) {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    accountState = {
+      user: null,
+      loading: false,
+      error: silent ? '' : `Session invalide: ${err?.message || err}`,
+    };
+    updateAccountDom();
+    return null;
+  }
+}
+
 async function ensureDevSession() {
   if (localStorage.getItem(AUTH_TOKEN_KEY)) return;
 
@@ -197,11 +269,137 @@ async function ensureDevSession() {
   if (payload.token) {
     localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
   }
+  if (payload.user) {
+    accountState = { user: payload.user, loading: false, error: '' };
+    updateAccountDom();
+  }
+}
+
+async function loginAccount({ register = false, demo = false } = {}) {
+  const email = demo ? DEV_EMAIL : accountInputValue('email', DEV_EMAIL);
+  const password = demo ? DEV_PASSWORD : accountInputValue('password', DEV_PASSWORD);
+  const displayName = accountInputValue('name', 'Demo');
+  const endpoint = register ? '/api/auth/register' : '/api/auth/login';
+  accountState = { user: accountState.user, loading: true, error: '' };
+  updateAccountDom();
+  try {
+    const body = register
+      ? { email, password, display_name: displayName }
+      : { email, password };
+    const payload = await apiRequest(endpoint, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+    if (payload.token) localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
+    accountState = { user: payload.user || null, loading: false, error: '' };
+    updateAccountDom();
+    setExportStatus(register ? 'Compte cree et connecte.' : 'Compte connecte.', 'ok');
+  } catch (err) {
+    accountState = { user: null, loading: false, error: err?.message || String(err) };
+    updateAccountDom();
+    setExportStatus(`Compte: ${err?.message || err}`, 'error');
+  }
+}
+
+async function logoutAccount() {
+  try {
+    if (localStorage.getItem(AUTH_TOKEN_KEY)) {
+      await apiRequest('/api/auth/logout', { method: 'POST' });
+    }
+  } catch (err) {
+    console.warn('logout failed', err);
+  }
+  localStorage.removeItem(AUTH_TOKEN_KEY);
+  accountState = { user: null, loading: false, error: '' };
+  updateAccountDom();
+  setExportStatus('Compte deconnecte.', 'info');
+}
+
+async function authorizeExport(exportType, filename) {
+  if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
+    throw new Error('connexion_requise');
+  }
+  setExportStatus(`Autorisation serveur pour ${filename}...`, 'info');
+  return apiRequest('/api/exports/authorize', {
+    method: 'POST',
+    body: JSON.stringify({ export_type: exportType }),
+  });
+}
+
+async function consumeExport(authorization) {
+  if (!authorization) return null;
+  const payload = await apiRequest('/api/exports/consume', {
+    method: 'POST',
+    body: JSON.stringify({ authorization }),
+  });
+  if (payload.user) {
+    accountState = { user: payload.user, loading: false, error: '' };
+    updateAccountDom();
+  } else {
+    await refreshAccountState({ silent: true });
+  }
+  return payload;
+}
+
+function exportDeniedMessage(err) {
+  const code = err?.message || String(err);
+  if (code === 'connexion_requise' || code === 'unauthorized') {
+    return 'Connexion requise avant ce telechargement. Ouvre Compte et connecte le demo.';
+  }
+  if (code === 'insufficient_credits') {
+    return 'Credits insuffisants pour ce telechargement.';
+  }
+  return `Autorisation refusee: ${code}`;
+}
+
+async function exportBinaryAuthorized(filename, type, exportType, producer, emptyMessage) {
+  let auth = null;
+  try {
+    auth = await authorizeExport(exportType, filename);
+    const bytes = toDownloadBytes(producer());
+    if (!bytes || !bytes.byteLength) {
+      setExportStatus(emptyMessage, 'warn');
+      return false;
+    }
+    download(bytes, filename, type);
+    const consumed = await consumeExport(auth.authorization);
+    const credits = consumed?.user?.credits ?? accountState.user?.credits;
+    const suffix = Number.isFinite(credits) ? ` Credits restants: ${credits}.` : '';
+    setExportStatus(`Fichier cree: ${filename} (${bytes.byteLength.toLocaleString('fr-CA')} octets). Cout: ${auth.cost ?? EXPORT_COSTS[exportType] ?? '?'} credits.${suffix}`, 'ok');
+    return true;
+  } catch (err) {
+    console.error(err);
+    setExportStatus(exportDeniedMessage(err), 'error');
+    return false;
+  }
+}
+
+async function exportTextAuthorized(filename, type, exportType, producer, emptyMessage) {
+  try {
+    const auth = await authorizeExport(exportType, filename);
+    const text = producer();
+    if (!text || !String(text).length) {
+      setExportStatus(emptyMessage, 'warn');
+      return false;
+    }
+    download(String(text), filename, type);
+    const consumed = await consumeExport(auth.authorization);
+    const credits = consumed?.user?.credits ?? accountState.user?.credits;
+    const suffix = Number.isFinite(credits) ? ` Credits restants: ${credits}.` : '';
+    setExportStatus(`Fichier cree: ${filename} (${String(text).length.toLocaleString('fr-CA')} caracteres). Cout: ${auth.cost ?? EXPORT_COSTS[exportType] ?? '?'} credits.${suffix}`, 'ok');
+    return true;
+  } catch (err) {
+    console.error(err);
+    setExportStatus(exportDeniedMessage(err), 'error');
+    return false;
+  }
 }
 
 async function requestBogusStripeLink() {
-  setExportStatus('Compte dev: connexion locale avant appel Stripe placeholder...', 'info');
-  await ensureDevSession();
+  if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
+    throw new Error('connexion_requise');
+  }
+  setExportStatus('Demande du lien Stripe placeholder au backend...', 'info');
   const payload = await apiRequest('/api/checkout/stripe-link', { method: 'POST' });
   setExportStatus(`Stripe placeholder recu: ${payload.checkout_url}`, 'ok');
 }
@@ -349,9 +547,11 @@ function downloadCalculationsPdf() {
     const pdf = buildSimplePdf(lines);
     download(pdf, 'nichoir_calculs.pdf', 'application/pdf');
     setExportStatus('Fichier cree: nichoir_calculs.pdf', 'ok');
+    return true;
   } catch (err) {
     console.error(err);
     setExportStatus(`Erreur PDF calcul: ${err?.message || err}`, 'error');
+    return false;
   }
 }
 
@@ -833,7 +1033,7 @@ async function downloadPlanPdf() {
     const payload = parseResponse(plan_preview_svg(JSON.stringify(params)));
     if (!payload?.svg) {
       setExportStatus('PDF plan impossible: aucun plan SVG genere.', 'warn');
-      return;
+      return false;
     }
     const planImage = await renderSvgToJpeg(payload.svg);
     const angleLines = collectAngleLines();
@@ -849,9 +1049,11 @@ async function downloadPlanPdf() {
     ]);
     download(pdf, 'nichoir_plan_de_coupe.pdf', 'application/pdf');
     setExportStatus('Fichier cree: nichoir_plan_de_coupe.pdf', 'ok');
+    return true;
   } catch (err) {
     console.error(err);
     setExportStatus(`Erreur PDF plan: ${err?.message || err}`, 'error');
+    return false;
   }
 }
 
@@ -860,14 +1062,16 @@ async function downloadPlanPng() {
     const payload = parseResponse(plan_preview_svg(JSON.stringify(params)));
     if (!payload?.svg) {
       setExportStatus('PNG plan impossible: aucun plan SVG genere.', 'warn');
-      return;
+      return false;
     }
     const image = await renderSvgToPng(payload.svg);
     download(image.bytes, 'nichoir_plan_de_coupe.png', 'image/png');
     setExportStatus('Fichier cree: nichoir_plan_de_coupe.png', 'ok');
+    return true;
   } catch (err) {
     console.error(err);
     setExportStatus(`Erreur PNG plan: ${err?.message || err}`, 'error');
+    return false;
   }
 }
 
@@ -876,9 +1080,11 @@ function downloadExplosionPng() {
     const image = renderExplosionImage('image/png');
     download(image.bytes, 'nichoir_assemblage_eclate.png', 'image/png');
     setExportStatus('Fichier cree: nichoir_assemblage_eclate.png', 'ok');
+    return true;
   } catch (err) {
     console.error(err);
     setExportStatus(`Erreur PNG explosion: ${err?.message || err}`, 'error');
+    return false;
   }
 }
 
@@ -1228,6 +1434,7 @@ function render() {
     lastAccountFocus = document.activeElement;
     accountModal.hidden = false;
     accountModal.classList.add('is-open');
+    refreshAccountState({ silent: true });
     accountModal.querySelector('[data-account-modal-close]')?.focus();
   };
   accountOpenButton?.addEventListener('click', openAccountModal);
@@ -1255,11 +1462,26 @@ function render() {
     }
   });
 
+  root.querySelector('[data-action="account-login"]')?.addEventListener('click', () => {
+    loginAccount();
+  });
+  root.querySelector('[data-action="account-register"]')?.addEventListener('click', () => {
+    loginAccount({ register: true });
+  });
+  root.querySelector('[data-action="account-demo"]')?.addEventListener('click', () => {
+    loginAccount({ demo: true });
+  });
+  root.querySelectorAll('[data-action="account-refresh"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      refreshAccountState();
+    });
+  });
+  root.querySelector('[data-action="account-logout"]')?.addEventListener('click', () => {
+    logoutAccount();
+  });
   [
-    ['account-login', 'Compte: connexion placeholder. Le backend PHP/SQL sera branche plus tard.'],
-    ['account-register', 'Compte: creation placeholder. Validation courriel et mot de passe viendront du backend.'],
-    ['buy-credits', 'Credits: achat placeholder. Stripe sera branche dans une phase suivante.'],
-    ['token-pricing', 'Credits: grille tarifaire placeholder. Les couts par export restent a definir.'],
+    ['buy-credits', 'Credits: Stripe Checkout reste placeholder pour cette phase.'],
+    ['token-pricing', 'Credits: STL 3, PDF 2, ZIP 5, SVG/PNG 1.'],
     ['choose-subscription', 'Abonnement: choix de formule placeholder.'],
     ['manage-renewal', 'Abonnement: gestion du renouvellement placeholder.'],
   ].forEach(([action, message]) => {
@@ -1497,57 +1719,79 @@ function render() {
   });
 
   root.querySelector('[data-action="export-house"]')?.addEventListener('click', () => {
-    exportBinary(
+    exportBinaryAuthorized(
       'nichoir_maison.stl',
       'model/stl',
+      'stl',
       () => export_house_stl(JSON.stringify(params)),
       'Export maison vide: le modele n a genere aucun triangle.'
     );
   });
 
   root.querySelector('[data-action="export-door"]')?.addEventListener('click', () => {
-    exportBinary(
+    exportBinaryAuthorized(
       'nichoir_porte.stl',
       'model/stl',
+      'stl',
       () => export_door_stl(JSON.stringify(params)),
       'Pas de porte STL: choisis une porte et active "Creer le panneau de porte".'
     );
   });
 
   root.querySelector('[data-action="export-panels"]')?.addEventListener('click', () => {
-    exportBinary(
+    exportBinaryAuthorized(
       'nichoir_panneaux.zip',
       'application/zip',
+      'zip',
       () => export_panels_zip(JSON.stringify(params)),
       'Export panneaux vide: aucune piece n a ete generee.'
     );
   });
 
   root.querySelector('[data-action="export-plan"]')?.addEventListener('click', () => {
-    try {
+    exportTextAuthorized(
+      'nichoir_plan.svg',
+      'image/svg+xml',
+      'svg',
+      () => {
       const payload = parseResponse(plan_preview_svg(JSON.stringify(params)));
-      if (payload && payload.svg) {
-        download(payload.svg, 'nichoir_plan.svg', 'image/svg+xml');
-        setExportStatus('Fichier cree: nichoir_plan.svg', 'ok');
-      } else {
-        setExportStatus('Export plan impossible: aucun SVG genere.', 'warn');
-      }
+        return payload?.svg || '';
+      },
+      'Export plan impossible: aucun SVG genere.'
+    );
+  });
+
+  root.querySelector('[data-action="download-plan-png"]')?.addEventListener('click', async () => {
+    try {
+      const auth = await authorizeExport('png', 'nichoir_plan_de_coupe.png');
+      const ok = await downloadPlanPng();
+      if (ok) await consumeExport(auth.authorization);
     } catch (err) {
       console.error(err);
-      setExportStatus(`Erreur export plan: ${err?.message || err}`, 'error');
+      setExportStatus(exportDeniedMessage(err), 'error');
     }
   });
 
-  root.querySelector('[data-action="download-plan-png"]')?.addEventListener('click', () => {
-    downloadPlanPng();
+  root.querySelector('[data-action="download-explosion-png"]')?.addEventListener('click', async () => {
+    try {
+      const auth = await authorizeExport('png', 'nichoir_assemblage_eclate.png');
+      const ok = downloadExplosionPng();
+      if (ok) await consumeExport(auth.authorization);
+    } catch (err) {
+      console.error(err);
+      setExportStatus(exportDeniedMessage(err), 'error');
+    }
   });
 
-  root.querySelector('[data-action="download-explosion-png"]')?.addEventListener('click', () => {
-    downloadExplosionPng();
-  });
-
-  root.querySelector('[data-action="download-plan-pdf"]')?.addEventListener('click', () => {
-    downloadPlanPdf();
+  root.querySelector('[data-action="download-plan-pdf"]')?.addEventListener('click', async () => {
+    try {
+      const auth = await authorizeExport('pdf', 'nichoir_plan_de_coupe.pdf');
+      const ok = await downloadPlanPdf();
+      if (ok) await consumeExport(auth.authorization);
+    } catch (err) {
+      console.error(err);
+      setExportStatus(exportDeniedMessage(err), 'error');
+    }
   });
 
   root.querySelector('[data-action="export-obj"]')?.addEventListener('click', () => {
@@ -1559,8 +1803,15 @@ function render() {
     );
   });
 
-  root.querySelector('[data-action="download-calcs-pdf"]')?.addEventListener('click', () => {
-    downloadCalculationsPdf();
+  root.querySelector('[data-action="download-calcs-pdf"]')?.addEventListener('click', async () => {
+    try {
+      const auth = await authorizeExport('pdf', 'nichoir_calculs.pdf');
+      const ok = downloadCalculationsPdf();
+      if (ok) await consumeExport(auth.authorization);
+    } catch (err) {
+      console.error(err);
+      setExportStatus(exportDeniedMessage(err), 'error');
+    }
   });
 
   root.querySelector('[data-action="mesh-report"]')?.addEventListener('click', () => {
@@ -1588,6 +1839,7 @@ function render() {
   bindTabs();
   renderPlanPreview();
   renderViewer();
+  updateAccountDom();
   restoreUiState(uiState);
 }
 
@@ -1596,3 +1848,4 @@ params = JSON.parse(default_params_json());
 cameraState = initialCameraState();
 applyTheme();
 render();
+refreshAccountState({ silent: true });

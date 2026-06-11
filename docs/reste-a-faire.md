@@ -275,11 +275,22 @@ Decision technique a prendre pour decorations:
 10. Gestion client externe + autorisation serveur.
 
 - La gestion compte/client reste hors WASM.
-- Le backend/API gere utilisateurs, sessions, credits, abonnements, paiements Stripe, messages et tickets.
+- Le site PHP gere la landing page publique, les pages prix, l'espace client, l'admin prive et l'API.
+- Le backend/API gere utilisateurs, sessions, credits, abonnements, paiements Stripe, webhooks, messages et tickets.
 - Le serveur ne calcule pas la geometrie et ne recoit pas les fichiers STL/PDF/ZIP generes.
 - Le serveur retourne seulement un etat compte + une autorisation courte pour le telechargement demande.
 - Les exports premium demandent une autorisation avant generation/telechargement.
 - Le WASM garde le calcul, la geometrie, le plan, les exports et l'interface metier.
+
+Architecture web cible:
+
+- `/`: landing page publique qui presente le produit et dirige vers inscription/app.
+- `/pricing`: offres, credits et abonnements.
+- `/app/`: app Rust/WASM.
+- `/account`: espace client pour profil, credits, abonnement, factures et tickets.
+- `/admin`: admin prive pour gerer clients, credits, abonnements, paiements, consommations et tickets.
+- `/api/...`: API JSON consommee par l'app et l'espace client.
+- `/stripe/webhook`: webhook Stripe cote PHP.
 
 ## 4. Plan recommande de migration restante
 
@@ -312,34 +323,39 @@ Decision technique a prendre pour decorations:
   - Endpoints `health`, `register`, `login`, `logout`, `me`, `stripe-link`, `exports/authorize`, `exports/consume`, `tickets` ajoutes.
   - Utilisateur demo cree pour developpement: `demo@nichoir.local` / `password123`.
   - Credits serveur fonctionnels: autorisation STL testee, debit de 3 credits confirme.
-  - Modal `Compte` ajoute dans l'app, avec identifiants demo visibles temporairement.
+  - Modal `Compte` ajoute dans l'app, avec login/register/logout/demo et affichage de `GET /api/me`.
+  - Exports premium branches sur `exports/authorize` avant generation locale, puis `exports/consume` apres succes.
+  - Identifiants demo encore visibles temporairement en dev.
   - Bouton Stripe placeholder branche sur `POST /api/checkout/stripe-link`.
 
-- Ajouter un backend local PHP + SQLite pour tester le flux reel.
-- Ajouter les tables utilisateurs, sessions, credits, abonnements, paiements, consommations, tickets et messages.
-- Ajouter endpoint `GET /api/me` pour retourner l'etat du compte, le solde credits et le statut abonnement.
-- Ajouter endpoint `POST /api/checkout/stripe-link` pour obtenir un lien Stripe Checkout genere cote serveur.
-- Ajouter endpoint `POST /api/exports/authorize` qui recoit seulement le type d'export demande (`stl`, `pdf`, `zip`, `png`, `svg`) et retourne une autorisation courte si le compte est valide.
-- Ajouter endpoint `POST /api/exports/consume` pour confirmer/debiter les credits apres export local reussi.
-- Brancher le modal Compte sur ces endpoints.
-- Verrouiller les exports premium si le backend refuse l'autorisation.
-- Garder les fichiers et le calcul cote client: aucune geometrie lourde ne doit etre envoyee au serveur.
+- Le backend local PHP + SQLite teste maintenant le flux compte/credits/autorisation.
+- Les tables utilisateurs, sessions, credits, abonnements, paiements, consommations, tickets et messages sont initialisees.
+- `GET /api/me` retourne l'etat du compte, le solde credits et le statut abonnement.
+- `POST /api/checkout/stripe-link` retourne un lien Stripe placeholder genere cote serveur.
+- `POST /api/exports/authorize` recoit seulement le type d'export demande (`stl`, `pdf`, `zip`, `png`, `svg`) et retourne une autorisation courte si le compte est valide.
+- `POST /api/exports/consume` confirme/debite les credits apres export local reussi.
+- Les exports premium demandent maintenant cette autorisation avant generation.
+- Les fichiers et le calcul restent cote client: aucune geometrie lourde ne doit etre envoyee au serveur.
 
 Travail restant dans cette phase:
 
-- Remplacer les placeholders visuels du modal par les donnees reelles de `GET /api/me`.
-- Ajouter login/logout explicites dans le modal au lieu du login dev automatique seulement.
-- Brancher tous les boutons de telechargement sur `exports/authorize` avant export.
-- Appeler `exports/consume` seulement apres generation locale reussie.
-- Afficher les couts en credits dans l'interface avant l'action.
+- Creer la landing page PHP publique (`/`) avec lien vers `/app/`.
+- Creer page prix/offres (`/pricing`) pour credits et abonnements.
+- Creer espace client (`/account`) pour profil, credits, abonnement, factures et tickets.
+- Creer admin prive (`/admin`) pour chercher clients, ajuster credits, suspendre/reactiver comptes, voir abonnements, paiements, consommations et tickets.
+- Retirer les identifiants demo visibles du build de production.
+- Ajouter une configuration dev/prod pour URL API, CORS, demo user et affichage debug.
 - Ajouter l'interface tickets/messages dans le modal.
-- Garder Stripe en placeholder jusqu'a l'integration Checkout/Webhook reelle.
+- Remplacer Stripe placeholder par Checkout reel.
+- Ajouter webhook Stripe PHP pour mettre a jour credits, abonnements, paiements et factures.
+- Preparer migration SQLite vers MySQL si le deploiement de production le demande.
 
 Controle anti-drift:
 
 - Le WASM ne doit pas devenir la source de verite pour le compte, le solde, l'abonnement ou les paiements.
 - Le backend ne doit pas generer les STL/PDF/ZIP ni recevoir la geometrie complete.
 - Le front-end orchestre seulement: demander autorisation, lancer export local, confirmer consommation.
+- L'admin et les webhooks Stripe restent toujours cote PHP, jamais dans le WASM.
 
 ## 5. Definition de termine
 
@@ -354,3 +370,4 @@ La migration peut etre consideree terminee quand:
 - Le serveur ne recoit pas la geometrie et ne fait aucun calcul lourd.
 - La gestion client, les credits, les abonnements, Stripe, les messages et les tickets sont geres hors WASM.
 - L'autorisation serveur peut activer/desactiver les exports sans exposer les secrets ni faire les calculs a la place du client.
+- Le site public, l'espace client et l'admin sont servis par PHP autour de l'app WASM.

@@ -4666,12 +4666,12 @@ pub fn render_app_html(input: &str) -> String {
       <div class="account-summary">
         <div class="account-balance">
           <span>Solde credits</span>
-          <strong>0</strong>
-          <em>placeholder local</em>
+          <strong data-account-balance>0</strong>
+          <em>source serveur</em>
         </div>
-        <div class="stat-row"><span>Etat</span><strong>Non connecte</strong></div>
-        <div class="stat-row"><span>Courriel</span><strong>demo@nichoir.local</strong></div>
-        <div class="stat-row"><span>Plan</span><strong>Aucun abonnement</strong></div>
+        <div class="stat-row"><span>Etat</span><strong data-account-state>Non connecte</strong></div>
+        <div class="stat-row"><span>Courriel</span><strong data-account-email-label>-</strong></div>
+        <div class="stat-row"><span>Plan</span><strong data-account-plan>none</strong></div>
       </div>
       <div class="dev-credentials">
         <span>Dev seulement</span>
@@ -4679,20 +4679,33 @@ pub fn render_app_html(input: &str) -> String {
         <code>username: demo@nichoir.local</code>
         <code>password: password123</code>
       </div>
+      <div class="account-form" data-account-guest>
+        <label><span>Courriel</span><input data-account-email type="email" value="demo@nichoir.local" autocomplete="username"></label>
+        <label><span>Mot de passe</span><input data-account-password type="password" value="password123" autocomplete="current-password"></label>
+        <label><span>Nom</span><input data-account-name type="text" value="Demo" autocomplete="name"></label>
+      </div>
+      <p class="account-error" data-account-error></p>
       <div class="download-groups account-actions">
         <div class="download-group">
           <h3>Identification</h3>
-          <p class="control-note">Placeholder seulement. Le backend PHP/SQL gerera session, mot de passe et autorisation.</p>
-          <div class="buttons compact-buttons">
+          <p class="control-note" data-account-guest>Connexion reelle au backend PHP/SQLite local. Le bouton demo utilise les identifiants ci-dessus.</p>
+          <p class="control-note" data-account-authed hidden>Session active. Le serveur decide les autorisations de telechargement.</p>
+          <div class="buttons compact-buttons" data-account-guest>
             <button data-action="account-login" type="button"><span>Connexion</span><strong>PHP</strong></button>
             <button data-action="account-register" type="button"><span>Creer compte</span><strong>PHP</strong></button>
+            <button data-action="account-demo" type="button"><span>Demo</span><strong>login</strong></button>
+            <button data-action="account-refresh" type="button"><span>Rafraichir</span><strong>etat</strong></button>
+          </div>
+          <div class="buttons compact-buttons" data-account-authed hidden>
+            <button data-action="account-refresh" type="button"><span>Rafraichir</span><strong>etat</strong></button>
+            <button data-action="account-logout" type="button"><span>Sortir</span><strong>logout</strong></button>
           </div>
         </div>
         <div class="download-group">
           <h3>Credits</h3>
-          <div class="stat-row"><span>Credits disponibles</span><strong>0</strong></div>
-          <div class="stat-row"><span>Reserve export courant</span><strong>0</strong></div>
-          <div class="stat-row"><span>Cout prevu STL/PDF/ZIP</span><strong>a definir</strong></div>
+          <div class="stat-row"><span>Credits disponibles</span><strong data-account-balance>0</strong></div>
+          <div class="stat-row"><span>Reserve export courant</span><strong>autorisation courte</strong></div>
+          <div class="stat-row"><span>Couts</span><strong>STL 3 / PDF 2 / ZIP 5 / SVG-PNG 1</strong></div>
           <div class="buttons compact-buttons">
             <button data-action="buy-credits" type="button"><span>Acheter</span><strong>credits</strong></button>
             <button data-action="token-pricing" type="button"><span>Tarifs</span><strong>info</strong></button>
@@ -4722,9 +4735,10 @@ pub fn render_app_html(input: &str) -> String {
         <div class="download-group">
           <h3>Consommation</h3>
           <div class="ledger-list">
-            <div class="ledger-row"><span>Maison STL</span><strong>- credits</strong></div>
-            <div class="ledger-row"><span>Plan PDF</span><strong>- credits</strong></div>
-            <div class="ledger-row"><span>Panneaux ZIP</span><strong>- credits</strong></div>
+            <div class="ledger-row"><span>Maison ou porte STL</span><strong>3 credits</strong></div>
+            <div class="ledger-row"><span>Plan PDF / calculs PDF</span><strong>2 credits</strong></div>
+            <div class="ledger-row"><span>Panneaux ZIP</span><strong>5 credits</strong></div>
+            <div class="ledger-row"><span>Plan SVG / PNG</span><strong>1 credit</strong></div>
           </div>
         </div>
       </div>

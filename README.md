@@ -9,22 +9,52 @@ Le but est de remplacer l'ancienne app HTML/JavaScript par une app WASM plus dif
 Principes du projet:
 
 - Le navigateur calcule le modele, les pieces, le plan de coupe et les exports.
-- Le serveur futur sert seulement a l'autorisation, licence et facturation.
+- Le serveur PHP sert la landing page, l'espace client/admin, l'API, l'autorisation, les credits, les abonnements et Stripe.
 - Les fichiers STL/OBJ/ZIP sont generes localement pour eviter les couts CPU et transfert serveur.
+- Le serveur ne recoit pas la geometrie lourde et ne genere pas les STL/PDF/ZIP.
 - `nichoir_v16.html` reste une reference fonctionnelle historique, pas l'app finale.
+
+## Architecture cible du site
+
+En production, le site doit etre un site PHP unique qui sert les pages publiques, l'app WASM et l'API:
+
+```text
+/                 Landing page publique
+/pricing          Offres, credits et abonnements
+/app/             Application Rust/WASM de conception
+/account          Espace client: profil, credits, abonnement, factures, tickets
+/admin            Administration privee: clients, credits, abonnements, paiements, tickets
+/api/...          API JSON utilisee par l'app et l'espace client
+/stripe/webhook   Webhook Stripe cote serveur
+```
+
+Separation des responsabilites:
+
+- Rust/WASM: geometrie, calculs, viewer, plans, STL, ZIP, decorations.
+- JavaScript front: glue navigateur, appels API, telechargements, Three.js.
+- PHP/API: comptes, sessions, credits, abonnements, tickets, paiements, webhooks Stripe, autorisations courtes.
+- Stripe: paiement externe; les secrets et webhooks restent toujours cote PHP.
 
 ## Lancer l'app localement
 
-Depuis la racine du projet:
+En dev, utiliser deux serveurs pour eviter de melanger l'app statique et l'API:
 
 ```bash
-php -S 127.0.0.1:8020 -t /home/marc/Documents/nichoir16
+cd /home/marc/Documents/nichoir16
+php -S 127.0.0.1:8016 -t /home/marc/Documents/nichoir16
 ```
 
-Puis ouvrir:
+Dans un autre terminal:
+
+```bash
+cd /home/marc/Documents/nichoir16
+php -S 127.0.0.1:8021 -t /home/marc/Documents/nichoir16/server-php/public
+```
+
+Puis ouvrir l'app:
 
 ```text
-http://127.0.0.1:8020/app/index.html
+http://127.0.0.1:8016/app/index.html
 ```
 
 Si le navigateur garde une ancienne version, faire `Ctrl+F5`.
@@ -71,7 +101,10 @@ docs/
   securizons.md     Notes de securite fichiers/inputs/WASM
 
 server/
-  Mini API FastAPI/SQLite pour tester une future autorisation/licence
+  Ancienne API FastAPI/SQLite de prototype, gardee comme reference historique
+
+server-php/
+  Backend PHP/SQLite local: compte, credits, autorisations, tickets, Stripe placeholder
 
 scripts/
   mesh-smoke.mjs  Smoke test mesh/STL
@@ -195,24 +228,20 @@ Points importants:
 - Refuser les meshes vides, non finis ou trop lourds avant export.
 - Ne jamais placer de secrets Stripe ou licence dans le WASM.
 
-## API licence de test
+## Backend PHP local
 
-Le dossier `server/` contient une mini API FastAPI/SQLite pour tester l'autorisation.
+Le dossier `server-php/` contient le backend local cible pour tester compte, credits, autorisation d'export et tickets.
 
 Demarrage:
 
 ```bash
-cd /home/marc/Documents/nichoir16/server
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8018
+cd /home/marc/Documents/nichoir16
+php -S 127.0.0.1:8021 -t server-php/public
 ```
 
-Cette API ne fait pas la geometrie. Elle servira seulement a valider une session/licence avant activation de fonctions payantes.
+Cette API ne fait pas la geometrie. Elle valide la session, retourne l'etat du compte, autorise les exports, debite les credits apres generation locale reussie et servira plus tard a integrer Stripe.
 
-Stripe sera ajoute plus tard cote serveur.
+Stripe est actuellement un placeholder. La version finale devra utiliser Stripe Checkout et un webhook PHP pour mettre a jour les paiements, credits et abonnements.
 
 ## Roadmap courte
 
@@ -223,7 +252,10 @@ Stripe sera ajoute plus tard cote serveur.
 - Ajouter une suite de tests de parite entre presets.
 - Renforcer la validation securite des fichiers et inputs.
 - Etudier une union booleenne/CSG pour produire une maison complete fusionnee.
-- Brancher la licence serveur, puis Stripe.
+- Ajouter landing page PHP publique et navigation vers `/app/`.
+- Ajouter espace client `/account`.
+- Ajouter admin prive `/admin` pour gerer clients, credits, abonnements, paiements et tickets.
+- Remplacer le placeholder Stripe par Checkout + webhook PHP.
 
 ## Branche de sauvegarde
 

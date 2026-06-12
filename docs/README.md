@@ -5,6 +5,7 @@ Role: notes de travail, roadmap et securite. Ce dossier doit aider a reprendre r
 Fichiers importants:
 
 - `reste-a-faire.md`: backlog detaille, etat des phases et prochaines etapes.
+- `reprise-installation.md`: etat livre pour l'installateur, ce qui a ete verifie, et ce qu'il restera a finir.
 - `securizons.md`: analyse des surfaces d'attaque WASM/PHP et checklist securite.
 
 Regles d'usage:
@@ -19,5 +20,5 @@ Points de vigilance:
 - La config DB cPanel/MySQL est branchee dans `/admin` > `Reglages`; SQLite reste le mode local par defaut.
 - Les exports admin de base sont disponibles en CSV, Excel compatible `.xls` et JSON depuis `/admin` > `Exports`.
 - Le rate limiting, le CSRF admin, la CSP et le sanitizer SVG complet restent a faire avant production.
-- Le script de packaging/installation cPanel reste a creer avant copie finale sur serveur.
+- L'installation serveur passe maintenant par `installation/` et par les `.htaccess` versionnes; le dossier d'installation doit etre supprime apres setup.
 - Le serveur PHP est maintenant le maitre pour compte/credits/admin/API; l'app/WASM est le client calcul.

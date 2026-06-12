@@ -6,6 +6,7 @@ Fichiers importants:
 
 - `index.php`: routeur HTTP principal pour pages, API JSON et webhook Stripe.
 - `site.css`: styles du site PHP, compte et admin.
+- `.htaccess`: front controller Apache, headers statiques et cache/compression de base quand `DocumentRoot` pointe ici.
 
 Regles d'architecture:
 

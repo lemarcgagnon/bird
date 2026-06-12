@@ -13,6 +13,11 @@ function db_config_path(): string
     return dirname(__DIR__) . '/data/db-config.php';
 }
 
+function installation_lock_path(): string
+{
+    return dirname(__DIR__) . '/data/installed.lock.php';
+}
+
 function db_default_config(): array
 {
     return [
@@ -146,9 +151,8 @@ function db(): PDO
     return $pdo;
 }
 
-function run_migrations(): void
+function run_migrations_for_pdo(PDO $pdo): void
 {
-    $pdo = db();
     if (db_driver_name($pdo) === 'mysql') {
         ensure_mysql_schema($pdo);
         return;
@@ -184,6 +188,11 @@ function run_migrations(): void
         }
     }
     ensure_runtime_schema($pdo);
+}
+
+function run_migrations(): void
+{
+    run_migrations_for_pdo(db());
 }
 
 function table_has_column(PDO $pdo, string $table, string $column): bool
@@ -701,8 +710,8 @@ function ensure_mysql_schema(PDO $pdo): void
 function db_test_config(array $config, bool $initialize = false): void
 {
     $pdo = db_connect_from_config($config);
-    if ($initialize && db_driver_name($pdo) === 'mysql') {
-        ensure_mysql_schema($pdo);
+    if ($initialize) {
+        run_migrations_for_pdo($pdo);
     }
     $pdo->query('SELECT 1')->fetchColumn();
 }
@@ -721,4 +730,42 @@ function db_write_local_config(array $config): void
     }
     @chmod($path, 0600);
     db_config(true);
+}
+
+function installation_lock_data(): array
+{
+    $path = installation_lock_path();
+    if (!is_file($path)) {
+        return [];
+    }
+    try {
+        $data = require $path;
+    } catch (Throwable) {
+        return [];
+    }
+    return is_array($data) ? $data : [];
+}
+
+function installation_is_locked(): bool
+{
+    return is_file(installation_lock_path());
+}
+
+function installation_write_lock(array $data = []): void
+{
+    $path = installation_lock_path();
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0775, true);
+    }
+    $payload = [
+        'installed_at' => gmdate('c'),
+        'driver' => (string) ($data['driver'] ?? ''),
+        'details' => (string) ($data['details'] ?? ''),
+    ];
+    $content = "<?php\n\nreturn " . var_export($payload, true) . ";\n";
+    if (file_put_contents($path, $content, LOCK_EX) === false) {
+        throw new RuntimeException('Unable to write installation lock.');
+    }
+    @chmod($path, 0600);
 }

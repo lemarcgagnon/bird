@@ -39,6 +39,7 @@ Separation des responsabilites:
 ## Carte rapide du repo
 
 - `app/`: interface navigateur, viewer Three.js, appels API PHP et exports. Voir `app/README.md`.
+- `installation/`: assistant d'installation serveur temporaire. Voir `installation/README.md`.
 - `wasm/`: coeur Rust compile en WebAssembly. Voir `wasm/README.md`.
 - `server-php/`: serveur cible PHP SQLite/MySQL pour site, API, admin, comptes, credits, tickets, Stripe et cPanel. Voir `server-php/README.md`.
 - `server/`: prototype FastAPI historique de licence, secondaire. Voir `server/README.md`.
@@ -116,6 +117,9 @@ server/
 
 server-php/
   Backend PHP local/cPanel: site public, compte, admin, credits, billing Stripe, autorisations, tickets, config DB
+
+installation/
+  index.php       Installateur web temporaire pour DB/migrations/SMTP/lock
 
 scripts/
   mesh-smoke.mjs  Smoke test mesh/STL
@@ -270,7 +274,8 @@ Deploiement cPanel:
 - garder `server-php/src`, `server-php/data` et `server-php/migrations` hors web public;
 - creer la base et l'utilisateur MySQL dans cPanel, puis tester/enregistrer dans `/admin` > `Reglages` > `Base de donnees`;
 - le fichier local `server-php/data/db-config.php` est ignore par Git;
-- prochaine etape: ajouter un script de packaging/installation cPanel pour automatiser ces controles.
+- sinon, deployer la racine du projet avec le `.htaccess` versionne, ouvrir `/installation/`, terminer le setup, puis supprimer ce dossier du serveur;
+- l'installateur pose `server-php/data/installed.lock.php` pour bloquer une seconde installation; ce fichier est local, non versionne, et doit rester hors Git;
 - definir `NICHOIR_LOG_HASH_SALT` en production pour hasher IP/courriels dans les logs sans exposer les valeurs brutes.
 
 Risques securite encore ouverts avant production:
@@ -292,7 +297,7 @@ Risques securite encore ouverts avant production:
 - Completer le contenu produit de la landing page et de `/pricing`.
 - Ajouter filtres billing avances, surveillance des echecs email et audit lisible dans `/admin`.
 - Tester Stripe live avec les vrais price IDs et le portail active dans Stripe.
-- Ajouter un script `package_cpanel` et un `install_check.php` pour preparer la copie vers cPanel.
+- Documenter la procedure finale cPanel autour de `/installation/`, `.htaccess` et suppression post-setup.
 
 ## Branche de sauvegarde
 

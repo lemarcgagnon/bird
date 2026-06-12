@@ -56,6 +56,7 @@ Base de donnees:
 - Local/dev: SQLite utilise `server-php/data/nichoir.sqlite`.
 - cPanel: creer une base MySQL et un utilisateur dans cPanel, puis entrer host/base/user/password dans `/admin` > `Reglages` > `Base de donnees`.
 - Les valeurs enregistrees sont ecrites dans `server-php/data/db-config.php`, ignore par Git.
+- Le verrou `server-php/data/installed.lock.php` est ecrit par l installateur temporaire, ignore par Git, et bloque une seconde installation.
 - Les variables serveur `NICHOIR_DB_DRIVER`, `NICHOIR_DB_HOST`, `NICHOIR_DB_PORT`, `NICHOIR_DB_NAME`, `NICHOIR_DB_USER`, `NICHOIR_DB_PASSWORD`, `NICHOIR_DB_CHARSET` surchargent le fichier local.
 
 Logs:
@@ -71,12 +72,10 @@ Deploiement cPanel:
 - creer la base MySQL et l'utilisateur dans cPanel avant de basculer le driver;
 - utiliser `Tester connexion` dans `/admin` > `Reglages` > `Base de donnees`;
 - utiliser `Enregistrer DB` seulement quand le test passe; le schema MySQL est cree automatiquement si la base est vide;
+- si le document root reste sur la racine du projet, garder le `.htaccess` versionne pour router vers `server-php/public` et bloquer les dossiers sensibles;
+- l'installateur temporaire est `installation/index.php`: il initialise la DB, ecrit `server-php/data/db-config.php` si besoin, peut enregistrer le SMTP de base et pose `server-php/data/installed.lock.php`;
+- apres installation, supprimer le dossier `installation/` du serveur et definir `NICHOIR_ADMIN_KEY`;
 - ne jamais committer `server-php/data/db-config.php`.
-
-Script de deploiement a ajouter:
-
-- `scripts/package_cpanel.sh`: produire un dossier/zip propre sans `.git`, `.codex`, logs, secrets ni donnees locales inutiles;
-- `server-php/scripts/install_check.php`: verifier PHP/extensions, `data/` writable, connexion MySQL, schema, SMTP optionnel et variables serveur.
 
 ## Demarrer
 
@@ -158,7 +157,7 @@ Comptes utiles:
 - CSP, retention/rotation des logs, sanitizer SVG complet et plafonds Rust/WASM pour fichiers/meshes/exports.
 - Tests live Stripe avec les vrais price IDs, portail active dans le dashboard Stripe et webhook de production.
 - Configuration dev/prod pour CORS, URL publique, secrets Stripe/SMTP et base de donnees.
-- Script de packaging/installation cPanel.
+- Durcir encore le flux d'installation cPanel et documenter la suppression post-setup.
 
 ## Notes
 

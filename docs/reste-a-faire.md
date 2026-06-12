@@ -373,7 +373,7 @@ Travail restant dans cette phase:
 - Ajouter retention/rotation des logs et export cible des alertes si le volume augmente.
 - Tester Stripe en mode live/test avec les vrais price IDs, le portail active dans Stripe et `NICHOIR_STRIPE_WEBHOOK_SECRET`.
 - Tester la connexion MySQL avec les vraies coordonnees cPanel et verifier le schema cree sur le serveur.
-- Creer le script de packaging/installation cPanel: zip propre, verification extensions PHP, `data/` writable, test DB, schema, SMTP optionnel.
+- Finaliser la procedure cPanel autour de `installation/`, verifier la suppression post-setup et documenter le cas `DocumentRoot` racine vs `server-php/public`.
 
 Controle anti-drift:
 

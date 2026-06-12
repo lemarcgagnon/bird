@@ -6,6 +6,7 @@ Fichiers importants:
 
 - `nichoir.sqlite`: base SQLite locale utilisee par le serveur PHP.
 - `db-config.php`: config DB locale generee par `/admin` > `Reglages` quand on enregistre les coordonnees cPanel/MySQL. Ce fichier est ignore par Git.
+- `installed.lock.php`: verrou ecrit par `installation/` une fois le setup termine. Ce fichier est ignore par Git.
 
 Regles d'usage:
 

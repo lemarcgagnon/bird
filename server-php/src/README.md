@@ -5,6 +5,7 @@ Role: logique serveur PHP partagee par le routeur public. C'est la source de ver
 Fichiers importants:
 
 - `db.php`: config SQLite/MySQL, connexion PDO, migrations SQLite et schema MySQL cPanel.
+- `db.php`: config SQLite/MySQL, connexion PDO, migrations partagees, schema MySQL cPanel et verrou d'installation.
 - `auth.php`: tokens bearer, sessions, activation email, rate limit auth, quotas email et projection publique.
 - `response.php`: reponses JSON, limites payload et headers de securite.
 - `pages.php`: pages HTML PHP, espace client, admin, repertoire utilisateurs et actions admin.
@@ -30,3 +31,4 @@ Points de vigilance:
 - Preferer `NICHOIR_SMTP_PASSWORD` pour le mot de passe SMTP en production si possible; sinon il est stocke dans SQLite via `/admin`.
 - Preferer `NICHOIR_STRIPE_SECRET_KEY` et `NICHOIR_STRIPE_WEBHOOK_SECRET` pour Stripe en production; sinon `/admin` peut stocker les valeurs dans SQLite.
 - Preferer les variables `NICHOIR_DB_*` pour la DB en production si disponibles; sinon `/admin` ecrit `server-php/data/db-config.php`, ignore par Git.
+- L'installateur temporaire reutilise `db.php` pour tester/ecrire la config DB et poser `server-php/data/installed.lock.php`; garder cette logique centralisee ici.

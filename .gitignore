@@ -6,3 +6,4 @@
 *.tmp
 .DS_Store
 server-php/data/db-config.php
+server-php/data/installed.lock.php

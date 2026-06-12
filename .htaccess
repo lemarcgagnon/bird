@@ -1,0 +1,23 @@
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+# Hidden files stay private, except ACME challenges if used later.
+RewriteRule "(^|/)\.(?!well-known/)" - [F,L]
+
+# Internal application folders are never public.
+RewriteRule "^server-php/(src|data|migrations|scripts)(/|$)" - [F,L,NC]
+RewriteRule "^(docs|\.git|\.codex|\.agents)(/|$)" - [F,L,NC]
+
+# Keep the temporary installer reachable until the admin removes it.
+RewriteRule "^installation(/|$)" - [L]
+
+# Serve existing assets directly.
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# Everything else goes through the PHP public front controller.
+RewriteRule ^ server-php/public/index.php [L,QSA]
+</IfModule>

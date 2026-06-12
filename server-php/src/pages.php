@@ -2703,6 +2703,27 @@ function render_admin_export_links(string $scope): string
     ';
 }
 
+function admin_export_status_label(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'authorized' => 'Autorise',
+        'consumed' => 'Consomme',
+        'revoked' => 'Revoque',
+        'expired' => 'Expire',
+        default => admin_code_label($status),
+    };
+}
+
+function admin_export_status_tone(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'authorized' => 'warning',
+        'consumed' => 'success',
+        'revoked', 'expired' => 'neutral',
+        default => 'neutral',
+    };
+}
+
 function render_admin_database_export_panel(): string
 {
     $scopes = [
@@ -2714,13 +2735,16 @@ function render_admin_database_export_panel(): string
         'exports' => ['Autorisations', 'Demandes d exports, couts, et consommation.'],
     ];
 
-    $rows = '';
+    $cards = '';
     foreach ($scopes as $scope => [$label, $description]) {
-        $rows .= '
-          <tr>
-            <td><strong>' . h($label) . '</strong><p>' . h($description) . '</p></td>
-            <td>' . render_admin_export_links((string) $scope) . '</td>
-          </tr>
+        $cards .= '
+          <article class="export-scope-card">
+            <div class="export-scope-copy">
+              <h3>' . h($label) . '</h3>
+              <p>' . h($description) . '</p>
+            </div>
+            ' . render_admin_export_links((string) $scope) . '
+          </article>
         ';
     }
 
@@ -2729,10 +2753,16 @@ function render_admin_database_export_panel(): string
         <div class="section-heading">
           <div>
             <h2>Exports base de donnees</h2>
-            <p>Choisis une portee puis un format. Les lignes sont classees par date descendante et reliees au client quand possible.</p>
+            <p>Choisis une portee metier puis un format. Les exports servent a sortir la base de travail, pas l historique detaille d usage.</p>
           </div>
         </div>
-        <div class="table-wrap export-scope-table"><table><thead><tr><th>Portee</th><th>Formats</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
+        <div class="stats-grid billing-summary-grid">
+          <div class="stat"><span>Portees</span><strong>' . count($scopes) . '</strong></div>
+          <div class="stat"><span>Formats</span><strong>CSV / XLS / JSON</strong></div>
+          <div class="stat"><span>Usage</span><strong>Base metier</strong></div>
+          <div class="stat"><span>Securite</span><strong>Secrets exclus</strong></div>
+        </div>
+        <div class="export-scope-grid">' . $cards . '</div>
       </section>
     ';
 }
@@ -3425,12 +3455,25 @@ function render_admin_page(): void
     $exports = $pdo->query('SELECT export_authorizations.id, users.id AS user_id, users.email, export_type, credit_cost, export_authorizations.status AS export_status, export_authorizations.created_at, consumed_at FROM export_authorizations JOIN users ON users.id = export_authorizations.user_id ORDER BY export_authorizations.id DESC LIMIT 20')->fetchAll();
 
     $exportRows = '';
+    $authorizedExportCount = 0;
+    $consumedExportCount = 0;
+    $revokedExportCount = 0;
+    $exportCreditTotal = 0;
     foreach ($exports as $export) {
         $clientHref = admin_client_modal_url((int) $export['user_id'], 'admin-exports', 'exports');
-        $exportRows .= '<tr><td>' . (int) $export['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $export['email']) . '</a></td><td>' . h((string) $export['export_type']) . '</td><td>' . (int) $export['credit_cost'] . '</td><td>' . h((string) $export['export_status']) . '</td><td>' . h((string) ($export['consumed_at'] ?: '-')) . '</td></tr>';
+        $status = (string) $export['export_status'];
+        if ($status === 'authorized') {
+            $authorizedExportCount++;
+        } elseif ($status === 'consumed') {
+            $consumedExportCount++;
+            $exportCreditTotal += (int) $export['credit_cost'];
+        } elseif ($status === 'revoked') {
+            $revokedExportCount++;
+        }
+        $exportRows .= '<tr><td>' . (int) $export['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $export['email']) . '</a></td><td><strong>' . h((string) $export['export_type']) . '</strong></td><td>' . (int) $export['credit_cost'] . '</td><td>' . admin_log_badge(admin_export_status_tone($status), admin_export_status_label($status)) . '</td><td>' . h((string) $export['created_at']) . '</td><td>' . h((string) ($export['consumed_at'] ?: '-')) . '</td></tr>';
     }
     if ($exportRows === '') {
-        $exportRows = '<tr><td colspan="6">Aucune autorisation.</td></tr>';
+        $exportRows = '<tr><td colspan="7">Aucune autorisation.</td></tr>';
     }
 
     page_response('Admin', '
@@ -3472,10 +3515,17 @@ function render_admin_page(): void
           <div class="section-heading">
             <div>
               <h2>Autorisations recentes</h2>
-              <p>Telechargements autorises et consommation des credits.</p>
+              <p>Historique court des autorisations d export, de leur consommation et des credits engages.</p>
             </div>
+            <div>' . admin_log_badge('neutral', (string) count($exports)) . '</div>
           </div>
-          <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Type</th><th>Cout</th><th>Etat</th><th>Consomme</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div>
+          <div class="stats-grid billing-summary-grid">
+            <div class="stat"><span>Autorisees</span><strong>' . $authorizedExportCount . '</strong></div>
+            <div class="stat"><span>Consommees</span><strong>' . $consumedExportCount . '</strong></div>
+            <div class="stat"><span>Revoquees</span><strong>' . $revokedExportCount . '</strong></div>
+            <div class="stat"><span>Credits engages</span><strong>' . $exportCreditTotal . '</strong></div>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Type</th><th>Cout</th><th>Etat</th><th>Cree</th><th>Consomme</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div>
         </section>
       </section>
       <section class="tab-panel" id="admin-logs" data-tab-panel hidden>

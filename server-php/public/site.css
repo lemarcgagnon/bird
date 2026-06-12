@@ -671,6 +671,41 @@ button {
   font-size: 13px;
 }
 
+.export-scope-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.export-scope-card {
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.export-scope-copy {
+  display: grid;
+  gap: 6px;
+}
+
+.export-scope-copy h3 {
+  margin: 0;
+}
+
+.export-scope-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.export-download-actions {
+  align-items: center;
+}
+
 .billing-actions {
   margin: 12px 0 8px;
 }

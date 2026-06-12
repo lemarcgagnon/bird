@@ -35,6 +35,7 @@ Etat actuel:
 - `/admin` > `Logs` affiche alertes, logs applicatifs, audit actions et evenements Stripe avec portee par domaine, filtres rapides/avances, badges d'etat, exports CSV/Excel compatible `.xls`/JSON/SQL et tables "metier d'abord, code ensuite".
 - Le back-office suit maintenant les conventions `docs/admin-hig.md`: separation par domaine, detail en modal, filtres structures et contexte preserve.
 - `/admin` > `Billing` evite maintenant la longue pile verticale: la synthese et les filtres restent en tete, puis le detail bascule via sous-onglets `Abonnements` / `Paiements` quand la portee est `Tout`.
+- Toutes les tables du back-office (`Support`, `Clients`, `Billing`, `Exports`, `Logs`, `Reglages`) sont maintenant triables par colonne et exposent `Afficher 10 / 25 / 50 / 100 / Toutes`, avec `10` par defaut. Les tables du modal client (`Credits`, `Billing`, `Exports`) suivent le meme modele.
 - `app_logs`, `audit_logs` et `stripe_event_logs` tracent erreurs, securite, actions importantes, emails, tickets, exports, auth et webhooks sans stocker mots de passe, tokens ou secrets.
 - Les notifications tickets sont journalisees dans `ticket_notifications`, puis envoyees immediatement via SMTP si l'envoi est active.
 - `GET /api/credits/ledger` retourne l'historique credits du client connecte.

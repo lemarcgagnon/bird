@@ -27,8 +27,10 @@ Etat actuel:
 - `/admin` contient maintenant un repertoire utilisateurs avec recherche, filtres et pagination.
 - `/admin` permet de creer un utilisateur, modifier profil/courriel/statut/credits, reset le mot de passe et supprimer un compte avec confirmation.
 - `/admin` permet aussi de modifier manuellement le statut d'abonnement serveur en attendant le webhook Stripe.
-- La fiche client affiche historique credits, abonnements, paiements, exports, tickets et audit admin.
-- `/account` permet maintenant login/register/logout, affichage credits, historique credits, abonnement, paiements et creation/liste de tickets.
+- La fiche client affiche historique credits, abonnements, paiements, exports, tickets, fil de messages et audit admin.
+- `/account` permet maintenant login/register/logout, affichage credits, historique credits, abonnement, paiements, creation/liste de tickets, fil de messages, reponses client et changement open/closed.
+- `/admin` permet de repondre aux tickets, changer open/closed, definir priorite et assignation, configurer SMTP cPanel et tester l'envoi email.
+- Les notifications tickets sont journalisees dans `ticket_notifications`, puis envoyees immediatement via SMTP si l'envoi est active.
 - `GET /api/credits/ledger` retourne l'historique credits du client connecte.
 - `GET /api/billing/summary` retourne l'abonnement courant et les paiements synchronises du client connecte.
 - `/stripe/webhook` accepte des evenements Stripe locaux/non signes en dev, journalise `stripe_events`, traite `checkout.session.completed` et les evenements `customer.subscription.*`.
@@ -59,6 +61,9 @@ php -S 127.0.0.1:8021 -t server-php/public
 - `POST /api/exports/consume`
 - `GET /api/tickets`
 - `POST /api/tickets`
+- `GET /api/tickets/{id}`
+- `POST /api/tickets/{id}/messages`
+- `POST /api/tickets/{id}/status`
 - `POST /stripe/webhook`
 
 ## Test rapide
@@ -83,7 +88,7 @@ curl http://127.0.0.1:8021/api/me \
 ## A ajouter
 
 - Espace client complet: edition profil, portail Stripe et factures reelles.
-- Admin complet: reponses tickets, filtres billing avances et journal d'audit plus lisible.
+- Admin complet: filtres billing avances, surveillance des echecs email et journal d'audit plus lisible.
 - Rate limiting login/register/tickets/webhooks.
 - CSRF et authentification admin production; eviter le `key` admin en query string.
 - CSP, sanitizer SVG complet et plafonds Rust/WASM pour fichiers/meshes/exports.

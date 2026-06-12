@@ -339,6 +339,7 @@ Architecture web cible:
   - Endpoints `GET /api/credits/ledger` et `GET /api/billing/summary` ajoutes.
   - Endpoint local `/stripe/webhook` ajoute: journalisation idempotente des events, traitement dev de `checkout.session.completed` et `customer.subscription.*`.
   - `/admin` reste ouvert en local; en production, il doit utiliser `NICHOIR_ADMIN_KEY`.
+  - Tickets completes en premiere version produit: fil de messages client/admin, reponses support, reponses client, statut open/closed, priorite, assignation, outbox notification email SQLite et envoi SMTP configurable depuis `/admin`.
 
 - Le backend local PHP + SQLite teste maintenant le flux compte/credits/autorisation.
 - Les tables utilisateurs, sessions, credits, abonnements, paiements, consommations, tickets et messages sont initialisees.
@@ -356,10 +357,10 @@ Travail restant dans cette phase:
 - Completer la landing page PHP publique (`/`) avec contenu produit reel.
 - Completer page prix/offres (`/pricing`) pour credits et abonnements.
 - Completer espace client (`/account`) pour portail Stripe, factures reelles et edition profil.
-- Completer admin prive (`/admin`) pour filtres billing avances, reponses tickets et audit lisible.
+- Completer admin prive (`/admin`) pour filtres billing avances, surveillance des echecs email et audit lisible.
 - Retirer les identifiants demo visibles du build de production.
 - Ajouter une configuration dev/prod pour URL API, CORS, demo user et affichage debug.
-- Ajouter l'interface tickets/messages dans le modal.
+- Durcir la configuration email production: secret SMTP via variable serveur si possible, suivi des echecs et retry manuel/automatique.
 - Remplacer Stripe placeholder par Checkout reel.
 - Ajouter verification officielle `Stripe-Signature` avant d'exposer `/stripe/webhook` en production.
 - Preparer migration SQLite vers MySQL si le deploiement de production le demande.

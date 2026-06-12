@@ -8,6 +8,7 @@ Fichiers importants:
 - `auth.php`: tokens bearer, sessions, utilisateur courant et projection publique.
 - `response.php`: reponses JSON, limites payload et headers de securite.
 - `pages.php`: pages HTML PHP, espace client, admin, repertoire utilisateurs et actions admin.
+- `mail.php`: reglages SMTP, envoi email tickets et journal `ticket_notifications`.
 - `stripe_webhook.php`: traitement local/dev des evenements Stripe et idempotence `stripe_events`.
 
 Regles d'architecture:
@@ -23,3 +24,4 @@ Points de vigilance:
 - `NICHOIR_CORS_ORIGINS` controle les origines autorisees pour l'app.
 - La signature `Stripe-Signature` reelle reste obligatoire avant exposition production.
 - Ajouter rate limiting, CSRF admin et CSP avant prod.
+- Preferer `NICHOIR_SMTP_PASSWORD` pour le mot de passe SMTP en production si possible; sinon il est stocke dans SQLite via `/admin`.

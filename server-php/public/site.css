@@ -335,8 +335,104 @@ button {
   margin: 12px 0 8px;
 }
 
+.admin-email-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.admin-email-test {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  margin: 0 0 14px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+
+.checkbox-label input {
+  width: auto;
+  min-height: 0;
+}
+
 .ticket-form {
   margin-bottom: 16px;
+}
+
+.ticket-detail,
+.ticket-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.ticket-detail[hidden] {
+  display: none;
+}
+
+.ticket-detail-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.ticket-detail-header h3 {
+  margin: 0 0 4px;
+}
+
+.ticket-detail-header p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.ticket-thread {
+  display: grid;
+  gap: 10px;
+}
+
+.ticket-message {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.ticket-message.admin {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+}
+
+.ticket-message header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ticket-message p {
+  margin: 0;
+  white-space: normal;
+}
+
+.ticket-admin-forms {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr) minmax(220px, 1fr);
+  gap: 12px;
+  align-items: end;
+}
+
+.selected-row {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 
 .client-detail {
@@ -397,7 +493,15 @@ footer {
   .admin-actions .admin-profile-form,
   .admin-actions .subscription-form,
   .admin-actions .danger-form,
+  .admin-email-form,
+  .admin-email-test,
+  .ticket-admin-forms,
+  .ticket-detail-header,
   .client-summary {
     grid-template-columns: 1fr;
+  }
+
+  .ticket-detail-header {
+    display: grid;
   }
 }

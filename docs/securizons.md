@@ -232,6 +232,7 @@ Mesures deja en place:
 - `consume` reverifie le statut du compte et le solde au moment du debit.
 - Champs compte/tickets limites cote serveur.
 - Admin CRUD centralise cote PHP; le WASM ne gere pas les clients.
+- SMTP tickets configurable dans `/admin`; le mot de passe peut venir de `NICHOIR_SMTP_PASSWORD` pour eviter de stocker le secret dans SQLite en production.
 
 Risques restants avant production:
 
@@ -243,6 +244,7 @@ Risques restants avant production:
 - Ajouter une politique CSP adaptee aux pages PHP et a l'app.
 - Remplacer ou completer le hard delete admin par une politique de retention/soft delete.
 - Revoir le stockage du bearer token dans `localStorage` si l'app devient exposee a du contenu tiers.
+- Proteger les secrets SMTP comme les secrets Stripe: acces admin strict, variables serveur preferees, pas de commit de base contenant un vrai mot de passe.
 
 ## 7. Plan d'implementation recommande
 

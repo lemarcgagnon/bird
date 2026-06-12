@@ -254,8 +254,8 @@ Cette API ne fait pas la geometrie. Elle valide la session, retourne l'etat du c
 Etat actuel:
 
 - PHP sert deja `/`, `/pricing`, `/account`, `/admin` et `/api/...`.
-- `/account` gere login/register/logout, credits, historique, abonnement, paiements synchronises et tickets.
-- `/admin` gere repertoire utilisateurs, creation, edition profil, reset mot de passe, suppression confirmee, credits, suspension/reactivation, abonnement manuel, exports, tickets, paiements et audit.
+- `/account` gere login/register/logout, credits, historique, abonnement, paiements synchronises, creation de tickets, fil de messages, reponses client et statut open/closed.
+- `/admin` gere repertoire utilisateurs, creation, edition profil, reset mot de passe, suppression confirmee, credits, suspension/reactivation, abonnement manuel, exports, tickets avec fil/reponse/statut/priorite/assignation, configuration SMTP cPanel, paiements et audit.
 - `/stripe/webhook` journalise les evenements locaux de dev et peut appliquer `checkout.session.completed` ou `customer.subscription.*`.
 - L'app WASM garde seulement un resume compte et des liens vers le site; le serveur PHP reste la source de verite. Hors localhost, le login demo rapide est desactive sauf config explicite `window.NICHOIR_DEMO_ACCOUNT`.
 - Garde-fous API ajoutes: CORS configurable par `NICHOIR_CORS_ORIGINS`, payload JSON limite, validation stricte des offres/types d'export, revalidation du compte au debit, limites serveur sur tickets/profil et headers HTTP de base.
@@ -280,7 +280,7 @@ Risques securite encore ouverts avant production:
 - Etudier une union booleenne/CSG pour produire une maison complete fusionnee.
 - Completer le contenu produit de la landing page et de `/pricing`.
 - Ajouter edition profil, portail Stripe et factures reelles dans `/account`.
-- Ajouter filtres billing avances, reponses tickets et audit lisible dans `/admin`.
+- Ajouter filtres billing avances, surveillance des echecs email et audit lisible dans `/admin`.
 - Remplacer le placeholder Stripe par Checkout reel et verification `Stripe-Signature`.
 
 ## Branche de sauvegarde

@@ -628,6 +628,85 @@ input[type="range"] {
   grid-column: 1 / -1;
 }
 
+.ticket-widget {
+  display: grid;
+  gap: 12px;
+}
+
+.ticket-mini-form {
+  display: grid;
+  gap: 8px;
+}
+
+.ticket-mini-form input,
+.ticket-mini-form textarea {
+  width: 100%;
+}
+
+.ticket-mini-list,
+.ticket-mini-detail,
+.ticket-mini-thread {
+  display: grid;
+  gap: 8px;
+}
+
+.ticket-mini-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.ticket-mini-row strong,
+.ticket-mini-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ticket-mini-row span,
+.ticket-mini-message header span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.ticket-mini-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.ticket-mini-message {
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+
+.ticket-mini-message.admin {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel-2));
+}
+
+.ticket-mini-message header {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.ticket-mini-message p {
+  margin: 0;
+  color: var(--text);
+  font-size: 11px;
+}
+
 @media (max-width: 720px) {
   .account-modal {
     place-items: end center;

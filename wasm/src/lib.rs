@@ -4871,10 +4871,32 @@ pub fn render_app_html(input: &str) -> String {
         </div>
         <div class="download-group">
           <h3>Gestion compte</h3>
-          <p class="control-note">Profil, credits, abonnement, factures et tickets restent sur le site PHP.</p>
+          <p class="control-note">Profil, credits, abonnement et factures restent sur le site PHP. Les tickets rapides peuvent aussi etre suivis ici.</p>
           <div class="buttons compact-buttons">
             <a class="button-like" data-site-link="/account" href="/account"><span>Compte</span><strong>site</strong></a>
             <a class="button-like" data-site-link="/pricing" href="/pricing"><span>Tarifs</span><strong>site</strong></a>
+          </div>
+        </div>
+        <div class="download-group ticket-widget" data-account-authed hidden>
+          <h3>Tickets support</h3>
+          <form class="ticket-mini-form" data-account-ticket-form>
+            <label><span>Sujet</span><input name="subject" type="text" maxlength="140" placeholder="Question sur un export" required></label>
+            <label><span>Message</span><textarea name="body" rows="3" maxlength="5000" placeholder="Decris le probleme" required></textarea></label>
+            <button type="submit">Creer ticket</button>
+          </form>
+          <div class="ticket-mini-list" data-account-ticket-list>
+            <p class="control-note">Aucun ticket charge.</p>
+          </div>
+          <div class="ticket-mini-detail" data-account-ticket-detail hidden>
+            <div class="ticket-mini-header">
+              <strong data-account-ticket-title>Ticket</strong>
+              <button type="button" data-action="account-ticket-toggle">Fermer</button>
+            </div>
+            <div class="ticket-mini-thread" data-account-ticket-thread></div>
+            <form class="ticket-mini-form" data-account-ticket-reply-form>
+              <label><span>Reponse</span><textarea name="body" rows="3" maxlength="5000" required></textarea></label>
+              <button type="submit">Repondre</button>
+            </form>
           </div>
         </div>
         <div class="download-group">

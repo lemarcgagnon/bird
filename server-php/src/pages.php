@@ -29,6 +29,8 @@ const ADMIN_USER_STATUSES = [
 ];
 const ADMIN_PLANS = ['none', 'credits', 'atelier', 'pro'];
 const ADMIN_SUBSCRIPTION_STATUSES = ['none', 'active', 'past_due', 'canceled'];
+const TICKET_STATUSES = ['open' => 'Ouvert', 'closed' => 'Ferme'];
+const TICKET_PRIORITIES = ['low' => 'Basse', 'normal' => 'Normale', 'high' => 'Haute', 'urgent' => 'Urgente'];
 
 function page_response(string $title, string $body, string $active = '', int $status = 200): void
 {
@@ -174,7 +176,21 @@ function render_account_page(): void
           <label><span>Message</span><textarea name="body" rows="4" placeholder="Decris le probleme ou la demande" maxlength="5000" required></textarea></label>
           <button type="submit">Envoyer ticket</button>
         </form>
-        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Sujet</th><th>Etat</th><th>Date</th></tr></thead><tbody data-ticket-rows><tr><td colspan="4">Non connecte.</td></tr></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Sujet</th><th>Etat</th><th>Priorite</th><th>MAJ</th><th></th></tr></thead><tbody data-ticket-rows><tr><td colspan="6">Non connecte.</td></tr></tbody></table></div>
+        <div class="ticket-detail" data-ticket-detail hidden>
+          <div class="ticket-detail-header">
+            <div>
+              <h3 data-ticket-title>Ticket</h3>
+              <p data-ticket-meta></p>
+            </div>
+            <button type="button" data-ticket-toggle-status>Changer statut</button>
+          </div>
+          <div class="ticket-thread" data-ticket-thread></div>
+          <form class="client-form ticket-form" data-ticket-reply-form>
+            <label><span>Reponse</span><textarea name="body" rows="3" maxlength="5000" required></textarea></label>
+            <button type="submit">Repondre</button>
+          </form>
+        </div>
       </section>
 
       <section class="grid">
@@ -186,9 +202,12 @@ function render_account_page(): void
       <script>
       const TOKEN_KEY = "nichoir-auth-token";
       const demo = { email: "demo@nichoir.local", password: "password123" };
+      let selectedTicketId = null;
+      let selectedTicket = null;
       const token = () => localStorage.getItem(TOKEN_KEY);
       const setText = (selector, value) => document.querySelector(selector).textContent = value;
-      const row = (cells) => `<tr>${cells.map((cell) => `<td>${String(cell).replace(/[&<>"\x27]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\x27": "&#39;" }[c]))}</td>`).join("")}</tr>`;
+      const esc = (value) => String(value ?? "").replace(/[&<>"\x27]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\x27": "&#39;" }[c]));
+      const row = (cells) => `<tr>${cells.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`;
 
       async function api(path, options = {}) {
         const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
@@ -202,6 +221,8 @@ function render_account_page(): void
       async function loadAccount() {
         const message = document.querySelector("[data-account-message]");
         if (!token()) {
+          selectedTicketId = null;
+          selectedTicket = null;
           setText("[data-account-state]", "Non connecte");
           setText("[data-account-email]", "-");
           setText("[data-account-credits]", "0");
@@ -211,7 +232,8 @@ function render_account_page(): void
           setText("[data-billing-period]", "-");
           document.querySelector("[data-ledger-rows]").innerHTML = `<tr><td colspan="4">Non connecte.</td></tr>`;
           document.querySelector("[data-payment-rows]").innerHTML = `<tr><td colspan="5">Non connecte.</td></tr>`;
-          document.querySelector("[data-ticket-rows]").innerHTML = `<tr><td colspan="4">Non connecte.</td></tr>`;
+          document.querySelector("[data-ticket-rows]").innerHTML = `<tr><td colspan="6">Non connecte.</td></tr>`;
+          renderTicketDetail(null);
           message.textContent = "Connecte-toi pour charger ton compte.";
           return;
         }
@@ -233,14 +255,51 @@ function render_account_page(): void
             ? billing.payments.map((item) => row([item.id, `${(item.amount_cents / 100).toFixed(2)} ${String(item.currency).toUpperCase()}`, item.status, item.description || "-", item.created_at])).join("")
             : `<tr><td colspan="5">Aucun paiement synchronise.</td></tr>`;
           const tickets = await api("/api/tickets");
-          document.querySelector("[data-ticket-rows]").innerHTML = tickets.tickets.length
-            ? tickets.tickets.map((item) => row([item.id, item.subject, item.status, item.created_at])).join("")
-            : `<tr><td colspan="4">Aucun ticket.</td></tr>`;
+          renderTicketRows(tickets.tickets || []);
           message.textContent = "Compte charge.";
         } catch (err) {
           localStorage.removeItem(TOKEN_KEY);
           message.textContent = `Session invalide: ${err.message || err}`;
           await loadAccount();
+        }
+      }
+
+      function renderTicketRows(tickets) {
+        document.querySelector("[data-ticket-rows]").innerHTML = tickets.length
+          ? tickets.map((item) => `<tr${Number(item.id) === Number(selectedTicketId) ? ` class="selected-row"` : ``}><td>#${esc(item.id)}</td><td>${esc(item.subject)}</td><td>${esc(item.status)}</td><td>${esc(item.priority || "normal")}</td><td>${esc(item.updated_at || item.created_at)}</td><td><button type="button" data-open-ticket="${esc(item.id)}">Ouvrir</button></td></tr>`).join("")
+          : `<tr><td colspan="6">Aucun ticket.</td></tr>`;
+        if (!tickets.some((item) => Number(item.id) === Number(selectedTicketId))) {
+          selectedTicketId = tickets[0]?.id || null;
+        }
+        if (selectedTicketId) loadTicketDetail(selectedTicketId);
+        else renderTicketDetail(null);
+      }
+
+      function renderTicketDetail(payload) {
+        const box = document.querySelector("[data-ticket-detail]");
+        if (!payload || !payload.ticket) {
+          box.hidden = true;
+          selectedTicket = null;
+          return;
+        }
+        selectedTicket = payload.ticket;
+        box.hidden = false;
+        document.querySelector("[data-ticket-title]").textContent = `#${payload.ticket.id} - ${payload.ticket.subject}`;
+        document.querySelector("[data-ticket-meta]").textContent = `Statut: ${payload.ticket.status} · Priorite: ${payload.ticket.priority || "normal"} · MAJ: ${payload.ticket.updated_at}`;
+        document.querySelector("[data-ticket-toggle-status]").textContent = payload.ticket.status === "open" ? "Fermer" : "Reouvrir";
+        document.querySelector("[data-ticket-reply-form]").hidden = payload.ticket.status !== "open";
+        document.querySelector("[data-ticket-thread]").innerHTML = (payload.messages || []).length
+          ? payload.messages.map((message) => `<article class="ticket-message ${esc(message.author_role || "client")}"><header><strong>${message.author_role === "admin" ? "Support" : "Client"}</strong><span>${esc(message.created_at)}</span></header><p>${esc(message.body).replace(/\\n/g, "<br>")}</p></article>`).join("")
+          : `<p>Aucun message.</p>`;
+      }
+
+      async function loadTicketDetail(ticketId) {
+        if (!ticketId || !token()) return;
+        selectedTicketId = ticketId;
+        try {
+          renderTicketDetail(await api(`/api/tickets/${ticketId}`));
+        } catch (err) {
+          document.querySelector("[data-account-message]").textContent = `Ticket introuvable: ${err.message || err}`;
         }
       }
 
@@ -311,9 +370,48 @@ function render_account_page(): void
             body: JSON.stringify({ subject: data.get("subject"), body: data.get("body") }),
           });
           event.currentTarget.reset();
+          selectedTicketId = null;
           await loadAccount();
         } catch (err) {
           document.querySelector("[data-account-message]").textContent = `Ticket refuse: ${err.message || err}`;
+        }
+      });
+
+      document.querySelector("[data-ticket-rows]").addEventListener("click", async (event) => {
+        const button = event.target.closest("[data-open-ticket]");
+        if (!button) return;
+        await loadTicketDetail(button.dataset.openTicket);
+        await loadAccount();
+      });
+
+      document.querySelector("[data-ticket-reply-form]").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (!selectedTicketId) return;
+        const data = new FormData(event.currentTarget);
+        try {
+          const payload = await api(`/api/tickets/${selectedTicketId}/messages`, {
+            method: "POST",
+            body: JSON.stringify({ body: data.get("body") }),
+          });
+          event.currentTarget.reset();
+          renderTicketDetail(payload);
+          await loadAccount();
+        } catch (err) {
+          document.querySelector("[data-account-message]").textContent = `Reponse refusee: ${err.message || err}`;
+        }
+      });
+
+      document.querySelector("[data-ticket-toggle-status]").addEventListener("click", async () => {
+        if (!selectedTicketId || !selectedTicket) return;
+        const status = selectedTicket.status === "open" ? "closed" : "open";
+        try {
+          renderTicketDetail(await api(`/api/tickets/${selectedTicketId}/status`, {
+            method: "POST",
+            body: JSON.stringify({ status }),
+          }));
+          await loadAccount();
+        } catch (err) {
+          document.querySelector("[data-account-message]").textContent = `Statut refuse: ${err.message || err}`;
         }
       });
 
@@ -360,11 +458,14 @@ function admin_key_input(): string
     return $key === '' ? '' : '<input type="hidden" name="key" value="' . h($key) . '">';
 }
 
-function redirect_admin(int $userId = 0, string $notice = ''): void
+function redirect_admin(int $userId = 0, string $notice = '', int $ticketId = 0): void
 {
     $parts = [];
     if ($userId > 0) {
         $parts[] = 'user_id=' . $userId;
+    }
+    if ($ticketId > 0) {
+        $parts[] = 'ticket_id=' . $ticketId;
     }
     $key = trim((string) ($_POST['key'] ?? ($_GET['key'] ?? '')));
     if ($key !== '') {
@@ -416,6 +517,36 @@ function admin_subscription_status_options(string $current): string
     return $html;
 }
 
+function ticket_status_options(string $current): string
+{
+    $html = '';
+    foreach (TICKET_STATUSES as $value => $label) {
+        $selected = $current === $value ? ' selected' : '';
+        $html .= '<option value="' . h($value) . '"' . $selected . '>' . h($label) . '</option>';
+    }
+    return $html;
+}
+
+function ticket_priority_options(string $current): string
+{
+    $html = '';
+    foreach (TICKET_PRIORITIES as $value => $label) {
+        $selected = $current === $value ? ' selected' : '';
+        $html .= '<option value="' . h($value) . '"' . $selected . '>' . h($label) . '</option>';
+    }
+    return $html;
+}
+
+function admin_valid_ticket_status(string $status): bool
+{
+    return array_key_exists($status, TICKET_STATUSES);
+}
+
+function admin_valid_ticket_priority(string $priority): bool
+{
+    return array_key_exists($priority, TICKET_PRIORITIES);
+}
+
 function audit_admin_action(PDO $pdo, ?int $userId, string $action, ?int $delta, string $note): void
 {
     $key = (string) ($_POST['key'] ?? ($_GET['key'] ?? 'local-dev'));
@@ -430,6 +561,23 @@ function admin_load_user(PDO $pdo, int $userId): ?array
     $stmt->execute([$userId]);
     $user = $stmt->fetch();
     return is_array($user) ? $user : null;
+}
+
+function admin_load_ticket(PDO $pdo, int $ticketId, int $userId): ?array
+{
+    $stmt = $pdo->prepare('SELECT * FROM tickets WHERE id = ? AND user_id = ?');
+    $stmt->execute([$ticketId, $userId]);
+    $ticket = $stmt->fetch();
+    return is_array($ticket) ? $ticket : null;
+}
+
+function admin_create_ticket_notification(PDO $pdo, array $ticket, array $user, string $subject, string $body): int
+{
+    $email = trim((string) ($user['email'] ?? ''));
+    if ($email === '') {
+        return 0;
+    }
+    return ticket_notification_create($pdo, (int) $ticket['id'], (int) $user['id'], $email, $subject, $body);
 }
 
 function admin_valid_user_status(string $status): bool
@@ -613,6 +761,148 @@ function admin_set_subscription(PDO $pdo, array $currentUser): void
     }
 }
 
+function admin_reply_ticket(PDO $pdo, array $currentUser): void
+{
+    $userId = (int) $currentUser['id'];
+    $ticketId = (int) ($_POST['ticket_id'] ?? 0);
+    $ticket = admin_load_ticket($pdo, $ticketId, $userId);
+    if ($ticket === null) {
+        redirect_admin($userId, 'ticket_introuvable');
+        return;
+    }
+    if (($ticket['status'] ?? 'open') !== 'open') {
+        redirect_admin($userId, 'ticket_ferme', $ticketId);
+        return;
+    }
+    $body = trim((string) ($_POST['body'] ?? ''));
+    if (!string_length_between($body, 1, 5000)) {
+        redirect_admin($userId, 'message_ticket_invalide', $ticketId);
+        return;
+    }
+    $notificationId = 0;
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('INSERT INTO ticket_messages (ticket_id, user_id, author_role, body) VALUES (?, ?, ?, ?)')
+            ->execute([$ticketId, $userId, 'admin', $body]);
+        $pdo->prepare('UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$ticketId]);
+        $notificationId = admin_create_ticket_notification($pdo, $ticket, $currentUser, 'Reponse support ticket #' . $ticketId, $body);
+        audit_admin_action($pdo, $userId, 'reply_ticket', null, 'ticket #' . $ticketId);
+        $pdo->commit();
+        ticket_notification_send($pdo, $notificationId);
+        redirect_admin($userId, 'reponse_ticket_envoyee', $ticketId);
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        redirect_admin($userId, 'erreur_ticket', $ticketId);
+    }
+}
+
+function admin_set_ticket_status(PDO $pdo, array $currentUser): void
+{
+    $userId = (int) $currentUser['id'];
+    $ticketId = (int) ($_POST['ticket_id'] ?? 0);
+    $ticket = admin_load_ticket($pdo, $ticketId, $userId);
+    $status = strtolower(trim((string) ($_POST['ticket_status'] ?? '')));
+    if ($ticket === null || !admin_valid_ticket_status($status)) {
+        redirect_admin($userId, 'statut_ticket_invalide', $ticketId);
+        return;
+    }
+    $closedAt = $status === 'closed' ? 'CURRENT_TIMESTAMP' : 'NULL';
+    $notificationId = 0;
+    $pdo->beginTransaction();
+    try {
+        $pdo->exec('UPDATE tickets SET status = ' . $pdo->quote($status) . ', updated_at = CURRENT_TIMESTAMP, closed_at = ' . $closedAt . ' WHERE id = ' . $ticketId);
+        $notificationId = admin_create_ticket_notification(
+            $pdo,
+            $ticket,
+            $currentUser,
+            'Statut ticket #' . $ticketId . ': ' . $status,
+            "Le statut de ton ticket #" . $ticketId . " est maintenant: " . $status . "."
+        );
+        audit_admin_action($pdo, $userId, 'set_ticket_status', null, 'ticket #' . $ticketId . ':' . $status);
+        $pdo->commit();
+        ticket_notification_send($pdo, $notificationId);
+        redirect_admin($userId, 'statut_ticket_modifie', $ticketId);
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        redirect_admin($userId, 'erreur_ticket', $ticketId);
+    }
+}
+
+function admin_update_ticket_meta(PDO $pdo, array $currentUser): void
+{
+    $userId = (int) $currentUser['id'];
+    $ticketId = (int) ($_POST['ticket_id'] ?? 0);
+    $ticket = admin_load_ticket($pdo, $ticketId, $userId);
+    $priority = strtolower(trim((string) ($_POST['priority'] ?? 'normal')));
+    $assignedTo = trim((string) ($_POST['assigned_to'] ?? ''));
+    if ($ticket === null || !admin_valid_ticket_priority($priority) || strlen($assignedTo) > 120) {
+        redirect_admin($userId, 'meta_ticket_invalide', $ticketId);
+        return;
+    }
+    $pdo->prepare('UPDATE tickets SET priority = ?, assigned_to = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+        ->execute([$priority, $assignedTo, $ticketId]);
+    audit_admin_action($pdo, $userId, 'update_ticket_meta', null, 'ticket #' . $ticketId . ':' . $priority . ':' . $assignedTo);
+    redirect_admin($userId, 'ticket_modifie', $ticketId);
+}
+
+function admin_update_email_settings(PDO $pdo): void
+{
+    $enabled = isset($_POST['smtp_enabled']) ? '1' : '0';
+    $host = trim((string) ($_POST['smtp_host'] ?? ''));
+    $port = (int) ($_POST['smtp_port'] ?? 587);
+    $encryption = strtolower(trim((string) ($_POST['smtp_encryption'] ?? 'tls')));
+    $username = trim((string) ($_POST['smtp_username'] ?? ''));
+    $password = (string) ($_POST['smtp_password'] ?? '');
+    $fromEmail = strtolower(trim((string) ($_POST['smtp_from_email'] ?? '')));
+    $fromName = trim((string) ($_POST['smtp_from_name'] ?? 'Nichoir support'));
+    $supportEmail = strtolower(trim((string) ($_POST['support_email'] ?? '')));
+
+    if (!in_array($encryption, SMTP_ENCRYPTIONS, true) || $port <= 0 || $port > 65535) {
+        header('Location: ' . admin_redirect_url(['notice' => 'smtp_invalide']));
+        return;
+    }
+    if ($enabled === '1' && ($host === '' || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL) || !filter_var($supportEmail, FILTER_VALIDATE_EMAIL))) {
+        header('Location: ' . admin_redirect_url(['notice' => 'smtp_champs_requis']));
+        return;
+    }
+
+    setting_set($pdo, 'smtp_enabled', $enabled);
+    setting_set($pdo, 'smtp_host', $host);
+    setting_set($pdo, 'smtp_port', (string) $port);
+    setting_set($pdo, 'smtp_encryption', $encryption);
+    setting_set($pdo, 'smtp_username', $username);
+    if ($password !== '') {
+        setting_set($pdo, 'smtp_password', $password);
+    }
+    setting_set($pdo, 'smtp_from_email', $fromEmail);
+    setting_set($pdo, 'smtp_from_name', substr($fromName, 0, 120));
+    setting_set($pdo, 'support_email', $supportEmail);
+    audit_admin_action($pdo, null, 'update_email_settings', null, $host . ':' . $port);
+    header('Location: ' . admin_redirect_url(['notice' => 'smtp_modifie']));
+}
+
+function admin_send_test_email(PDO $pdo): void
+{
+    $recipient = strtolower(trim((string) ($_POST['test_recipient'] ?? '')));
+    if (!filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+        header('Location: ' . admin_redirect_url(['notice' => 'email_test_invalide']));
+        return;
+    }
+    try {
+        smtp_send_email(
+            $pdo,
+            $recipient,
+            'Test email Nichoir',
+            "Ceci est un test SMTP depuis le panneau admin Nichoir.\n\nSi tu recois ce message, les coordonnees email sont valides."
+        );
+        audit_admin_action($pdo, null, 'send_test_email', null, $recipient);
+        header('Location: ' . admin_redirect_url(['notice' => 'email_test_envoye']));
+    } catch (Throwable $e) {
+        audit_admin_action($pdo, null, 'send_test_email_failed', null, substr($e->getMessage(), 0, 200));
+        header('Location: ' . admin_redirect_url(['notice' => 'email_test_erreur_' . substr(preg_replace('/[^a-z0-9_]+/i', '_', $e->getMessage()), 0, 80)]));
+    }
+}
+
 function handle_admin_post(): void
 {
     if (!admin_allowed()) {
@@ -625,6 +915,14 @@ function handle_admin_post(): void
 
     if ($action === 'create_user') {
         admin_create_user($pdo);
+        return;
+    }
+    if ($action === 'update_email_settings') {
+        admin_update_email_settings($pdo);
+        return;
+    }
+    if ($action === 'send_test_email') {
+        admin_send_test_email($pdo);
         return;
     }
 
@@ -646,6 +944,9 @@ function handle_admin_post(): void
         'adjust_credits' => admin_adjust_credits($pdo, $currentUser),
         'set_status' => admin_set_status($pdo, $currentUser),
         'set_subscription' => admin_set_subscription($pdo, $currentUser),
+        'reply_ticket' => admin_reply_ticket($pdo, $currentUser),
+        'set_ticket_status' => admin_set_ticket_status($pdo, $currentUser),
+        'update_ticket_meta' => admin_update_ticket_meta($pdo, $currentUser),
         default => redirect_admin($userId, 'action_inconnue'),
     };
 }
@@ -783,7 +1084,7 @@ function render_client_detail(PDO $pdo, ?array $user): string
     $ledger->execute([$userId]);
     $exports = $pdo->prepare('SELECT export_type, credit_cost, status, created_at, consumed_at FROM export_authorizations WHERE user_id = ? ORDER BY id DESC LIMIT 20');
     $exports->execute([$userId]);
-    $tickets = $pdo->prepare('SELECT id, subject, status, created_at FROM tickets WHERE user_id = ? ORDER BY id DESC LIMIT 10');
+    $tickets = $pdo->prepare('SELECT id, subject, status, priority, assigned_to, created_at, updated_at FROM tickets WHERE user_id = ? ORDER BY id DESC LIMIT 20');
     $tickets->execute([$userId]);
     $audits = $pdo->prepare('SELECT action, delta, note, created_at FROM admin_audit_log WHERE user_id = ? ORDER BY id DESC LIMIT 20');
     $audits->execute([$userId]);
@@ -805,10 +1106,69 @@ function render_client_detail(PDO $pdo, ?array $user): string
     $exportRows = $exportRows ?: '<tr><td colspan="5">Aucun export.</td></tr>';
 
     $ticketRows = '';
-    foreach ($tickets->fetchAll() as $row) {
-        $ticketRows .= '<tr><td>' . (int) $row['id'] . '</td><td>' . h((string) $row['subject']) . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) $row['created_at']) . '</td></tr>';
+    $ticketItems = $tickets->fetchAll();
+    $selectedTicketId = (int) ($_GET['ticket_id'] ?? 0);
+    if ($selectedTicketId <= 0 && isset($ticketItems[0])) {
+        $selectedTicketId = (int) $ticketItems[0]['id'];
     }
-    $ticketRows = $ticketRows ?: '<tr><td colspan="4">Aucun ticket.</td></tr>';
+    foreach ($ticketItems as $row) {
+        $href = admin_redirect_url(['user_id' => $userId, 'ticket_id' => (int) $row['id']]);
+        $selectedClass = (int) $row['id'] === $selectedTicketId ? ' class="selected-row"' : '';
+        $ticketRows .= '<tr' . $selectedClass . '><td><a href="' . h($href) . '">#' . (int) $row['id'] . '</a></td><td>' . h((string) $row['subject']) . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) $row['priority']) . '</td><td>' . h((string) ($row['assigned_to'] ?: '-')) . '</td><td>' . h((string) $row['updated_at']) . '</td><td><a href="' . h($href) . '">Ouvrir</a></td></tr>';
+    }
+    $ticketRows = $ticketRows ?: '<tr><td colspan="7">Aucun ticket.</td></tr>';
+
+    $selectedTicket = $selectedTicketId > 0 ? admin_load_ticket($pdo, $selectedTicketId, $userId) : null;
+    $ticketThread = '<p>Aucun ticket selectionne.</p>';
+    if ($selectedTicket !== null) {
+        $messageStmt = $pdo->prepare('SELECT id, author_role, body, created_at FROM ticket_messages WHERE ticket_id = ? ORDER BY id ASC');
+        $messageStmt->execute([(int) $selectedTicket['id']]);
+        $messageRows = '';
+        foreach ($messageStmt->fetchAll() as $message) {
+            $role = (string) ($message['author_role'] ?: 'client');
+            $messageRows .= '<article class="ticket-message ' . h($role) . '"><header><strong>' . h($role === 'admin' ? 'Support' : 'Client') . '</strong><span>' . h((string) $message['created_at']) . '</span></header><p>' . nl2br(h((string) $message['body'])) . '</p></article>';
+        }
+        $messageRows = $messageRows ?: '<p>Aucun message.</p>';
+        $statusOptions = ticket_status_options((string) $selectedTicket['status']);
+        $priorityOptions = ticket_priority_options((string) ($selectedTicket['priority'] ?? 'normal'));
+        $disabledReply = (string) $selectedTicket['status'] === 'open' ? '' : ' disabled';
+        $ticketThread = '
+          <div class="ticket-detail-header">
+            <div>
+              <h3>#' . (int) $selectedTicket['id'] . ' - ' . h((string) $selectedTicket['subject']) . '</h3>
+              <p>Statut: ' . h((string) $selectedTicket['status']) . ' · Priorite: ' . h((string) ($selectedTicket['priority'] ?? 'normal')) . ' · Assigne: ' . h((string) ($selectedTicket['assigned_to'] ?: '-')) . '</p>
+            </div>
+          </div>
+          <div class="ticket-thread">' . $messageRows . '</div>
+          <div class="ticket-admin-forms">
+            <form method="post" action="/admin">
+              ' . admin_key_input() . '
+              <input type="hidden" name="action" value="reply_ticket">
+              <input type="hidden" name="user_id" value="' . $userId . '">
+              <input type="hidden" name="ticket_id" value="' . (int) $selectedTicket['id'] . '">
+              <label><span>Reponse support</span><textarea name="body" maxlength="5000" rows="4"' . $disabledReply . '></textarea></label>
+              <button type="submit"' . $disabledReply . '>Repondre</button>
+            </form>
+            <form method="post" action="/admin">
+              ' . admin_key_input() . '
+              <input type="hidden" name="action" value="set_ticket_status">
+              <input type="hidden" name="user_id" value="' . $userId . '">
+              <input type="hidden" name="ticket_id" value="' . (int) $selectedTicket['id'] . '">
+              <label><span>Statut</span><select name="ticket_status">' . $statusOptions . '</select></label>
+              <button type="submit">Changer statut</button>
+            </form>
+            <form method="post" action="/admin">
+              ' . admin_key_input() . '
+              <input type="hidden" name="action" value="update_ticket_meta">
+              <input type="hidden" name="user_id" value="' . $userId . '">
+              <input type="hidden" name="ticket_id" value="' . (int) $selectedTicket['id'] . '">
+              <label><span>Priorite</span><select name="priority">' . $priorityOptions . '</select></label>
+              <label><span>Assigne a</span><input type="text" name="assigned_to" maxlength="120" value="' . h((string) ($selectedTicket['assigned_to'] ?? '')) . '"></label>
+              <button type="submit">Mettre a jour</button>
+            </form>
+          </div>
+        ';
+    }
 
     $subscriptionItems = $subscriptions->fetchAll();
     $latestSubscription = $subscriptionItems[0] ?? [
@@ -906,8 +1266,54 @@ function render_client_detail(PDO $pdo, ?array $user): string
       <section class="panel"><h2>Abonnements client</h2><div class="table-wrap"><table><thead><tr><th>Plan</th><th>Etat</th><th>Provider</th><th>Fin periode</th><th>Annule fin</th><th>MAJ</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div></section>
       <section class="panel"><h2>Paiements client</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Montant</th><th>Etat</th><th>Description</th><th>Date</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div></section>
       <section class="panel"><h2>Exports client</h2><div class="table-wrap"><table><thead><tr><th>Type</th><th>Cout</th><th>Etat</th><th>Cree</th><th>Consomme</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div></section>
-      <section class="panel"><h2>Tickets client</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Sujet</th><th>Etat</th><th>Cree</th></tr></thead><tbody>' . $ticketRows . '</tbody></table></div></section>
+      <section class="panel"><h2>Tickets client</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Sujet</th><th>Etat</th><th>Priorite</th><th>Assigne</th><th>MAJ</th><th></th></tr></thead><tbody>' . $ticketRows . '</tbody></table></div></section>
+      <section class="panel ticket-panel"><h2>Fil ticket</h2>' . $ticketThread . '</section>
       <section class="panel"><h2>Audit admin</h2><div class="table-wrap"><table><thead><tr><th>Action</th><th>Delta</th><th>Note</th><th>Date</th></tr></thead><tbody>' . $auditRows . '</tbody></table></div></section>
+    ';
+}
+
+function render_email_settings_panel(PDO $pdo): string
+{
+    $settings = mail_settings($pdo);
+    $encryptionOptions = '';
+    foreach (SMTP_ENCRYPTIONS as $option) {
+        $selected = $settings['encryption'] === $option ? ' selected' : '';
+        $encryptionOptions .= '<option value="' . h($option) . '"' . $selected . '>' . h($option) . '</option>';
+    }
+    $recent = $pdo->query('SELECT id, ticket_id, recipient, subject, status, error, created_at, sent_at FROM ticket_notifications ORDER BY id DESC LIMIT 20')->fetchAll();
+    $rows = '';
+    foreach ($recent as $row) {
+        $rows .= '<tr><td>' . (int) $row['id'] . '</td><td>#' . (int) $row['ticket_id'] . '</td><td>' . h((string) $row['recipient']) . '</td><td>' . h((string) $row['subject']) . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) ($row['error'] ?: '-')) . '</td><td>' . h((string) ($row['sent_at'] ?: $row['created_at'])) . '</td></tr>';
+    }
+    $rows = $rows ?: '<tr><td colspan="7">Aucun email ticket.</td></tr>';
+    $passwordNote = getenv('NICHOIR_SMTP_PASSWORD') ? 'Mot de passe fourni par variable serveur NICHOIR_SMTP_PASSWORD.' : 'Laisser vide pour conserver le mot de passe actuel.';
+
+    return '
+      <section class="panel">
+        <h2>Email tickets</h2>
+        <p>Configure ici le serveur email cPanel/SMTP utilise pour envoyer les notifications tickets. Les envois sont aussi journalises dans SQLite.</p>
+        <form class="admin-email-form" method="post" action="/admin">
+          ' . admin_key_input() . '
+          <input type="hidden" name="action" value="update_email_settings">
+          <label class="checkbox-label"><input type="checkbox" name="smtp_enabled" value="1"' . ($settings['enabled'] ? ' checked' : '') . '> Activer envoi SMTP</label>
+          <label><span>Serveur SMTP</span><input type="text" name="smtp_host" value="' . h((string) $settings['host']) . '" placeholder="mail.domaine.com"></label>
+          <label><span>Port</span><input type="number" name="smtp_port" min="1" max="65535" value="' . (int) $settings['port'] . '"></label>
+          <label><span>Chiffrement</span><select name="smtp_encryption">' . $encryptionOptions . '</select></label>
+          <label><span>Utilisateur SMTP</span><input type="text" name="smtp_username" value="' . h((string) $settings['username']) . '" autocomplete="username"></label>
+          <label><span>Mot de passe SMTP</span><input type="password" name="smtp_password" autocomplete="new-password" placeholder="' . h($passwordNote) . '"></label>
+          <label><span>Email expediteur</span><input type="email" name="smtp_from_email" value="' . h((string) $settings['from_email']) . '" placeholder="support@domaine.com"></label>
+          <label><span>Nom expediteur</span><input type="text" name="smtp_from_name" value="' . h((string) $settings['from_name']) . '" maxlength="120"></label>
+          <label><span>Email support</span><input type="email" name="support_email" value="' . h((string) $settings['support_email']) . '" placeholder="support@domaine.com"></label>
+          <button type="submit">Enregistrer email</button>
+        </form>
+        <form class="admin-email-test" method="post" action="/admin">
+          ' . admin_key_input() . '
+          <input type="hidden" name="action" value="send_test_email">
+          <label><span>Email test</span><input type="email" name="test_recipient" value="' . h((string) $settings['support_email']) . '" required></label>
+          <button type="submit">Envoyer test</button>
+        </form>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Ticket</th><th>Destinataire</th><th>Sujet</th><th>Etat</th><th>Erreur</th><th>Date</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
+      </section>
     ';
 }
 
@@ -972,6 +1378,7 @@ function render_admin_page(): void
         <div><span>Abonnements actifs</span><strong>' . $summary['subscriptions'] . '</strong></div>
         <div><span>Paiements recus</span><strong>' . h(money_cents((int) $summary['payments'], 'cad')) . '</strong></div>
       </section>
+      ' . render_email_settings_panel($pdo) . '
       ' . render_create_user_panel() . '
       ' . render_user_directory($pdo) . '
       ' . render_client_detail($pdo, $selected) . '

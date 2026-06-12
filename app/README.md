@@ -14,6 +14,7 @@ Regles d'architecture:
 - L'app ne doit garder qu'un resume de compte et des liens vers le site PHP.
 - Le WASM genere localement geometrie, plans, STL, OBJ, ZIP, PDF et PNG.
 - Ne pas mettre de secret Stripe, admin, licence ou cle serveur dans ce dossier.
+- Le modal compte peut afficher et repondre aux tickets, mais le serveur PHP reste la source de verite.
 
 Points de vigilance:
 

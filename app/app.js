@@ -48,6 +48,9 @@ let accountState = {
   loading: false,
   error: '',
 };
+let accountTickets = [];
+let accountTicketDetail = null;
+let selectedAccountTicketId = null;
 let theme = localStorage.getItem(THEME_KEY)
   || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
@@ -240,6 +243,16 @@ function setAccountText(selector, value) {
   });
 }
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[char]));
+}
+
 function accountStatusLabel() {
   if (accountState.loading) return 'Chargement...';
   if (accountState.user) return 'Connecte';
@@ -263,6 +276,89 @@ function updateAccountDom() {
   root.querySelectorAll('[data-demo-account]').forEach((el) => {
     el.hidden = !DEMO_ACCOUNT || Boolean(user);
   });
+  if (!user) {
+    accountTickets = [];
+    accountTicketDetail = null;
+    selectedAccountTicketId = null;
+    renderAccountTickets();
+    renderAccountTicketDetail(null);
+  }
+}
+
+function renderAccountTickets() {
+  const list = root.querySelector('[data-account-ticket-list]');
+  if (!list) return;
+  if (!accountTickets.length) {
+    list.innerHTML = '<p class="control-note">Aucun ticket.</p>';
+    return;
+  }
+  list.innerHTML = accountTickets.slice(0, 8).map((ticket) => `
+    <div class="ticket-mini-row">
+      <div class="ticket-mini-title">
+        <strong>#${escapeHtml(ticket.id)} ${escapeHtml(ticket.subject)}</strong>
+        <span>${escapeHtml(ticket.status)} · ${escapeHtml(ticket.priority || 'normal')} · ${escapeHtml(ticket.updated_at || ticket.created_at)}</span>
+      </div>
+      <button type="button" data-account-ticket-open="${escapeHtml(ticket.id)}">Ouvrir</button>
+    </div>
+  `).join('');
+}
+
+function renderAccountTicketDetail(payload) {
+  const box = root.querySelector('[data-account-ticket-detail]');
+  if (!box) return;
+  if (!payload?.ticket) {
+    box.hidden = true;
+    accountTicketDetail = null;
+    return;
+  }
+  accountTicketDetail = payload;
+  box.hidden = false;
+  const ticket = payload.ticket;
+  const title = root.querySelector('[data-account-ticket-title]');
+  if (title) title.textContent = `#${ticket.id} ${ticket.subject} · ${ticket.status}`;
+  const toggle = root.querySelector('[data-action="account-ticket-toggle"]');
+  if (toggle) toggle.textContent = ticket.status === 'open' ? 'Fermer' : 'Reouvrir';
+  const reply = root.querySelector('[data-account-ticket-reply-form]');
+  if (reply) reply.hidden = ticket.status !== 'open';
+  const thread = root.querySelector('[data-account-ticket-thread]');
+  if (!thread) return;
+  thread.innerHTML = (payload.messages || []).length
+    ? payload.messages.map((message) => `
+      <article class="ticket-mini-message ${escapeHtml(message.author_role || 'client')}">
+        <header><strong>${message.author_role === 'admin' ? 'Support' : 'Client'}</strong><span>${escapeHtml(message.created_at)}</span></header>
+        <p>${escapeHtml(message.body).replace(/\n/g, '<br>')}</p>
+      </article>
+    `).join('')
+    : '<p class="control-note">Aucun message.</p>';
+}
+
+async function loadAccountTickets({ openFirst = false } = {}) {
+  if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
+    accountTickets = [];
+    renderAccountTickets();
+    renderAccountTicketDetail(null);
+    return;
+  }
+  try {
+    const payload = await apiRequest('/api/tickets');
+    accountTickets = payload.tickets || [];
+    renderAccountTickets();
+    if ((!selectedAccountTicketId && openFirst) || !accountTickets.some((ticket) => Number(ticket.id) === Number(selectedAccountTicketId))) {
+      selectedAccountTicketId = accountTickets[0]?.id || null;
+    }
+    if (selectedAccountTicketId) await loadAccountTicketDetail(selectedAccountTicketId);
+    else renderAccountTicketDetail(null);
+  } catch (err) {
+    accountState.error = `Tickets: ${err?.message || err}`;
+    updateAccountDom();
+  }
+}
+
+async function loadAccountTicketDetail(ticketId) {
+  if (!ticketId) return;
+  selectedAccountTicketId = ticketId;
+  const payload = await apiRequest(`/api/tickets/${ticketId}`);
+  renderAccountTicketDetail(payload);
 }
 
 async function refreshAccountState({ silent = false } = {}) {
@@ -280,6 +376,7 @@ async function refreshAccountState({ silent = false } = {}) {
     const payload = await apiRequest('/api/me');
     accountState = { user: payload.user || null, loading: false, error: '' };
     updateAccountDom();
+    await loadAccountTickets();
     return accountState.user;
   } catch (err) {
     localStorage.removeItem(AUTH_TOKEN_KEY);
@@ -313,6 +410,7 @@ async function loginAccount() {
     if (payload.token) localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
     accountState = { user: payload.user || null, loading: false, error: '' };
     updateAccountDom();
+    await loadAccountTickets({ openFirst: true });
     setExportStatus('Compte demo connecte.', 'ok');
   } catch (err) {
     accountState = { user: null, loading: false, error: err?.message || String(err) };
@@ -1499,6 +1597,67 @@ function render() {
   root.querySelectorAll('[data-site-link]').forEach((link) => {
     const path = link.dataset.siteLink || '/';
     link.href = phpUrl(path);
+  });
+  root.querySelector('[data-account-ticket-list]')?.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-account-ticket-open]');
+    if (!button) return;
+    try {
+      await loadAccountTicketDetail(button.dataset.accountTicketOpen);
+    } catch (err) {
+      accountState.error = `Ticket: ${err?.message || err}`;
+      updateAccountDom();
+    }
+  });
+  root.querySelector('[data-account-ticket-form]')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    try {
+      const payload = await apiRequest('/api/tickets', {
+        method: 'POST',
+        body: JSON.stringify({ subject: data.get('subject'), body: data.get('body') }),
+      });
+      event.currentTarget.reset();
+      selectedAccountTicketId = payload.ticket_id || null;
+      await loadAccountTickets({ openFirst: true });
+      setExportStatus('Ticket cree.', 'ok');
+    } catch (err) {
+      accountState.error = `Ticket refuse: ${err?.message || err}`;
+      updateAccountDom();
+    }
+  });
+  root.querySelector('[data-account-ticket-reply-form]')?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!selectedAccountTicketId) return;
+    const data = new FormData(event.currentTarget);
+    try {
+      const payload = await apiRequest(`/api/tickets/${selectedAccountTicketId}/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ body: data.get('body') }),
+      });
+      event.currentTarget.reset();
+      renderAccountTicketDetail(payload);
+      await loadAccountTickets();
+      setExportStatus('Reponse ticket envoyee.', 'ok');
+    } catch (err) {
+      accountState.error = `Reponse refusee: ${err?.message || err}`;
+      updateAccountDom();
+    }
+  });
+  root.querySelector('[data-action="account-ticket-toggle"]')?.addEventListener('click', async () => {
+    if (!accountTicketDetail?.ticket || !selectedAccountTicketId) return;
+    const status = accountTicketDetail.ticket.status === 'open' ? 'closed' : 'open';
+    try {
+      const payload = await apiRequest(`/api/tickets/${selectedAccountTicketId}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status }),
+      });
+      renderAccountTicketDetail(payload);
+      await loadAccountTickets();
+      setExportStatus(status === 'open' ? 'Ticket rouvert.' : 'Ticket ferme.', 'ok');
+    } catch (err) {
+      accountState.error = `Statut ticket refuse: ${err?.message || err}`;
+      updateAccountDom();
+    }
   });
   [
     ['token-pricing', 'Credits: STL 3, PDF 2, ZIP 5, SVG/PNG 1. Le site PHP reste la source de verite.'],

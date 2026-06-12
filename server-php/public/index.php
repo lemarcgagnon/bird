@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/auth.php';
+require_once __DIR__ . '/../src/mail.php';
 require_once __DIR__ . '/../src/pages.php';
 require_once __DIR__ . '/../src/response.php';
 require_once __DIR__ . '/../src/stripe_webhook.php';
@@ -71,6 +72,29 @@ function export_cost(string $type): ?int
         'zip' => 5,
         default => null,
     };
+}
+
+function valid_ticket_status(string $status): bool
+{
+    return in_array($status, ['open', 'closed'], true);
+}
+
+function load_user_ticket(PDO $pdo, int $ticketId, int $userId): ?array
+{
+    $stmt = $pdo->prepare('SELECT id, user_id, subject, status, priority, assigned_to, created_at, updated_at, closed_at FROM tickets WHERE id = ? AND user_id = ?');
+    $stmt->execute([$ticketId, $userId]);
+    $ticket = $stmt->fetch();
+    return is_array($ticket) ? $ticket : null;
+}
+
+function ticket_detail_payload(PDO $pdo, array $ticket): array
+{
+    $messages = $pdo->prepare('SELECT id, user_id, author_role, body, created_at FROM ticket_messages WHERE ticket_id = ? ORDER BY id ASC');
+    $messages->execute([(int) $ticket['id']]);
+    return [
+        'ticket' => $ticket,
+        'messages' => $messages->fetchAll(),
+    ];
 }
 
 if ($method === 'GET' && $path === '/api/health') {
@@ -268,9 +292,21 @@ if ($method === 'POST' && $path === '/api/exports/consume') {
 
 if ($method === 'GET' && $path === '/api/tickets') {
     $user = require_user();
-    $stmt = db()->prepare('SELECT id, subject, status, created_at, updated_at FROM tickets WHERE user_id = ? ORDER BY id DESC');
+    $stmt = db()->prepare('SELECT id, subject, status, priority, assigned_to, created_at, updated_at, closed_at FROM tickets WHERE user_id = ? ORDER BY id DESC');
     $stmt->execute([(int) $user['id']]);
     json_response(['ok' => true, 'tickets' => $stmt->fetchAll()]);
+    exit;
+}
+
+if ($method === 'GET' && preg_match('#^/api/tickets/(\d+)$#', $path, $matches)) {
+    $user = require_user();
+    $pdo = db();
+    $ticket = load_user_ticket($pdo, (int) $matches[1], (int) $user['id']);
+    if ($ticket === null) {
+        json_response(['ok' => false, 'error' => 'ticket_not_found'], 404);
+        exit;
+    }
+    json_response(['ok' => true] + ticket_detail_payload($pdo, $ticket));
     exit;
 }
 
@@ -284,12 +320,115 @@ if ($method === 'POST' && $path === '/api/tickets') {
         json_response(['ok' => false, 'error' => 'invalid_ticket'], 400);
         exit;
     }
-    $stmt = db()->prepare('INSERT INTO tickets (user_id, subject) VALUES (?, ?)');
-    $stmt->execute([(int) $user['id'], $subject]);
-    $ticketId = (int) db()->lastInsertId();
-    db()->prepare('INSERT INTO ticket_messages (ticket_id, user_id, body) VALUES (?, ?, ?)')
-        ->execute([$ticketId, (int) $user['id'], $body]);
+    $pdo = db();
+    $notificationId = 0;
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare('INSERT INTO tickets (user_id, subject) VALUES (?, ?)');
+        $stmt->execute([(int) $user['id'], $subject]);
+        $ticketId = (int) $pdo->lastInsertId();
+        $pdo->prepare('INSERT INTO ticket_messages (ticket_id, user_id, author_role, body) VALUES (?, ?, ?, ?)')
+            ->execute([$ticketId, (int) $user['id'], 'client', $body]);
+        $notificationId = ticket_notification_create(
+            $pdo,
+            $ticketId,
+            (int) $user['id'],
+            mail_settings($pdo)['support_email'],
+            'Nouveau ticket #' . $ticketId . ': ' . $subject,
+            "Client: " . (string) $user['email'] . "\n\n" . $body
+        );
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_response(['ok' => false, 'error' => 'ticket_create_failed'], 500);
+        exit;
+    }
+    ticket_notification_send($pdo, $notificationId);
     json_response(['ok' => true, 'ticket_id' => $ticketId], 201);
+    exit;
+}
+
+if ($method === 'POST' && preg_match('#^/api/tickets/(\d+)/messages$#', $path, $matches)) {
+    $user = require_user();
+    $pdo = db();
+    $ticket = load_user_ticket($pdo, (int) $matches[1], (int) $user['id']);
+    if ($ticket === null) {
+        json_response(['ok' => false, 'error' => 'ticket_not_found'], 404);
+        exit;
+    }
+    if (($ticket['status'] ?? 'open') !== 'open') {
+        json_response(['ok' => false, 'error' => 'ticket_closed'], 409);
+        exit;
+    }
+    $data = read_json_body();
+    require_fields($data, ['body']);
+    $body = trim((string) $data['body']);
+    if (!string_length_between($body, 1, 5000)) {
+        json_response(['ok' => false, 'error' => 'invalid_ticket_message'], 400);
+        exit;
+    }
+    $notificationId = 0;
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('INSERT INTO ticket_messages (ticket_id, user_id, author_role, body) VALUES (?, ?, ?, ?)')
+            ->execute([(int) $ticket['id'], (int) $user['id'], 'client', $body]);
+        $pdo->prepare('UPDATE tickets SET updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([(int) $ticket['id']]);
+        $notificationId = ticket_notification_create(
+            $pdo,
+            (int) $ticket['id'],
+            (int) $user['id'],
+            mail_settings($pdo)['support_email'],
+            'Reponse client ticket #' . (int) $ticket['id'],
+            "Client: " . (string) $user['email'] . "\nTicket: #" . (int) $ticket['id'] . ' - ' . (string) $ticket['subject'] . "\n\n" . $body
+        );
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_response(['ok' => false, 'error' => 'ticket_reply_failed'], 500);
+        exit;
+    }
+    ticket_notification_send($pdo, $notificationId);
+    $fresh = load_user_ticket($pdo, (int) $ticket['id'], (int) $user['id']);
+    json_response(['ok' => true] + ticket_detail_payload($pdo, $fresh ?: $ticket));
+    exit;
+}
+
+if ($method === 'POST' && preg_match('#^/api/tickets/(\d+)/status$#', $path, $matches)) {
+    $user = require_user();
+    $pdo = db();
+    $ticket = load_user_ticket($pdo, (int) $matches[1], (int) $user['id']);
+    if ($ticket === null) {
+        json_response(['ok' => false, 'error' => 'ticket_not_found'], 404);
+        exit;
+    }
+    $data = read_json_body();
+    $status = strtolower(trim((string) ($data['status'] ?? '')));
+    if (!valid_ticket_status($status)) {
+        json_response(['ok' => false, 'error' => 'invalid_ticket_status'], 400);
+        exit;
+    }
+    $closedAt = $status === 'closed' ? 'CURRENT_TIMESTAMP' : 'NULL';
+    $notificationId = 0;
+    $pdo->beginTransaction();
+    try {
+        $pdo->exec('UPDATE tickets SET status = ' . $pdo->quote($status) . ', updated_at = CURRENT_TIMESTAMP, closed_at = ' . $closedAt . ' WHERE id = ' . (int) $ticket['id']);
+        $notificationId = ticket_notification_create(
+            $pdo,
+            (int) $ticket['id'],
+            (int) $user['id'],
+            mail_settings($pdo)['support_email'],
+            'Statut ticket #' . (int) $ticket['id'] . ': ' . $status,
+            "Client: " . (string) $user['email'] . "\nTicket: #" . (int) $ticket['id'] . ' - ' . (string) $ticket['subject'] . "\nNouveau statut: " . $status
+        );
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_response(['ok' => false, 'error' => 'ticket_status_failed'], 500);
+        exit;
+    }
+    ticket_notification_send($pdo, $notificationId);
+    $fresh = load_user_ticket($pdo, (int) $ticket['id'], (int) $user['id']);
+    json_response(['ok' => true] + ticket_detail_payload($pdo, $fresh ?: $ticket));
     exit;
 }
 

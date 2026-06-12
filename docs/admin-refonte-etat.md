@@ -77,7 +77,12 @@ Le systeme de logs a ete ajoute et branche:
 - filtres avances repliables;
 - badges d etat;
 - export filtre en `CSV`, `Excel compatible .xls`, `JSON`, `SQL`;
-- separation explicite des alertes.
+- separation explicite des alertes;
+- tables relues en version metier d abord:
+  - source, evenement, role, action et cible avec libelle lisible;
+  - code technique conserve en second niveau pour le diagnostic;
+  - niveaux localises (`Info`, `Securite`, `Erreur`, `Critique`);
+  - tables renommee es en FR (`Source`, `Evenement`, `Trace`, `Contexte`).
 
 Limitation connue:
 
@@ -115,6 +120,14 @@ Logs admin:
 - `JSON`
 - `SQL`
 
+La surface `Exports` a aussi ete relue cote HIG:
+
+- cartes d export par portee metier;
+- distinction claire entre export de base et historique d autorisations;
+- tableau des autorisations recentes avec badges d etat;
+- types d export localises (`Modele STL`, `Plan PDF`, `Archive ZIP`, `Vectoriel SVG`, `Image PNG`);
+- code technique conserve en second niveau.
+
 ### 8. Soft-delete / archivage utilisateur
 
 Suppression admin remplacee par archivage:
@@ -142,34 +155,58 @@ Suppression admin remplacee par archivage:
 
 ### Billing
 
-La seconde passe "avocat du diable" a releve des points encore ouverts:
+Le gros de la dette HIG billing est ferme:
 
-1. Certains filtres visibles peuvent rester actifs alors qu ils n influencent pas la portee courante.
-   - exemple: `Etat abonnement` reste visible en vue `Paiements`.
+- filtres hors portee retires de la vue et du resume;
+- statuts techniques remplaces par des libelles metier;
+- cartes resume recentrees selon la portee active.
 
-2. Les libelles d etat sont encore trop techniques.
-   - exemple: `active`, `paid`, `pending`, `none`, `canceled`.
+Reste surtout:
 
-3. Les cartes resume billing ne sont pas encore totalement centrees sur la portee active.
+- verification responsive/mobile;
+- eventuel detail paiement dedie si la profondeur billing augmente.
 
 ### Clients
 
-- repertoire encore trop brut;
-- actions encore denses dans la fiche client;
-- terminologie abonnement/statut pas encore harmonisee partout;
-- quelques `Ouvrir` restent visibles hors modal-first ideal.
+- repertoire maintenant scannable avec badges et ouverture directe via ID/courriel;
+- modal client garde ses sous-domaines separes (`Profil`, `Credits`, `Billing`, `Exports`);
+- statuts et plans sont harmonises dans les surfaces principales.
+
+Reste surtout:
+
+- reduire encore la densite de certaines actions dans la fiche client;
+- verifier le comportement mobile du modal detail.
 
 ### Exports
 
-- surface fonctionnelle, mais encore trop utilitaire;
-- manque de hierarchie visuelle;
-- manque de distinction nette entre export base et historique d autorisations.
+- la hierarchie visuelle est maintenant nette entre export de base et autorisations recentes.
+
+Reste surtout:
+
+- verifier la lisibilite mobile des cartes d export et des tableaux larges;
+- eventuellement ouvrir une vue detail si les autorisations deviennent plus nombreuses.
 
 ### Reglages
 
-- bon fond technique, mais la presentation reste trop formulaire-centric;
-- DB, SMTP et Stripe meritent une separation visuelle plus nette;
-- les actions de test/enregistrement doivent etre encore mieux groupees.
+- DB, SMTP et Stripe sont separes en sous-domaines clairs avec resume, configuration et test.
+
+Reste surtout:
+
+- verifier la charge cognitive mobile des longs formulaires;
+- clarifier encore certains messages techniques de succes/erreur si l exploitation devient plus frequente.
+
+### Support
+
+- la file tickets est maintenant plus directe:
+  - clic sur `#ticket` pour ouvrir le detail;
+  - priorites et statuts localises;
+  - detail ticket garde le contexte support;
+  - plus de bouton `Ouvrir` redondant dans la file.
+
+Reste surtout:
+
+- verifier la tenue mobile du fil et des formulaires admin;
+- eventuellement normaliser encore plus l assignation et les infos de contexte.
 
 ### Securite / prod
 

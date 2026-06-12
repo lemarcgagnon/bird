@@ -22,6 +22,7 @@ Points de vigilance:
 - La config DB cPanel/MySQL est branchee dans `/admin` > `Reglages`; SQLite reste le mode local par defaut.
 - Les exports admin de base sont disponibles en CSV, Excel compatible `.xls` et JSON depuis `/admin` > `Exports`.
 - Les logs admin sont maintenant exportables en CSV, Excel compatible `.xls`, JSON et SQL depuis `/admin` > `Logs`, avec filtres rapides et avances.
+- `/admin` suit maintenant une grille HIG active: detail en modal, clic direct sur l element principal des listes, badges metier et separation nette par domaine.
 - Le rate limiting, le CSRF admin, la CSP et le sanitizer SVG complet restent a faire avant production.
 - Le script de packaging/installation cPanel reste a creer avant copie finale sur serveur.
 - Le serveur PHP est maintenant le maitre pour compte/credits/admin/API; l'app/WASM est le client calcul.

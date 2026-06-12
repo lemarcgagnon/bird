@@ -921,6 +921,133 @@ function admin_notification_error_label(string $error): string
     };
 }
 
+function admin_export_type_label(string $type): string
+{
+    return match (strtolower(trim($type))) {
+        'stl' => 'Modele STL',
+        'zip' => 'Archive ZIP',
+        'pdf' => 'Plan PDF',
+        'svg' => 'Vectoriel SVG',
+        'png' => 'Image PNG',
+        default => admin_code_label($type),
+    };
+}
+
+function admin_log_channel_label(string $channel): string
+{
+    return match (strtolower(trim($channel))) {
+        'auth' => 'Authentification',
+        'admin' => 'Administration',
+        'api' => 'API',
+        'email' => 'Email',
+        'stripe' => 'Stripe',
+        'wasm' => 'WASM',
+        'cron' => 'Cron',
+        'browser' => 'Navigateur',
+        'support' => 'Support',
+        default => admin_code_label($channel),
+    };
+}
+
+function admin_log_level_label(string $level): string
+{
+    return match (strtolower(trim($level))) {
+        'debug' => 'Debug',
+        'info' => 'Info',
+        'warning' => 'Alerte',
+        'error' => 'Erreur',
+        'critical' => 'Critique',
+        'security' => 'Securite',
+        default => admin_code_label($level),
+    };
+}
+
+function admin_actor_role_label(string $role): string
+{
+    return match (strtolower(trim($role))) {
+        'admin' => 'Admin',
+        'client', 'user' => 'Client',
+        'system' => 'Systeme',
+        'cron' => 'Cron',
+        default => admin_code_label($role),
+    };
+}
+
+function admin_target_type_label(string $type): string
+{
+    return match (strtolower(trim($type))) {
+        'user' => 'Client',
+        'ticket' => 'Ticket',
+        'ticket_message' => 'Message ticket',
+        'ticket_notification' => 'Notification ticket',
+        'subscription' => 'Abonnement',
+        'payment' => 'Paiement',
+        'export_authorization' => 'Autorisation export',
+        'email_settings' => 'Reglages email',
+        'stripe_settings' => 'Reglages Stripe',
+        'database_settings' => 'Reglages base de donnees',
+        default => admin_code_label($type),
+    };
+}
+
+function admin_log_event_label(string $event): string
+{
+    return match (strtolower(trim($event))) {
+        'login_success' => 'Connexion reussie',
+        'login_failed' => 'Echec de connexion',
+        'export_authorized' => 'Export autorise',
+        'export_consumed' => 'Export consomme',
+        'rate_limit_triggered' => 'Limite atteinte',
+        'admin_access_denied' => 'Acces admin refuse',
+        'email_failed' => 'Envoi email echoue',
+        'php_error' => 'Erreur PHP',
+        'permission_denied' => 'Permission refusee',
+        'csrf_failed' => 'Controle CSRF refuse',
+        'invalid_token' => 'Jeton invalide',
+        'email_sent' => 'Email envoye',
+        'ticket_created' => 'Ticket cree',
+        'ticket_replied' => 'Reponse ticket',
+        'ticket_status_changed' => 'Statut ticket modifie',
+        default => admin_code_label($event),
+    };
+}
+
+function admin_audit_action_label(string $action): string
+{
+    return match (strtolower(trim($action))) {
+        'admin_user_updated' => 'Profil client modifie',
+        'admin_user_suspended' => 'Client suspendu',
+        'admin_settings_changed' => 'Reglages modifies',
+        'send_test_email_failed' => 'Test email echoue',
+        'export_consumed' => 'Export consomme',
+        'login_success' => 'Connexion reussie',
+        default => admin_log_event_label($action),
+    };
+}
+
+function admin_stripe_event_label(string $eventType): string
+{
+    return match (strtolower(trim($eventType))) {
+        'checkout.session.completed' => 'Checkout termine',
+        'invoice.paid' => 'Facture payee',
+        'invoice.payment_failed' => 'Paiement facture echoue',
+        'customer.subscription.created' => 'Abonnement cree',
+        'customer.subscription.updated' => 'Abonnement mis a jour',
+        'customer.subscription.deleted' => 'Abonnement supprime',
+        default => ucwords(str_replace(['.', '_'], ' ', strtolower(trim($eventType)))),
+    };
+}
+
+function admin_table_stack(string $primary, string $secondary = '', bool $secondaryIsCode = false): string
+{
+    $secondaryHtml = '';
+    if (trim($secondary) !== '') {
+        $secondaryContent = $secondaryIsCode ? '<code>' . h($secondary) . '</code>' : h($secondary);
+        $secondaryHtml = '<span class="table-subtle">' . $secondaryContent . '</span>';
+    }
+    return '<div class="table-stack"><strong>' . h($primary) . '</strong>' . $secondaryHtml . '</div>';
+}
+
 function admin_ticket_status_label(string $status): string
 {
     return TICKET_STATUSES[strtolower(trim($status))] ?? admin_code_label($status);
@@ -3133,7 +3260,17 @@ function admin_log_filter_summary(array $filters): string
     foreach ($map as $key => $label) {
         $value = trim((string) ($filters[$key] ?? ''));
         if ($value !== '') {
-            $chips[] = '<li class="filter-chip"><span>' . h($label) . '</span><strong>' . h($value) . '</strong></li>';
+            $display = match ($key) {
+                'log_channel' => admin_log_channel_label($value),
+                'log_event' => admin_log_event_label($value),
+                'log_actor_role' => admin_actor_role_label($value),
+                'log_action' => admin_audit_action_label($value),
+                'log_target_type' => admin_target_type_label($value),
+                'log_outcome' => admin_audit_outcome_label($value),
+                'log_stripe_status' => admin_stripe_status_label($value),
+                default => $value,
+            };
+            $chips[] = '<li class="filter-chip"><span>' . h($label) . '</span><strong>' . h($display) . '</strong></li>';
         }
     }
     if (!$chips) {
@@ -3559,7 +3696,7 @@ function render_app_log_rows(array $logs): string
             'info' => 'info',
             default => 'neutral',
         };
-        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . admin_log_badge($tone, $level) . '</td><td><code>' . h((string) $log['channel']) . '</code></td><td><strong>' . h((string) $log['event_code']) . '</strong></td><td>' . h(admin_log_text((string) $log['message'])) . '</td><td>' . h((string) ($log['user_id'] ?? '')) . '</td><td>' . h((string) ($log['http_status'] ?? '')) . '</td><td><code>' . h(admin_log_text((string) ($log['request_id'] ?? ''), 48)) . '</code></td><td><code>' . h(admin_log_text((string) ($log['context_json'] ?? ''), 160)) . '</code></td></tr>';
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . admin_log_badge($tone, admin_log_level_label($level)) . '</td><td>' . admin_table_stack(admin_log_channel_label((string) $log['channel']), (string) $log['channel'], true) . '</td><td>' . admin_table_stack(admin_log_event_label((string) $log['event_code']), (string) $log['event_code'], true) . '</td><td>' . h(admin_log_text((string) $log['message'])) . '</td><td>' . h((string) ($log['user_id'] ?? '')) . '</td><td>' . h((string) ($log['http_status'] ?? '')) . '</td><td><code>' . h(admin_log_text((string) ($log['request_id'] ?? ''), 48)) . '</code></td><td><code>' . h(admin_log_text((string) ($log['context_json'] ?? ''), 160)) . '</code></td></tr>';
     }
     return $rows ?: '<tr><td colspan="9">Aucun log.</td></tr>';
 }
@@ -3575,7 +3712,7 @@ function render_audit_log_rows(array $logs): string
             'failed' => 'danger',
             default => 'neutral',
         };
-        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['actor_role']) . '</td><td>' . h((string) ($log['actor_user_id'] ?? '')) . '</td><td><strong>' . h((string) $log['action']) . '</strong></td><td>' . h((string) ($log['target_type'] ?? '')) . '</td><td>' . h((string) ($log['target_id'] ?? '')) . '</td><td>' . admin_log_badge($tone, admin_audit_outcome_label($outcome)) . '</td><td>' . h(admin_log_text((string) ($log['reason'] ?? ''), 120)) . '</td><td><code>' . h(admin_log_text((string) ($log['request_id'] ?? ''), 48)) . '</code></td><td><code>' . h(admin_log_text((string) ($log['metadata_json'] ?? ''), 180)) . '</code></td></tr>';
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . admin_table_stack(admin_actor_role_label((string) $log['actor_role']), (string) $log['actor_role'], true) . '</td><td>' . h((string) ($log['actor_user_id'] ?? '')) . '</td><td>' . admin_table_stack(admin_audit_action_label((string) $log['action']), (string) $log['action'], true) . '</td><td>' . admin_table_stack(admin_target_type_label((string) ($log['target_type'] ?? '')), (string) ($log['target_type'] ?? ''), true) . '</td><td>' . h((string) ($log['target_id'] ?? '')) . '</td><td>' . admin_log_badge($tone, admin_audit_outcome_label($outcome)) . '</td><td>' . h(admin_log_text((string) ($log['reason'] ?? ''), 120)) . '</td><td><code>' . h(admin_log_text((string) ($log['request_id'] ?? ''), 48)) . '</code></td><td><code>' . h(admin_log_text((string) ($log['metadata_json'] ?? ''), 180)) . '</code></td></tr>';
     }
     return $rows ?: '<tr><td colspan="10">Aucun audit.</td></tr>';
 }
@@ -3592,7 +3729,7 @@ function render_stripe_log_rows(array $logs): string
             'ignored' => 'neutral',
             default => 'warning',
         };
-        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td><code>' . h((string) $log['stripe_event_id']) . '</code></td><td><strong>' . h((string) $log['event_type']) . '</strong></td><td>' . h((string) ($log['stripe_object_id'] ?? '')) . '</td><td>' . admin_log_badge($tone, admin_stripe_status_label($status)) . '</td><td>' . (int) $log['attempt_count'] . '</td><td><code>' . h(admin_log_text((string) ($log['payload_hash'] ?? ''), 48)) . '</code></td><td>' . h(admin_log_text((string) ($log['error_message'] ?? ''), 180)) . '</td></tr>';
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td><code>' . h((string) $log['stripe_event_id']) . '</code></td><td>' . admin_table_stack(admin_stripe_event_label((string) $log['event_type']), (string) $log['event_type'], true) . '</td><td>' . h((string) ($log['stripe_object_id'] ?? '')) . '</td><td>' . admin_log_badge($tone, admin_stripe_status_label($status)) . '</td><td>' . (int) $log['attempt_count'] . '</td><td><code>' . h(admin_log_text((string) ($log['payload_hash'] ?? ''), 48)) . '</code></td><td>' . h(admin_log_text((string) ($log['error_message'] ?? ''), 180)) . '</td></tr>';
     }
     return $rows ?: '<tr><td colspan="8">Aucun evenement Stripe.</td></tr>';
 }
@@ -3616,7 +3753,7 @@ function render_admin_logs_panel(PDO $pdo): string
 
     $levelOptions = '<option value="">Tous</option>';
     foreach (LOG_LEVELS as $option) {
-        $levelOptions .= '<option value="' . h($option) . '"' . ($filters['log_level'] === $option ? ' selected' : '') . '>' . h($option) . '</option>';
+        $levelOptions .= '<option value="' . h($option) . '"' . ($filters['log_level'] === $option ? ' selected' : '') . '>' . h(admin_log_level_label($option)) . '</option>';
     }
 
     $outcomeOptions = '<option value="">Tous</option>';
@@ -3637,19 +3774,19 @@ function render_admin_logs_panel(PDO $pdo): string
     $channelOptions = '<option value="">Tous</option>';
     $channelStmt = $pdo->query('SELECT DISTINCT channel FROM app_logs WHERE channel IS NOT NULL AND channel <> "" ORDER BY channel ASC LIMIT 30');
     foreach ($channelStmt->fetchAll(PDO::FETCH_COLUMN) as $option) {
-        $channelOptions .= '<option value="' . h((string) $option) . '"' . ($filters['log_channel'] === (string) $option ? ' selected' : '') . '>' . h((string) $option) . '</option>';
+        $channelOptions .= '<option value="' . h((string) $option) . '"' . ($filters['log_channel'] === (string) $option ? ' selected' : '') . '>' . h(admin_log_channel_label((string) $option)) . '</option>';
     }
 
     $actorRoleOptions = '<option value="">Tous</option>';
     $actorRoleStmt = $pdo->query('SELECT DISTINCT actor_role FROM audit_logs WHERE actor_role IS NOT NULL AND actor_role <> "" ORDER BY actor_role ASC LIMIT 20');
     foreach ($actorRoleStmt->fetchAll(PDO::FETCH_COLUMN) as $option) {
-        $actorRoleOptions .= '<option value="' . h((string) $option) . '"' . ($filters['log_actor_role'] === (string) $option ? ' selected' : '') . '>' . h((string) $option) . '</option>';
+        $actorRoleOptions .= '<option value="' . h((string) $option) . '"' . ($filters['log_actor_role'] === (string) $option ? ' selected' : '') . '>' . h(admin_actor_role_label((string) $option)) . '</option>';
     }
 
     $targetTypeOptions = '<option value="">Toutes</option>';
     $targetTypeStmt = $pdo->query('SELECT DISTINCT target_type FROM audit_logs WHERE target_type IS NOT NULL AND target_type <> "" ORDER BY target_type ASC LIMIT 25');
     foreach ($targetTypeStmt->fetchAll(PDO::FETCH_COLUMN) as $option) {
-        $targetTypeOptions .= '<option value="' . h((string) $option) . '"' . ($filters['log_target_type'] === (string) $option ? ' selected' : '') . '>' . h((string) $option) . '</option>';
+        $targetTypeOptions .= '<option value="' . h((string) $option) . '"' . ($filters['log_target_type'] === (string) $option ? ' selected' : '') . '>' . h(admin_target_type_label((string) $option)) . '</option>';
     }
 
     $advancedFiltersOpen = false;
@@ -3662,15 +3799,15 @@ function render_admin_logs_panel(PDO $pdo): string
 
     $appSections = '
       <div class="section-heading log-section-heading"><div><h3>Alertes</h3><p>Evenements de securite, refus d acces et erreurs a prioriser.</p></div><div>' . admin_log_badge('warning', (string) $counts['security']) . '</div></div>
-      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Channel</th><th>Event</th><th>Message</th><th>User</th><th>HTTP</th><th>Request</th><th>Contexte</th></tr></thead><tbody>' . $securityRows . '</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Source</th><th>Evenement</th><th>Message</th><th>Client</th><th>HTTP</th><th>Trace</th><th>Contexte</th></tr></thead><tbody>' . $securityRows . '</tbody></table></div>
       <div class="section-heading log-section-heading"><div><h3>Application</h3><p>Trace technique des API, auth, emails, exports et erreurs runtime.</p></div><div>' . admin_log_badge('info', (string) $counts['application']) . '</div></div>
-      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Channel</th><th>Event</th><th>Message</th><th>User</th><th>HTTP</th><th>Request</th><th>Contexte</th></tr></thead><tbody>' . $appRows . '</tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Source</th><th>Evenement</th><th>Message</th><th>Client</th><th>HTTP</th><th>Trace</th><th>Contexte</th></tr></thead><tbody>' . $appRows . '</tbody></table></div>
     ';
 
     $auditSection = '
       <section class="panel">
         <div class="section-heading log-section-heading"><div><h2>Audit actions</h2><p>Qui a fait quoi, sur quelle cible, avec quel resultat.</p></div><div>' . admin_log_badge('neutral', (string) $counts['audit']) . '</div></div>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Role</th><th>Acteur</th><th>Action</th><th>Cible</th><th>ID</th><th>Issue</th><th>Raison</th><th>Request</th><th>Meta</th></tr></thead><tbody>' . $auditRows . '</tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Role</th><th>Acteur</th><th>Action</th><th>Cible</th><th>ID</th><th>Issue</th><th>Raison</th><th>Trace</th><th>Contexte</th></tr></thead><tbody>' . $auditRows . '</tbody></table></div>
       </section>
     ';
 
@@ -3715,16 +3852,16 @@ function render_admin_logs_panel(PDO $pdo): string
             <summary>Filtres avances pour ' . h(strtolower(admin_log_scope_label($scope))) . '</summary>
             <div class="admin-directory-form admin-log-filters advanced">
           <label><span>Channel</span><select name="log_channel">' . $channelOptions . '</select></label>
-          <label><span>Event</span><input type="search" name="log_event" value="' . h((string) $filters['log_event']) . '" placeholder="login_failed"></label>
+          <label><span>Event</span><input type="search" name="log_event" value="' . h((string) $filters['log_event']) . '" placeholder="Connexion, limite, ticket..."></label>
           <label><span>User ID</span><input type="number" min="1" name="log_user_id" value="' . h((string) $filters['log_user_id']) . '" placeholder="8"></label>
           <label><span>HTTP status</span><input type="number" min="100" max="599" name="log_http_status" value="' . h((string) $filters['log_http_status']) . '" placeholder="403"></label>
           <label><span>Request ID</span><input type="search" name="log_request_id" value="' . h((string) $filters['log_request_id']) . '" placeholder="trace ou fragment"></label>
           <label><span>Role audit</span><select name="log_actor_role">' . $actorRoleOptions . '</select></label>
-          <label><span>Action audit</span><input type="search" name="log_action" value="' . h((string) $filters['log_action']) . '" placeholder="admin_settings_changed"></label>
+          <label><span>Action audit</span><input type="search" name="log_action" value="' . h((string) $filters['log_action']) . '" placeholder="profil, export, reglages..."></label>
           <label><span>Cible audit</span><select name="log_target_type">' . $targetTypeOptions . '</select></label>
           <label><span>Issue audit</span><select name="log_outcome">' . $outcomeOptions . '</select></label>
           <label><span>Statut Stripe</span><select name="log_stripe_status">' . $stripeStatusOptions . '</select></label>
-          <label><span>Type Stripe</span><input type="search" name="log_stripe_type" value="' . h((string) $filters['log_stripe_type']) . '" placeholder="invoice, checkout, customer"></label>
+          <label><span>Type Stripe</span><input type="search" name="log_stripe_type" value="' . h((string) $filters['log_stripe_type']) . '" placeholder="invoice, checkout, subscription"></label>
             </div>
           </details>
           ' . admin_log_filter_summary($filters) . '
@@ -3775,7 +3912,7 @@ function render_admin_page(): void
         } elseif ($status === 'revoked') {
             $revokedExportCount++;
         }
-        $exportRows .= '<tr><td>' . (int) $export['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $export['email']) . '</a></td><td><strong>' . h((string) $export['export_type']) . '</strong></td><td>' . (int) $export['credit_cost'] . '</td><td>' . admin_log_badge(admin_export_status_tone($status), admin_export_status_label($status)) . '</td><td>' . h((string) $export['created_at']) . '</td><td>' . h((string) ($export['consumed_at'] ?: '-')) . '</td></tr>';
+        $exportRows .= '<tr><td>' . (int) $export['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $export['email']) . '</a></td><td>' . admin_table_stack(admin_export_type_label((string) $export['export_type']), (string) $export['export_type'], true) . '</td><td>' . (int) $export['credit_cost'] . '</td><td>' . admin_log_badge(admin_export_status_tone($status), admin_export_status_label($status)) . '</td><td>' . h((string) $export['created_at']) . '</td><td>' . h((string) ($export['consumed_at'] ?: '-')) . '</td></tr>';
     }
     if ($exportRows === '') {
         $exportRows = '<tr><td colspan="7">Aucune autorisation.</td></tr>';

@@ -506,6 +506,21 @@ article strong,
   white-space: nowrap;
 }
 
+.table-stack {
+  display: grid;
+  gap: 2px;
+}
+
+.table-subtle {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.table-subtle code {
+  color: inherit;
+}
+
 .tone-neutral {
   background: color-mix(in srgb, var(--line) 32%, var(--panel));
   color: var(--text);

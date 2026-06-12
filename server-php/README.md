@@ -27,12 +27,12 @@ Etat actuel:
 - `/admin` contient maintenant un repertoire utilisateurs avec recherche, filtres et pagination.
 - `/admin` permet de creer un utilisateur, modifier profil/courriel/statut/credits, reset le mot de passe et supprimer un compte avec confirmation.
 - `/admin` permet aussi de modifier manuellement le statut d'abonnement serveur et de configurer Stripe Checkout/portail/webhook.
-- La fiche client affiche historique credits, abonnements, paiements, exports, tickets, fil de messages et audit admin.
+- La fiche client s ouvre en modal par clic sur l ID ou le courriel et separe `Profil`, `Credits`, `Billing` et `Exports` avec statuts metier lisibles.
 - `/account` permet maintenant login/register/logout, activation par code email, edition profil, affichage credits, historique credits, abonnement, paiements/factures Stripe, creation/liste de tickets, fil de messages, reponses client et changement open/closed.
 - `/admin` permet de repondre aux tickets, changer open/closed, definir priorite et assignation, configurer SMTP cPanel et tester l'envoi email.
 - `/admin` > `Reglages` permet aussi de configurer/tester les coordonnees DB cPanel/MySQL. Enregistrer cree le schema MySQL si la base est vide.
 - `/admin` > `Exports` permet d'exporter la base en CSV, Excel compatible `.xls` ou JSON par portee: base complete, clients, billing, support, credits ou autorisations.
-- `/admin` > `Logs` affiche alertes, logs applicatifs, audit actions et evenements Stripe avec portee par domaine, filtres rapides/avances, badges d'etat et exports CSV/Excel compatible `.xls`/JSON/SQL.
+- `/admin` > `Logs` affiche alertes, logs applicatifs, audit actions et evenements Stripe avec portee par domaine, filtres rapides/avances, badges d'etat, exports CSV/Excel compatible `.xls`/JSON/SQL et tables "metier d abord, code ensuite".
 - Le back-office suit maintenant les conventions `docs/admin-hig.md`: separation par domaine, detail en modal, filtres structures et contexte preserve.
 - `app_logs`, `audit_logs` et `stripe_event_logs` tracent erreurs, securite, actions importantes, emails, tickets, exports, auth et webhooks sans stocker mots de passe, tokens ou secrets.
 - Les notifications tickets sont journalisees dans `ticket_notifications`, puis envoyees immediatement via SMTP si l'envoi est active.
@@ -153,7 +153,7 @@ Comptes utiles:
 
 ## A ajouter
 
-- Admin complet: filtres billing avances, surveillance des echecs email et journal d'audit plus lisible.
+- Revue responsive/mobile complete du back-office (`Support`, `Clients`, `Billing`, `Exports`, `Logs`, `Reglages`).
 - Rate limiting tickets/webhooks. L'auth client et `/api/client-log` sont deja limites.
 - CSRF et authentification admin production; eviter le `key` admin en query string.
 - CSP, retention/rotation des logs, sanitizer SVG complet et plafonds Rust/WASM pour fichiers/meshes/exports.

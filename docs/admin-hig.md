@@ -130,16 +130,18 @@ Ordre recommande:
 Deja aligne sur ces principes:
 
 - `Logs`: portee par domaine, filtres rapides/avances, badges d etat, export filtre, alertes separees.
-- `Support`: base fonctionnelle separee du detail client.
-- `Clients`: detail en modal et clic direct depuis les listes.
+- `Logs`: lecture metier d abord, code technique en second niveau dans les tables denses.
+- `Support`: base fonctionnelle separee du detail client, file tickets sans action `Ouvrir` redondante.
+- `Clients`: detail en modal, clic direct depuis les listes et statuts scannables par badges.
+- `Billing`: portee stable, filtres pertinents selon la vue et statuts metier.
+- `Exports`: portees d export clarifiees et types d export lisibles.
 
 A revoir ensuite avec cette grille:
 
-1. `Support`
-2. `Clients`
-3. `Billing`
-4. `Exports`
-5. `Reglages`
+1. `Logs` mobile et details longs
+2. `Reglages`
+3. `Clients`
+4. `Support`
 
 ## Regle d evolution
 

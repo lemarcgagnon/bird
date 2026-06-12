@@ -6,41 +6,38 @@ Role: ordre de travail pour terminer la refonte `/admin` sans repartir dans un s
 
 ## Priorite de travail
 
-### 1. Billing
+### 1. Logs
 
-Objectif: terminer proprement la passe HIG deja entamee.
-
-Reste a faire:
-
-- masquer ou desactiver les filtres non pertinents selon la portee;
-- remplacer les statuts techniques par des libelles metier coherents;
-- recentrer les cartes resume sur la portee active;
-- verifier le comportement mobile;
-- eventuellement ouvrir detail paiement dans un modal dedie.
-
-Definition of done:
-
-- aucun filtre visible ne ment sur son effet;
-- aucun statut brut type `paid` ou `active` n apparait tel quel;
-- la vue `Paiements` et la vue `Abonnements` ont chacune une lecture evidente.
-
-### 2. Exports
-
-Objectif: transformer une surface utilitaire en surface de travail claire.
+Objectif: finir la conversion "metier d abord, technique ensuite".
 
 Reste a faire:
 
-- distinguer `exports de base` et `autorisations recentes`;
-- ajouter un resume simple des portees exportables;
-- rendre les formats plus lisibles et mieux groupes;
-- verifier que chaque table a une action principale claire;
-- reduire la lecture verticale inutile.
+- franciser les derniers labels de formulaire encore mixtes (`Channel`, `Issue audit`);
+- verifier si certaines colonnes techniques doivent passer en vue detail ou rester inline;
+- eventuellement ajouter une vue detail pour les contextes/JSON longs;
+- verifier la tenue mobile des tables logs.
 
 Definition of done:
 
-- l utilisateur comprend tout de suite quoi exporter et pourquoi;
-- les actions par format sont regroupees proprement;
-- les autorisations recentes ne noient pas les exports de base.
+- la lecture primaire des logs se fait sans connaitre les codes backend;
+- le code technique reste disponible sans encombrer le scan;
+- les filtres et tables parlent le meme langage metier.
+
+### 2. Responsive admin
+
+Objectif: verifier que la nouvelle hierarchie HIG tient sur petites largeurs.
+
+Reste a faire:
+
+- tester `Support`, `Clients`, `Billing`, `Exports`, `Logs`, `Reglages` en largeur reduite;
+- verifier grilles de filtres, tables, modals et tabs;
+- corriger les tables qui doivent passer en lecture plus compacte.
+
+Definition of done:
+
+- aucun bloc important ne casse la lecture mobile;
+- aucun modal detail n oblige a scroller horizontalement de facon incoherente;
+- la hierarchie reste visible sur ecrans compacts.
 
 ### 3. Reglages
 
@@ -72,11 +69,9 @@ Objectif: rendre la gestion client plus scannable et moins dense.
 
 Reste a faire:
 
-- harmoniser les libelles statut/abonnement;
 - reduire les actions concurrentes dans la fiche client;
-- mieux grouper profil, credits, billing, exports et historique;
-- verifier s il reste des patterns `Ouvrir` inutiles;
-- affiner les etats archive/suspendu/actif.
+- verifier la tenue mobile du modal detail;
+- eventuellement separer encore mieux les actions de profil, compte et danger.
 
 Definition of done:
 
@@ -90,8 +85,8 @@ Objectif: faire une passe de finition plutot qu une reconstruction.
 
 Reste a faire:
 
-- verifier le scan rapide de la file de tickets;
 - affiner badges statut/priorite/assignation;
+- verifier la tenue mobile du fil et des formulaires;
 - verifier l ergonomie du fil complet;
 - confirmer que l ouverture detail ticket ne sort jamais du domaine `Support`.
 
@@ -110,6 +105,8 @@ Creer des helpers partages pour:
 - statuts paiements;
 - issues audit;
 - statuts Stripe.
+- types d export;
+- channels et events applicatifs courants.
 
 But:
 
@@ -150,9 +147,9 @@ Mettre a jour au fur et a mesure:
 
 ## Ordre recommande
 
-1. finir `Billing`
-2. refaire `Exports`
-3. refaire `Reglages`
+1. finir `Logs`
+2. faire la revue responsive admin
+3. polir `Reglages`
 4. polir `Clients`
 5. terminer `Support`
 6. reprendre les chantiers transverses

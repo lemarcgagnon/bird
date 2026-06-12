@@ -4,23 +4,6 @@ declare(strict_types=1);
 
 const SMTP_ENCRYPTIONS = ['none', 'tls', 'ssl'];
 
-function setting_get(PDO $pdo, string $key, string $default = ''): string
-{
-    $stmt = $pdo->prepare('SELECT value FROM app_settings WHERE key = ?');
-    $stmt->execute([$key]);
-    $value = $stmt->fetchColumn();
-    return is_string($value) ? $value : $default;
-}
-
-function setting_set(PDO $pdo, string $key, string $value): void
-{
-    $stmt = $pdo->prepare(
-        'INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = CURRENT_TIMESTAMP'
-    );
-    $stmt->execute([$key, $value]);
-}
-
 function mail_settings(PDO $pdo): array
 {
     $envPassword = (string) getenv('NICHOIR_SMTP_PASSWORD');

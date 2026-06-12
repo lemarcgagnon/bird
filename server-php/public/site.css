@@ -152,11 +152,17 @@ main {
 
 article,
 .panel,
-.metrics div {
+.metrics div,
+.metrics a {
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
+}
+
+.metrics a {
+  color: inherit;
+  text-decoration: none;
 }
 
 article h2,
@@ -192,6 +198,149 @@ article strong,
 
 .account-panel p {
   grid-column: 1 / -1;
+}
+
+.tab-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 14px 0 20px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab-nav a,
+.compact-link {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.tab-nav a.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fffaf1;
+}
+
+.tab-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.tab-panel[hidden] {
+  display: none;
+}
+
+.admin-modal-backdrop {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  padding: 22px;
+  background: rgba(36, 33, 29, 0.42);
+}
+
+.admin-modal {
+  width: min(1080px, 100%);
+  max-height: min(880px, calc(100vh - 44px));
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 24px 70px rgba(36, 33, 29, 0.24);
+}
+
+.admin-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.admin-modal-header h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.admin-modal-body {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.modal-tab-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 10px;
+}
+
+.modal-tab-nav button {
+  min-height: 34px;
+  border-color: var(--line);
+  background: transparent;
+  color: var(--accent);
+}
+
+.modal-tab-nav button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fffaf1;
+}
+
+.modal-section {
+  display: grid;
+  gap: 12px;
+}
+
+.modal-section + .modal-section {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.modal-section h3 {
+  margin: 0;
+}
+
+.admin-modal .panel {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.section-heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.section-heading h2,
+.support-layout h3 {
+  margin: 0;
+}
+
+.section-hint {
+  max-width: 380px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: right;
 }
 
 .stat span,
@@ -331,16 +480,52 @@ button {
   gap: 8px;
 }
 
+.export-scope-table td:first-child {
+  min-width: 320px;
+}
+
+.export-scope-table p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
 .billing-actions {
   margin: 12px 0 8px;
 }
 
-.admin-email-form {
+.admin-db-form,
+.admin-email-form,
+.admin-stripe-form {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   align-items: end;
   margin-bottom: 12px;
+}
+
+.admin-db-form .span-all {
+  grid-column: 1 / -1;
+}
+
+.db-driver-choice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  min-height: 40px;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+}
+
+.db-driver-choice legend {
+  padding: 0 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
 .admin-email-test {
@@ -365,6 +550,25 @@ button {
 
 .ticket-form {
   margin-bottom: 16px;
+}
+
+.support-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.4fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.support-compose,
+.support-inbox,
+.ticket-panel {
+  min-width: 0;
+}
+
+.support-compose h3,
+.support-inbox h3,
+.ticket-panel h3 {
+  margin-bottom: 10px;
 }
 
 .ticket-detail,
@@ -494,7 +698,11 @@ footer {
   .admin-actions .subscription-form,
   .admin-actions .danger-form,
   .admin-email-form,
+  .admin-stripe-form,
   .admin-email-test,
+  .section-heading,
+  .support-layout,
+  .admin-modal-header,
   .ticket-admin-forms,
   .ticket-detail-header,
   .client-summary {
@@ -503,5 +711,23 @@ footer {
 
   .ticket-detail-header {
     display: grid;
+  }
+
+  .section-heading {
+    display: grid;
+  }
+
+  .section-hint {
+    max-width: none;
+    text-align: left;
+  }
+
+  .admin-modal-backdrop {
+    align-items: stretch;
+    padding: 10px;
+  }
+
+  .admin-modal {
+    max-height: calc(100vh - 20px);
   }
 }

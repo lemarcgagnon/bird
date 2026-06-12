@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
   credits INTEGER NOT NULL DEFAULT 10,
   subscription_status TEXT NOT NULL DEFAULT 'none',
   status TEXT NOT NULL DEFAULT 'active',
+  stripe_customer_id TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -51,6 +52,7 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   status TEXT NOT NULL DEFAULT 'none',
   stripe_customer_id TEXT NOT NULL DEFAULT '',
   stripe_subscription_id TEXT NOT NULL DEFAULT '',
+  stripe_price_id TEXT NOT NULL DEFAULT '',
   current_period_end TEXT,
   cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -66,8 +68,12 @@ CREATE TABLE IF NOT EXISTS payments (
   currency TEXT NOT NULL DEFAULT 'cad',
   status TEXT NOT NULL DEFAULT 'pending',
   description TEXT NOT NULL DEFAULT '',
+  stripe_customer_id TEXT NOT NULL DEFAULT '',
   stripe_checkout_session_id TEXT NOT NULL DEFAULT '',
   stripe_payment_intent_id TEXT NOT NULL DEFAULT '',
+  stripe_invoice_id TEXT NOT NULL DEFAULT '',
+  invoice_url TEXT NOT NULL DEFAULT '',
+  invoice_pdf TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

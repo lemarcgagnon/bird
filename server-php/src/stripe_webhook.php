@@ -33,6 +33,9 @@ function stripe_period_text(mixed $value): ?string
 
 function stripe_webhook_allowed(): bool
 {
+    if (stripe_settings(db())['webhook_secret'] !== '') {
+        return true;
+    }
     if (function_exists('is_local_request') && is_local_request()) {
         return true;
     }
@@ -58,6 +61,14 @@ function stripe_find_user(PDO $pdo, array $object): ?array
     $subscriptionId = stripe_text($object, 'subscription', stripe_text($object, 'id'));
     $customerId = stripe_text($object, 'customer');
     if ($subscriptionId !== '' || $customerId !== '') {
+        if ($customerId !== '') {
+            $stmt = $pdo->prepare('SELECT * FROM users WHERE stripe_customer_id = ? LIMIT 1');
+            $stmt->execute([$customerId]);
+            $user = $stmt->fetch();
+            if (is_array($user)) {
+                return $user;
+            }
+        }
         $stmt = $pdo->prepare(
             'SELECT users.* FROM users JOIN subscriptions ON subscriptions.user_id = users.id WHERE subscriptions.stripe_subscription_id = ? OR subscriptions.stripe_customer_id = ? ORDER BY subscriptions.id DESC LIMIT 1'
         );
@@ -107,6 +118,14 @@ function stripe_upsert_subscription(PDO $pdo, int $userId, array $object): void
     $status = stripe_text($object, 'status', 'active');
     $subscriptionId = stripe_text($object, 'subscription', stripe_text($object, 'id'));
     $customerId = stripe_text($object, 'customer');
+    $priceId = '';
+    $items = $object['items']['data'] ?? [];
+    if (is_array($items) && isset($items[0]) && is_array($items[0])) {
+        $price = $items[0]['price'] ?? [];
+        if (is_array($price)) {
+            $priceId = stripe_text($price, 'id');
+        }
+    }
     $periodEnd = stripe_period_text($object['current_period_end'] ?? ($object['current_period_end_text'] ?? null));
     $cancelAtPeriodEnd = !empty($object['cancel_at_period_end']) ? 1 : 0;
 
@@ -136,14 +155,17 @@ function stripe_upsert_subscription(PDO $pdo, int $userId, array $object): void
 
     if ($existing) {
         $pdo->prepare(
-            'UPDATE subscriptions SET plan = ?, status = ?, stripe_customer_id = ?, stripe_subscription_id = ?, current_period_end = ?, cancel_at_period_end = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
-        )->execute([$plan, $status, $customerId, $subscriptionId, $periodEnd, $cancelAtPeriodEnd, (int) $existing]);
+            'UPDATE subscriptions SET plan = ?, status = ?, stripe_customer_id = ?, stripe_subscription_id = ?, stripe_price_id = ?, current_period_end = ?, cancel_at_period_end = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?'
+        )->execute([$plan, $status, $customerId, $subscriptionId, $priceId, $periodEnd, $cancelAtPeriodEnd, (int) $existing]);
     } else {
         $pdo->prepare(
-            'INSERT INTO subscriptions (user_id, plan, status, stripe_customer_id, stripe_subscription_id, current_period_end, cancel_at_period_end) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        )->execute([$userId, $plan, $status, $customerId, $subscriptionId, $periodEnd, $cancelAtPeriodEnd]);
+            'INSERT INTO subscriptions (user_id, plan, status, stripe_customer_id, stripe_subscription_id, stripe_price_id, current_period_end, cancel_at_period_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        )->execute([$userId, $plan, $status, $customerId, $subscriptionId, $priceId, $periodEnd, $cancelAtPeriodEnd]);
     }
     $pdo->prepare('UPDATE users SET subscription_status = ? WHERE id = ?')->execute([$status, $userId]);
+    if ($customerId !== '') {
+        $pdo->prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ? AND stripe_customer_id = ?')->execute([$customerId, $userId, '']);
+    }
 }
 
 function stripe_record_payment(PDO $pdo, int $userId, array $object): void
@@ -162,9 +184,68 @@ function stripe_record_payment(PDO $pdo, int $userId, array $object): void
     $status = stripe_text($object, 'payment_status', stripe_text($object, 'status', 'pending'));
     $description = stripe_text($object, 'description', 'Stripe checkout');
     $paymentIntent = stripe_text($object, 'payment_intent');
+    $customerId = stripe_text($object, 'customer');
+    $invoiceId = stripe_text($object, 'invoice');
+    $invoiceUrl = stripe_text($object, 'hosted_invoice_url');
+    $invoicePdf = stripe_text($object, 'invoice_pdf');
+    if ($invoiceId !== '' && ($invoiceUrl === '' || $invoicePdf === '')) {
+        try {
+            $invoice = stripe_api_request($pdo, 'GET', '/v1/invoices/' . rawurlencode($invoiceId));
+            $invoiceUrl = stripe_text($invoice, 'hosted_invoice_url', $invoiceUrl);
+            $invoicePdf = stripe_text($invoice, 'invoice_pdf', $invoicePdf);
+        } catch (Throwable) {
+            // The webhook remains idempotent even if invoice fetch fails.
+        }
+    }
+    if ($invoiceId !== '') {
+        $stmt = $pdo->prepare('SELECT id FROM payments WHERE stripe_invoice_id = ? LIMIT 1');
+        $stmt->execute([$invoiceId]);
+        $paymentId = $stmt->fetchColumn();
+        if ($paymentId) {
+            $pdo->prepare(
+                "UPDATE payments
+                 SET status = ?, stripe_customer_id = ?, stripe_checkout_session_id = CASE WHEN stripe_checkout_session_id = '' THEN ? ELSE stripe_checkout_session_id END, stripe_payment_intent_id = ?, invoice_url = ?, invoice_pdf = ?
+                 WHERE id = ?"
+            )->execute([$status, $customerId, $sessionId, $paymentIntent, $invoiceUrl, $invoicePdf, (int) $paymentId]);
+            return;
+        }
+    }
     $pdo->prepare(
-        'INSERT INTO payments (user_id, amount_cents, currency, status, description, stripe_checkout_session_id, stripe_payment_intent_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
-    )->execute([$userId, $amount, $currency, $status, $description, $sessionId, $paymentIntent]);
+        'INSERT INTO payments (user_id, amount_cents, currency, status, description, stripe_customer_id, stripe_checkout_session_id, stripe_payment_intent_id, stripe_invoice_id, invoice_url, invoice_pdf) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    )->execute([$userId, $amount, $currency, $status, $description, $customerId, $sessionId, $paymentIntent, $invoiceId, $invoiceUrl, $invoicePdf]);
+    if ($customerId !== '') {
+        $pdo->prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ? AND stripe_customer_id = ?')->execute([$customerId, $userId, '']);
+    }
+}
+
+function stripe_record_invoice(PDO $pdo, int $userId, array $object): void
+{
+    $invoiceId = stripe_text($object, 'id');
+    if ($invoiceId === '') {
+        return;
+    }
+    $stmt = $pdo->prepare('SELECT id FROM payments WHERE stripe_invoice_id = ? LIMIT 1');
+    $stmt->execute([$invoiceId]);
+    $paymentId = $stmt->fetchColumn();
+    $amount = stripe_int($object, 'amount_paid', stripe_int($object, 'total'));
+    $currency = strtolower(stripe_text($object, 'currency', 'cad'));
+    $status = stripe_text($object, 'status', 'paid');
+    $customerId = stripe_text($object, 'customer');
+    $paymentIntent = stripe_text($object, 'payment_intent');
+    $invoiceUrl = stripe_text($object, 'hosted_invoice_url');
+    $invoicePdf = stripe_text($object, 'invoice_pdf');
+    $description = stripe_text($object, 'description', 'Stripe invoice');
+    if ($paymentId) {
+        $pdo->prepare('UPDATE payments SET amount_cents = ?, currency = ?, status = ?, description = ?, stripe_customer_id = ?, stripe_payment_intent_id = ?, invoice_url = ?, invoice_pdf = ? WHERE id = ?')
+            ->execute([$amount, $currency, $status, $description, $customerId, $paymentIntent, $invoiceUrl, $invoicePdf, (int) $paymentId]);
+    } else {
+        $pdo->prepare(
+            'INSERT INTO payments (user_id, amount_cents, currency, status, description, stripe_customer_id, stripe_payment_intent_id, stripe_invoice_id, invoice_url, invoice_pdf) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        )->execute([$userId, $amount, $currency, $status, $description, $customerId, $paymentIntent, $invoiceId, $invoiceUrl, $invoicePdf]);
+    }
+    if ($customerId !== '') {
+        $pdo->prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ? AND stripe_customer_id = ?')->execute([$customerId, $userId, '']);
+    }
 }
 
 function stripe_apply_checkout_completed(PDO $pdo, int $userId, array $object): void
@@ -175,9 +256,13 @@ function stripe_apply_checkout_completed(PDO $pdo, int $userId, array $object): 
     $credits = stripe_int($metadata, 'credits');
     if ($credits > 0) {
         $reference = stripe_text($object, 'id', 'stripe_checkout');
-        $pdo->prepare('UPDATE users SET credits = credits + ? WHERE id = ?')->execute([$credits, $userId]);
-        $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
-            ->execute([$userId, $credits, 'stripe_checkout', $reference]);
+        $stmt = $pdo->prepare('SELECT id FROM credit_ledger WHERE user_id = ? AND reason = ? AND reference = ? LIMIT 1');
+        $stmt->execute([$userId, 'stripe_checkout', $reference]);
+        if (!$stmt->fetchColumn()) {
+            $pdo->prepare('UPDATE users SET credits = credits + ? WHERE id = ?')->execute([$credits, $userId]);
+            $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
+                ->execute([$userId, $credits, 'stripe_checkout', $reference]);
+        }
     }
 
     if (stripe_text($object, 'subscription') !== '' || stripe_text($metadata, 'plan') !== '' || stripe_text($metadata, 'offer') !== '') {
@@ -209,19 +294,30 @@ function stripe_process_event(PDO $pdo, string $type, array $object): array
         return ['status' => 'processed', 'user_id' => $userId];
     }
 
+    if (in_array($type, ['invoice.paid', 'invoice.payment_succeeded', 'invoice.payment_failed'], true)) {
+        stripe_record_invoice($pdo, $userId, $object);
+        return ['status' => 'processed', 'user_id' => $userId];
+    }
+
     return ['status' => 'ignored', 'reason' => 'unsupported_event'];
 }
 
 function handle_stripe_webhook(): void
 {
-    if (!stripe_webhook_allowed()) {
-        json_response(['ok' => false, 'error' => 'unsigned_webhook_disabled'], 403);
-        return;
-    }
-
     $raw = file_get_contents('php://input');
     if ($raw === false || trim($raw) === '') {
         json_response(['ok' => false, 'error' => 'empty_payload'], 400);
+        return;
+    }
+    $settings = stripe_settings(db());
+    if ($settings['webhook_secret'] !== '') {
+        $signature = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
+        if (!stripe_verify_webhook_signature($raw, $signature, $settings['webhook_secret'])) {
+            json_response(['ok' => false, 'error' => 'invalid_stripe_signature'], 400);
+            return;
+        }
+    } elseif (!stripe_webhook_allowed()) {
+        json_response(['ok' => false, 'error' => 'unsigned_webhook_disabled'], 403);
         return;
     }
     $event = json_decode($raw, true);

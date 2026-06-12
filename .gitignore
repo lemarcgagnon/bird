@@ -5,3 +5,4 @@
 *.log
 *.tmp
 .DS_Store
+server-php/data/db-config.php

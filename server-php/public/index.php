@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/auth.php';
 require_once __DIR__ . '/../src/mail.php';
+require_once __DIR__ . '/../src/stripe.php';
 require_once __DIR__ . '/../src/pages.php';
 require_once __DIR__ . '/../src/response.php';
 require_once __DIR__ . '/../src/stripe_webhook.php';
@@ -53,6 +54,11 @@ if ($method === 'GET' && $path === '/admin') {
     exit;
 }
 
+if ($method === 'GET' && $path === '/admin/exports/download') {
+    handle_admin_exports_download();
+    exit;
+}
+
 if ($method === 'POST' && $path === '/admin') {
     handle_admin_post();
     exit;
@@ -98,7 +104,12 @@ function ticket_detail_payload(PDO $pdo, array $ticket): array
 }
 
 if ($method === 'GET' && $path === '/api/health') {
-    json_response(['ok' => true, 'service' => 'nichoir-php', 'db' => file_exists(db_path())]);
+    json_response([
+        'ok' => true,
+        'service' => 'nichoir-php',
+        'db' => db_driver() === 'sqlite' ? file_exists(db_path()) : true,
+        'db_driver' => db_driver(),
+    ]);
     exit;
 }
 
@@ -168,6 +179,38 @@ if ($method === 'GET' && $path === '/api/me') {
     exit;
 }
 
+if ($method === 'POST' && $path === '/api/profile') {
+    $user = require_user();
+    $data = read_json_body();
+    $email = strtolower(trim((string) ($data['email'] ?? $user['email'])));
+    $name = trim((string) ($data['display_name'] ?? $user['display_name']));
+    $password = (string) ($data['password'] ?? '');
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254 || strlen($name) > 120) {
+        json_response(['ok' => false, 'error' => 'invalid_profile'], 400);
+        exit;
+    }
+    if ($password !== '' && !string_length_between($password, 8, 200)) {
+        json_response(['ok' => false, 'error' => 'weak_password'], 400);
+        exit;
+    }
+    $pdo = db();
+    try {
+        if ($password !== '') {
+            $stmt = $pdo->prepare('UPDATE users SET email = ?, display_name = ?, password_hash = ? WHERE id = ?');
+            $stmt->execute([$email, $name, password_hash($password, PASSWORD_DEFAULT), (int) $user['id']]);
+        } else {
+            $stmt = $pdo->prepare('UPDATE users SET email = ?, display_name = ? WHERE id = ?');
+            $stmt->execute([$email, $name, (int) $user['id']]);
+        }
+        $fresh = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+        $fresh->execute([(int) $user['id']]);
+        json_response(['ok' => true, 'user' => public_user($fresh->fetch())]);
+    } catch (PDOException $e) {
+        json_response(['ok' => false, 'error' => 'email_exists'], 409);
+    }
+    exit;
+}
+
 if ($method === 'GET' && $path === '/api/credits/ledger') {
     $user = require_user();
     $stmt = db()->prepare('SELECT delta, reason, reference, created_at FROM credit_ledger WHERE user_id = ? ORDER BY id DESC LIMIT 50');
@@ -181,7 +224,7 @@ if ($method === 'GET' && $path === '/api/billing/summary') {
     $pdo = db();
     $subscription = $pdo->prepare('SELECT provider, plan, status, current_period_end, cancel_at_period_end, updated_at FROM subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT 1');
     $subscription->execute([(int) $user['id']]);
-    $payments = $pdo->prepare('SELECT id, amount_cents, currency, status, description, created_at FROM payments WHERE user_id = ? ORDER BY id DESC LIMIT 20');
+    $payments = $pdo->prepare('SELECT id, amount_cents, currency, status, description, stripe_invoice_id, invoice_url, invoice_pdf, created_at FROM payments WHERE user_id = ? ORDER BY id DESC LIMIT 20');
     $payments->execute([(int) $user['id']]);
     json_response([
         'ok' => true,
@@ -202,17 +245,37 @@ if ($method === 'POST' && $path === '/api/checkout/stripe-link') {
     $user = require_user();
     $data = read_json_body();
     $offer = strtolower(trim((string) ($data['offer'] ?? 'credits')));
-    if (!in_array($offer, ['credits', 'atelier', 'pro'], true)) {
+    if (!in_array($offer, STRIPE_OFFERS, true)) {
         json_response(['ok' => false, 'error' => 'invalid_offer'], 400);
         exit;
     }
-    json_response([
-        'ok' => true,
-        'checkout_url' => 'https://checkout.stripe.com/c/pay/cs_test_placeholder',
-        'mode' => 'placeholder',
-        'offer' => $offer,
-        'user' => public_user($user),
-    ]);
+    try {
+        $session = stripe_create_checkout_session(db(), $user, $offer);
+        json_response([
+            'ok' => true,
+            'checkout_url' => (string) ($session['url'] ?? ''),
+            'session_id' => (string) ($session['id'] ?? ''),
+            'mode' => (string) ($session['mode'] ?? ''),
+            'offer' => $offer,
+        ]);
+    } catch (Throwable $e) {
+        json_response(['ok' => false, 'error' => 'stripe_checkout_failed', 'detail' => $e->getMessage()], 502);
+    }
+    exit;
+}
+
+if ($method === 'POST' && $path === '/api/billing/portal') {
+    $user = require_user();
+    try {
+        $session = stripe_create_portal_session(db(), $user);
+        json_response([
+            'ok' => true,
+            'portal_url' => (string) ($session['url'] ?? ''),
+            'session_id' => (string) ($session['id'] ?? ''),
+        ]);
+    } catch (Throwable $e) {
+        json_response(['ok' => false, 'error' => 'stripe_portal_failed', 'detail' => $e->getMessage()], 502);
+    }
     exit;
 }
 

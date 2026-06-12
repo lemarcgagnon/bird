@@ -233,6 +233,8 @@ Mesures deja en place:
 - Champs compte/tickets limites cote serveur.
 - Admin CRUD centralise cote PHP; le WASM ne gere pas les clients.
 - SMTP tickets configurable dans `/admin`; le mot de passe peut venir de `NICHOIR_SMTP_PASSWORD` pour eviter de stocker le secret dans SQLite en production.
+- DB cPanel/MySQL configurable dans `/admin`; les variables `NICHOIR_DB_*` restent preferees en production, sinon le fichier local `server-php/data/db-config.php` est ignore par Git.
+- Exports admin de base disponibles en CSV/Excel/JSON; ils doivent rester reserves a l'admin et ne jamais inclure les secrets ou password hashes.
 
 Risques restants avant production:
 
@@ -240,11 +242,12 @@ Risques restants avant production:
 - Ajouter rate limiting sur login, inscription, tickets et webhooks.
 - Ajouter CSRF robuste si l'admin passe a une session/cookie.
 - Remplacer le `key` admin en query string par une authentification admin propre.
-- Brancher la vraie signature Stripe (`Stripe-Signature`) et desactiver tout webhook non signe hors local.
+- Configurer `NICHOIR_STRIPE_WEBHOOK_SECRET` en production pour refuser les webhooks Stripe non signes.
 - Ajouter une politique CSP adaptee aux pages PHP et a l'app.
 - Remplacer ou completer le hard delete admin par une politique de retention/soft delete.
 - Revoir le stockage du bearer token dans `localStorage` si l'app devient exposee a du contenu tiers.
 - Proteger les secrets SMTP comme les secrets Stripe: acces admin strict, variables serveur preferees, pas de commit de base contenant un vrai mot de passe.
+- Proteger les credentials DB: ne pas exposer `server-php/data`, pointer le document root vers `server-php/public`, ne jamais committer `db-config.php`.
 
 ## 7. Plan d'implementation recommande
 
@@ -280,7 +283,7 @@ Risques restants avant production:
 - Tester SQLite local. Fait.
 - Ajouter API pour compte, credits, abonnement, tickets et messages. Fait, avec limites de base.
 - Ajouter landing page, espace client et admin PHP. Fait.
-- Ajouter Stripe Checkout link puis webhook PHP. En place en placeholder/dev; signature reelle reste a brancher.
+- Ajouter Stripe Checkout link puis webhook PHP. Fait: Checkout/portail/factures et signature webhook quand le secret Stripe est configure.
 - Garder calcul client-side. Fait.
 
 ## 8. Checklist rapide
@@ -299,5 +302,5 @@ Risques restants avant production:
 - [x] Revalider statut/credits au debit d'export.
 - [ ] Ajouter rate limiting serveur.
 - [ ] Ajouter CSRF/admin auth production.
-- [ ] Activer signature Stripe reelle.
+- [x] Activer signature Stripe reelle quand un webhook secret est configure.
 - [x] Ajouter tests avec entrees invalides pour clamps et SVG dangereux.

@@ -39,7 +39,7 @@ Separation des responsabilites:
 
 - `app/`: interface navigateur, viewer Three.js, appels API PHP et exports. Voir `app/README.md`.
 - `wasm/`: coeur Rust compile en WebAssembly. Voir `wasm/README.md`.
-- `server-php/`: serveur cible PHP/SQLite pour site, API, admin, comptes, credits et Stripe. Voir `server-php/README.md`.
+- `server-php/`: serveur cible PHP SQLite/MySQL pour site, API, admin, comptes, credits, tickets, Stripe et cPanel. Voir `server-php/README.md`.
 - `server/`: prototype FastAPI historique de licence, secondaire. Voir `server/README.md`.
 - `docs/`: roadmap et securite. Voir `docs/README.md`.
 - `scripts/`: validations locales, surtout smoke tests mesh. Voir `scripts/README.md`.
@@ -114,7 +114,7 @@ server/
   Ancienne API FastAPI/SQLite de prototype, gardee comme reference historique
 
 server-php/
-  Backend PHP/SQLite local: site public, compte, admin, credits, billing placeholder, autorisations, tickets
+  Backend PHP local/cPanel: site public, compte, admin, credits, billing Stripe, autorisations, tickets, config DB
 
 scripts/
   mesh-smoke.mjs  Smoke test mesh/STL
@@ -240,7 +240,7 @@ Points importants:
 
 ## Backend PHP local
 
-Le dossier `server-php/` contient le backend local cible pour tester le site PHP, les comptes, les credits, le billing placeholder, l'autorisation d'export et les tickets.
+Le dossier `server-php/` contient le backend cible pour tester le site PHP, les comptes, les credits, le billing Stripe, l'autorisation d'export et les tickets. SQLite est le mode local; MySQL/cPanel est supporte via `/admin` > `Reglages`.
 
 Demarrage:
 
@@ -249,24 +249,32 @@ cd /home/marc/Documents/nichoir16
 php -S 127.0.0.1:8021 -t server-php/public
 ```
 
-Cette API ne fait pas la geometrie. Elle valide la session, retourne l'etat du compte, expose l'historique credits et billing, autorise les exports, debite les credits apres generation locale reussie et servira plus tard a integrer Stripe.
+Cette API ne fait pas la geometrie. Elle valide la session, retourne l'etat du compte, expose l'historique credits et billing, cree les sessions Stripe, autorise les exports et debite les credits apres generation locale reussie.
 
 Etat actuel:
 
 - PHP sert deja `/`, `/pricing`, `/account`, `/admin` et `/api/...`.
-- `/account` gere login/register/logout, credits, historique, abonnement, paiements synchronises, creation de tickets, fil de messages, reponses client et statut open/closed.
-- `/admin` gere repertoire utilisateurs, creation, edition profil, reset mot de passe, suppression confirmee, credits, suspension/reactivation, abonnement manuel, exports, tickets avec fil/reponse/statut/priorite/assignation, configuration SMTP cPanel, paiements et audit.
-- `/stripe/webhook` journalise les evenements locaux de dev et peut appliquer `checkout.session.completed` ou `customer.subscription.*`.
+- `/account` gere login/register/logout, edition profil, credits, historique, abonnement, portail Stripe, paiements/factures, creation de tickets, fil de messages, reponses client et statut open/closed.
+- `/admin` gere repertoire utilisateurs, creation, edition profil, reset mot de passe, suppression confirmee, credits, suspension/reactivation, abonnement manuel, tickets avec fil/reponse/statut/priorite/assignation, configuration DB cPanel/MySQL, configuration Stripe, configuration SMTP cPanel, paiements/factures et exports DB CSV/Excel/JSON.
+- `/stripe/webhook` verifie `Stripe-Signature` quand le secret est configure, journalise les evenements et peut appliquer `checkout.session.completed`, `invoice.*` ou `customer.subscription.*`.
 - L'app WASM garde seulement un resume compte et des liens vers le site; le serveur PHP reste la source de verite. Hors localhost, le login demo rapide est desactive sauf config explicite `window.NICHOIR_DEMO_ACCOUNT`.
 - Garde-fous API ajoutes: CORS configurable par `NICHOIR_CORS_ORIGINS`, payload JSON limite, validation stricte des offres/types d'export, revalidation du compte au debit, limites serveur sur tickets/profil et headers HTTP de base.
 - Garde-fous app ajoutes: limite `2 Mo` sur les fichiers decor importes et configuration PHP/demo hors build local.
-- Stripe Checkout reste actuellement un placeholder. Avant production, il faut ajouter Checkout reel et verifier `Stripe-Signature` sur le webhook.
+- Stripe Checkout/portail/factures sont branches cote PHP. Avant production, il faut tester avec les vrais price IDs, activer le portail dans le dashboard Stripe et configurer `NICHOIR_STRIPE_WEBHOOK_SECRET`.
+
+Deploiement cPanel:
+
+- pointer le document root vers `server-php/public`;
+- garder `server-php/src`, `server-php/data` et `server-php/migrations` hors web public;
+- creer la base et l'utilisateur MySQL dans cPanel, puis tester/enregistrer dans `/admin` > `Reglages` > `Base de donnees`;
+- le fichier local `server-php/data/db-config.php` est ignore par Git;
+- prochaine etape: ajouter un script de packaging/installation cPanel pour automatiser ces controles.
 
 Risques securite encore ouverts avant production:
 
 - Ajouter rate limiting sur login, inscription, tickets et webhooks.
 - Ajouter CSRF et authentification admin propre; ne pas utiliser un `key` en query string en production.
-- Activer la verification officielle `Stripe-Signature`.
+- Configurer `NICHOIR_STRIPE_WEBHOOK_SECRET` et tester les webhooks Stripe live.
 - Ajouter CSP, rate limiting, CSRF admin et plafonds triangles/STL/ZIP. Sanitizer SVG et clamps Rust/WASM ont maintenant une premiere passe.
 
 ## Roadmap courte
@@ -279,9 +287,9 @@ Risques securite encore ouverts avant production:
 - Renforcer la validation securite des fichiers et inputs.
 - Etudier une union booleenne/CSG pour produire une maison complete fusionnee.
 - Completer le contenu produit de la landing page et de `/pricing`.
-- Ajouter edition profil, portail Stripe et factures reelles dans `/account`.
 - Ajouter filtres billing avances, surveillance des echecs email et audit lisible dans `/admin`.
-- Remplacer le placeholder Stripe par Checkout reel et verification `Stripe-Signature`.
+- Tester Stripe live avec les vrais price IDs et le portail active dans Stripe.
+- Ajouter un script `package_cpanel` et un `install_check.php` pour preparer la copie vers cPanel.
 
 ## Branche de sauvegarde
 

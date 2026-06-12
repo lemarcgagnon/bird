@@ -1,6 +1,6 @@
 # Nichoir WASM - reste a faire
 
-Date: 2026-06-10
+Date: 2026-06-12
 
 Objectif: terminer la migration de `nichoir_v16.html` vers une app Rust/WASM ou la logique metier, la geometrie, les calculs et les exports sont cote client. Le serveur futur ne doit servir qu'a l'autorisation/licence.
 
@@ -319,7 +319,7 @@ Architecture web cible:
 ### Phase D - Gestion compte/API + autorisation d'export
 
 - Etat actuel au 2026-06-11:
-  - Backend local PHP/SQLite cree dans `server-php/`.
+  - Backend local PHP SQLite/MySQL cree dans `server-php/`.
   - Migration SQLite initiale creee.
   - Endpoints `health`, `register`, `login`, `logout`, `me`, `credits/ledger`, `billing/summary`, `stripe-link`, `exports/authorize`, `exports/consume`, `tickets` ajoutes.
   - Utilisateur demo cree pour developpement: `demo@nichoir.local` / `password123`.
@@ -327,9 +327,9 @@ Architecture web cible:
   - Modal `Compte` ajoute dans l'app, avec login/register/logout/demo et affichage de `GET /api/me`.
   - Exports premium branches sur `exports/authorize` avant generation locale, puis `exports/consume` apres succes.
   - Identifiants demo limites au localhost/config explicite; hors localhost, le login demo rapide est desactive.
-  - Bouton Stripe placeholder branche sur `POST /api/checkout/stripe-link`.
+  - Boutons Stripe branches sur `POST /api/checkout/stripe-link` et `POST /api/billing/portal`.
   - Squelette site PHP ajoute: `/`, `/pricing`, `/account`, `/admin`.
-  - Admin dev branche sur SQLite: repertoire utilisateurs, recherche, filtres, pagination, credits totaux, autorisations recentes, tickets ouverts.
+  - Admin dev branche sur SQLite/MySQL: repertoire utilisateurs, recherche, filtres, pagination, credits totaux, autorisations recentes, tickets ouverts.
   - CRUD utilisateur admin ajoute: creation, edition courriel/nom/statut/credits, reset mot de passe, suppression avec confirmation.
   - Fiche client admin ajoutee: recherche courriel, historique credits, exports, tickets, audit admin.
   - Actions admin ajoutees: ajustement manuel des credits, suspension/reactivation de compte.
@@ -340,13 +340,20 @@ Architecture web cible:
   - Endpoint local `/stripe/webhook` ajoute: journalisation idempotente des events, traitement dev de `checkout.session.completed` et `customer.subscription.*`.
   - `/admin` reste ouvert en local; en production, il doit utiliser `NICHOIR_ADMIN_KEY`.
   - Tickets completes en premiere version produit: fil de messages client/admin, reponses support, reponses client, statut open/closed, priorite, assignation, outbox notification email SQLite et envoi SMTP configurable depuis `/admin`.
+  - Espace client complete pour edition profil, Checkout Stripe, portail client et liens de factures.
+  - Admin complete pour configuration Stripe et affichage des factures dans les paiements.
+  - Webhook Stripe complete avec verification `Stripe-Signature` quand un secret est configure, factures `invoice.*`, abonnements et idempotence credits/paiements.
+  - Admin restructure par onglets metier avec details client/ticket en modales.
+  - Exports admin de base ajoutes: CSV, Excel compatible `.xls` et JSON par portee (`all`, `clients`, `billing`, `support`, `credits`, `exports`).
+  - Configuration DB cPanel/MySQL ajoutee dans `/admin` > `Reglages`; SQLite reste le mode local par defaut.
 
 - Le backend local PHP + SQLite teste maintenant le flux compte/credits/autorisation.
 - Les tables utilisateurs, sessions, credits, abonnements, paiements, consommations, tickets et messages sont initialisees.
 - `GET /api/me` retourne l'etat du compte, le solde credits et le statut abonnement.
 - `GET /api/billing/summary` retourne l'abonnement courant et les paiements que Stripe aura synchronises.
-- `POST /api/checkout/stripe-link` retourne un lien Stripe placeholder genere cote serveur.
-- `POST /stripe/webhook` peut deja appliquer un payload local/dev pour remplir `payments`, `subscriptions` et les credits achetes.
+- `POST /api/checkout/stripe-link` cree une session Checkout Stripe si Stripe est configure.
+- `POST /api/billing/portal` cree une session portail client Stripe.
+- `POST /stripe/webhook` peut appliquer les evenements Stripe signes pour remplir `payments`, `subscriptions`, factures et credits achetes.
 - `POST /api/exports/authorize` recoit seulement le type d'export demande (`stl`, `pdf`, `zip`, `png`, `svg`) et retourne une autorisation courte si le compte est valide.
 - `POST /api/exports/consume` confirme/debite les credits apres export local reussi.
 - Les exports premium demandent maintenant cette autorisation avant generation.
@@ -356,14 +363,13 @@ Travail restant dans cette phase:
 
 - Completer la landing page PHP publique (`/`) avec contenu produit reel.
 - Completer page prix/offres (`/pricing`) pour credits et abonnements.
-- Completer espace client (`/account`) pour portail Stripe, factures reelles et edition profil.
 - Completer admin prive (`/admin`) pour filtres billing avances, surveillance des echecs email et audit lisible.
 - Retirer les identifiants demo visibles du build de production.
 - Ajouter une configuration dev/prod pour URL API, CORS, demo user et affichage debug.
 - Durcir la configuration email production: secret SMTP via variable serveur si possible, suivi des echecs et retry manuel/automatique.
-- Remplacer Stripe placeholder par Checkout reel.
-- Ajouter verification officielle `Stripe-Signature` avant d'exposer `/stripe/webhook` en production.
-- Preparer migration SQLite vers MySQL si le deploiement de production le demande.
+- Tester Stripe en mode live/test avec les vrais price IDs, le portail active dans Stripe et `NICHOIR_STRIPE_WEBHOOK_SECRET`.
+- Tester la connexion MySQL avec les vraies coordonnees cPanel et verifier le schema cree sur le serveur.
+- Creer le script de packaging/installation cPanel: zip propre, verification extensions PHP, `data/` writable, test DB, schema, SMTP optionnel.
 
 Controle anti-drift:
 

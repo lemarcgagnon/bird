@@ -15,6 +15,9 @@ Regles d'usage:
 
 Points de vigilance:
 
-- Stripe est encore placeholder cote Checkout.
-- La signature Stripe reelle, le rate limiting, le CSRF admin, la CSP et le sanitizer SVG complet restent a faire avant production.
+- Stripe Checkout/portail/factures sont maintenant branches cote PHP, avec signature webhook quand le secret Stripe est configure.
+- La config DB cPanel/MySQL est branchee dans `/admin` > `Reglages`; SQLite reste le mode local par defaut.
+- Les exports admin de base sont disponibles en CSV, Excel compatible `.xls` et JSON depuis `/admin` > `Exports`.
+- Le rate limiting, le CSRF admin, la CSP et le sanitizer SVG complet restent a faire avant production.
+- Le script de packaging/installation cPanel reste a creer avant copie finale sur serveur.
 - Le serveur PHP est maintenant le maitre pour compte/credits/admin/API; l'app/WASM est le client calcul.

@@ -263,18 +263,19 @@ article strong,
   display: grid;
   align-items: center;
   justify-items: center;
-  padding: 22px;
+  padding: 12px;
   background: rgba(36, 33, 29, 0.42);
 }
 
 .admin-modal {
-  width: min(1080px, 100%);
-  max-height: min(880px, calc(100vh - 44px));
+  width: min(1360px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
   box-shadow: 0 24px 70px rgba(36, 33, 29, 0.24);
+  outline: none;
 }
 
 .admin-modal-header {
@@ -297,8 +298,8 @@ article strong,
 
 .admin-modal-body {
   display: grid;
-  gap: 16px;
-  padding: 18px;
+  gap: 18px;
+  padding: 20px;
 }
 
 .modal-tab-nav {

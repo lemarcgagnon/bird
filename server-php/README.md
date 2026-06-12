@@ -36,6 +36,8 @@ Etat actuel:
 - Le back-office suit maintenant les conventions `docs/admin-hig.md`: separation par domaine, detail en modal, filtres structures et contexte preserve.
 - `/admin` > `Billing` evite maintenant la longue pile verticale: la synthese et les filtres restent en tete, puis le detail bascule via sous-onglets `Abonnements` / `Paiements` quand la portee est `Tout`.
 - Toutes les tables du back-office (`Support`, `Clients`, `Billing`, `Exports`, `Logs`, `Reglages`) sont maintenant triables par colonne et exposent `Afficher 10 / 25 / 50 / 100 / Toutes`, avec `10` par defaut. Les tables du modal client (`Credits`, `Billing`, `Exports`) suivent le meme modele.
+- Les ecrans admin conservent maintenant mieux la zone de travail: tri, filtres et formulaires internes restaurent la position de scroll sur `/admin`, pour eviter les sauts de viewport pendant l'usage.
+- Les modals admin ont aussi ete agrandis et stabilises: focus sur le dialog sans scroll parasite, surface desktop plus large et comportement mobile plein ecran conserve.
 - `app_logs`, `audit_logs` et `stripe_event_logs` tracent erreurs, securite, actions importantes, emails, tickets, exports, auth et webhooks sans stocker mots de passe, tokens ou secrets.
 - Les notifications tickets sont journalisees dans `ticket_notifications`, puis envoyees immediatement via SMTP si l'envoi est active.
 - `GET /api/credits/ledger` retourne l'historique credits du client connecte.

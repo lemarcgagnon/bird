@@ -160,6 +160,9 @@ Le gros de la dette HIG billing est ferme:
 - filtres hors portee retires de la vue et du resume;
 - statuts techniques remplaces par des libelles metier;
 - cartes resume recentrees selon la portee active.
+- La zone de travail reste maintenant plus stable pendant l'usage:
+  - restauration du scroll apres tri, filtres et soumissions internes;
+  - moins de sauts entre le haut et le bas de `/admin`.
 
 Reste surtout:
 
@@ -171,6 +174,7 @@ Reste surtout:
 - repertoire maintenant scannable avec badges et ouverture directe via ID/courriel;
 - modal client garde ses sous-domaines separes (`Profil`, `Credits`, `Billing`, `Exports`);
 - statuts et plans sont harmonises dans les surfaces principales.
+- les modals prennent plus de place sur desktop et n'imposent plus un focus initial qui fait sauter le viewport.
 
 Reste surtout:
 

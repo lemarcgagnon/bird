@@ -49,7 +49,7 @@ function page_response(string $title, string $body, string $active = '', int $st
     echo '<title>' . h($title) . ' - Nichoir</title>';
     echo '<style>';
     echo file_get_contents(__DIR__ . '/../public/site.css') ?: '';
-    echo '</style></head><body>';
+    echo '</style></head><body data-page="' . h($active) . '">';
     echo '<header class="site-header"><a class="brand" href="/">Nichoir</a><nav>';
     foreach ($nav as $href => $label) {
         $class = $active === $href ? ' class="active"' : '';
@@ -61,9 +61,55 @@ function page_response(string $title, string $body, string $active = '', int $st
     echo '<footer>Rust/WASM pour les plans et exports. PHP pour comptes, credits, admin et Stripe.</footer>';
     echo '<script>
       (() => {
+        const isAdminPage = document.body?.dataset.page === "/admin";
+        const adminScrollKey = "nichoir:admin:scroll";
+
+        const saveAdminScroll = () => {
+          if (!isAdminPage) return;
+          sessionStorage.setItem(adminScrollKey, JSON.stringify({
+            path: window.location.pathname,
+            y: window.scrollY,
+            at: Date.now(),
+          }));
+        };
+
+        const restoreAdminScroll = () => {
+          if (!isAdminPage) return;
+          const raw = sessionStorage.getItem(adminScrollKey);
+          if (!raw) return;
+          try {
+            const saved = JSON.parse(raw);
+            const freshEnough = typeof saved?.at === "number" && (Date.now() - saved.at) < 15000;
+            if (saved?.path === window.location.pathname && typeof saved?.y === "number" && freshEnough) {
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  window.scrollTo(0, saved.y);
+                });
+              });
+            }
+          } catch (_err) {
+          }
+          sessionStorage.removeItem(adminScrollKey);
+        };
+
+        if (isAdminPage) {
+          document.addEventListener("click", (event) => {
+            const link = event.target.closest("a[href]");
+            if (!link || link.hasAttribute("data-tab-target")) return;
+            const href = link.getAttribute("href") || "";
+            if (href.startsWith("/admin")) saveAdminScroll();
+          }, true);
+
+          document.addEventListener("submit", (event) => {
+            const form = event.target;
+            if (!(form instanceof HTMLFormElement)) return;
+            const action = form.getAttribute("action") || "";
+            if (action.startsWith("/admin")) saveAdminScroll();
+          }, true);
+        }
+
         const tabNavs = document.querySelectorAll("[data-tab-nav]");
-        if (!tabNavs.length) return;
-        function activateTabs() {
+        const activateTabs = () => {
           let hash = window.location.hash.replace("#", "");
           if (!hash && window.location.pathname === "/admin") {
             const params = new URLSearchParams(window.location.search);
@@ -86,19 +132,22 @@ function page_response(string $title, string $body, string $active = '', int $st
               panel.hidden = panel.id !== active;
             });
           });
+        };
+
+        if (tabNavs.length) {
+          document.addEventListener("click", (event) => {
+            const tab = event.target.closest("[data-tab-target]");
+            if (!tab) return;
+            const target = tab.dataset.tabTarget || "";
+            if (target) {
+              event.preventDefault();
+              history.replaceState(null, "", "#" + target);
+              activateTabs();
+            }
+          });
+          window.addEventListener("hashchange", activateTabs);
+          activateTabs();
         }
-        document.addEventListener("click", (event) => {
-          const tab = event.target.closest("[data-tab-target]");
-          if (!tab) return;
-          const target = tab.dataset.tabTarget || "";
-          if (target) {
-            event.preventDefault();
-            history.replaceState(null, "", "#" + target);
-            activateTabs();
-          }
-        });
-        window.addEventListener("hashchange", activateTabs);
-        activateTabs();
 
         document.addEventListener("change", (event) => {
           const select = event.target.closest("[data-auto-submit-select]");
@@ -130,14 +179,21 @@ function page_response(string $title, string $body, string $active = '', int $st
 
         const modal = document.querySelector("[data-admin-modal]");
         if (modal) {
-          const close = modal.querySelector("[data-modal-close]");
-          if (close) close.focus();
+          if (typeof modal.focus === "function") {
+            try {
+              modal.focus({ preventScroll: true });
+            } catch (_err) {
+              modal.focus();
+            }
+          }
           document.addEventListener("keydown", (event) => {
             if (event.key === "Escape" && modal.dataset.closeUrl) {
               window.location.href = modal.dataset.closeUrl;
             }
           });
         }
+
+        restoreAdminScroll();
       })();
     </script>';
     echo '</body></html>';
@@ -2657,7 +2713,7 @@ function render_admin_modal_shell(string $title, string $closeUrl, string $body)
 {
     return '
       <div class="admin-modal-backdrop" data-admin-modal data-close-url="' . h($closeUrl) . '">
-        <article class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title">
+        <article class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title" tabindex="-1">
           <header class="admin-modal-header">
             <h2 id="admin-modal-title">' . h($title) . '</h2>
             <a class="secondary compact-link" href="' . h($closeUrl) . '" data-modal-close>Fermer</a>

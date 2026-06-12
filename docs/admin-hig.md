@@ -31,6 +31,8 @@ Faire de `/admin` un outil d'exploitation lisible, stable et peu fatigant a util
 - L onglet actif reste visible.
 - Ouvrir un modal ne doit pas faire perdre le contexte du domaine d origine.
 - Retour, fermeture et liens internes doivent ramener a la bonne section avec les bons filtres.
+- Les interactions internes (`tri`, `pagination`, `Afficher X`, filtres, soumissions admin) doivent conserver la zone de travail au lieu de renvoyer l utilisateur en haut de page.
+- Le viewport ne doit pas sauter a l ouverture d un detail ou au retour d un modal; le focus se deplace, mais sans scroll parasite.
 
 ### 5. Hierarchie visuelle claire
 
@@ -98,6 +100,8 @@ Le modal doit:
 - avoir un titre metier net;
 - separer les sous-sections par tabs internes seulement si le detail est reellement large;
 - conserver une URL de fermeture ramenant au bon onglet et aux bons filtres.
+- utiliser l espace disponible franchement sur desktop, sans devenir une petite fenetre perdue dans la page;
+- rester plein ecran ou quasi plein ecran sur mobile, avec scroll interne stable.
 
 ### Filtres
 
@@ -135,6 +139,7 @@ Deja aligne sur ces principes:
 - `Clients`: detail en modal, clic direct depuis les listes et statuts scannables par badges.
 - `Billing`: portee stable, filtres pertinents selon la vue et statuts metier.
 - `Exports`: portees d export clarifiees et types d export lisibles.
+- `/admin`: continuite d usage mieux preservee, avec restauration de scroll apres interactions internes et modals plus larges.
 
 A revoir ensuite avec cette grille:
 

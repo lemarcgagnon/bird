@@ -911,6 +911,16 @@ function admin_notification_status_tone(string $status): string
     };
 }
 
+function admin_notification_error_label(string $error): string
+{
+    return match (strtolower(trim($error))) {
+        '' => '-',
+        'smtp_disabled' => 'SMTP inactif',
+        'smtp_demo_failure' => 'Echec du test SMTP',
+        default => admin_code_label($error),
+    };
+}
+
 function admin_ticket_status_label(string $status): string
 {
     return TICKET_STATUSES[strtolower(trim($status))] ?? admin_code_label($status);
@@ -2151,9 +2161,9 @@ function render_open_tickets_panel(PDO $pdo): string
         $href = admin_redirect_url(['ticket_id' => (int) $ticket['id']]) . '#admin-support';
         $clientHref = admin_client_modal_url((int) $ticket['user_id'], 'admin-support', 'profile');
         $priority = (string) ($ticket['priority'] ?? 'normal');
-        $rows .= '<tr><td><a href="' . h($href) . '">#' . (int) $ticket['id'] . '</a></td><td><a href="' . h($clientHref) . '">' . h((string) $ticket['email']) . '</a></td><td>' . h((string) $ticket['subject']) . '</td><td>' . admin_log_badge(admin_ticket_priority_tone($priority), admin_ticket_priority_label($priority)) . '</td><td>' . h((string) $ticket['updated_at']) . '</td><td><a class="secondary compact-link" href="' . h($href) . '">Ouvrir et repondre</a></td></tr>';
+        $rows .= '<tr><td><a href="' . h($href) . '">#' . (int) $ticket['id'] . '</a></td><td><a href="' . h($clientHref) . '">' . h((string) $ticket['email']) . '</a></td><td>' . h((string) $ticket['subject']) . '</td><td>' . admin_log_badge(admin_ticket_priority_tone($priority), admin_ticket_priority_label($priority)) . '</td><td>' . h((string) $ticket['updated_at']) . '</td></tr>';
     }
-    $rows = $rows ?: '<tr><td colspan="6">Aucun ticket ouvert.</td></tr>';
+    $rows = $rows ?: '<tr><td colspan="5">Aucun ticket ouvert.</td></tr>';
 
     return '
       <section class="panel" id="support-queue">
@@ -2162,9 +2172,9 @@ function render_open_tickets_panel(PDO $pdo): string
             <p class="eyebrow">Support</p>
             <h2>Tickets ouverts</h2>
           </div>
-          <span class="section-hint">Ouvre un ticket pour voir le fil complet et repondre au client.</span>
+          <span class="section-hint">Clique sur l identifiant du ticket pour ouvrir le fil complet et repondre au client.</span>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Sujet</th><th>Priorite</th><th>MAJ</th><th></th></tr></thead><tbody>' . $rows . '</tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Sujet</th><th>Priorite</th><th>MAJ</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
       </section>
     ';
 }
@@ -2506,7 +2516,7 @@ function render_email_settings_panel(PDO $pdo): string
     $rows = '';
     foreach ($recent as $row) {
         $status = (string) ($row['status'] ?? '');
-        $rows .= '<tr><td>' . (int) $row['id'] . '</td><td>#' . (int) $row['ticket_id'] . '</td><td>' . h((string) $row['recipient']) . '</td><td>' . h((string) $row['subject']) . '</td><td>' . admin_log_badge(admin_notification_status_tone($status), admin_notification_status_label($status)) . '</td><td>' . h((string) ($row['error'] ?: '-')) . '</td><td>' . h((string) ($row['sent_at'] ?: $row['created_at'])) . '</td></tr>';
+        $rows .= '<tr><td>' . (int) $row['id'] . '</td><td>#' . (int) $row['ticket_id'] . '</td><td>' . h((string) $row['recipient']) . '</td><td>' . h((string) $row['subject']) . '</td><td>' . admin_log_badge(admin_notification_status_tone($status), admin_notification_status_label($status)) . '</td><td>' . h(admin_notification_error_label((string) ($row['error'] ?? ''))) . '</td><td>' . h((string) ($row['sent_at'] ?: $row['created_at'])) . '</td></tr>';
     }
     $rows = $rows ?: '<tr><td colspan="7">Aucun email ticket.</td></tr>';
     $passwordNote = getenv('NICHOIR_SMTP_PASSWORD') ? 'Mot de passe fourni par variable serveur NICHOIR_SMTP_PASSWORD.' : 'Laisser vide pour conserver le mot de passe actuel.';

@@ -4,9 +4,11 @@ Role: notes de travail, roadmap et securite. Ce dossier doit aider a reprendre r
 
 Fichiers importants:
 
+- `admin-hig.md`: conventions HIG du back-office PHP pour normaliser `/admin` par domaine.
+- `admin-refonte-etat.md`: etat concret du chantier admin, livrables faits et limites connues.
+- `admin-refonte-plan.md`: ordre de travail restant pour terminer la refonte `/admin`.
 - `reste-a-faire.md`: backlog detaille, etat des phases et prochaines etapes.
 - `securizons.md`: analyse des surfaces d'attaque WASM/PHP et checklist securite.
-- `admin-hig.md`: conventions HIG du back-office PHP pour normaliser `/admin` par domaine.
 
 Regles d'usage:
 

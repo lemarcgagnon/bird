@@ -382,7 +382,7 @@ article strong,
 }
 
 .admin-billing-filters {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   margin-bottom: 16px;
 }
 
@@ -391,6 +391,7 @@ article strong,
   margin: 16px 0;
 }
 
+.admin-billing-filters .span-2,
 .admin-log-filters .span-2 {
   grid-column: span 2;
 }
@@ -543,12 +544,22 @@ article strong,
   min-height: 40px;
 }
 
+.admin-billing-filters strong {
+  color: var(--text);
+}
+
 .admin-log-filters button {
   min-height: 40px;
 }
 
 .billing-summary-grid {
   margin-top: 12px;
+}
+
+.stats-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
 .admin-actions {
@@ -902,6 +913,7 @@ footer {
     max-height: calc(100vh - 20px);
   }
 
+  .admin-billing-filters .span-2,
   .admin-log-filters .span-2 {
     grid-column: auto;
   }

@@ -754,6 +754,63 @@ function admin_billing_filter_url(array $overrides = []): string
     return admin_redirect_url($params) . '#admin-billing';
 }
 
+function admin_select_options(array $values, string $selected, string $emptyLabel = 'Tous'): string
+{
+    $html = '<option value="">' . h($emptyLabel) . '</option>';
+    foreach ($values as $value) {
+        $string = trim((string) $value);
+        if ($string === '') {
+            continue;
+        }
+        $html .= '<option value="' . h($string) . '"' . ($selected === $string ? ' selected' : '') . '>' . h($string) . '</option>';
+    }
+    return $html;
+}
+
+function admin_billing_scope_nav(array $filters, int $subscriptionCount, int $paymentCount): string
+{
+    $current = (string) ($filters['billing_scope'] ?? 'all');
+    $items = [
+        'all' => ['Tout', $subscriptionCount + $paymentCount],
+        'subscriptions' => ['Abonnements', $subscriptionCount],
+        'payments' => ['Paiements', $paymentCount],
+    ];
+    $links = '';
+    foreach ($items as $scope => [$label, $count]) {
+        $class = 'log-scope-link' . ($current === $scope ? ' active' : '');
+        $links .= '<a class="' . $class . '" href="' . h(admin_billing_filter_url(['billing_scope' => $scope])) . '"><span>' . h($label) . '</span><strong>' . (int) $count . '</strong></a>';
+    }
+    return '<nav class="log-scope-nav" aria-label="Portee billing">' . $links . '</nav>';
+}
+
+function admin_billing_filter_summary(array $filters): string
+{
+    $chips = [];
+    $map = [
+        'billing_q' => 'Recherche',
+        'billing_plan' => 'Plan',
+        'billing_provider' => 'Provider',
+        'billing_subscription_status' => 'Etat abo',
+        'billing_payment_status' => 'Etat paiement',
+        'billing_currency' => 'Devise',
+        'billing_invoice' => 'Facture',
+        'billing_date_from' => 'Depuis',
+        'billing_date_to' => 'Jusqu a',
+        'billing_amount_min' => 'Min',
+        'billing_amount_max' => 'Max',
+    ];
+    foreach ($map as $key => $label) {
+        $value = trim((string) ($filters[$key] ?? ''));
+        if ($value !== '') {
+            $chips[] = '<li class="filter-chip"><span>' . h($label) . '</span><strong>' . h($value) . '</strong></li>';
+        }
+    }
+    if (!$chips) {
+        return '<p class="section-hint">Vue standard du billing. Utilise la recherche, la periode et les statuts pour isoler un cas avant d ouvrir le detail client.</p>';
+    }
+    return '<ul class="filter-chip-list" aria-label="Filtres billing actifs">' . implode('', $chips) . '</ul>';
+}
+
 function admin_log_scope_value(string $value): string
 {
     $allowed = ['all', 'application', 'audit', 'stripe'];
@@ -2398,10 +2455,22 @@ function render_admin_billing_panel(PDO $pdo): string
     $paymentStmt->execute($paymentParams);
     $payments = $paymentStmt->fetchAll();
 
+    $planOptions = $pdo->query('SELECT DISTINCT plan FROM subscriptions WHERE plan IS NOT NULL AND plan <> "" ORDER BY plan ASC')->fetchAll(PDO::FETCH_COLUMN);
+    $providerOptions = $pdo->query('SELECT provider FROM subscriptions WHERE provider IS NOT NULL AND provider <> "" UNION SELECT provider FROM payments WHERE provider IS NOT NULL AND provider <> "" ORDER BY provider ASC')->fetchAll(PDO::FETCH_COLUMN);
+    $subscriptionStatusOptions = $pdo->query('SELECT DISTINCT status FROM subscriptions WHERE status IS NOT NULL AND status <> "" ORDER BY status ASC')->fetchAll(PDO::FETCH_COLUMN);
+    $paymentStatusOptions = $pdo->query('SELECT DISTINCT status FROM payments WHERE status IS NOT NULL AND status <> "" ORDER BY status ASC')->fetchAll(PDO::FETCH_COLUMN);
+    $currencyOptions = $pdo->query('SELECT DISTINCT LOWER(currency) FROM payments WHERE currency IS NOT NULL AND currency <> "" ORDER BY LOWER(currency) ASC')->fetchAll(PDO::FETCH_COLUMN);
+
     $subscriptionRows = '';
     foreach ($subscriptions as $subscription) {
         $clientHref = admin_client_modal_url((int) $subscription['user_id'], 'admin-billing', 'billing', $filters);
-        $subscriptionRows .= '<tr><td>' . (int) $subscription['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $subscription['email']) . '</a></td><td>' . h((string) $subscription['plan']) . '</td><td>' . h((string) $subscription['subscription_state']) . '</td><td>' . h((string) ($subscription['provider'] ?: '-')) . '</td><td>' . h((string) ($subscription['current_period_end'] ?: '-')) . '</td><td>' . h((string) ($subscription['updated_at'] ?: '-')) . '</td></tr>';
+        $statusTone = match ((string) $subscription['subscription_state']) {
+            'active', 'trialing' => 'success',
+            'past_due', 'incomplete' => 'warning',
+            'canceled', 'cancelled', 'unpaid' => 'danger',
+            default => 'neutral',
+        };
+        $subscriptionRows .= '<tr><td>' . (int) $subscription['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $subscription['email']) . '</a></td><td><strong>' . h((string) $subscription['plan']) . '</strong></td><td>' . admin_log_badge($statusTone, (string) $subscription['subscription_state']) . '</td><td><code>' . h((string) ($subscription['provider'] ?: '-')) . '</code></td><td>' . h((string) ($subscription['current_period_end'] ?: '-')) . '</td><td>' . h((string) ($subscription['updated_at'] ?: '-')) . '</td></tr>';
     }
     if ($subscriptionRows === '') {
         $subscriptionRows = '<tr><td colspan="7">Aucun abonnement pour ces filtres.</td></tr>';
@@ -2409,11 +2478,21 @@ function render_admin_billing_panel(PDO $pdo): string
 
     $paymentRows = '';
     $paymentCurrencies = [];
+    $paymentInvoiceCount = 0;
     foreach ($payments as $payment) {
         $clientHref = admin_client_modal_url((int) $payment['user_id'], 'admin-billing', 'billing', $filters);
         $invoiceLinks = ((string) $payment['invoice_url'] !== '' ? '<a href="' . h((string) $payment['invoice_url']) . '" target="_blank" rel="noreferrer">Voir</a> ' : '')
             . ((string) $payment['invoice_pdf'] !== '' ? '<a href="' . h((string) $payment['invoice_pdf']) . '" target="_blank" rel="noreferrer">PDF</a>' : '');
-        $paymentRows .= '<tr><td>' . (int) $payment['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $payment['email']) . '</a></td><td>' . h(money_cents((int) $payment['amount_cents'], (string) $payment['currency'])) . '</td><td>' . h((string) $payment['payment_state']) . '</td><td>' . h((string) ($payment['description'] ?: '-')) . '</td><td>' . ($invoiceLinks ?: '-') . '</td><td>' . h((string) $payment['created_at']) . '</td></tr>';
+        if ($invoiceLinks !== '') {
+            $paymentInvoiceCount++;
+        }
+        $statusTone = match ((string) $payment['payment_state']) {
+            'paid', 'succeeded' => 'success',
+            'pending', 'processing', 'requires_action' => 'warning',
+            'failed', 'canceled', 'cancelled' => 'danger',
+            default => 'neutral',
+        };
+        $paymentRows .= '<tr><td>' . (int) $payment['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $payment['email']) . '</a></td><td><strong>' . h(money_cents((int) $payment['amount_cents'], (string) $payment['currency'])) . '</strong></td><td>' . admin_log_badge($statusTone, (string) $payment['payment_state']) . '</td><td>' . h(admin_log_text((string) ($payment['description'] ?: '-'), 80)) . '</td><td>' . ($invoiceLinks ?: '-') . '</td><td>' . h((string) $payment['created_at']) . '</td></tr>';
         $currencyKey = strtoupper((string) ($payment['currency'] ?: ''));
         if (!isset($paymentCurrencies[$currencyKey])) {
             $paymentCurrencies[$currencyKey] = 0;
@@ -2432,56 +2511,65 @@ function render_admin_billing_panel(PDO $pdo): string
         }
         $currencySummary = implode(' / ', $parts);
     }
-
-    $scopeOptions = [
-        'all' => 'Tout',
-        'subscriptions' => 'Abonnements',
-        'payments' => 'Paiements',
-    ];
-    $scopeHtml = '';
-    foreach ($scopeOptions as $value => $label) {
-        $scopeHtml .= '<option value="' . h($value) . '"' . ($scope === $value ? ' selected' : '') . '>' . h($label) . '</option>';
-    }
     $invoiceHtml = '<option value="">Toutes</option>'
         . '<option value="yes"' . ($invoice === 'yes' ? ' selected' : '') . '>Avec facture</option>'
         . '<option value="no"' . ($invoice === 'no' ? ' selected' : '') . '>Sans facture</option>';
+    $advancedFiltersOpen = $plan !== '' || $provider !== '' || $currency !== '' || $invoice !== '' || $amountMin !== '' || $amountMax !== '';
 
     return '
       <section class="panel">
         <div class="section-heading">
           <div>
             <h2>Billing</h2>
-            <p>Filtre abonnements et paiements par client, statut, dates, devise, facture et montant. Les ouvertures client gardent le contexte billing.</p>
+            <p>Vue revenus et abonnements. Garde d abord la portee, la recherche et la periode, puis affine si besoin.</p>
           </div>
-          <a class="secondary compact-link" href="' . h(admin_redirect_url()) . '#admin-billing">Reinitialiser</a>
+          <div class="form-actions">
+            <a class="secondary compact-link" href="' . h(admin_redirect_url()) . '#admin-billing">Reinitialiser</a>
+          </div>
         </div>
-        <form class="admin-directory-form admin-billing-filters" method="get" action="/admin#admin-billing">
+        <div class="stats-grid billing-summary-grid">
+          <div class="stat"><span>Abonnements</span><strong>' . count($subscriptions) . '</strong></div>
+          <div class="stat"><span>Paiements</span><strong>' . count($payments) . '</strong></div>
+          <div class="stat"><span>Factures</span><strong>' . $paymentInvoiceCount . '</strong></div>
+          <div class="stat"><span>Total filtre</span><strong>' . h($currencySummary) . '</strong></div>
+        </div>
+        ' . admin_billing_scope_nav($filters, count($subscriptions), count($payments)) . '
+        <form class="log-filter-stack" method="get" action="/admin#admin-billing">
           ' . admin_key_input() . '
-          <label><span>Scope</span><select name="billing_scope">' . $scopeHtml . '</select></label>
-          <label><span>Client / recherche</span><input type="search" name="billing_q" value="' . h($query) . '" placeholder="email, id, description"></label>
-          <label><span>Plan</span><input type="search" name="billing_plan" value="' . h($plan) . '" placeholder="pro, atelier"></label>
-          <label><span>Provider</span><input type="search" name="billing_provider" value="' . h($provider) . '" placeholder="stripe"></label>
-          <label><span>Statut abonnement</span><input type="search" name="billing_subscription_status" value="' . h($subscriptionStatus) . '" placeholder="active, canceled"></label>
-          <label><span>Statut paiement</span><input type="search" name="billing_payment_status" value="' . h($paymentStatus) . '" placeholder="paid, failed"></label>
-          <label><span>Devise</span><input type="search" name="billing_currency" value="' . h($currency) . '" placeholder="cad"></label>
-          <label><span>Facture</span><select name="billing_invoice">' . $invoiceHtml . '</select></label>
-          <label><span>Date debut</span><input type="date" name="billing_date_from" value="' . h($dateFrom) . '"></label>
-          <label><span>Date fin</span><input type="date" name="billing_date_to" value="' . h($dateTo) . '"></label>
-          <label><span>Montant min</span><input type="number" name="billing_amount_min" min="0" step="0.01" value="' . h($amountMin) . '" placeholder="0.00"></label>
-          <label><span>Montant max</span><input type="number" name="billing_amount_max" min="0" step="0.01" value="' . h($amountMax) . '" placeholder="499.00"></label>
-          <button type="submit">Filtrer</button>
+          <input type="hidden" name="billing_scope" value="' . h($scope) . '">
+          <div class="admin-directory-form admin-billing-filters">
+            <label class="span-2"><span>Client / recherche</span><input type="search" name="billing_q" value="' . h($query) . '" placeholder="email, id, description"></label>
+            <label><span>Etat abonnement</span><select name="billing_subscription_status">' . admin_select_options($subscriptionStatusOptions, $subscriptionStatus, 'Tous') . '</select></label>
+            <label><span>Etat paiement</span><select name="billing_payment_status">' . admin_select_options($paymentStatusOptions, $paymentStatus, 'Tous') . '</select></label>
+            <label><span>Date debut</span><input type="date" name="billing_date_from" value="' . h($dateFrom) . '"></label>
+            <label><span>Date fin</span><input type="date" name="billing_date_to" value="' . h($dateTo) . '"></label>
+            <button type="submit">Appliquer</button>
+          </div>
+          <details class="log-filter-details"' . ($advancedFiltersOpen ? ' open' : '') . '>
+            <summary>Filtres avances billing</summary>
+            <div class="admin-directory-form admin-billing-filters advanced">
+              <label><span>Plan</span><select name="billing_plan">' . admin_select_options($planOptions, $plan, 'Tous') . '</select></label>
+              <label><span>Provider</span><select name="billing_provider">' . admin_select_options($providerOptions, $provider, 'Tous') . '</select></label>
+              <label><span>Devise</span><select name="billing_currency">' . admin_select_options($currencyOptions, $currency, 'Toutes') . '</select></label>
+              <label><span>Facture</span><select name="billing_invoice">' . $invoiceHtml . '</select></label>
+              <label><span>Montant min</span><input type="number" name="billing_amount_min" min="0" step="0.01" value="' . h($amountMin) . '" placeholder="0.00"></label>
+              <label><span>Montant max</span><input type="number" name="billing_amount_max" min="0" step="0.01" value="' . h($amountMax) . '" placeholder="499.00"></label>
+            </div>
+          </details>
+          ' . admin_billing_filter_summary($filters) . '
         </form>
-        <div class="grid billing-summary-grid">
-          <div><span>Abonnements filtres</span><strong>' . count($subscriptions) . '</strong></div>
-          <div><span>Paiements filtres</span><strong>' . count($payments) . '</strong></div>
-          <div><span>Total paiements</span><strong>' . h($currencySummary) . '</strong></div>
-        </div>
       </section>
       ' . ($scope !== 'payments' ? '
-      <section class="panel"><h2>Abonnements filtres</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Plan</th><th>Etat</th><th>Provider</th><th>Fin periode</th><th>MAJ</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div></section>
+      <section class="panel">
+        <div class="section-heading log-section-heading"><div><h2>Abonnements filtres</h2><p>Etat courant du plan, provider et prochaine echeance.</p></div><div>' . admin_log_badge('neutral', (string) count($subscriptions)) . '</div></div>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Plan</th><th>Etat</th><th>Provider</th><th>Fin periode</th><th>MAJ</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div>
+      </section>
       ' : '') . '
       ' . ($scope !== 'subscriptions' ? '
-      <section class="panel"><h2>Paiements filtres</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Montant</th><th>Etat</th><th>Description</th><th>Facture</th><th>Date</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div></section>
+      <section class="panel">
+        <div class="section-heading log-section-heading"><div><h2>Paiements filtres</h2><p>Montants encaisses, statut de traitement et presence de facture.</p></div><div>' . admin_log_badge('neutral', (string) count($payments)) . '</div></div>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Montant</th><th>Etat</th><th>Description</th><th>Facture</th><th>Date</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div>
+      </section>
       ' : '');
 }
 

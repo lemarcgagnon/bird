@@ -2298,6 +2298,27 @@ function render_admin_modal(PDO $pdo, ?array $selectedUser): string
     return '';
 }
 
+function admin_bool_label(bool $value, string $trueLabel = 'Actif', string $falseLabel = 'Inactif'): string
+{
+    return $value ? $trueLabel : $falseLabel;
+}
+
+function admin_db_driver_label(string $driver): string
+{
+    return $driver === 'mysql' ? 'MySQL cPanel' : 'SQLite local';
+}
+
+function admin_secret_source_label(bool $fromEnv, bool $hasStored, string $kind = 'Secret'): string
+{
+    if ($fromEnv) {
+        return $kind . ' via variable serveur';
+    }
+    if ($hasStored) {
+        return $kind . ' enregistre';
+    }
+    return $kind . ' absent';
+}
+
 function render_email_settings_panel(PDO $pdo): string
 {
     $settings = mail_settings($pdo);
@@ -2313,11 +2334,32 @@ function render_email_settings_panel(PDO $pdo): string
     }
     $rows = $rows ?: '<tr><td colspan="7">Aucun email ticket.</td></tr>';
     $passwordNote = getenv('NICHOIR_SMTP_PASSWORD') ? 'Mot de passe fourni par variable serveur NICHOIR_SMTP_PASSWORD.' : 'Laisser vide pour conserver le mot de passe actuel.';
+    $sentCount = 0;
+    $failedCount = 0;
+    foreach ($recent as $row) {
+        $status = (string) ($row['status'] ?? '');
+        if ($status === 'sent') {
+            $sentCount++;
+        } elseif ($status === 'failed') {
+            $failedCount++;
+        }
+    }
 
     return '
       <section class="panel">
-        <h2>Email tickets</h2>
-        <p>Configure ici le serveur email cPanel/SMTP utilise pour envoyer les notifications tickets. Les envois sont aussi journalises dans SQLite.</p>
+        <div class="section-heading">
+          <div>
+            <h2>Email tickets</h2>
+            <p>Configure le relais SMTP utilise pour les tickets, puis valide l envoi avant de compter dessus en production.</p>
+          </div>
+          <div>' . admin_log_badge($settings['enabled'] ? 'success' : 'neutral', admin_bool_label($settings['enabled'], 'SMTP actif', 'SMTP inactif')) . '</div>
+        </div>
+        <div class="stats-grid billing-summary-grid">
+          <div class="stat"><span>Etat</span><strong>' . h(admin_bool_label($settings['enabled'], 'Actif', 'Inactif')) . '</strong></div>
+          <div class="stat"><span>Support</span><strong>' . h((string) ($settings['support_email'] ?: '-')) . '</strong></div>
+          <div class="stat"><span>Envoyes</span><strong>' . $sentCount . '</strong></div>
+          <div class="stat"><span>Echecs</span><strong>' . $failedCount . '</strong></div>
+        </div>
         <form class="admin-email-form" method="post" action="/admin">
           ' . admin_key_input() . '
           <input type="hidden" name="action" value="update_email_settings">
@@ -2332,13 +2374,29 @@ function render_email_settings_panel(PDO $pdo): string
           <label><span>Email support</span><input type="email" name="support_email" value="' . h((string) $settings['support_email']) . '" placeholder="support@domaine.com"></label>
           <button type="submit">Enregistrer email</button>
         </form>
-        <form class="admin-email-test" method="post" action="/admin">
-          ' . admin_key_input() . '
-          <input type="hidden" name="action" value="send_test_email">
-          <label><span>Email test</span><input type="email" name="test_recipient" value="' . h((string) $settings['support_email']) . '" required></label>
-          <button type="submit">Envoyer test</button>
-        </form>
-        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Ticket</th><th>Destinataire</th><th>Sujet</th><th>Etat</th><th>Erreur</th><th>Date</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
+        <div class="settings-subsection">
+          <div class="section-heading log-section-heading">
+            <div>
+              <h3>Test d envoi</h3>
+              <p>Valide les identifiants SMTP et l expedition reelle avant de fermer la configuration.</p>
+            </div>
+          </div>
+          <form class="admin-email-test" method="post" action="/admin">
+            ' . admin_key_input() . '
+            <input type="hidden" name="action" value="send_test_email">
+            <label><span>Email test</span><input type="email" name="test_recipient" value="' . h((string) $settings['support_email']) . '" required></label>
+            <button type="submit">Envoyer test</button>
+          </form>
+        </div>
+        <div class="settings-subsection">
+          <div class="section-heading log-section-heading">
+            <div>
+              <h3>Activite recente</h3>
+              <p>Historique court des notifications tickets envoye es, ratees ou en attente.</p>
+            </div>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>ID</th><th>Ticket</th><th>Destinataire</th><th>Sujet</th><th>Etat</th><th>Erreur</th><th>Date</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
+        </div>
       </section>
     ';
 }
@@ -2348,11 +2406,38 @@ function render_stripe_settings_panel(PDO $pdo): string
     $settings = stripe_settings($pdo);
     $secretNote = stripe_setting_secret_is_env('NICHOIR_STRIPE_SECRET_KEY') ? 'Cle fournie par NICHOIR_STRIPE_SECRET_KEY.' : 'Laisser vide pour conserver la cle actuelle.';
     $webhookNote = stripe_setting_secret_is_env('NICHOIR_STRIPE_WEBHOOK_SECRET') ? 'Secret fourni par NICHOIR_STRIPE_WEBHOOK_SECRET.' : 'Laisser vide pour conserver le secret actuel.';
+    $priceCount = 0;
+    foreach (['price_credits', 'price_atelier', 'price_pro'] as $key) {
+        if (trim((string) ($settings[$key] ?? '')) !== '') {
+            $priceCount++;
+        }
+    }
+    $secretSource = admin_secret_source_label(
+        stripe_setting_secret_is_env('NICHOIR_STRIPE_SECRET_KEY'),
+        trim((string) ($settings['secret_key'] ?? '')) !== '',
+        'Cle'
+    );
+    $webhookSource = admin_secret_source_label(
+        stripe_setting_secret_is_env('NICHOIR_STRIPE_WEBHOOK_SECRET'),
+        trim((string) ($settings['webhook_secret'] ?? '')) !== '',
+        'Webhook'
+    );
 
     return '
       <section class="panel">
-        <h2>Stripe billing</h2>
-        <p>Configure Checkout, portail client et verification webhook. Les secrets peuvent venir des variables serveur en production.</p>
+        <div class="section-heading">
+          <div>
+            <h2>Stripe billing</h2>
+            <p>Configure Checkout, portail client et verification webhook. Les secrets doivent idealement venir des variables serveur.</p>
+          </div>
+          <div>' . admin_log_badge($settings['enabled'] ? 'success' : 'neutral', admin_bool_label($settings['enabled'], 'Stripe actif', 'Stripe inactif')) . '</div>
+        </div>
+        <div class="stats-grid billing-summary-grid">
+          <div class="stat"><span>Etat</span><strong>' . h(admin_bool_label($settings['enabled'], 'Actif', 'Inactif')) . '</strong></div>
+          <div class="stat"><span>Devise</span><strong>' . h(strtoupper((string) $settings['currency'])) . '</strong></div>
+          <div class="stat"><span>Prices</span><strong>' . $priceCount . '</strong></div>
+          <div class="stat"><span>Secrets</span><strong>' . h($webhookSource) . '</strong></div>
+        </div>
         <form class="admin-stripe-form" method="post" action="/admin">
           ' . admin_key_input() . '
           <input type="hidden" name="action" value="update_stripe_settings">
@@ -2366,6 +2451,7 @@ function render_stripe_settings_panel(PDO $pdo): string
           <label><span>Price pro</span><input type="text" name="stripe_price_pro" value="' . h((string) $settings['price_pro']) . '" placeholder="price_..."></label>
           <button type="submit">Enregistrer Stripe</button>
         </form>
+        <p class="section-hint settings-inline-hint">Source cle: ' . h($secretSource) . ' · Source webhook: ' . h($webhookSource) . '</p>
       </section>
     ';
 }
@@ -2382,15 +2468,23 @@ function render_database_settings_panel(): string
     $passwordNote = db_env_value('NICHOIR_DB_PASSWORD') !== null
         ? 'Mot de passe fourni par NICHOIR_DB_PASSWORD.'
         : (((string) ($local['mysql_password'] ?? '') !== '') ? 'Laisser vide pour conserver le mot de passe enregistre.' : 'Mot de passe utilisateur MySQL cPanel.');
+    $sourceLabel = $env !== [] ? 'Variables serveur' : (is_file(db_config_path()) ? 'Config locale' : 'SQLite par defaut');
+    $configLabel = is_file(db_config_path()) ? 'data/db-config.php' : 'Aucun fichier local';
 
     return '
       <section class="panel">
-        <h2>Base de donnees</h2>
-        <p>Configure la connexion cPanel/MySQL ici. SQLite reste le mode local par defaut. Enregistrer teste la connexion et cree le schema MySQL si la base est vide.</p>
-        <div class="client-summary compact">
-          <div class="stat"><span>Driver actif</span><strong>' . h($driver) . '</strong></div>
-          <div class="stat"><span>Source</span><strong>' . h($source) . '</strong></div>
-          <div class="stat"><span>Config locale</span><strong>' . h(db_config_path()) . '</strong></div>
+        <div class="section-heading">
+          <div>
+            <h2>Base de donnees</h2>
+            <p>Choisis le driver actif, renseigne la connexion cible, puis teste avant enregistrement. Le schema MySQL est cree si la base est vide.</p>
+          </div>
+          <div>' . admin_log_badge($driver === 'mysql' ? 'info' : 'neutral', admin_db_driver_label($driver)) . '</div>
+        </div>
+        <div class="stats-grid billing-summary-grid">
+          <div class="stat"><span>Driver actif</span><strong>' . h(admin_db_driver_label($driver)) . '</strong></div>
+          <div class="stat"><span>Source</span><strong>' . h($sourceLabel) . '</strong></div>
+          <div class="stat"><span>Config locale</span><strong>' . h($configLabel) . '</strong></div>
+          <div class="stat"><span>Mode local</span><strong>' . h($driver === 'sqlite' ? 'Oui' : 'Non') . '</strong></div>
         </div>
         <form class="admin-db-form" method="post" action="/admin">
           ' . admin_key_input() . '
@@ -2411,7 +2505,38 @@ function render_database_settings_panel(): string
             <button type="submit" name="action" value="update_database_settings">Enregistrer DB</button>
           </div>
         </form>
+        <p class="section-hint settings-inline-hint">Source active: ' . h($source) . '. En production, preferer `NICHOIR_DB_*` aux secrets stockes localement.</p>
       </section>
+    ';
+}
+
+function render_admin_settings_panel(PDO $pdo): string
+{
+    $db = db_config();
+    $mail = mail_settings($pdo);
+    $stripe = stripe_settings($pdo);
+    $cards = '
+      <div class="stats-grid billing-summary-grid">
+        <div class="stat"><span>DB</span><strong>' . h(admin_db_driver_label((string) $db['driver'])) . '</strong></div>
+        <div class="stat"><span>SMTP</span><strong>' . h(admin_bool_label((bool) $mail['enabled'], 'Actif', 'Inactif')) . '</strong></div>
+        <div class="stat"><span>Stripe</span><strong>' . h(admin_bool_label((bool) $stripe['enabled'], 'Actif', 'Inactif')) . '</strong></div>
+        <div class="stat"><span>Priorite</span><strong>Tester avant prod</strong></div>
+      </div>
+    ';
+
+    return '
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Reglages systeme</h2>
+            <p>Infrastructure, email et billing. Chaque bloc se configure separement et doit etre valide avant deploiement.</p>
+          </div>
+        </div>
+        ' . $cards . '
+      </section>
+      ' . render_database_settings_panel() . '
+      ' . render_email_settings_panel($pdo) . '
+      ' . render_stripe_settings_panel($pdo) . '
     ';
 }
 
@@ -3532,9 +3657,7 @@ function render_admin_page(): void
         ' . render_admin_logs_panel($pdo) . '
       </section>
       <section class="tab-panel" id="admin-settings" data-tab-panel hidden>
-        ' . render_database_settings_panel() . '
-        ' . render_stripe_settings_panel($pdo) . '
-        ' . render_email_settings_panel($pdo) . '
+        ' . render_admin_settings_panel($pdo) . '
       </section>
       ' . render_admin_modal($pdo, $selected) . '
     ', '/admin');

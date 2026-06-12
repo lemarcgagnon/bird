@@ -20,6 +20,15 @@ const PHP_BASE = window.NICHOIR_PHP_BASE
   || (window.location.port === '8016' ? DEV_PHP_ORIGIN : window.location.origin);
 const AUTH_TOKEN_KEY = 'nichoir-auth-token';
 const MAX_DECO_FILE_BYTES = 2 * 1024 * 1024;
+const FORBIDDEN_SVG_TAGS = [
+  'script',
+  'foreignObject',
+  'iframe',
+  'object',
+  'embed',
+  'audio',
+  'video',
+];
 const DEMO_ACCOUNT = window.NICHOIR_DEMO_ACCOUNT
   || (IS_LOCAL_DEV ? { email: 'demo@nichoir.local', password: 'password123' } : null);
 const EXPORT_COSTS = {
@@ -155,6 +164,37 @@ function rasterizeSvgToPngBase64(svgText, size = 256) {
     };
     img.src = url;
   });
+}
+
+function assertSafeSvgText(svgText) {
+  const raw = String(svgText || '');
+  if (!raw.trim()) throw new Error('svg_empty');
+  if (raw.length > MAX_DECO_FILE_BYTES) throw new Error('svg_too_large');
+  const lowered = raw.toLowerCase();
+  if (/<!doctype|<!entity|<\?xml-stylesheet/i.test(raw)) throw new Error('svg_external_markup');
+  if (/@import|url\s*\(/i.test(raw)) throw new Error('svg_external_style');
+  if (/\s(?:href|xlink:href)\s*=\s*["']?\s*(?:https?:|data:|javascript:|file:)/i.test(raw)) {
+    throw new Error('svg_external_reference');
+  }
+  if (/\son[a-z0-9_-]+\s*=/i.test(raw)) throw new Error('svg_inline_event');
+  const forbiddenTag = FORBIDDEN_SVG_TAGS.find((tag) => lowered.includes(`<${tag.toLowerCase()}`));
+  if (forbiddenTag) throw new Error(`svg_forbidden_${forbiddenTag.toLowerCase()}`);
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(raw, 'image/svg+xml');
+  if (doc.querySelector('parsererror')) throw new Error('svg_invalid');
+  const svg = doc.documentElement;
+  if (!svg || svg.tagName.toLowerCase() !== 'svg') throw new Error('svg_root_missing');
+  if (FORBIDDEN_SVG_TAGS.some((tag) => svg.querySelector(tag))) throw new Error('svg_forbidden_tag');
+  if (Array.from(svg.querySelectorAll('*')).some((node) => Array.from(node.attributes || []).some((attr) => {
+    const name = attr.name.toLowerCase();
+    const value = attr.value.trim().toLowerCase();
+    return name.startsWith('on')
+      || ((name === 'href' || name === 'xlink:href') && /^(https?:|data:|javascript:|file:)/.test(value));
+  }))) {
+    throw new Error('svg_unsafe_attribute');
+  }
+  return new XMLSerializer().serializeToString(svg);
 }
 
 function setExportStatus(message, tone = 'info') {
@@ -1220,6 +1260,7 @@ function refreshGeneratedViews() {
 async function refreshDecoRasterIfNeeded(deco) {
   if (!deco || deco.sourceType !== 'svg' || !deco.sourceText) return;
   const size = Math.max(64, Math.min(1024, Number(deco.resolution || 64) * 4));
+  deco.sourceText = assertSafeSvgText(deco.sourceText);
   deco.sourceData = await rasterizeSvgToPngBase64(deco.sourceText, size);
 }
 
@@ -1605,7 +1646,7 @@ function render() {
       const deco = activeDeco();
       try {
         if (isSvg) {
-          const svgText = String(reader.result || '');
+          const svgText = assertSafeSvgText(reader.result || '');
           deco.sourceType = 'svg';
           deco.sourceText = svgText;
           deco.sourceData = await rasterizeSvgToPngBase64(svgText, Math.max(64, Math.min(512, Number(deco.resolution || 64) * 4)));

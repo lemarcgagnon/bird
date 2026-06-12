@@ -19,7 +19,8 @@ Points de vigilance:
 
 - `window.NICHOIR_PHP_BASE` peut forcer l'origine PHP hors dev.
 - `window.NICHOIR_DEMO_ACCOUNT` peut activer un compte demo explicite hors localhost.
-- Les fichiers decor importes sont limites cote JS, mais un sanitizer SVG complet reste a ajouter.
+- Les fichiers decor importes sont limites cote JS et les SVG passent par `assertSafeSvgText` avant stockage/rasterisation.
+- Le SVG du plan insere dans `innerHTML` vient du WASM local, pas d'un fichier utilisateur importe.
 - Les exports premium doivent passer par `/api/exports/authorize` puis `/api/exports/consume`.
 
 Validation utile:

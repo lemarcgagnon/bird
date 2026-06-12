@@ -173,6 +173,7 @@ Fichiers principaux:
 - Option `Fond transparent / supprimer fond blanc`: suppression locale des pixels transparents ou presque blancs pour comparer rapidement si le retrait du fond ameliore la forme. Aucun backend requis.
 - Anti-pics heightmap ajoute: `Auto smooth`, `Intensite biseau / chanfrein` et `Seuil anti-bruit` modifient la luminance avant generation des vertices pour reduire les pointes lorsque la resolution augmente.
 - Import image heightmap etendu: `PNG`, `JPEG/JPG`, `GIF` et `WEBP` sont acceptes par le navigateur et decodes cote Rust/WASM via `image`. Pour GIF, le comportement actuel est image fixe pour relief, pas animation.
+- Premiere passe securite imports ajoutee: limite fichier decor `2 Mo`, sanitizer SVG cote app, normalisation stricte des parametres cote Rust/WASM et plafonds image decodee.
 - Clipping geometrique des decorations heightmap ajoute: l'option `Clipper au panneau` coupe le relief selon le contour physique du panneau cible avant rendu/export. Sur facade/arriere, le relief est coupe au pentagone pour eviter qu'une image trop haute traverse le toit.
 - Priorite des ouvertures ajoutee: sur la facade avant, le masque de decoration soustrait aussi la porte d'entree et le trou de perchoir. Le decor ne doit plus passer par-dessus une ouverture.
 - Trous de suspension ajoutes: jusqu'a quatre trous ronds traversants dans les panneaux de toit, aux coins avant/arriere gauche/droit, avec diametre et retraits reglables depuis les bords du toit.
@@ -313,7 +314,7 @@ Architecture web cible:
 - Porter UI decoration complete.
 - Porter generation geometrie decoration.
 - Integrer decoration dans viewer, STL maison et ZIP panneaux.
-- Tester SVG et heightmap.
+- Tester SVG et heightmap, incluant SVG refuses et valeurs parametres extremes.
 
 ### Phase D - Gestion compte/API + autorisation d'export
 

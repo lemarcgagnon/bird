@@ -5,6 +5,11 @@ use base64::Engine;
 use std::collections::HashMap;
 use std::f64::consts::PI;
 
+const MAX_DECO_SOURCE_TEXT_BYTES: usize = 1_000_000;
+const MAX_DECO_SOURCE_DATA_CHARS: usize = 3_000_000;
+const MAX_DECO_IMAGE_SIDE: u32 = 4096;
+const MAX_DECO_IMAGE_PIXELS: u64 = 16_777_216;
+
 #[derive(Serialize)]
 struct ApiOk<T: Serialize> {
     ok: bool,
@@ -263,6 +268,161 @@ impl Default for NichoirParams {
     }
 }
 
+fn clamp_finite(value: f64, min: f64, max: f64, fallback: f64) -> f64 {
+    if value.is_finite() {
+        value.clamp(min, max)
+    } else {
+        fallback
+    }
+}
+
+fn allowed_string(value: &str, allowed: &[&str], fallback: &str) -> String {
+    if allowed.contains(&value) {
+        value.to_string()
+    } else {
+        fallback.to_string()
+    }
+}
+
+fn svg_text_looks_safe(svg: &str) -> bool {
+    if svg.trim().is_empty() || svg.len() > MAX_DECO_SOURCE_TEXT_BYTES {
+        return false;
+    }
+    let lower = svg.to_lowercase();
+    if lower.contains("<!doctype")
+        || lower.contains("<!entity")
+        || lower.contains("<?xml-stylesheet")
+        || lower.contains("@import")
+        || lower.contains("url(")
+        || lower.contains("<script")
+        || lower.contains("<foreignobject")
+        || lower.contains("<iframe")
+        || lower.contains("<object")
+        || lower.contains("<embed")
+        || lower.contains("<audio")
+        || lower.contains("<video")
+    {
+        return false;
+    }
+    if lower
+        .split_whitespace()
+        .any(|part| part.starts_with("on") && part.contains('='))
+    {
+        return false;
+    }
+    !["href=", "xlink:href="].iter().any(|name| {
+        lower.find(name).is_some_and(|idx| {
+            let tail = lower[idx + name.len()..].trim_start_matches([' ', '"', '\'']);
+            tail.starts_with("http:")
+                || tail.starts_with("https:")
+                || tail.starts_with("data:")
+                || tail.starts_with("javascript:")
+                || tail.starts_with("file:")
+        })
+    })
+}
+
+fn sanitize_decor(mut d: DecorSettings) -> DecorSettings {
+    let defaults = DecorSettings::default();
+    d.source_type = allowed_string(
+        d.source_type.trim(),
+        &["", "svg", "png", "jpg", "jpeg", "gif", "webp"],
+        "",
+    );
+    d.mode = allowed_string(d.mode.trim(), &["vector", "heightmap"], "vector");
+    d.w = clamp_finite(d.w, 5.0, 400.0, defaults.w);
+    d.h = clamp_finite(d.h, 5.0, 400.0, defaults.h);
+    d.pos_x = clamp_finite(d.pos_x, 0.0, 100.0, defaults.pos_x);
+    d.pos_y = clamp_finite(d.pos_y, 0.0, 100.0, defaults.pos_y);
+    d.rotation = clamp_finite(d.rotation, 0.0, 360.0, defaults.rotation);
+    d.depth = clamp_finite(d.depth, 0.2, 20.0, defaults.depth);
+    d.bevel = clamp_finite(d.bevel, 0.0, 100.0, defaults.bevel);
+    d.smooth = clamp_finite(d.smooth, 0.0, 100.0, defaults.smooth);
+    d.threshold = clamp_finite(d.threshold, 0.0, 60.0, defaults.threshold);
+    d.resolution = clamp_finite(d.resolution, 8.0, 256.0, defaults.resolution);
+
+    if d.source_type == "svg" {
+        if !svg_text_looks_safe(&d.source_text) {
+            d.enabled = false;
+            d.source_type.clear();
+            d.source_text.clear();
+            d.source_data.clear();
+            d.mode = "vector".to_string();
+            return d;
+        }
+    } else {
+        d.source_text.clear();
+    }
+
+    if d.source_data.len() > MAX_DECO_SOURCE_DATA_CHARS {
+        d.source_data.clear();
+        if d.mode == "heightmap" && d.source_type != "svg" {
+            d.enabled = false;
+            d.source_type.clear();
+        }
+    }
+
+    if d.source_type.is_empty() && d.source_data.trim().is_empty() && d.source_text.trim().is_empty() {
+        d.enabled = false;
+    }
+
+    d
+}
+
+fn sanitize_params(mut p: NichoirParams) -> NichoirParams {
+    let defaults = NichoirParams::default();
+    p.w = clamp_finite(p.w, 80.0, 400.0, defaults.w);
+    p.h = clamp_finite(p.h, 80.0, 500.0, defaults.h);
+    p.d = clamp_finite(p.d, 80.0, 400.0, defaults.d);
+    p.slope = clamp_finite(p.slope, 10.0, 60.0, defaults.slope);
+    p.overhang = clamp_finite(p.overhang, 0.0, 80.0, defaults.overhang);
+    p.t = clamp_finite(p.t, 3.0, 25.0, defaults.t);
+    p.taper_x = clamp_finite(p.taper_x, -60.0, 60.0, defaults.taper_x);
+    p.explode = clamp_finite(p.explode, 0.0, 100.0, defaults.explode);
+    p.door_w = clamp_finite(p.door_w, 15.0, 300.0, defaults.door_w);
+    p.door_h = clamp_finite(p.door_h, 15.0, 400.0, defaults.door_h);
+    p.door_px = clamp_finite(p.door_px, 10.0, 90.0, defaults.door_px);
+    p.door_py = clamp_finite(p.door_py, 15.0, 85.0, defaults.door_py);
+    p.door_var = clamp_finite(p.door_var, 85.0, 125.0, defaults.door_var);
+    p.perch_diam = clamp_finite(p.perch_diam, 3.0, 20.0, defaults.perch_diam);
+    p.perch_len = clamp_finite(p.perch_len, 10.0, 80.0, defaults.perch_len);
+    p.perch_off = clamp_finite(p.perch_off, 5.0, 60.0, defaults.perch_off);
+    p.panel_w = clamp_finite(p.panel_w, 400.0, 3200.0, defaults.panel_w);
+    p.panel_h = clamp_finite(p.panel_h, 400.0, 3200.0, defaults.panel_h);
+    p.kerf = clamp_finite(p.kerf, 0.0, 10.0, defaults.kerf);
+    p.hang_diam = clamp_finite(p.hang_diam, 2.0, 30.0, defaults.hang_diam);
+    p.hang_side_offset = clamp_finite(p.hang_side_offset, 2.0, 120.0, defaults.hang_side_offset);
+    p.hang_end_offset = clamp_finite(p.hang_end_offset, 2.0, 120.0, defaults.hang_end_offset);
+    p.unit = allowed_string(p.unit.trim(), &["mm", "cm", "in"], "mm");
+    p.lang = allowed_string(p.lang.trim(), &["fr", "en"], "fr");
+    p.mode = allowed_string(p.mode.trim(), &["solid", "wireframe", "xray", "edges"], "solid");
+    p.panel_preset = if p.panel_preset == "auto"
+        || p.panel_preset == "custom"
+        || market_panel_presets().iter().any(|(label, _, _)| *label == p.panel_preset)
+    {
+        p.panel_preset
+    } else {
+        default_panel_preset()
+    };
+    p.thickness_preset = allowed_string(
+        p.thickness_preset.trim(),
+        &["custom", "3", "6", "9", "12", "15", "18", "19", "25"],
+        "12",
+    );
+    if !deco_target_keys().contains(&p.decor_active.as_str()) {
+        p.decor_active = defaults.decor_active;
+    }
+
+    let mut sanitized_decos = default_decos();
+    for key in deco_target_keys() {
+        if let Some(deco) = p.decos.remove(key) {
+            sanitized_decos.insert(key.to_string(), sanitize_decor(deco));
+        }
+    }
+    p.decos = sanitized_decos;
+    p
+}
+
 #[derive(Serialize)]
 struct UnitConversion {
     label: &'static str,
@@ -337,7 +497,9 @@ fn format_volume(mm3: f64, unit: &str) -> String {
 }
 
 fn parse_input(input: &str) -> Result<NichoirParams, String> {
-    serde_json::from_str(input).map_err(|e| format!("Invalid JSON: {e}"))
+    serde_json::from_str(input)
+        .map(sanitize_params)
+        .map_err(|e| format!("Invalid JSON: {e}"))
 }
 
 fn ok_json<T: Serialize>(payload: T) -> String {
@@ -1994,11 +2156,15 @@ fn decode_deco_luma(d: &DecorSettings) -> Option<(usize, usize, Vec<f64>)> {
     let bytes = base64::engine::general_purpose::STANDARD
         .decode(d.source_data.trim())
         .ok()?;
-    let img = image::load_from_memory(&bytes).ok()?.to_rgba8();
-    let (w, h) = img.dimensions();
+    let decoded = image::load_from_memory(&bytes).ok()?;
+    let (w, h) = (decoded.width(), decoded.height());
     if w < 2 || h < 2 {
         return None;
     }
+    if w > MAX_DECO_IMAGE_SIDE || h > MAX_DECO_IMAGE_SIDE || u64::from(w) * u64::from(h) > MAX_DECO_IMAGE_PIXELS {
+        return None;
+    }
+    let img = decoded.to_rgba8();
     let mut values = Vec::with_capacity((w * h) as usize);
     for p in img.pixels() {
         let a = p[3] as f64 / 255.0;
@@ -4908,4 +5074,62 @@ pub fn render_app_html(input: &str) -> String {
             RidgeMode::Miter => "ONGLET",
         },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_input_clamps_extreme_numeric_values() {
+        let input = r#"{
+            "W": 999999,
+            "H": 999999,
+            "D": 1,
+            "slope": -100,
+            "T": 999,
+            "mode": "bad",
+            "unit": "bad",
+            "panelW": 999999,
+            "panelH": -10,
+            "kerf": 999
+        }"#;
+
+        let p = parse_input(input).expect("valid JSON should parse");
+
+        assert_eq!(p.w, 400.0);
+        assert_eq!(p.h, 500.0);
+        assert_eq!(p.d, 80.0);
+        assert_eq!(p.slope, 10.0);
+        assert_eq!(p.t, 25.0);
+        assert_eq!(p.mode, "solid");
+        assert_eq!(p.unit, "mm");
+        assert_eq!(p.panel_w, 3200.0);
+        assert_eq!(p.panel_h, 400.0);
+        assert_eq!(p.kerf, 10.0);
+    }
+
+    #[test]
+    fn parse_input_disables_unsafe_svg_decor() {
+        let input = r##"{
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "svg",
+                    "sourceText": "<svg><script>alert(1)</script><rect width=\"10\" height=\"10\"/></svg>",
+                    "sourceData": "abcd",
+                    "mode": "heightmap"
+                }
+            }
+        }"##;
+
+        let p = parse_input(input).expect("valid JSON should parse");
+        let deco = p.decos.get("front").expect("front deco exists");
+
+        assert!(!deco.enabled);
+        assert!(deco.source_type.is_empty());
+        assert!(deco.source_text.is_empty());
+        assert!(deco.source_data.is_empty());
+        assert_eq!(deco.mode, "vector");
+    }
 }

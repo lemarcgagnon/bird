@@ -267,7 +267,7 @@ Risques securite encore ouverts avant production:
 - Ajouter rate limiting sur login, inscription, tickets et webhooks.
 - Ajouter CSRF et authentification admin propre; ne pas utiliser un `key` en query string en production.
 - Activer la verification officielle `Stripe-Signature`.
-- Ajouter sanitizer SVG complet, CSP, clamps Rust/WASM et plafonds mesh/export.
+- Ajouter CSP, rate limiting, CSRF admin et plafonds triangles/STL/ZIP. Sanitizer SVG et clamps Rust/WASM ont maintenant une premiere passe.
 
 ## Roadmap courte
 

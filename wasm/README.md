@@ -17,7 +17,8 @@ Regles d'architecture:
 
 Points de vigilance:
 
-- Ajouter les clamps Rust/WASM avant production pour `NaN`, `Infinity`, dimensions extremes et resolutions trop hautes.
+- `sanitize_params` normalise les entrees JSON principales avant calcul: dimensions, modes, unites, panneaux, porte, perchoir, trous, decor et sources.
+- Les images decor decodees sont refusees si elles depassent `4096 x 4096` ou `16_777_216` pixels.
 - Ajouter des plafonds mesh/export pour eviter des STL/ZIP trop lourds.
 - Garder `mesh_report_json` comme outil de diagnostic rapide.
 - Apres changement Rust, reconstruire `wasm/pkg`.

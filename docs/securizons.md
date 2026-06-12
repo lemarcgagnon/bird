@@ -58,7 +58,7 @@ Les champs utilisateur peuvent causer:
 - STL/ZIP gigantesque;
 - mesh non fini ou impossible a imprimer.
 
-## 3. Mesures obligatoires a ajouter
+## 3. Mesures de securite fichier
 
 ### 3.1 Validation fichier avant lecture
 
@@ -73,6 +73,8 @@ Pour GIF:
 
 - utiliser comme image fixe seulement;
 - ne pas supporter l'animation dans la premiere version securisee.
+
+Etat: limite fichier et validation type deja ajoutees cote app.
 
 ### 3.2 Sanitization SVG
 
@@ -92,9 +94,11 @@ Avant rasterisation SVG:
 Approche recommandee:
 
 - parser le SVG comme texte;
-- appliquer une fonction `sanitizeSvgText(svgText)`;
+- appliquer une fonction `assertSafeSvgText(svgText)`;
 - si un pattern interdit est detecte, refuser le fichier avec message clair;
 - rasteriser seulement le SVG sanitise.
+
+Etat: premiere passe ajoutee cote app. Elle refuse scripts, `foreignObject`, embeds, events inline, styles externes, references externes dangereuses, DOCTYPE/entity et SVG invalide.
 
 ### 3.3 Limites rasterisation
 
@@ -115,9 +119,11 @@ Cote Rust, apres decode image:
 - refuser si decode impossible;
 - retourner un mesh vide ou une erreur structuree, pas un panic.
 
+Etat: plafonds `4096 x 4096` et `16_777_216` pixels ajoutes avant conversion RGBA.
+
 ## 4. Validation des parametres WASM
 
-Ajouter une fonction Rust de normalisation stricte, par exemple:
+Une fonction Rust de normalisation stricte existe maintenant et est appelee par les entrees WASM qui passent par `parse_input`:
 
 ```rust
 fn sanitize_params(mut p: NichoirParams) -> NichoirParams {
@@ -141,12 +147,13 @@ Champs decor a limiter:
 - threshold: `0..60`;
 - rotation: `0..360`;
 - source text SVG max: par exemple `1 MB`;
-- source data base64 max: par exemple `15 MB`.
+- source data base64 max: `3_000_000` caracteres dans l'etat actuel.
 
 Regle importante:
 
 - Les limites UI ne suffisent pas.
 - Les limites doivent exister dans Rust/WASM aussi.
+- Etat: premiere passe faite pour dimensions, modes, unites, panneaux, porte, perchoir, trous, decor, source SVG et source image.
 
 ## 5. Protection exports STL/ZIP
 
@@ -214,6 +221,9 @@ Objectif realiste:
 
 Mesures deja en place:
 
+- Sanitizer SVG cote app avant rasterisation.
+- Normalisation stricte des parametres cote Rust/WASM.
+- Plafonds image decodee cote Rust/WASM.
 - CORS configurable via `NICHOIR_CORS_ORIGINS`; par defaut seul `http://127.0.0.1:8016` est autorise pour le dev.
 - Headers PHP de base: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`.
 - Payload JSON limite a `256 KiB`.
@@ -225,6 +235,7 @@ Mesures deja en place:
 
 Risques restants avant production:
 
+- Ajouter plafonds triangles/STL/ZIP et refus explicite d'export trop lourd.
 - Ajouter rate limiting sur login, inscription, tickets et webhooks.
 - Ajouter CSRF robuste si l'admin passe a une session/cookie.
 - Remplacer le `key` admin en query string par une authentification admin propre.
@@ -237,15 +248,15 @@ Risques restants avant production:
 
 ### Phase 1: securite fichiers
 
-- Ajouter `sanitizeSvgText` dans `app/app.js`.
+- Ajouter `assertSafeSvgText` dans `app/app.js`. Fait.
 - Ajouter limite taille fichier. Fait: `2 MB`.
-- Ajouter messages d'erreur utilisateur.
-- Rejeter SVG dangereux avant rasterisation.
+- Ajouter messages d'erreur utilisateur. Fait, premiere passe.
+- Rejeter SVG dangereux avant rasterisation. Fait, premiere passe.
 
 ### Phase 2: validation Rust
 
-- Ajouter `sanitize_params`.
-- Appliquer `sanitize_params` dans toutes les entrees WASM:
+- Ajouter `sanitize_params`. Fait.
+- Appliquer `sanitize_params` dans toutes les entrees WASM. Fait via `parse_input` pour:
   - `render_app_html`;
   - `scene_meshes_json`;
   - `export_house_stl`;
@@ -273,13 +284,13 @@ Risques restants avant production:
 ## 8. Checklist rapide
 
 - [x] Refuser fichier > 2 MB dans l'app.
-- [ ] Refuser SVG avec scripts/events/foreignObject/liens externes.
-- [ ] Refuser raster > 4096 x 4096.
-- [ ] Clamper tous les inputs en Rust.
-- [ ] Refuser `NaN`/`Infinity`.
+- [x] Refuser SVG avec scripts/events/foreignObject/liens externes.
+- [x] Refuser raster > 4096 x 4096.
+- [x] Clamper les inputs principaux en Rust.
+- [x] Refuser ou neutraliser les valeurs non finies via parsing/clamps.
 - [ ] Limiter triangles STL/ZIP.
 - [ ] Garder GIF comme image fixe.
-- [ ] Ne jamais injecter SVG brut dans `innerHTML`.
+- [x] Ne pas injecter les SVG importes dans `innerHTML`; seulement les SVG generes par le WASM pour le plan.
 - [ ] Ne jamais stocker secrets dans WASM.
 - [x] Limiter payload JSON API.
 - [x] Valider offres checkout et types d'export.
@@ -287,4 +298,4 @@ Risques restants avant production:
 - [ ] Ajouter rate limiting serveur.
 - [ ] Ajouter CSRF/admin auth production.
 - [ ] Activer signature Stripe reelle.
-- [ ] Ajouter tests avec fichiers invalides.
+- [x] Ajouter tests avec entrees invalides pour clamps et SVG dangereux.

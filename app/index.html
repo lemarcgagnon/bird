@@ -8,8 +8,22 @@
 </head>
 <body>
   <div id="app" class="app-shell">
-    <div class="loading">Chargement du module WebAssembly...</div>
+    <div class="loading" data-loading-message>Chargement du module WebAssembly...</div>
   </div>
+  <script>
+    (function () {
+      var lang = localStorage.getItem('nichoir-lang');
+      if (lang !== 'fr' && lang !== 'en') {
+        lang = (navigator.language || '').toLowerCase().indexOf('en') === 0 ? 'en' : 'fr';
+      }
+      document.documentElement.lang = lang;
+      document.title = 'Nichoir WASM';
+      var node = document.querySelector('[data-loading-message]');
+      if (node) {
+        node.textContent = lang === 'en' ? 'Loading WebAssembly module...' : 'Chargement du module WebAssembly...';
+      }
+    }());
+  </script>
   <script type="module" src="./app.js?v=20260612-app-cleanup-v1"></script>
 </body>
 </html>

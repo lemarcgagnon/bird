@@ -555,12 +555,17 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "ridge_auto_miter") => "Auto miter: left/right overlap is only flush at 45°.",
         ("en", "hang_holes") => "Suspension boring holes",
         ("en", "hang_enable") => "Enable roof suspension holes",
+        ("en", "hang_front_left") => "Front L",
+        ("en", "hang_front_right") => "Front R",
+        ("en", "hang_back_left") => "Back L",
+        ("en", "hang_back_right") => "Back R",
         ("en", "hang_diam") => "Hole diameter",
         ("en", "hang_side_offset") => "Offset from roof side edge",
         ("en", "hang_end_offset") => "Offset from front/back edge",
         ("en", "material") => "Material",
         ("en", "thickness") => "Wall thickness",
         ("en", "thickness_preset") => "Market board thickness",
+        ("en", "custom_stl_free") => "Custom / free STL",
         ("en", "thickness_note") => "This thickness drives STL wall thickness and cut-plan bevel dimensions. For fabrication, choose the real board thickness available on the market.",
         ("en", "door") => "Entrance door",
         ("en", "door_width") => "Door width",
@@ -617,6 +622,137 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "deco_bevel") => "Bevel / chamfer intensity",
         ("en", "deco_threshold") => "Noise threshold",
         ("en", "deco_clip") => "Clip to panel shape (coming later)",
+        ("en", "language") => "Language",
+        ("en", "app_subtitle") => "BIRDHOUSE CALCULATOR",
+        ("en", "dim_tab") => "DIM.",
+        ("en", "floor_enclave") => "Inset",
+        ("en", "floor_pose") => "Overlay",
+        ("en", "floor_enclave_short") => "INSET",
+        ("en", "floor_pose_short") => "OVERLAY",
+        ("en", "ridge_left") => "Left",
+        ("en", "ridge_right") => "Right",
+        ("en", "ridge_miter") => "Miter",
+        ("en", "door_none") => "None",
+        ("en", "door_round") => "Round",
+        ("en", "door_square") => "Square",
+        ("en", "door_pentagon") => "Pent.",
+        ("en", "vector") => "Vector",
+        ("en", "heightmap") => "Heightmap",
+        ("en", "choose_file_to_show_shape_settings") => "Choose a file to show shape settings.",
+        ("en", "download_calcs_pdf") => "Download calculations PDF",
+        ("en", "models_3d") => "3D models",
+        ("en", "house") => "House",
+        ("en", "plans") => "Plans",
+        ("en", "plan") => "Plan",
+        ("en", "explosion") => "Exploded view",
+        ("en", "diagnostic") => "Diagnostics",
+        ("en", "debug") => "Debug",
+        ("en", "report") => "Report",
+        ("en", "panel_selected") => "Selected sheet",
+        ("en", "format_used") => "Used format",
+        ("en", "usage") => "Usage",
+        ("en", "area_pieces") => "Piece area",
+        ("en", "area_panel") => "Sheet area",
+        ("en", "auto_smallest_panel") => "Auto - smallest compatible sheet",
+        ("en", "demo") => "Demo",
+        ("en", "login") => "Login",
+        ("en", "logout_short") => "Logout",
+        ("en", "plan_none") => "None",
+        ("en", "credits_three") => "3 credits",
+        ("en", "credits_two") => "2 credits",
+        ("en", "credits_five") => "5 credits",
+        ("en", "credit_one") => "1 credit",
+        ("en", "facade_piece") => "Facade",
+        ("en", "side_piece") => "Side",
+        ("en", "floor_piece") => "Floor",
+        ("en", "roof_piece") => "Roof",
+        ("en", "left_short") => "L",
+        ("en", "right_short") => "R",
+        ("en", "account_balance") => "Credit balance",
+        ("en", "server_source") => "server source",
+        ("en", "account_state") => "Status",
+        ("en", "account_email") => "Email",
+        ("en", "account_plan") => "Plan",
+        ("en", "dev_only") => "Dev only",
+        ("en", "app_summary_only") => "Summary only in app",
+        ("en", "account_server_master") => "The PHP server remains the source of truth for account, credits, subscriptions, tickets, and payments.",
+        ("en", "auth") => "Authentication",
+        ("en", "demo_quick_login") => "Quick demo login to test exports. Full account management stays on the site.",
+        ("en", "session_active") => "Session active. The server decides download authorizations.",
+        ("en", "refresh") => "Refresh",
+        ("en", "state") => "state",
+        ("en", "logout") => "Logout",
+        ("en", "available_credits") => "Available credits",
+        ("en", "current_export_hold") => "Current export hold",
+        ("en", "short_authorization") => "short authorization",
+        ("en", "costs") => "Costs",
+        ("en", "offers") => "Offers",
+        ("en", "site") => "site",
+        ("en", "info") => "info",
+        ("en", "account_management") => "Account management",
+        ("en", "account_backend_note") => "Profile, credits, subscription, and invoices stay on the PHP site. Quick tickets can also be followed here.",
+        ("en", "pricing") => "Pricing",
+        ("en", "support_tickets") => "Support tickets",
+        ("en", "subject") => "Subject",
+        ("en", "ticket_subject_placeholder") => "Question about an export",
+        ("en", "message") => "Message",
+        ("en", "ticket_message_placeholder") => "Describe the issue",
+        ("en", "create_ticket") => "Create ticket",
+        ("en", "no_ticket_loaded") => "No ticket loaded.",
+        ("en", "ticket") => "Ticket",
+        ("en", "close") => "Close",
+        ("en", "reply") => "Reply",
+        ("en", "reply_label") => "Reply",
+        ("en", "export_consumption") => "Export consumption",
+        ("en", "house_or_door_stl") => "House or door STL",
+        ("en", "plan_pdf_or_calcs_pdf") => "Plan PDF / calculations PDF",
+        ("en", "panels_zip") => "Panel ZIP",
+        ("en", "plan_svg_or_png") => "Plan SVG / PNG",
+        ("en", "user_management") => "User management",
+        ("en", "account_backend_source") => "Account, credits, subscription, tickets, and payments come from the PHP backend.",
+        ("en", "close_account") => "Close",
+        ("en", "close_account_aria") => "Close account",
+        ("en", "viewer_controls_aria") => "View controls",
+        ("en", "viewer_preview_aria") => "3D preview",
+        ("en", "axis_width") => "width",
+        ("en", "axis_height") => "height",
+        ("en", "axis_depth") => "depth",
+        ("en", "shape_count") => "shape(s)",
+        ("en", "straight_cut") => "straight cut",
+        ("en", "no_special_angle") => "no special angle",
+        ("en", "side_straight") => "straight",
+        ("en", "angle") => "angle",
+        ("en", "inset") => "inset",
+        ("en", "upper_cut") => "top cut",
+        ("en", "full_overlay") => "full overlay",
+        ("en", "beveled_edges") => "beveled edges",
+        ("en", "bottom_face") => "bottom",
+        ("en", "top_face") => "top",
+        ("en", "remove_each_side") => "remove on each side",
+        ("en", "ridge_bevel_with_angle") => "ridge bevel",
+        ("en", "ridge_overlap_no_bevel") => "overlaps ridge, no bevel",
+        ("en", "under_overlap_straight_cut") => "under overlap, straight cut",
+        ("en", "same_size_as_hole") => "same size as hole",
+        ("en", "smaller_fits_hole") => "smaller (fits inside hole)",
+        ("en", "larger_overlays_hole") => "larger (sits over hole)",
+        ("en", "round_shape") => "round",
+        ("en", "square_shape") => "square",
+        ("en", "pentagon_shape") => "pent.",
+        ("en", "selected_panel_fallback") => "Custom manual (auto unavailable)",
+        ("en", "custom_manual") => "Custom / manual",
+        ("en", "plan_preview_title") => "Nichoir cut plan",
+        ("en", "panel_line") => "Sheet",
+        ("en", "theme_light") => "Light",
+        ("en", "gable_profile") => "gable profile",
+        ("en", "flared_trapezoid") => "flared trapezoid",
+        ("en", "narrowed_trapezoid") => "narrowed trapezoid",
+        ("en", "flared_short") => "flared",
+        ("en", "narrowed_short") => "narrowed",
+        ("en", "beveled_shape") => "beveled",
+        ("en", "solid_shape") => "solid",
+        ("en", "inset_shape") => "inset",
+        ("en", "cylinder") => "cylinder",
+        ("en", "longitudinal_axis") => "longitudinal axis",
         (_, "app_title") => "Calculateur",
         (_, "body") => "Corps",
         (_, "view") => "Vue",
@@ -643,12 +779,17 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "ridge_auto_miter") => "Onglet automatique: gauche/droit est flush seulement a 45°.",
         (_, "hang_holes") => "Trous de suspension",
         (_, "hang_enable") => "Activer les trous dans le toit",
+        (_, "hang_front_left") => "Avant G",
+        (_, "hang_front_right") => "Avant D",
+        (_, "hang_back_left") => "Arriere G",
+        (_, "hang_back_right") => "Arriere D",
         (_, "hang_diam") => "Diametre trou",
         (_, "hang_side_offset") => "Retrait depuis cote du toit",
         (_, "hang_end_offset") => "Retrait depuis avant/arriere",
         (_, "material") => "Materiau",
         (_, "thickness") => "Epaisseur parois",
         (_, "thickness_preset") => "Epaisseur panneau commercial",
+        (_, "custom_stl_free") => "Custom / STL libre",
         (_, "thickness_note") => "Cette epaisseur pilote le STL, les angles et les dimensions du plan de coupe. Pour fabriquer en panneau, choisis l'epaisseur reelle disponible sur le marche.",
         (_, "door") => "Porte d'entree",
         (_, "door_width") => "Largeur porte",
@@ -705,7 +846,179 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "deco_bevel") => "Intensite biseau / chanfrein",
         (_, "deco_threshold") => "Seuil anti-bruit",
         (_, "deco_clip") => "Clipper au panneau (a venir)",
+        (_, "language") => "Langue",
+        (_, "app_subtitle") => "CALCULATEUR MAISON D'OISEAU",
+        (_, "dim_tab") => "DIM.",
+        (_, "floor_enclave") => "Enclave",
+        (_, "floor_pose") => "Pose",
+        (_, "floor_enclave_short") => "ENCLAVE",
+        (_, "floor_pose_short") => "POSE",
+        (_, "ridge_left") => "Gauche",
+        (_, "ridge_right") => "Droit",
+        (_, "ridge_miter") => "Onglet",
+        (_, "door_none") => "Aucune",
+        (_, "door_round") => "Ronde",
+        (_, "door_square") => "Carree",
+        (_, "door_pentagon") => "Penta.",
+        (_, "vector") => "Vectoriel",
+        (_, "heightmap") => "Heightmap",
+        (_, "choose_file_to_show_shape_settings") => "Choisis un fichier pour afficher les reglages de forme.",
+        (_, "download_calcs_pdf") => "Telecharger les calculs PDF",
+        (_, "models_3d") => "Modeles 3D",
+        (_, "house") => "Maison",
+        (_, "plans") => "Plans",
+        (_, "plan") => "Plan",
+        (_, "explosion") => "Explosion",
+        (_, "diagnostic") => "Diagnostic",
+        (_, "debug") => "Debug",
+        (_, "report") => "Rapport",
+        (_, "panel_selected") => "Panneau choisi",
+        (_, "format_used") => "Format utilise",
+        (_, "usage") => "Utilisation",
+        (_, "area_pieces") => "Aire pieces",
+        (_, "area_panel") => "Aire panneau",
+        (_, "auto_smallest_panel") => "Auto - plus petit panneau compatible",
+        (_, "demo") => "Demo",
+        (_, "login") => "Connexion",
+        (_, "logout_short") => "Sortie",
+        (_, "plan_none") => "Aucun",
+        (_, "credits_three") => "3 credits",
+        (_, "credits_two") => "2 credits",
+        (_, "credits_five") => "5 credits",
+        (_, "credit_one") => "1 credit",
+        (_, "facade_piece") => "Facade",
+        (_, "side_piece") => "Cote",
+        (_, "floor_piece") => "Plancher",
+        (_, "roof_piece") => "Toit",
+        (_, "left_short") => "G",
+        (_, "right_short") => "D",
+        (_, "account_balance") => "Solde credits",
+        (_, "server_source") => "source serveur",
+        (_, "account_state") => "Etat",
+        (_, "account_email") => "Courriel",
+        (_, "account_plan") => "Plan",
+        (_, "dev_only") => "Dev seulement",
+        (_, "app_summary_only") => "Resume dans l'app seulement",
+        (_, "account_server_master") => "Le serveur PHP reste maitre du compte, des credits, abonnements, tickets et paiements.",
+        (_, "auth") => "Identification",
+        (_, "demo_quick_login") => "Connexion demo rapide pour tester les exports. Le compte complet se gere sur le site.",
+        (_, "session_active") => "Session active. Le serveur decide les autorisations de telechargement.",
+        (_, "refresh") => "Rafraichir",
+        (_, "state") => "etat",
+        (_, "logout") => "Sortir",
+        (_, "available_credits") => "Credits disponibles",
+        (_, "current_export_hold") => "Reserve export courant",
+        (_, "short_authorization") => "autorisation courte",
+        (_, "costs") => "Couts",
+        (_, "offers") => "Offres",
+        (_, "site") => "site",
+        (_, "info") => "info",
+        (_, "account_management") => "Gestion compte",
+        (_, "account_backend_note") => "Profil, credits, abonnement et factures restent sur le site PHP. Les tickets rapides peuvent aussi etre suivis ici.",
+        (_, "pricing") => "Tarifs",
+        (_, "support_tickets") => "Tickets support",
+        (_, "subject") => "Sujet",
+        (_, "ticket_subject_placeholder") => "Question sur un export",
+        (_, "message") => "Message",
+        (_, "ticket_message_placeholder") => "Decris le probleme",
+        (_, "create_ticket") => "Creer ticket",
+        (_, "no_ticket_loaded") => "Aucun ticket charge.",
+        (_, "ticket") => "Ticket",
+        (_, "close") => "Fermer",
+        (_, "reply") => "Repondre",
+        (_, "reply_label") => "Reponse",
+        (_, "export_consumption") => "Consommation exports",
+        (_, "house_or_door_stl") => "Maison ou porte STL",
+        (_, "plan_pdf_or_calcs_pdf") => "Plan PDF / calculs PDF",
+        (_, "panels_zip") => "Panneaux ZIP",
+        (_, "plan_svg_or_png") => "Plan SVG / PNG",
+        (_, "user_management") => "Gestion usager",
+        (_, "account_backend_source") => "Compte, credits, abonnement, tickets et paiements viennent du backend PHP.",
+        (_, "close_account") => "Fermer",
+        (_, "close_account_aria") => "Fermer le compte",
+        (_, "viewer_controls_aria") => "Controles de vue",
+        (_, "viewer_preview_aria") => "Apercu 3D",
+        (_, "axis_width") => "largeur",
+        (_, "axis_height") => "hauteur",
+        (_, "axis_depth") => "profondeur",
+        (_, "shape_count") => "forme(s)",
+        (_, "straight_cut") => "coupe droite",
+        (_, "no_special_angle") => "aucun angle special",
+        (_, "side_straight") => "droit",
+        (_, "angle") => "angle",
+        (_, "inset") => "retrait",
+        (_, "upper_cut") => "coupe haute",
+        (_, "full_overlay") => "pose pleine",
+        (_, "beveled_edges") => "chants biseautes",
+        (_, "bottom_face") => "dessous",
+        (_, "top_face") => "dessus",
+        (_, "remove_each_side") => "retirer par cote",
+        (_, "ridge_bevel_with_angle") => "biseau crete",
+        (_, "ridge_overlap_no_bevel") => "recouvre crete, sans biseau",
+        (_, "under_overlap_straight_cut") => "sous recouvrement, coupe droite",
+        (_, "same_size_as_hole") => "meme taille que trou",
+        (_, "smaller_fits_hole") => "plus petite (rentre dans le trou)",
+        (_, "larger_overlays_hole") => "plus grande (se pose par-dessus)",
+        (_, "round_shape") => "ronde",
+        (_, "square_shape") => "carree",
+        (_, "pentagon_shape") => "penta.",
+        (_, "selected_panel_fallback") => "Custom manuel (auto impossible)",
+        (_, "custom_manual") => "Custom / manuel",
+        (_, "plan_preview_title") => "Plan de coupe Nichoir",
+        (_, "panel_line") => "Panneau",
+        (_, "theme_light") => "Clair",
+        (_, "gable_profile") => "profil pignon",
+        (_, "flared_trapezoid") => "trapeze evase",
+        (_, "narrowed_trapezoid") => "trapeze retreci",
+        (_, "flared_short") => "evase",
+        (_, "narrowed_short") => "retreci",
+        (_, "beveled_shape") => "biseau",
+        (_, "solid_shape") => "plein",
+        (_, "inset_shape") => "enclave",
+        (_, "cylinder") => "cylindre",
+        (_, "longitudinal_axis") => "axe longitudinal",
         _ => "",
+    }
+}
+
+fn taper_facade_note(p: &NichoirParams, lang: &str) -> String {
+    if p.taper_x.abs() < 1e-9 {
+        t(lang, "gable_profile").to_string()
+    } else {
+        let delta = format_len(p.taper_x.abs(), &p.unit);
+        let label = if p.taper_x > 0.0 {
+            t(lang, "flared_trapezoid")
+        } else {
+            t(lang, "narrowed_trapezoid")
+        };
+        format!("{label} ({delta} {})", unit_def(&p.unit).label)
+    }
+}
+
+fn taper_side_note(p: &NichoirParams, lang: &str) -> String {
+    if p.taper_x.abs() < 1e-9 {
+        String::new()
+    } else {
+        let label = if p.taper_x > 0.0 {
+            t(lang, "flared_short")
+        } else {
+            t(lang, "narrowed_short")
+        };
+        format!("{label} {} {}", format_len(p.taper_x.abs(), &p.unit), unit_def(&p.unit).label)
+    }
+}
+
+fn piece_name(lang: &str, key: &str, suffix: Option<&str>) -> String {
+    let base = match key {
+        "facade" => t(lang, "facade_piece"),
+        "side" => t(lang, "side_piece"),
+        "floor" => t(lang, "floor_piece"),
+        "roof" => t(lang, "roof_piece"),
+        _ => key,
+    };
+    match suffix {
+        Some(extra) if !extra.is_empty() => format!("{base} {extra}"),
+        _ => base.to_string(),
     }
 }
 
@@ -832,17 +1145,17 @@ fn selected_panel_preset(p: &NichoirParams, value: &str) -> &'static str {
 }
 
 fn panel_preset_select(p: &NichoirParams, lang: &str) -> String {
-    let presets = [
-        ("auto", "Auto - plus petit panneau compatible"),
-        ("custom", "Custom / manuel"),
-        ("1219.2x2438.4", "4 x 8 ft - 1219 x 2438 mm"),
-        ("1219.2x1219.2", "4 x 4 ft - 1219 x 1219 mm"),
-        ("609.6x1219.2", "2 x 4 ft - 610 x 1219 mm"),
-        ("1524x1524", "5 x 5 ft - 1524 x 1524 mm"),
-        ("1524x3048", "5 x 10 ft - 1524 x 3048 mm"),
-        ("1220x2440", "Metric 1220 x 2440 mm"),
-        ("1250x2500", "Metric 1250 x 2500 mm"),
-        ("1500x3000", "Metric 1500 x 3000 mm"),
+    let presets: Vec<(&str, String)> = vec![
+        ("auto", t(lang, "auto_smallest_panel").to_string()),
+        ("custom", t(lang, "custom_manual").to_string()),
+        ("1219.2x2438.4", "4 x 8 ft - 1219 x 2438 mm".to_string()),
+        ("1219.2x1219.2", "4 x 4 ft - 1219 x 1219 mm".to_string()),
+        ("609.6x1219.2", "2 x 4 ft - 610 x 1219 mm".to_string()),
+        ("1524x1524", "5 x 5 ft - 1524 x 1524 mm".to_string()),
+        ("1524x3048", "5 x 10 ft - 1524 x 3048 mm".to_string()),
+        ("1220x2440", "1220 x 2440 mm".to_string()),
+        ("1250x2500", "1250 x 2500 mm".to_string()),
+        ("1500x3000", "1500 x 3000 mm".to_string()),
     ];
     let mut options = String::new();
     let mut matched = false;
@@ -867,7 +1180,7 @@ fn panel_preset_select(p: &NichoirParams, lang: &str) -> String {
             r#"<option value="{}" {}>{}</option>"#,
             html_escape(value),
             selected,
-            html_escape(label),
+            html_escape(&label),
         ));
     }
     let custom_selected = if matched { "" } else { "selected" };
@@ -893,7 +1206,7 @@ fn selected_thickness_preset(p: &NichoirParams, value: &str) -> &'static str {
 
 fn thickness_preset_select(p: &NichoirParams, lang: &str) -> String {
     let presets = [
-        ("custom", "Custom / STL libre"),
+        ("custom", t(lang, "custom_stl_free")),
         ("3", "3 mm"),
         ("6", "6 mm"),
         ("9", "9 mm"),
@@ -980,6 +1293,7 @@ struct GeometryPayload {
 
 impl GeometryPayload {
     fn from_p(p: &NichoirParams) -> Self {
+        let lang = p.lang.as_str();
         let ang = p.slope * PI / 180.0;
         let is_pose = matches!(p.floor, FloorMode::Pose);
         let ridge = effective_ridge(p);
@@ -1059,21 +1373,8 @@ impl GeometryPayload {
         let total_area = 2.0 * front_area + 2.0 * side_area + bottom_area + roof_area_total;
         let material_volume = (ext_volume - int_volume).max(0.0);
 
-        let facade_note = if p.taper_x.abs() < 1e-9 {
-            "penta".to_string()
-        } else if p.taper_x > 0.0 {
-            format!("trapèze évasé (Δ={}mm)", p.taper_x)
-        } else {
-            format!("trapèze rétréci (Δ={}mm)", p.taper_x.abs())
-        };
-
-        let side_note = if p.taper_x.abs() < 1e-9 {
-            String::new()
-        } else if p.taper_x > 0.0 {
-            format!("évasé {}", to_display(p.taper_x, &p.unit))
-        } else {
-            format!("rétréci {}", to_display(p.taper_x.abs(), &p.unit))
-        };
+        let facade_note = taper_facade_note(p, lang);
+        let side_note = taper_side_note(p, lang);
 
         Self {
             is_pose,
@@ -1137,6 +1438,7 @@ struct StatsPayload {
 fn build_cuts(p: &NichoirParams, g: &GeometryPayload) -> Vec<BomLine> {
     let mut cuts = Vec::new();
     let unit = &p.unit;
+    let lang = p.lang.as_str();
     let ridge = effective_ridge(p);
     let (roof_left_w, _) = poly_bounds(&roof_profile_points(p, g, true));
     let (roof_right_w, _) = poly_bounds(&roof_profile_points(p, g, false));
@@ -1154,7 +1456,7 @@ name: &str, qty: u32, shape: &str, w: f64, h: f64, note: &str| BomLine {
     };
 
     cuts.push(base_cut(
-        "Façade",
+        &piece_name(lang, "facade", None),
         2,
         "pent",
         g.w_bot.max(g.w_top),
@@ -1163,39 +1465,46 @@ name: &str, qty: u32, shape: &str, w: f64, h: f64, note: &str| BomLine {
     ));
 
     cuts.push(base_cut(
-        "Côté",
+        &piece_name(lang, "side", None),
         2,
-        "biseau",
+        t(lang, "beveled_shape"),
         g.side_d,
         g.wall_h_real + g.roof_side_cut,
         &format!(
-            "{}; angle {:.1}°, retrait {}, coupe haute {}",
-            if g.side_note.is_empty() { "droit" } else { &g.side_note },
+            "{}; {} {:.1}°, {} {}, {} {}",
+            if g.side_note.is_empty() { t(lang, "side_straight") } else { &g.side_note },
+            t(lang, "angle"),
             g.side_angle_deg,
+            t(lang, "inset"),
             format_len(g.side_inset, unit),
+            t(lang, "upper_cut"),
             format_len(g.roof_side_cut, unit),
         ),
     ));
 
     let floor_blank_w = g.floor_w.max(g.floor_top_w);
     let floor_note = if matches!(p.floor, FloorMode::Pose) {
-        "pose pleine".to_string()
+        t(lang, "full_overlay").to_string()
     } else {
         format!(
-            "chants biseautes {:.1}°, dessous {}, dessus {}, retirer {} par cote",
+            "{} {:.1}°, {} {}, {} {}, {} {}",
+            t(lang, "beveled_edges"),
             g.side_angle_deg.abs(),
+            t(lang, "bottom_face"),
             format_len(g.floor_w, unit),
+            t(lang, "top_face"),
             format_len(g.floor_top_w, unit),
+            t(lang, "remove_each_side"),
             format_len(g.floor_side_cut, unit),
         )
     };
     cuts.push(base_cut(
-        "Plancher",
+        &piece_name(lang, "floor", None),
         1,
         if matches!(p.floor, FloorMode::Pose) {
-            "plein"
+            t(lang, "solid_shape")
         } else {
-            "enclavé"
+            t(lang, "inset_shape")
         },
         floor_blank_w,
         g.floor_d,
@@ -1204,40 +1513,42 @@ name: &str, qty: u32, shape: &str, w: f64, h: f64, note: &str| BomLine {
 
     if matches!(ridge, RidgeMode::Miter) {
         cuts.push(base_cut(
-            "Toit",
+            &piece_name(lang, "roof", None),
             2,
             "rect",
             g.s_l,
             g.roof_len,
             &format!(
-                "biseau crete {}°, retrait {}",
+                "{} {}°, {} {}",
+                t(lang, "ridge_bevel_with_angle"),
                 p.slope,
+                t(lang, "inset"),
                 format_len(g.roof_ridge_cut, unit)
             ),
         ));
     } else {
         cuts.push(base_cut(
-            "Toit G",
+            &piece_name(lang, "roof", Some(t(lang, "left_short"))),
             1,
             "rect",
             roof_left_w,
             g.roof_len,
             if matches!(ridge, RidgeMode::Left) {
-                "recouvre crete, sans biseau"
+                t(lang, "ridge_overlap_no_bevel")
             } else {
-                "sous recouvrement, coupe droite"
+                t(lang, "under_overlap_straight_cut")
             },
         ));
         cuts.push(base_cut(
-            "Toit D",
+            &piece_name(lang, "roof", Some(t(lang, "right_short"))),
             1,
             "rect",
             roof_right_w,
             g.roof_len,
             if matches!(ridge, RidgeMode::Right) {
-                "recouvre crete, sans biseau"
+                t(lang, "ridge_overlap_no_bevel")
             } else {
-                "sous recouvrement, coupe droite"
+                t(lang, "under_overlap_straight_cut")
             },
         ));
     }
@@ -1245,22 +1556,22 @@ name: &str, qty: u32, shape: &str, w: f64, h: f64, note: &str| BomLine {
     if !matches!(p.door, DoorMode::None) && p.door_panel {
         let v = (p.door_var / 100.0).max(0.0);
         let shape_name = match p.door {
-            DoorMode::Round => "ronde",
-            DoorMode::Square => "carrée",
-            DoorMode::Pentagon => "penta.",
+            DoorMode::Round => t(lang, "round_shape"),
+            DoorMode::Square => t(lang, "square_shape"),
+            DoorMode::Pentagon => t(lang, "pentagon_shape"),
             DoorMode::None => "",
         };
         let w = p.door_w * v;
         let h = p.door_h * v;
         let door_note = if (p.door_var - 100.0).abs() < f64::EPSILON {
-            "même taille que trou"
+            t(lang, "same_size_as_hole")
         } else if p.door_var < 100.0 {
-            "plus petite (rentre dans le trou)"
+            t(lang, "smaller_fits_hole")
         } else {
-            "plus grande (se pose par-dessus)"
+            t(lang, "larger_overlays_hole")
         };
         cuts.push(base_cut(
-            "Porte",
+            t(lang, "door"),
             1,
             shape_name,
             w,
@@ -1271,12 +1582,12 @@ name: &str, qty: u32, shape: &str, w: f64, h: f64, note: &str| BomLine {
 
     if p.perch && !matches!(p.door, DoorMode::None) {
         cuts.push(base_cut(
-            "Perchoir",
+            t(lang, "perch"),
             1,
-            "cylindre",
+            t(lang, "cylinder"),
             p.perch_diam,
             p.perch_len,
-            "axe longitudinal",
+            t(lang, "longitudinal_axis"),
         ));
     }
 
@@ -1353,27 +1664,28 @@ fn market_panel_presets() -> Vec<(&'static str, f64, f64)> {
         ("2 x 4 ft - 610 x 1219 mm", 609.6, 1219.2),
         ("4 x 4 ft - 1219 x 1219 mm", 1219.2, 1219.2),
         ("4 x 8 ft - 1219 x 2438 mm", 1219.2, 2438.4),
-        ("Metric 1220 x 2440 mm", 1220.0, 2440.0),
+        ("1220 x 2440 mm", 1220.0, 2440.0),
         ("5 x 5 ft - 1524 x 1524 mm", 1524.0, 1524.0),
-        ("Metric 1250 x 2500 mm", 1250.0, 2500.0),
+        ("1250 x 2500 mm", 1250.0, 2500.0),
         ("5 x 10 ft - 1524 x 3048 mm", 1524.0, 3048.0),
-        ("Metric 1500 x 3000 mm", 1500.0, 3000.0),
+        ("1500 x 3000 mm", 1500.0, 3000.0),
     ]
 }
 
 fn build_layout_pieces(p: &NichoirParams, geom: &GeometryPayload) -> Vec<LayoutPiece> {
+    let lang = p.lang.as_str();
     let ridge = effective_ridge(p);
     let base_defs = [
-        ("Façade 1", "#d4a574", "pent", geom.w_bot.max(geom.w_top), geom.wall_h + geom.roof_h, 1),
-        ("Façade 2", "#d4a574", "pent", geom.w_bot.max(geom.w_top), geom.wall_h + geom.roof_h, 1),
-        ("Côté G", "#c49464", "rect", geom.side_d, geom.wall_h_real + geom.roof_side_cut, 1),
-        ("Côté D", "#c49464", "rect", geom.side_d, geom.wall_h_real + geom.roof_side_cut, 1),
-        ("Plancher", "#b48454", "rect", geom.floor_w.max(geom.floor_top_w), geom.floor_d, 1),
+        (piece_name(lang, "facade", Some("1")), "#d4a574", "pent", geom.w_bot.max(geom.w_top), geom.wall_h + geom.roof_h, 1),
+        (piece_name(lang, "facade", Some("2")), "#d4a574", "pent", geom.w_bot.max(geom.w_top), geom.wall_h + geom.roof_h, 1),
+        (piece_name(lang, "side", Some(t(lang, "left_short"))), "#c49464", "rect", geom.side_d, geom.wall_h_real + geom.roof_side_cut, 1),
+        (piece_name(lang, "side", Some(t(lang, "right_short"))), "#c49464", "rect", geom.side_d, geom.wall_h_real + geom.roof_side_cut, 1),
+        (piece_name(lang, "floor", None), "#b48454", "rect", geom.floor_w.max(geom.floor_top_w), geom.floor_d, 1),
     ];
     let mut pieces: Vec<LayoutPiece> = base_defs
         .iter()
         .map(|(name, color, shape, w, h, qty)| LayoutPiece {
-            name: (*name).to_string(),
+            name: name.to_string(),
             qty: *qty,
             w: *w,
             h: *h,
@@ -1393,13 +1705,19 @@ fn build_layout_pieces(p: &NichoirParams, geom: &GeometryPayload) -> Vec<LayoutP
     let (roof_w_left, _) = poly_bounds(&roof_profile_points(p, geom, true));
     let (roof_w_right, _) = poly_bounds(&roof_profile_points(p, geom, false));
     let roof_defs = if matches!(ridge, RidgeMode::Miter) {
-        vec![("Toit 1", geom.s_l, geom.roof_len), ("Toit 2", geom.s_l, geom.roof_len)]
+        vec![
+            (piece_name(lang, "roof", Some("1")), geom.s_l, geom.roof_len),
+            (piece_name(lang, "roof", Some("2")), geom.s_l, geom.roof_len),
+        ]
     } else {
-        vec![("Toit G", roof_w_left, geom.roof_len), ("Toit D", roof_w_right, geom.roof_len)]
+        vec![
+            (piece_name(lang, "roof", Some(t(lang, "left_short"))), roof_w_left, geom.roof_len),
+            (piece_name(lang, "roof", Some(t(lang, "right_short"))), roof_w_right, geom.roof_len),
+        ]
     };
     for (name, w, h) in roof_defs {
         pieces.push(LayoutPiece {
-            name: name.to_string(),
+            name,
             qty: 1,
             w,
             h,
@@ -1419,7 +1737,7 @@ fn build_layout_pieces(p: &NichoirParams, geom: &GeometryPayload) -> Vec<LayoutP
     if !matches!(p.door, DoorMode::None) && p.door_panel {
         let v = (p.door_var / 100.0).max(0.0);
         pieces.push(LayoutPiece {
-            name: "Porte".to_string(),
+            name: t(lang, "door").to_string(),
             qty: 1,
             w: p.door_w * v,
             h: p.door_h * v,
@@ -1548,11 +1866,11 @@ pub fn compute_cut_layout(input: &str) -> String {
         }
         best.unwrap_or_else(|| {
             let (candidate, placed, use_ratio) = pack_layout(pieces.clone(), p.panel_w, p.panel_h, gap);
-            ("Custom manuel (auto impossible)".to_string(), p.panel_w, p.panel_h, candidate, placed, use_ratio)
+            (t(p.lang.as_str(), "selected_panel_fallback").to_string(), p.panel_w, p.panel_h, candidate, placed, use_ratio)
         })
     } else {
         let (candidate, placed, use_ratio) = pack_layout(pieces, p.panel_w, p.panel_h, gap);
-        ("Custom / manuel".to_string(), p.panel_w, p.panel_h, candidate, placed, use_ratio)
+        (t(p.lang.as_str(), "custom_manual").to_string(), p.panel_w, p.panel_h, candidate, placed, use_ratio)
     };
 
     let payload = CutLayoutPayload {
@@ -4364,6 +4682,7 @@ pub fn mesh_report_json(input: &str) -> String {
 #[wasm_bindgen]
 pub fn plan_preview_svg(input: &str) -> String {
     let p = parse_input(input).unwrap_or_default();
+    let lang = p.lang.as_str();
     let g = GeometryPayload::from_p(&p);
     let cuts = build_cuts(&p, &g);
     let layout_json = compute_cut_layout(input);
@@ -4390,17 +4709,19 @@ pub fn plan_preview_svg(input: &str) -> String {
         .get("payload")
         .and_then(|p| p.get("panel_label"))
         .and_then(|x| x.as_str())
-        .unwrap_or("Custom / manuel");
+        .unwrap_or(t(lang, "custom_manual"));
 
     let mut svg = String::new();
     svg.push_str(&format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"{panel_w}mm\" height=\"{panel_h}mm\" viewBox=\"0 0 {panel_w} {panel_h}\">\n"
     ));
     svg.push_str(&format!(
-        "<title>Plan de coupe Nichoir - {} x {} {}, lame {} {}</title>\n",
+        "<title>{} - {} x {} {}, {} {} {}</title>\n",
+        t(lang, "plan_preview_title"),
         format_len(panel_w, &p.unit),
         format_len(panel_h, &p.unit),
         html_escape(unit_def(&p.unit).label),
+        t(lang, "kerf"),
         format_len(p.kerf, &p.unit),
         html_escape(unit_def(&p.unit).label),
     ));
@@ -4408,11 +4729,14 @@ pub fn plan_preview_svg(input: &str) -> String {
         "<rect x=\"0\" y=\"0\" width=\"{panel_w:.3}\" height=\"{panel_h:.3}\" fill=\"#252018\" stroke=\"#4a4030\" stroke-width=\"2\"/>\n"
     ));
     svg.push_str(&format!(
-        "<text x=\"12\" y=\"28\" font-size=\"18\" fill=\"#e8a955\">Panneau: {} | Format: {} x {} {} | lame {}</text>\n",
+        "<text x=\"12\" y=\"28\" font-size=\"18\" fill=\"#e8a955\">{}: {} | {}: {} x {} {} | {} {}</text>\n",
+        t(lang, "panel_line"),
         html_escape(panel_label),
+        t(lang, "format_used"),
         format_len(panel_w, &p.unit),
         format_len(panel_h, &p.unit),
         html_escape(unit_def(&p.unit).label),
+        t(lang, "kerf"),
         format_len(p.kerf, &p.unit),
     ));
     let mut grid = 200.0;
@@ -4554,17 +4878,21 @@ pub fn render_app_html(input: &str) -> String {
         length_control(t(lang, "depth"), "D", 80.0, 400.0, 1.0, p.d, &p.unit),
         length_control(t(lang, "taper"), "taperX", -60.0, 60.0, 1.0, p.taper_x, &p.unit),
         t(lang, "floor"),
-        choice_button("Enclave", "floor", "enclave", floor_value(p.floor)),
-        choice_button("Pose", "floor", "pose", floor_value(p.floor)),
+        choice_button(t(lang, "floor_enclave"), "floor", "enclave", floor_value(p.floor)),
+        choice_button(t(lang, "floor_pose"), "floor", "pose", floor_value(p.floor)),
     );
 
     let hang_details = if p.hang_holes {
         format!(
-            r#"<div class="subcontrols"><div class="corner-grid"><label class="check"><input data-bool="hangFL" type="checkbox" {}>Avant G</label><label class="check"><input data-bool="hangFR" type="checkbox" {}>Avant D</label><label class="check"><input data-bool="hangBL" type="checkbox" {}>Arriere G</label><label class="check"><input data-bool="hangBR" type="checkbox" {}>Arriere D</label></div>{}{}{}</div>"#,
+            r#"<div class="subcontrols"><div class="corner-grid"><label class="check"><input data-bool="hangFL" type="checkbox" {}>{}</label><label class="check"><input data-bool="hangFR" type="checkbox" {}>{}</label><label class="check"><input data-bool="hangBL" type="checkbox" {}>{}</label><label class="check"><input data-bool="hangBR" type="checkbox" {}>{}</label></div>{}{}{}</div>"#,
             checked(p.hang_fl),
+            html_escape(t(lang, "hang_front_left")),
             checked(p.hang_fr),
+            html_escape(t(lang, "hang_front_right")),
             checked(p.hang_bl),
+            html_escape(t(lang, "hang_back_left")),
             checked(p.hang_br),
+            html_escape(t(lang, "hang_back_right")),
             length_control(t(lang, "hang_diam"), "hangDiam", 2.0, 30.0, 0.5, p.hang_diam, &p.unit),
             length_control(t(lang, "hang_side_offset"), "hangSideOffset", 2.0, 120.0, 1.0, p.hang_side_offset, &p.unit),
             length_control(t(lang, "hang_end_offset"), "hangEndOffset", 2.0, 120.0, 1.0, p.hang_end_offset, &p.unit),
@@ -4593,9 +4921,9 @@ pub fn render_app_html(input: &str) -> String {
         range_control(t(lang, "slope"), "slope", 10.0, 60.0, 1.0, p.slope, "deg"),
         length_control(t(lang, "overhang"), "overhang", 0.0, 80.0, 1.0, p.overhang, &p.unit),
         t(lang, "ridge"),
-        choice_button("Gauche", "ridge", "left", ridge_value(ridge)),
-        choice_button("Droit", "ridge", "right", ridge_value(ridge)),
-        choice_button("Onglet", "ridge", "miter", ridge_value(ridge)),
+        choice_button(t(lang, "ridge_left"), "ridge", "left", ridge_value(ridge)),
+        choice_button(t(lang, "ridge_right"), "ridge", "right", ridge_value(ridge)),
+        choice_button(t(lang, "ridge_miter"), "ridge", "miter", ridge_value(ridge)),
         if matches!(ridge, RidgeMode::Miter) && !matches!(p.ridge, RidgeMode::Miter) {
             format!(r#"<p class="control-note">{}</p>"#, html_escape(t(lang, "ridge_auto_miter")))
         } else {
@@ -4609,10 +4937,10 @@ pub fn render_app_html(input: &str) -> String {
     let door_shape_controls = format!(
         r#"<div class="field-group"><p>{}</p><div class="choices">{}{}{}{}</div></div>"#,
         t(lang, "door"),
-        choice_button("Aucune", "door", "none", door_current),
-        choice_button("Ronde", "door", "round", door_current),
-        choice_button("Carree", "door", "square", door_current),
-        choice_button("Penta.", "door", "pentagon", door_current),
+        choice_button(t(lang, "door_none"), "door", "none", door_current),
+        choice_button(t(lang, "door_round"), "door", "round", door_current),
+        choice_button(t(lang, "door_square"), "door", "square", door_current),
+        choice_button(t(lang, "door_pentagon"), "door", "pentagon", door_current),
     );
     let door_details = if matches!(p.door, DoorMode::None) {
         String::new()
@@ -4685,7 +5013,7 @@ pub fn render_app_html(input: &str) -> String {
     } else if parsed_deco_count == 0 {
         t(lang, "deco_svg_empty").to_string()
     } else {
-        format!("{}: {} forme(s)", t(lang, "deco_svg_loaded"), parsed_deco_count)
+        format!("{}: {} {}", t(lang, "deco_svg_loaded"), parsed_deco_count, t(lang, "shape_count"))
     };
     let deco_has_source = !active_deco.source_text.trim().is_empty()
         || !active_deco.source_data.trim().is_empty();
@@ -4694,18 +5022,20 @@ pub fn render_app_html(input: &str) -> String {
             r#"<div class="field-group disclosure-group">
         <p>{mode_label}</p>
         <div class="choices">
-          <button class="choice {vector_active}" data-deco-choice="mode" data-value="vector" type="button">Vectoriel</button>
-          <button class="choice {heightmap_active}" data-deco-choice="mode" data-value="heightmap" type="button">Heightmap</button>
+          <button class="choice {vector_active}" data-deco-choice="mode" data-value="vector" type="button">{vector_label}</button>
+          <button class="choice {heightmap_active}" data-deco-choice="mode" data-value="heightmap" type="button">{heightmap_label}</button>
         </div>
         <p class="control-note">{deco_note}</p>
       </div>"#,
             mode_label = html_escape(t(lang, "deco_mode")),
             vector_active = active_str(&active_deco.mode, "vector"),
             heightmap_active = active_str(&active_deco.mode, "heightmap"),
+            vector_label = html_escape(t(lang, "vector")),
+            heightmap_label = html_escape(t(lang, "heightmap")),
             deco_note = html_escape(t(lang, "deco_heightmap_note")),
         )
     } else {
-        r#"<p class="control-note">Choisis un fichier pour afficher les reglages de forme.</p>"#.to_string()
+        format!(r#"<p class="control-note">{}</p>"#, html_escape(t(lang, "choose_file_to_show_shape_settings")))
     };
     let deco_shape_controls = if deco_has_source {
         let mode_specific = if active_deco.mode == "heightmap" {
@@ -4800,17 +5130,22 @@ pub fn render_app_html(input: &str) -> String {
     let panel_label = layout_payload
         .and_then(|v| v.get("panel_label"))
         .and_then(|v| v.as_str())
-        .unwrap_or("Custom / manuel");
+        .unwrap_or(t(lang, "custom_manual"));
     let panel_area = effective_panel_w * effective_panel_h;
     let plan_stats = format!(
-        r#"<div class="plan-stats"><div class="stat-row"><span>Panneau choisi</span><strong>{}</strong></div><div class="stat-row"><span>Format utilise</span><strong>{} x {} {}</strong></div><div class="stat-row"><span>Utilisation</span><strong>{:.1}%</strong></div><div class="stat-row"><span>Aire pieces</span><strong>{} {}</strong></div><div class="stat-row"><span>Aire panneau</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{:.1}°</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div></div>"#,
+        r#"<div class="plan-stats"><div class="stat-row"><span>{}</span><strong>{}</strong></div><div class="stat-row"><span>{}</span><strong>{} x {} {}</strong></div><div class="stat-row"><span>{}</span><strong>{:.1}%</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{:.1}°</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div><div class="stat-row"><span>{}</span><strong>{} {}</strong></div></div>"#,
+        t(lang, "panel_selected"),
         html_escape(panel_label),
+        t(lang, "format_used"),
         format_len(effective_panel_w, &p.unit),
         format_len(effective_panel_h, &p.unit),
         unit.label,
+        t(lang, "usage"),
         usage_ratio,
+        t(lang, "area_pieces"),
         format_area(total_cut_area, &p.unit),
         unit_area_label(&p.unit),
+        t(lang, "area_panel"),
         format_area(panel_area, &p.unit),
         unit_area_label(&p.unit),
         t(lang, "kerf"),
@@ -4828,90 +5163,141 @@ pub fn render_app_html(input: &str) -> String {
         format_len(g.roof_ridge_cut, &p.unit),
         unit.label,
     );
-    let account_controls = r#"
+    let account_controls = format!(r#"
       <div class="account-summary">
         <div class="account-balance">
-          <span>Solde credits</span>
+          <span>{account_balance}</span>
           <strong data-account-balance>0</strong>
-          <em>source serveur</em>
+          <em>{server_source}</em>
         </div>
-        <div class="stat-row"><span>Etat</span><strong data-account-state>Non connecte</strong></div>
-        <div class="stat-row"><span>Courriel</span><strong data-account-email-label>-</strong></div>
-        <div class="stat-row"><span>Plan</span><strong data-account-plan>none</strong></div>
+        <div class="stat-row"><span>{account_state}</span><strong data-account-state>-</strong></div>
+        <div class="stat-row"><span>{account_email}</span><strong data-account-email-label>-</strong></div>
+        <div class="stat-row"><span>{account_plan}</span><strong data-account-plan>{plan_none}</strong></div>
       </div>
       <div class="dev-credentials">
-        <span>Dev seulement</span>
-        <strong>Resume dans l'app seulement</strong>
-        <code>Le serveur PHP reste maitre du compte, des credits, abonnements, tickets et paiements.</code>
+        <span>{dev_only}</span>
+        <strong>{app_summary_only}</strong>
+        <code>{account_server_master}</code>
       </div>
       <p class="account-error" data-account-error></p>
       <div class="download-groups account-actions">
         <div class="download-group">
-          <h3>Identification</h3>
-          <p class="control-note" data-account-guest data-demo-account>Connexion demo rapide pour tester les exports. Le compte complet se gere sur le site.</p>
-          <p class="control-note" data-account-authed hidden>Session active. Le serveur decide les autorisations de telechargement.</p>
+          <h3>{auth}</h3>
+          <p class="control-note" data-account-guest data-demo-account>{demo_quick_login}</p>
+          <p class="control-note" data-account-authed hidden>{session_active}</p>
           <div class="buttons compact-buttons" data-account-guest data-demo-account>
-            <button data-action="account-login" type="button"><span>Demo</span><strong>login</strong></button>
-            <button data-action="account-refresh" type="button"><span>Rafraichir</span><strong>etat</strong></button>
+            <button data-action="account-login" type="button"><span>{demo}</span><strong>{login}</strong></button>
+            <button data-action="account-refresh" type="button"><span>{refresh}</span><strong>{state}</strong></button>
           </div>
           <div class="buttons compact-buttons" data-account-authed hidden>
-            <button data-action="account-refresh" type="button"><span>Rafraichir</span><strong>etat</strong></button>
-            <button data-action="account-logout" type="button"><span>Sortir</span><strong>logout</strong></button>
+            <button data-action="account-refresh" type="button"><span>{refresh}</span><strong>{state}</strong></button>
+            <button data-action="account-logout" type="button"><span>{logout}</span><strong>{logout_short}</strong></button>
           </div>
         </div>
         <div class="download-group">
-          <h3>Credits</h3>
-          <div class="stat-row"><span>Credits disponibles</span><strong data-account-balance>0</strong></div>
-          <div class="stat-row"><span>Reserve export courant</span><strong>autorisation courte</strong></div>
-          <div class="stat-row"><span>Couts</span><strong>STL 3 / PDF 2 / ZIP 5 / SVG-PNG 1</strong></div>
+          <h3>{account_balance}</h3>
+          <div class="stat-row"><span>{available_credits}</span><strong data-account-balance>0</strong></div>
+          <div class="stat-row"><span>{current_export_hold}</span><strong>{short_authorization}</strong></div>
+          <div class="stat-row"><span>{costs}</span><strong>STL 3 / PDF 2 / ZIP 5 / SVG-PNG 1</strong></div>
           <div class="buttons compact-buttons">
-            <a class="button-like" data-site-link="/pricing" href="/pricing"><span>Offres</span><strong>site</strong></a>
-            <button data-action="token-pricing" type="button"><span>Couts</span><strong>info</strong></button>
+            <a class="button-like" data-site-link="/pricing" href="/pricing"><span>{offers}</span><strong>{site}</strong></a>
+            <button data-action="token-pricing" type="button"><span>{costs}</span><strong>{info}</strong></button>
           </div>
         </div>
         <div class="download-group">
-          <h3>Gestion compte</h3>
-          <p class="control-note">Profil, credits, abonnement et factures restent sur le site PHP. Les tickets rapides peuvent aussi etre suivis ici.</p>
+          <h3>{account_management}</h3>
+          <p class="control-note">{account_backend_note}</p>
           <div class="buttons compact-buttons">
-            <a class="button-like" data-site-link="/account" href="/account"><span>Compte</span><strong>site</strong></a>
-            <a class="button-like" data-site-link="/pricing" href="/pricing"><span>Tarifs</span><strong>site</strong></a>
+            <a class="button-like" data-site-link="/account" href="/account"><span>{account}</span><strong>{site}</strong></a>
+            <a class="button-like" data-site-link="/pricing" href="/pricing"><span>{pricing}</span><strong>{site}</strong></a>
           </div>
         </div>
         <div class="download-group ticket-widget" data-account-authed hidden>
-          <h3>Tickets support</h3>
+          <h3>{support_tickets}</h3>
           <form class="ticket-mini-form" data-account-ticket-form>
-            <label><span>Sujet</span><input name="subject" type="text" maxlength="140" placeholder="Question sur un export" required></label>
-            <label><span>Message</span><textarea name="body" rows="3" maxlength="5000" placeholder="Decris le probleme" required></textarea></label>
-            <button type="submit">Creer ticket</button>
+            <label><span>{subject}</span><input name="subject" type="text" maxlength="140" placeholder="{ticket_subject_placeholder}" required></label>
+            <label><span>{message}</span><textarea name="body" rows="3" maxlength="5000" placeholder="{ticket_message_placeholder}" required></textarea></label>
+            <button type="submit">{create_ticket}</button>
           </form>
           <div class="ticket-mini-list" data-account-ticket-list>
-            <p class="control-note">Aucun ticket charge.</p>
+            <p class="control-note">{no_ticket_loaded}</p>
           </div>
           <div class="ticket-mini-detail" data-account-ticket-detail hidden>
             <div class="ticket-mini-header">
-              <strong data-account-ticket-title>Ticket</strong>
-              <button type="button" data-action="account-ticket-toggle">Fermer</button>
+              <strong data-account-ticket-title>{ticket}</strong>
+              <button type="button" data-action="account-ticket-toggle">{close}</button>
             </div>
             <div class="ticket-mini-thread" data-account-ticket-thread></div>
             <form class="ticket-mini-form" data-account-ticket-reply-form>
-              <label><span>Reponse</span><textarea name="body" rows="3" maxlength="5000" required></textarea></label>
-              <button type="submit">Repondre</button>
+              <label><span>{reply_label}</span><textarea name="body" rows="3" maxlength="5000" required></textarea></label>
+              <button type="submit">{reply}</button>
             </form>
           </div>
         </div>
         <div class="download-group">
-          <h3>Consommation exports</h3>
+          <h3>{export_consumption}</h3>
           <div class="ledger-list">
-            <div class="ledger-row"><span>Maison ou porte STL</span><strong>3 credits</strong></div>
-            <div class="ledger-row"><span>Plan PDF / calculs PDF</span><strong>2 credits</strong></div>
-            <div class="ledger-row"><span>Panneaux ZIP</span><strong>5 credits</strong></div>
-            <div class="ledger-row"><span>Plan SVG / PNG</span><strong>1 credit</strong></div>
+            <div class="ledger-row"><span>{house_or_door_stl}</span><strong>{credits_three}</strong></div>
+            <div class="ledger-row"><span>{plan_pdf_or_calcs_pdf}</span><strong>{credits_two}</strong></div>
+            <div class="ledger-row"><span>{panels_zip}</span><strong>{credits_five}</strong></div>
+            <div class="ledger-row"><span>{plan_svg_or_png}</span><strong>{credit_one}</strong></div>
           </div>
         </div>
       </div>
-    "#;
+    "#,
+        account_balance = html_escape(t(lang, "account_balance")),
+        server_source = html_escape(t(lang, "server_source")),
+        account_state = html_escape(t(lang, "account_state")),
+        account_email = html_escape(t(lang, "account_email")),
+        account_plan = html_escape(t(lang, "account_plan")),
+        dev_only = html_escape(t(lang, "dev_only")),
+        app_summary_only = html_escape(t(lang, "app_summary_only")),
+        account_server_master = html_escape(t(lang, "account_server_master")),
+        auth = html_escape(t(lang, "auth")),
+        demo_quick_login = html_escape(t(lang, "demo_quick_login")),
+        session_active = html_escape(t(lang, "session_active")),
+        refresh = html_escape(t(lang, "refresh")),
+        state = html_escape(t(lang, "state")),
+        logout = html_escape(t(lang, "logout")),
+        available_credits = html_escape(t(lang, "available_credits")),
+        current_export_hold = html_escape(t(lang, "current_export_hold")),
+        short_authorization = html_escape(t(lang, "short_authorization")),
+        costs = html_escape(t(lang, "costs")),
+        offers = html_escape(t(lang, "offers")),
+        site = html_escape(t(lang, "site")),
+        info = html_escape(t(lang, "info")),
+        account_management = html_escape(t(lang, "account_management")),
+        account_backend_note = html_escape(t(lang, "account_backend_note")),
+        account = html_escape(t(lang, "account")),
+        pricing = html_escape(t(lang, "pricing")),
+        support_tickets = html_escape(t(lang, "support_tickets")),
+        subject = html_escape(t(lang, "subject")),
+        ticket_subject_placeholder = html_escape(t(lang, "ticket_subject_placeholder")),
+        message = html_escape(t(lang, "message")),
+        ticket_message_placeholder = html_escape(t(lang, "ticket_message_placeholder")),
+        create_ticket = html_escape(t(lang, "create_ticket")),
+        no_ticket_loaded = html_escape(t(lang, "no_ticket_loaded")),
+        ticket = html_escape(t(lang, "ticket")),
+        close = html_escape(t(lang, "close")),
+        reply = html_escape(t(lang, "reply")),
+        reply_label = html_escape(t(lang, "reply_label")),
+        demo = html_escape(t(lang, "demo")),
+        login = html_escape(t(lang, "login")),
+        logout_short = html_escape(t(lang, "logout_short")),
+        plan_none = html_escape(t(lang, "plan_none")),
+        credits_three = html_escape(t(lang, "credits_three")),
+        credits_two = html_escape(t(lang, "credits_two")),
+        credits_five = html_escape(t(lang, "credits_five")),
+        credit_one = html_escape(t(lang, "credit_one")),
+        export_consumption = html_escape(t(lang, "export_consumption")),
+        house_or_door_stl = html_escape(t(lang, "house_or_door_stl")),
+        plan_pdf_or_calcs_pdf = html_escape(t(lang, "plan_pdf_or_calcs_pdf")),
+        panels_zip = html_escape(t(lang, "panels_zip")),
+        plan_svg_or_png = html_escape(t(lang, "plan_svg_or_png")),
+    );
     let view_controls = format!(
-        r#"<div class="viewer-controls" aria-label="Controles de vue"><div class="viewer-control-group"><p>{}</p><div class="choices">{}{}{}{}</div></div>{}</div>"#,
+        r#"<div class="viewer-controls" aria-label="{}"><div class="viewer-control-group"><p>{}</p><div class="choices">{}{}{}{}</div></div>{}</div>"#,
+        html_escape(t(lang, "viewer_controls_aria")),
         t(lang, "view_mode"),
         choice_button(t(lang, "solid"), "mode", "solid", &p.mode),
         choice_button(t(lang, "wireframe"), "mode", "wireframe", &p.mode),
@@ -4927,9 +5313,15 @@ pub fn render_app_html(input: &str) -> String {
     <div class="header-top">
       <div>
         <h1>⌂ NICHOIR</h1>
-        <p class="subtitle">CALCULATEUR MAISON D'OISEAU</p>
+        <p class="subtitle">{app_subtitle}</p>
       </div>
-      <button class="theme-toggle" data-action="theme-toggle" type="button" aria-pressed="false">Clair</button>
+      <div class="header-actions">
+        <div class="choices lang-switch" role="group" aria-label="{language}">
+          <button class="choice {lang_fr_active}" data-action="lang-switch" data-lang="fr" type="button">FR</button>
+          <button class="choice {lang_en_active}" data-action="lang-switch" data-lang="en" type="button">EN</button>
+        </div>
+        <button class="theme-toggle" data-action="theme-toggle" type="button" aria-pressed="false">{theme_light}</button>
+      </div>
     </div>
   </header>
 
@@ -4940,7 +5332,7 @@ pub fn render_app_html(input: &str) -> String {
   </div>
 
   <nav class="tabs">
-    <button data-tab="dim">DIM.</button>
+    <button data-tab="dim">{dim_tab}</button>
     <button data-tab="decor">{decor}</button>
     <button data-tab="calcs">{calcs}</button>
     <button data-tab="plan">{cut_plan}</button>
@@ -4974,7 +5366,7 @@ pub fn render_app_html(input: &str) -> String {
       <div class="stat-row"><span>{floor_side_cut}</span><strong>{floor_side_cut_value} {unit_label}</strong></div>
       <div class="stat-row"><span>{kerf_label}</span><strong>{kerf_value} {unit_label}</strong></div>
       <div class="buttons calc-actions">
-        <button data-action="download-calcs-pdf" type="button">Telecharger les calculs PDF</button>
+        <button data-action="download-calcs-pdf" type="button">{download_calcs_pdf}</button>
       </div>
       <h2>{pieces}</h2>
       <div class="cut-list">{cut_rows}</div>
@@ -4986,27 +5378,27 @@ pub fn render_app_html(input: &str) -> String {
       <div id="plan-preview" class="plan-preview"></div>
       <div class="download-groups">
         <div class="download-group">
-          <h3>Modèles 3D</h3>
+          <h3>{models_3d}</h3>
           <div class="buttons compact-buttons">
-            <button data-action="export-house"><span>Maison</span><strong>.STL</strong></button>
-            <button data-action="export-door"><span>Porte</span><strong>.STL</strong></button>
-            <button data-action="export-panels"><span>Panneaux</span><strong>.ZIP</strong></button>
+            <button data-action="export-house"><span>{house}</span><strong>.STL</strong></button>
+            <button data-action="export-door"><span>{door_label}</span><strong>.STL</strong></button>
+            <button data-action="export-panels"><span>{panel}</span><strong>.ZIP</strong></button>
           </div>
         </div>
         <div class="download-group">
-          <h3>Plans</h3>
+          <h3>{plans}</h3>
           <div class="buttons compact-buttons">
-            <button data-action="export-plan"><span>Plan</span><strong>.SVG</strong></button>
-            <button data-action="download-plan-png" type="button"><span>Plan</span><strong>.PNG</strong></button>
-            <button data-action="download-explosion-png" type="button"><span>Explosion</span><strong>.PNG</strong></button>
-            <button data-action="download-plan-pdf" type="button"><span>Plan</span><strong>.PDF</strong></button>
+            <button data-action="export-plan"><span>{plan}</span><strong>.SVG</strong></button>
+            <button data-action="download-plan-png" type="button"><span>{plan}</span><strong>.PNG</strong></button>
+            <button data-action="download-explosion-png" type="button"><span>{explosion}</span><strong>.PNG</strong></button>
+            <button data-action="download-plan-pdf" type="button"><span>{plan}</span><strong>.PDF</strong></button>
           </div>
         </div>
         <div class="download-group">
-          <h3>Diagnostic</h3>
+          <h3>{diagnostic}</h3>
           <div class="buttons compact-buttons">
-            <button data-action="export-obj"><span>Debug</span><strong>.OBJ</strong></button>
-            <button data-action="mesh-report"><span>Rapport</span><strong>.JSON</strong></button>
+            <button data-action="export-obj"><span>{debug}</span><strong>.OBJ</strong></button>
+            <button data-action="mesh-report"><span>{report}</span><strong>.JSON</strong></button>
           </div>
         </div>
       </div>
@@ -5018,8 +5410,8 @@ pub fn render_app_html(input: &str) -> String {
 <main class="workspace">
   <div class="overlay"><span>{mode_label}</span><span>{floor_label}</span><span>{ridge_label}</span><button data-action="reset-view" type="button">{reset_view}</button></div>
   {view_controls}
-  <div id="viewer" class="viewer" aria-label="Apercu 3D"></div>
-  <div class="axis-hint"><span class="x">X</span> largeur <span class="y">Y</span> hauteur <span class="z">Z</span> profondeur</div>
+  <div id="viewer" class="viewer" aria-label="{viewer_preview_aria}"></div>
+  <div class="axis-hint"><span class="x">X</span> {axis_width} <span class="y">Y</span> {axis_height} <span class="z">Z</span> {axis_depth}</div>
 </main>
 
 <div class="account-modal" data-account-modal hidden>
@@ -5027,11 +5419,11 @@ pub fn render_app_html(input: &str) -> String {
   <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="account-title" tabindex="-1">
     <header class="account-sheet-header">
       <div>
-        <p class="eyebrow">Gestion usager</p>
+        <p class="eyebrow">{user_management}</p>
         <h2 id="account-title">{account}</h2>
-        <p>Compte, credits, abonnement, tickets et paiements viennent du backend PHP.</p>
+        <p>{account_backend_source}</p>
       </div>
-      <button class="modal-close" data-account-modal-close type="button" aria-label="Fermer le compte">Fermer</button>
+      <button class="modal-close" data-account-modal-close type="button" aria-label="{close_account_aria}">{close_account}</button>
     </header>
     <div class="account-sheet-body">
       {account_controls}
@@ -5040,7 +5432,13 @@ pub fn render_app_html(input: &str) -> String {
 </div>
 "##,
         body = t(lang, "body"),
+        app_subtitle = t(lang, "app_subtitle"),
+        theme_light = t(lang, "theme_light"),
         calcs = t(lang, "calcs"),
+        language = t(lang, "language"),
+        lang_fr_active = if lang == "fr" { "active" } else { "" },
+        lang_en_active = if lang == "en" { "active" } else { "" },
+        dim_tab = t(lang, "dim_tab"),
         roof_label = t(lang, "roof"),
         door_label = t(lang, "door"),
         cut_plan = t(lang, "cut_plan"),
@@ -5085,11 +5483,29 @@ pub fn render_app_html(input: &str) -> String {
         floor_side_cut_value = format_len(g.floor_side_cut, &p.unit),
         kerf_value = format_len(p.kerf, &p.unit),
         unit_label = unit.label,
+        panel = t(lang, "panel"),
+        plans = t(lang, "plans"),
+        plan = t(lang, "plan"),
+        explosion = t(lang, "explosion"),
+        diagnostic = t(lang, "diagnostic"),
+        debug = t(lang, "debug"),
+        report = t(lang, "report"),
+        models_3d = t(lang, "models_3d"),
+        house = t(lang, "house"),
+        viewer_preview_aria = t(lang, "viewer_preview_aria"),
+        axis_width = t(lang, "axis_width"),
+        axis_height = t(lang, "axis_height"),
+        axis_depth = t(lang, "axis_depth"),
+        user_management = t(lang, "user_management"),
+        account_backend_source = t(lang, "account_backend_source"),
+        close_account = t(lang, "close_account"),
+        close_account_aria = t(lang, "close_account_aria"),
+        download_calcs_pdf = t(lang, "download_calcs_pdf"),
         area_unit = unit_area_label(&p.unit),
         volume_unit = unit_volume_label(&p.unit),
         cut_rows = cut_rows,
         mode_label = html_escape(&p.mode.to_uppercase()),
-        floor_label = if matches!(p.floor, FloorMode::Pose) { "POSE" } else { "ENCLAVE" },
+        floor_label = if matches!(p.floor, FloorMode::Pose) { t(lang, "floor_pose_short") } else { t(lang, "floor_enclave_short") },
         ridge_label = match ridge {
             RidgeMode::Left => "G>D",
             RidgeMode::Right => "D>G",

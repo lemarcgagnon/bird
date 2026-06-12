@@ -13,6 +13,7 @@ import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/thr
 
 const APP_BUILD_ID = '20260612-app-cleanup-v1';
 const root = document.getElementById('app');
+const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
 const DEV_PHP_ORIGIN = 'http://127.0.0.1:8021';
 const IS_LOCAL_DEV = ['127.0.0.1', 'localhost'].includes(window.location.hostname);
@@ -40,6 +41,248 @@ const EXPORT_COSTS = {
   stl: 3,
   zip: 5,
 };
+const I18N = {
+  fr: {
+    loading_title: 'Nichoir WASM',
+    loading_message: 'Chargement du module WebAssembly...',
+    theme_light: 'Clair',
+    theme_dark: 'Sombre',
+    theme_to_light: 'Passer au mode clair',
+    theme_to_dark: 'Passer au mode sombre',
+    account_loading: 'Chargement...',
+    account_connected: 'Connecte',
+    account_session_expired: 'Session expiree',
+    account_disconnected: 'Non connecte',
+    activation_unavailable: 'Activation indisponible. SMTP doit etre configure dans Admin.',
+    activation_failed: 'Activation refusee. Verifie le code sur le site.',
+    too_many_requests: 'Trop de tentatives. Attends quelques minutes.',
+    invalid_credentials: 'Connexion refusee. Verifie le mot de passe ou active le compte sur le site.',
+    no_ticket: 'Aucun ticket.',
+    open: 'Ouvrir',
+    close: 'Fermer',
+    reopen: 'Reouvrir',
+    no_message: 'Aucun message.',
+    support: 'Support',
+    client: 'Client',
+    tickets_error: 'Tickets: {error}',
+    ticket_error: 'Ticket: {error}',
+    invalid_session: 'Session invalide: {error}',
+    demo_disabled: 'Connexion demo desactivee hors environnement local.',
+    demo_connected: 'Compte demo connecte.',
+    account_error: 'Compte: {error}',
+    account_logged_out: 'Compte deconnecte.',
+    authorizing_export: 'Autorisation serveur pour {filename}...',
+    login_required_download: 'Connexion requise avant ce telechargement. Ouvre Compte et connecte le demo.',
+    insufficient_credits: 'Credits insuffisants pour ce telechargement.',
+    authorization_denied: 'Autorisation refusee: {code}',
+    remaining_credits: 'Credits restants: {count}.',
+    file_created_bytes: 'Fichier cree: {filename} ({size} octets). Cout: {cost} credits.{suffix}',
+    file_created_chars: 'Fichier cree: {filename} ({size} caracteres). Cout: {cost} credits.{suffix}',
+    file_created_simple_bytes: 'Fichier cree: {filename} ({size} octets)',
+    file_created_simple_chars: 'Fichier cree: {filename} ({size} caracteres)',
+    export_error: 'Erreur export: {error}',
+    calculations_title: 'NICHOIR - Calculs',
+    generated_at: 'Genere le {date}',
+    calculations_section: 'CALCULS',
+    pieces_section: 'PIECES',
+    quantity_short: 'qte',
+    plan_piece_title: 'NICHOIR - Piece {index}: {name}',
+    identification: 'IDENTIFICATION',
+    name: 'Nom',
+    quantity: 'Quantite',
+    dimensions: 'Dimensions',
+    piece_cuts: 'Coupes / angles de cette piece',
+    default_piece_cut: 'coupe droite / aucun angle special',
+    model_angles: 'ANGLES ET COUPES DU MODELE',
+    cut_plan_params: 'PARAMETRES DU PLAN DE COUPE',
+    fabrication_note: 'NOTE FABRICATION',
+    fabrication_note_body: 'Verifier le sens de pose, les chants biseautes et la crete avant coupe finale.',
+    cut_plan_title: 'NICHOIR - Plan de coupe',
+    no_piece_found: 'Aucune piece trouvee dans la table de calcul.',
+    front_façade: 'Facade avant',
+    back_façade: 'Facade arriere',
+    left_side: 'Cote gauche',
+    right_side: 'Cote droit',
+    left_roof: 'Toit gauche',
+    right_roof: 'Toit droit',
+    indicative_diagram: 'Schema indicatif de la piece. Voir dimensions exactes et coupes a droite.',
+    cuts_and_angles: 'Coupes et angles',
+    model_angles_short: 'Angles du modele',
+    pdf_image_error: 'Impossible de convertir le plan SVG en image PDF',
+    piece_card_title: 'Piece {index}: {name}',
+    plan_pdf_empty: 'PDF plan impossible: aucun plan SVG genere.',
+    exploded_assembly: 'Assemblage eclate',
+    file_created_named: 'Fichier cree: {filename}',
+    plan_png_empty: 'PNG plan impossible: aucun plan SVG genere.',
+    mesh_report_invalid: 'Rapport mesh impossible: reponse WASM invalide.',
+    mesh_report_created: 'Rapport cree: maison {triangles} triangles, {degenerate} degeneres, ZIP {bytes} octets',
+    mesh_report_error: 'Erreur rapport mesh: {error}',
+    ticket_created: 'Ticket cree.',
+    ticket_denied: 'Ticket refuse: {error}',
+    ticket_reply_sent: 'Reponse ticket envoyee.',
+    ticket_reply_denied: 'Reponse refusee: {error}',
+    ticket_reopened: 'Ticket rouvert.',
+    ticket_closed: 'Ticket ferme.',
+    ticket_status_denied: 'Statut ticket refuse: {error}',
+    pricing_info: 'Credits: STL 3, PDF 2, ZIP 5, SVG/PNG 1. Le site PHP reste la source de verite.',
+    decor_load_supported: 'Decor: charge un SVG, PNG, JPG, GIF ou WEBP.',
+    decor_too_large: 'Decor: fichier trop lourd. Limite actuelle: 2 Mo.',
+    decor_svg_heightmap: 'Decor: SVG rasterise en heightmap et envoye au WASM.',
+    decor_image_heightmap: 'Decor: image heightmap envoyee au WASM.',
+    decor_heightmap_failed: 'Decor: conversion heightmap impossible ({error}).',
+    decor_read_failed: 'Decor: impossible de lire le fichier.',
+    export_house_empty: 'Export maison vide: le modele n a genere aucun triangle.',
+    export_door_empty: 'Pas de porte STL: choisis une porte et active "Creer le panneau de porte".',
+    export_panels_empty: 'Export panneaux vide: aucune piece n a ete generee.',
+    export_plan_empty: 'Export plan impossible: aucun SVG genere.',
+    export_obj_empty: 'Export OBJ vide: le modele n a genere aucun triangle.',
+    app_unavailable: 'Application indisponible. Recharge la page.',
+    exploded_mesh_missing: 'Image eclatee impossible: aucun mesh genere.',
+    ticket_state_open: 'ouvert',
+    ticket_state_closed: 'ferme',
+    ticket_priority_normal: 'normal',
+    ticket_priority_urgent: 'urgent',
+    plan_none: 'aucun',
+    subscription_active: 'actif',
+    subscription_canceled: 'annule',
+    subscription_cancelled: 'annule',
+    subscription_past_due: 'paiement en retard',
+    subscription_unpaid: 'impaye',
+    subscription_trialing: 'essai',
+    subscription_incomplete: 'incomplet',
+    subscription_suspended: 'suspendu',
+    file_house_stl: 'nichoir_maison.stl',
+    file_door_stl: 'nichoir_porte.stl',
+    file_panels_zip: 'nichoir_panneaux.zip',
+    file_plan_svg: 'nichoir_plan.svg',
+    file_plan_png: 'nichoir_plan_de_coupe.png',
+    file_explosion_png: 'nichoir_assemblage_eclate.png',
+    file_plan_pdf: 'nichoir_plan_de_coupe.pdf',
+    file_debug_obj: 'nichoir_maison_debug.obj',
+    file_calcs_pdf: 'nichoir_calculs.pdf',
+    file_mesh_report_json: 'nichoir_mesh_report.json',
+  },
+  en: {
+    loading_title: 'Nichoir WASM',
+    loading_message: 'Loading WebAssembly module...',
+    theme_light: 'Light',
+    theme_dark: 'Dark',
+    theme_to_light: 'Switch to light mode',
+    theme_to_dark: 'Switch to dark mode',
+    account_loading: 'Loading...',
+    account_connected: 'Connected',
+    account_session_expired: 'Session expired',
+    account_disconnected: 'Signed out',
+    activation_unavailable: 'Activation unavailable. SMTP must be configured in Admin.',
+    activation_failed: 'Activation denied. Verify the code on the site.',
+    too_many_requests: 'Too many attempts. Wait a few minutes.',
+    invalid_credentials: 'Login denied. Check the password or activate the account on the site.',
+    no_ticket: 'No tickets.',
+    open: 'Open',
+    close: 'Close',
+    reopen: 'Reopen',
+    no_message: 'No messages.',
+    support: 'Support',
+    client: 'Client',
+    tickets_error: 'Tickets: {error}',
+    ticket_error: 'Ticket: {error}',
+    invalid_session: 'Invalid session: {error}',
+    demo_disabled: 'Demo login is disabled outside local environments.',
+    demo_connected: 'Demo account connected.',
+    account_error: 'Account: {error}',
+    account_logged_out: 'Account signed out.',
+    authorizing_export: 'Server authorization for {filename}...',
+    login_required_download: 'Login required before this download. Open Account and connect the demo user.',
+    insufficient_credits: 'Insufficient credits for this download.',
+    authorization_denied: 'Authorization denied: {code}',
+    remaining_credits: 'Credits left: {count}.',
+    file_created_bytes: 'File created: {filename} ({size} bytes). Cost: {cost} credits.{suffix}',
+    file_created_chars: 'File created: {filename} ({size} characters). Cost: {cost} credits.{suffix}',
+    file_created_simple_bytes: 'File created: {filename} ({size} bytes)',
+    file_created_simple_chars: 'File created: {filename} ({size} characters)',
+    export_error: 'Export error: {error}',
+    calculations_title: 'NICHOIR - Calculations',
+    generated_at: 'Generated on {date}',
+    calculations_section: 'CALCULATIONS',
+    pieces_section: 'PIECES',
+    quantity_short: 'qty',
+    plan_piece_title: 'NICHOIR - Piece {index}: {name}',
+    identification: 'IDENTIFICATION',
+    name: 'Name',
+    quantity: 'Quantity',
+    dimensions: 'Dimensions',
+    piece_cuts: 'Cuts / angles for this piece',
+    default_piece_cut: 'straight cut / no special angle',
+    model_angles: 'MODEL ANGLES AND CUTS',
+    cut_plan_params: 'CUT PLAN PARAMETERS',
+    fabrication_note: 'FABRICATION NOTE',
+    fabrication_note_body: 'Verify orientation, beveled edges, and ridge direction before final cutting.',
+    cut_plan_title: 'NICHOIR - Cut plan',
+    no_piece_found: 'No piece found in the calculation table.',
+    front_façade: 'Front facade',
+    back_façade: 'Back facade',
+    left_side: 'Left side',
+    right_side: 'Right side',
+    left_roof: 'Left roof',
+    right_roof: 'Right roof',
+    indicative_diagram: 'Indicative piece diagram. See exact dimensions and cuts on the right.',
+    cuts_and_angles: 'Cuts and angles',
+    model_angles_short: 'Model angles',
+    pdf_image_error: 'Unable to convert SVG plan into a PDF image',
+    piece_card_title: 'Piece {index}: {name}',
+    plan_pdf_empty: 'Plan PDF unavailable: no SVG plan was generated.',
+    exploded_assembly: 'Exploded assembly',
+    file_created_named: 'File created: {filename}',
+    plan_png_empty: 'Plan PNG unavailable: no SVG plan was generated.',
+    mesh_report_invalid: 'Mesh report unavailable: invalid WASM response.',
+    mesh_report_created: 'Report created: house {triangles} triangles, {degenerate} degenerate, ZIP {bytes} bytes',
+    mesh_report_error: 'Mesh report error: {error}',
+    ticket_created: 'Ticket created.',
+    ticket_denied: 'Ticket denied: {error}',
+    ticket_reply_sent: 'Ticket reply sent.',
+    ticket_reply_denied: 'Reply denied: {error}',
+    ticket_reopened: 'Ticket reopened.',
+    ticket_closed: 'Ticket closed.',
+    ticket_status_denied: 'Ticket status denied: {error}',
+    pricing_info: 'Credits: STL 3, PDF 2, ZIP 5, SVG/PNG 1. The PHP site remains the source of truth.',
+    decor_load_supported: 'Decor: load an SVG, PNG, JPG, GIF, or WEBP.',
+    decor_too_large: 'Decor: file too large. Current limit: 2 MB.',
+    decor_svg_heightmap: 'Decor: SVG rasterized to a heightmap and sent to WASM.',
+    decor_image_heightmap: 'Decor: heightmap image sent to WASM.',
+    decor_heightmap_failed: 'Decor: heightmap conversion failed ({error}).',
+    decor_read_failed: 'Decor: unable to read the file.',
+    export_house_empty: 'House export is empty: the model generated no triangles.',
+    export_door_empty: 'No STL door: choose a door and enable "Create door panel".',
+    export_panels_empty: 'Panel export is empty: no part was generated.',
+    export_plan_empty: 'Plan export unavailable: no SVG was generated.',
+    export_obj_empty: 'OBJ export is empty: the model generated no triangles.',
+    app_unavailable: 'Application unavailable. Reload the page.',
+    exploded_mesh_missing: 'Exploded image unavailable: no mesh was generated.',
+    ticket_state_open: 'open',
+    ticket_state_closed: 'closed',
+    ticket_priority_normal: 'normal',
+    ticket_priority_urgent: 'urgent',
+    plan_none: 'none',
+    subscription_active: 'active',
+    subscription_canceled: 'canceled',
+    subscription_cancelled: 'cancelled',
+    subscription_past_due: 'past due',
+    subscription_unpaid: 'unpaid',
+    subscription_trialing: 'trial',
+    subscription_incomplete: 'incomplete',
+    subscription_suspended: 'suspended',
+    file_house_stl: 'nichoir_house.stl',
+    file_door_stl: 'nichoir_door.stl',
+    file_panels_zip: 'nichoir_panels.zip',
+    file_plan_svg: 'nichoir_cut_plan.svg',
+    file_plan_png: 'nichoir_cut_plan.png',
+    file_explosion_png: 'nichoir_exploded_view.png',
+    file_plan_pdf: 'nichoir_cut_plan.pdf',
+    file_debug_obj: 'nichoir_house_debug.obj',
+    file_calcs_pdf: 'nichoir_calculations.pdf',
+    file_mesh_report_json: 'nichoir_mesh_report.json',
+  },
+};
 let params = null;
 let frameId = null;
 let activeTab = 'dim';
@@ -54,17 +297,65 @@ let accountTickets = [];
 let accountTicketDetail = null;
 let selectedAccountTicketId = null;
 let clientLogTimestamps = [];
+let modalWasOpen = false;
 let theme = localStorage.getItem(THEME_KEY)
   || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+function normalizeLang(lang) {
+  return ['fr', 'en'].includes(lang) ? lang : 'fr';
+}
+
+function detectInitialLanguage() {
+  const stored = localStorage.getItem(LANG_KEY);
+  if (stored === 'fr' || stored === 'en') return stored;
+  return navigator.language?.toLowerCase().startsWith('en') ? 'en' : 'fr';
+}
+
+function currentLang() {
+  return normalizeLang(params?.lang || localStorage.getItem(LANG_KEY) || 'fr');
+}
+
+function locale() {
+  return currentLang() === 'en' ? 'en-CA' : 'fr-CA';
+}
+
+function tr(key, vars = {}) {
+  const lang = currentLang();
+  const table = I18N[lang] || I18N.fr;
+  const fallback = I18N.fr[key] || key;
+  return String(table[key] || fallback).replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? ''));
+}
+
+function formatNumber(value, options = {}) {
+  return new Intl.NumberFormat(locale(), options).format(value);
+}
+
+function formatDateTime(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  return date.toLocaleString(locale());
+}
+
+function formatCountText(value) {
+  return formatNumber(value, { maximumFractionDigits: 0 });
+}
+
+function setDocumentLanguage() {
+  document.documentElement.lang = currentLang();
+  document.title = tr('loading_title');
+}
+
+function exportFilename(key) {
+  return tr(`file_${key}`);
+}
 
 function applyTheme() {
   const isDark = theme === 'dark';
   document.body.classList.toggle('dark', isDark);
   document.body.dataset.theme = theme;
   document.querySelectorAll('[data-action="theme-toggle"]').forEach((button) => {
-    button.textContent = isDark ? 'Sombre' : 'Clair';
+    button.textContent = isDark ? tr('theme_dark') : tr('theme_light');
     button.setAttribute('aria-pressed', String(isDark));
-    button.setAttribute('aria-label', isDark ? 'Passer au mode clair' : 'Passer au mode sombre');
+    button.setAttribute('aria-label', isDark ? tr('theme_to_light') : tr('theme_to_dark'));
   });
 }
 
@@ -320,20 +611,43 @@ function escapeHtml(value) {
 }
 
 function accountStatusLabel() {
-  if (accountState.loading) return 'Chargement...';
-  if (accountState.user) return 'Connecte';
-  if (localStorage.getItem(AUTH_TOKEN_KEY)) return 'Session expiree';
-  return 'Non connecte';
+  if (accountState.loading) return tr('account_loading');
+  if (accountState.user) return tr('account_connected');
+  if (localStorage.getItem(AUTH_TOKEN_KEY)) return tr('account_session_expired');
+  return tr('account_disconnected');
 }
 
 function readableApiError(error) {
   const code = error?.message || String(error);
   return {
-    activation_unavailable: 'Activation indisponible. SMTP doit etre configure dans Admin.',
-    activation_failed: 'Activation refusee. Verifie le code sur le site.',
-    too_many_requests: 'Trop de tentatives. Attends quelques minutes.',
-    invalid_credentials: 'Connexion refusee. Verifie le mot de passe ou active le compte sur le site.',
+    activation_unavailable: tr('activation_unavailable'),
+    activation_failed: tr('activation_failed'),
+    too_many_requests: tr('too_many_requests'),
+    invalid_credentials: tr('invalid_credentials'),
   }[code] || code;
+}
+
+function ticketStatusLabel(status) {
+  return {
+    open: tr('ticket_state_open'),
+    closed: tr('ticket_state_closed'),
+  }[status] || status || '';
+}
+
+function ticketPriorityLabel(priority) {
+  return {
+    normal: tr('ticket_priority_normal'),
+    urgent: tr('ticket_priority_urgent'),
+  }[priority] || priority || '';
+}
+
+function authorRoleLabel(role) {
+  return role === 'admin' ? tr('support') : tr('client');
+}
+
+function subscriptionStatusLabel(status) {
+  if (!status || status === 'none') return tr('plan_none');
+  return tr(`subscription_${String(status).toLowerCase()}`);
 }
 
 function updateAccountDom() {
@@ -341,7 +655,7 @@ function updateAccountDom() {
   setAccountText('[data-account-balance]', user ? String(user.credits ?? 0) : '0');
   setAccountText('[data-account-state]', accountStatusLabel());
   setAccountText('[data-account-email-label]', user?.email || '-');
-  setAccountText('[data-account-plan]', user?.subscription_status || 'none');
+  setAccountText('[data-account-plan]', subscriptionStatusLabel(user?.subscription_status));
   setAccountText('[data-account-error]', accountState.error || '');
   root.querySelectorAll('[data-account-authed]').forEach((el) => {
     el.hidden = !user;
@@ -365,16 +679,16 @@ function renderAccountTickets() {
   const list = root.querySelector('[data-account-ticket-list]');
   if (!list) return;
   if (!accountTickets.length) {
-    list.innerHTML = '<p class="control-note">Aucun ticket.</p>';
+    list.innerHTML = `<p class="control-note">${escapeHtml(tr('no_ticket'))}</p>`;
     return;
   }
   list.innerHTML = accountTickets.slice(0, 8).map((ticket) => `
     <div class="ticket-mini-row">
       <div class="ticket-mini-title">
         <strong>#${escapeHtml(ticket.id)} ${escapeHtml(ticket.subject)}</strong>
-        <span>${escapeHtml(ticket.status)} · ${escapeHtml(ticket.priority || 'normal')} · ${escapeHtml(ticket.updated_at || ticket.created_at)}</span>
+        <span>${escapeHtml(ticketStatusLabel(ticket.status))} · ${escapeHtml(ticketPriorityLabel(ticket.priority || 'normal'))} · ${escapeHtml(ticket.updated_at || ticket.created_at)}</span>
       </div>
-      <button type="button" data-account-ticket-open="${escapeHtml(ticket.id)}">Ouvrir</button>
+      <button type="button" data-account-ticket-open="${escapeHtml(ticket.id)}">${escapeHtml(tr('open'))}</button>
     </div>
   `).join('');
 }
@@ -391,9 +705,9 @@ function renderAccountTicketDetail(payload) {
   box.hidden = false;
   const ticket = payload.ticket;
   const title = root.querySelector('[data-account-ticket-title]');
-  if (title) title.textContent = `#${ticket.id} ${ticket.subject} · ${ticket.status}`;
+  if (title) title.textContent = `#${ticket.id} ${ticket.subject} · ${ticketStatusLabel(ticket.status)}`;
   const toggle = root.querySelector('[data-action="account-ticket-toggle"]');
-  if (toggle) toggle.textContent = ticket.status === 'open' ? 'Fermer' : 'Reouvrir';
+  if (toggle) toggle.textContent = ticket.status === 'open' ? tr('close') : tr('reopen');
   const reply = root.querySelector('[data-account-ticket-reply-form]');
   if (reply) reply.hidden = ticket.status !== 'open';
   const thread = root.querySelector('[data-account-ticket-thread]');
@@ -401,11 +715,11 @@ function renderAccountTicketDetail(payload) {
   thread.innerHTML = (payload.messages || []).length
     ? payload.messages.map((message) => `
       <article class="ticket-mini-message ${escapeHtml(message.author_role || 'client')}">
-        <header><strong>${message.author_role === 'admin' ? 'Support' : 'Client'}</strong><span>${escapeHtml(message.created_at)}</span></header>
+        <header><strong>${escapeHtml(authorRoleLabel(message.author_role))}</strong><span>${escapeHtml(message.created_at)}</span></header>
         <p>${escapeHtml(message.body).replace(/\n/g, '<br>')}</p>
       </article>
     `).join('')
-    : '<p class="control-note">Aucun message.</p>';
+    : `<p class="control-note">${escapeHtml(tr('no_message'))}</p>`;
 }
 
 async function loadAccountTickets({ openFirst = false } = {}) {
@@ -425,7 +739,7 @@ async function loadAccountTickets({ openFirst = false } = {}) {
     if (selectedAccountTicketId) await loadAccountTicketDetail(selectedAccountTicketId);
     else renderAccountTicketDetail(null);
   } catch (err) {
-    accountState.error = `Tickets: ${err?.message || err}`;
+    accountState.error = tr('tickets_error', { error: err?.message || err });
     updateAccountDom();
   }
 }
@@ -459,7 +773,7 @@ async function refreshAccountState({ silent = false } = {}) {
     accountState = {
       user: null,
       loading: false,
-      error: silent ? '' : `Session invalide: ${err?.message || err}`,
+      error: silent ? '' : tr('invalid_session', { error: err?.message || err }),
     };
     updateAccountDom();
     return null;
@@ -471,7 +785,7 @@ async function loginAccount() {
     accountState = {
       user: null,
       loading: false,
-      error: 'Connexion demo desactivee hors environnement local.',
+      error: tr('demo_disabled'),
     };
     updateAccountDom();
     return;
@@ -487,11 +801,11 @@ async function loginAccount() {
     accountState = { user: payload.user || null, loading: false, error: '' };
     updateAccountDom();
     await loadAccountTickets({ openFirst: true });
-    setExportStatus('Compte demo connecte.', 'ok');
+    setExportStatus(tr('demo_connected'), 'ok');
   } catch (err) {
     accountState = { user: null, loading: false, error: readableApiError(err) };
     updateAccountDom();
-    setExportStatus(`Compte: ${readableApiError(err)}`, 'error');
+    setExportStatus(tr('account_error', { error: readableApiError(err) }), 'error');
   }
 }
 
@@ -506,14 +820,14 @@ async function logoutAccount() {
   localStorage.removeItem(AUTH_TOKEN_KEY);
   accountState = { user: null, loading: false, error: '' };
   updateAccountDom();
-  setExportStatus('Compte deconnecte.', 'info');
+  setExportStatus(tr('account_logged_out'), 'info');
 }
 
 async function authorizeExport(exportType, filename) {
   if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
     throw new Error('connexion_requise');
   }
-  setExportStatus(`Autorisation serveur pour ${filename}...`, 'info');
+  setExportStatus(tr('authorizing_export', { filename }), 'info');
   return apiRequest('/api/exports/authorize', {
     method: 'POST',
     body: JSON.stringify({ export_type: exportType }),
@@ -538,12 +852,12 @@ async function consumeExport(authorization) {
 function exportDeniedMessage(err) {
   const code = err?.message || String(err);
   if (code === 'connexion_requise' || code === 'unauthorized') {
-    return 'Connexion requise avant ce telechargement. Ouvre Compte et connecte le demo.';
+    return tr('login_required_download');
   }
   if (code === 'insufficient_credits') {
-    return 'Credits insuffisants pour ce telechargement.';
+    return tr('insufficient_credits');
   }
-  return `Autorisation refusee: ${code}`;
+  return tr('authorization_denied', { code });
 }
 
 async function exportBinaryAuthorized(filename, type, exportType, producer, emptyMessage) {
@@ -558,8 +872,13 @@ async function exportBinaryAuthorized(filename, type, exportType, producer, empt
     download(bytes, filename, type);
     const consumed = await consumeExport(auth.authorization);
     const credits = consumed?.user?.credits ?? accountState.user?.credits;
-    const suffix = Number.isFinite(credits) ? ` Credits restants: ${credits}.` : '';
-    setExportStatus(`Fichier cree: ${filename} (${bytes.byteLength.toLocaleString('fr-CA')} octets). Cout: ${auth.cost ?? EXPORT_COSTS[exportType] ?? '?'} credits.${suffix}`, 'ok');
+    const suffix = Number.isFinite(credits) ? ` ${tr('remaining_credits', { count: formatCountText(credits) })}` : '';
+    setExportStatus(tr('file_created_bytes', {
+      filename,
+      size: formatCountText(bytes.byteLength),
+      cost: auth.cost ?? EXPORT_COSTS[exportType] ?? '?',
+      suffix,
+    }), 'ok');
     return true;
   } catch (err) {
     console.error(err);
@@ -579,8 +898,13 @@ async function exportTextAuthorized(filename, type, exportType, producer, emptyM
     download(String(text), filename, type);
     const consumed = await consumeExport(auth.authorization);
     const credits = consumed?.user?.credits ?? accountState.user?.credits;
-    const suffix = Number.isFinite(credits) ? ` Credits restants: ${credits}.` : '';
-    setExportStatus(`Fichier cree: ${filename} (${String(text).length.toLocaleString('fr-CA')} caracteres). Cout: ${auth.cost ?? EXPORT_COSTS[exportType] ?? '?'} credits.${suffix}`, 'ok');
+    const suffix = Number.isFinite(credits) ? ` ${tr('remaining_credits', { count: formatCountText(credits) })}` : '';
+    setExportStatus(tr('file_created_chars', {
+      filename,
+      size: formatCountText(String(text).length),
+      cost: auth.cost ?? EXPORT_COSTS[exportType] ?? '?',
+      suffix,
+    }), 'ok');
     return true;
   } catch (err) {
     console.error(err);
@@ -608,10 +932,10 @@ function exportBinary(filename, type, producer, emptyMessage) {
       return;
     }
     download(bytes, filename, type);
-    setExportStatus(`Fichier cree: ${filename} (${bytes.byteLength.toLocaleString('fr-CA')} octets)`, 'ok');
+    setExportStatus(tr('file_created_simple_bytes', { filename, size: formatCountText(bytes.byteLength) }), 'ok');
   } catch (err) {
     console.error(err);
-    setExportStatus(`Erreur export: ${err?.message || err}`, 'error');
+    setExportStatus(tr('export_error', { error: err?.message || err }), 'error');
   }
 }
 
@@ -652,23 +976,23 @@ function wrapPdfLine(line, max = 86) {
 function collectCalculationLines() {
   const panel = root.querySelector('[data-panel="calcs"]');
   const lines = [
-    'NICHOIR - Calculs',
-    `Genere le ${new Date().toLocaleString('fr-CA')}`,
+    tr('calculations_title'),
+    tr('generated_at', { date: formatDateTime(new Date()) }),
     '',
-    'CALCULS',
+    tr('calculations_section'),
   ];
   panel?.querySelectorAll('.stat-row').forEach((row) => {
     const label = row.querySelector('span')?.textContent || '';
     const value = row.querySelector('strong')?.textContent || '';
     lines.push(`${label}: ${value}`);
   });
-  lines.push('', 'PIECES');
+  lines.push('', tr('pieces_section'));
   panel?.querySelectorAll('.cut-row').forEach((row) => {
     const name = row.querySelector('span')?.textContent || '';
     const qty = row.querySelector('strong')?.textContent || '';
     const dims = row.querySelector('small')?.textContent || '';
     const note = row.querySelector('em')?.textContent || '';
-    lines.push(`${name} | qte ${qty} | ${dims}${note ? ` | ${note}` : ''}`);
+    lines.push(`${name} | ${tr('quantity_short')} ${qty} | ${dims}${note ? ` | ${note}` : ''}`);
   });
   return lines.flatMap((line) => wrapPdfLine(line));
 }
@@ -741,12 +1065,13 @@ function downloadCalculationsPdf() {
   try {
     const lines = collectCalculationLines();
     const pdf = buildSimplePdf(lines);
-    download(pdf, 'nichoir_calculs.pdf', 'application/pdf');
-    setExportStatus('Fichier cree: nichoir_calculs.pdf', 'ok');
+    const filename = exportFilename('calcs_pdf');
+    download(pdf, filename, 'application/pdf');
+    setExportStatus(tr('file_created_named', { filename }), 'ok');
     return true;
   } catch (err) {
     console.error(err);
-    setExportStatus(`Erreur PDF calcul: ${err?.message || err}`, 'error');
+    setExportStatus(tr('export_error', { error: err?.message || err }), 'error');
     return false;
   }
 }
@@ -802,7 +1127,7 @@ function renderSvgToImage(svgText, options = {}) {
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
-      reject(new Error('Impossible de convertir le plan SVG en image PDF'));
+      reject(new Error(tr('pdf_image_error')));
     };
     img.src = url;
   });
@@ -894,7 +1219,7 @@ function buildPlanPdf(pages, imagePages = []) {
 function collectPlanPdfPages() {
   const planPanel = root.querySelector('[data-panel="plan"]');
   const calcPanel = root.querySelector('[data-panel="calcs"]');
-  const generatedAt = new Date().toLocaleString('fr-CA');
+  const generatedAt = formatDateTime(new Date());
   const planStats = [];
   planPanel?.querySelectorAll('.stat-row').forEach((row) => {
     const label = row.querySelector('span')?.textContent || '';
@@ -905,7 +1230,7 @@ function collectPlanPdfPages() {
   calcPanel?.querySelectorAll('.stat-row').forEach((row) => {
     const label = row.querySelector('span')?.textContent || '';
     const value = row.querySelector('strong')?.textContent || '';
-    if (/pente|angle|retrait|coupe|biseau|lame|trait/i.test(label)) {
+    if (/pente|angle|retrait|coupe|biseau|lame|trait|slope|inset|cut|bevel|kerf/i.test(label)) {
       angleLines.push(`${label}: ${value}`);
     }
   });
@@ -916,32 +1241,32 @@ function collectPlanPdfPages() {
     const dims = row.querySelector('small')?.textContent || '';
     const note = row.querySelector('em')?.textContent || '';
     const page = [
-      `NICHOIR - Piece ${index + 1}: ${name}`,
-      `Genere le ${generatedAt}`,
+      tr('plan_piece_title', { index: index + 1, name }),
+      tr('generated_at', { date: generatedAt }),
       '',
-      'IDENTIFICATION',
-      `Nom: ${name}`,
-      `Quantite: ${qty}`,
-      `Dimensions: ${dims}`,
-      `Coupes / angles de cette piece: ${note || 'coupe droite / aucun angle special'}`,
+      tr('identification'),
+      `${tr('name')}: ${name}`,
+      `${tr('quantity')}: ${qty}`,
+      `${tr('dimensions')}: ${dims}`,
+      `${tr('piece_cuts')}: ${note || tr('default_piece_cut')}`,
       '',
-      'ANGLES ET COUPES DU MODELE',
+      tr('model_angles'),
       ...angleLines,
       '',
-      'PARAMETRES DU PLAN DE COUPE',
+      tr('cut_plan_params'),
       ...planStats,
       '',
-      'NOTE FABRICATION',
-      'Verifier le sens de pose, les chants biseautes et la crete avant coupe finale.',
+      tr('fabrication_note'),
+      tr('fabrication_note_body'),
     ];
     pages.push(page.flatMap((line) => wrapPdfLine(line)));
   });
   if (!pages.length) {
     pages.push([
-      'NICHOIR - Plan de coupe',
-      `Genere le ${generatedAt}`,
+      tr('cut_plan_title'),
+      tr('generated_at', { date: generatedAt }),
       '',
-      'Aucune piece trouvee dans la table de calcul.',
+      tr('no_piece_found'),
     ]);
   }
   return pages;
@@ -958,9 +1283,9 @@ function collectPlanPieces() {
     const note = row.querySelector('em')?.textContent || '';
     const normalized = cleanPdfText(rawName).toLowerCase();
     let names = [rawName];
-    if (normalized === 'facade' && qty >= 2) names = ['Façade avant', 'Façade arrière'];
-    else if (normalized === 'cote' && qty >= 2) names = ['Côté gauche', 'Côté droit'];
-    else if (normalized === 'toit' && qty >= 2) names = ['Toit gauche', 'Toit droit'];
+    if ((normalized === 'facade' || normalized === 'façade') && qty >= 2) names = [tr('front_façade'), tr('back_façade')];
+    else if ((normalized === 'cote' || normalized === 'côté' || normalized === 'side') && qty >= 2) names = [tr('left_side'), tr('right_side')];
+    else if ((normalized === 'toit' || normalized === 'roof') && qty >= 2) names = [tr('left_roof'), tr('right_roof')];
     else if (qty > 1) names = Array.from({ length: qty }, (_, i) => `${rawName} ${i + 1}`);
     names.forEach((name) => {
       pieces.push({
@@ -983,7 +1308,7 @@ function collectAngleLines() {
       label: row.querySelector('span')?.textContent || '',
       value: row.querySelector('strong')?.textContent || '',
     }))
-    .filter((item) => /pente|angle|retrait|coupe|biseau|lame|trait/i.test(item.label))
+    .filter((item) => /pente|angle|retrait|coupe|biseau|lame|trait|slope|inset|cut|bevel|kerf/i.test(item.label))
     .map((item) => `${item.label}: ${item.value}`);
 }
 
@@ -1020,11 +1345,11 @@ function renderPieceCard(piece, angleLines, mime = 'image/jpeg') {
 
   ctx.fillStyle = '#24211d';
   ctx.font = 'bold 44px monospace';
-  ctx.fillText(`Piece ${piece.index + 1}: ${cleanPdfText(piece.name)}`, 70, 105);
+  ctx.fillText(cleanPdfText(tr('piece_card_title', { index: piece.index + 1, name: piece.name })), 70, 105);
   ctx.font = '24px monospace';
   ctx.fillStyle = '#6d6255';
-  ctx.fillText(`Quantite: ${cleanPdfText(piece.qty)}`, 70, 150);
-  ctx.fillText(`Dimensions: ${cleanPdfText(piece.dims)}`, 70, 190);
+  ctx.fillText(`${cleanPdfText(tr('quantity'))}: ${cleanPdfText(piece.qty)}`, 70, 150);
+  ctx.fillText(`${cleanPdfText(tr('dimensions'))}: ${cleanPdfText(piece.dims)}`, 70, 190);
 
   const shapeX = 90;
   const shapeY = 280;
@@ -1034,7 +1359,7 @@ function renderPieceCard(piece, angleLines, mime = 'image/jpeg') {
   ctx.fillStyle = '#d4a574';
   ctx.strokeStyle = '#7b4308';
   ctx.lineWidth = 4;
-  if (/facade/.test(normalizedName)) {
+  if (/facade|façade/.test(normalizedName)) {
     ctx.beginPath();
     ctx.moveTo(shapeX, shapeY + shapeH);
     ctx.lineTo(shapeX + shapeW, shapeY + shapeH);
@@ -1044,7 +1369,7 @@ function renderPieceCard(piece, angleLines, mime = 'image/jpeg') {
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
-    if (/avant/.test(normalizedName) && params.door !== 'none') {
+    if (/avant|front/.test(normalizedName) && params.door !== 'none') {
       const holeX = shapeX + shapeW * (Number(params.doorPX || 50) / 100);
       const holeY = shapeY + shapeH * (1 - Number(params.doorPY || 50) / 100);
       const holeW = Math.max(42, Math.min(shapeW * 0.42, Number(params.doorW || 38) * 4.2));
@@ -1081,7 +1406,7 @@ function renderPieceCard(piece, angleLines, mime = 'image/jpeg') {
       }
       ctx.restore();
     }
-  } else if (/perchoir/.test(normalizedName)) {
+  } else if (/perchoir|perch/.test(normalizedName)) {
     ctx.beginPath();
     ctx.roundRect(shapeX, shapeY + shapeH * 0.38, shapeW, shapeH * 0.24, 80);
     ctx.fill();
@@ -1107,20 +1432,20 @@ function renderPieceCard(piece, angleLines, mime = 'image/jpeg') {
   ctx.fillText(cleanPdfText(piece.dims), shapeX + 10, shapeY + shapeH + 76);
   ctx.font = '18px monospace';
   ctx.fillStyle = '#6d6255';
-  ctx.fillText('Schema indicatif de la piece. Voir dimensions exactes et coupes a droite.', shapeX, shapeY + shapeH + 112);
+  ctx.fillText(cleanPdfText(tr('indicative_diagram')), shapeX, shapeY + shapeH + 112);
 
   const textX = 960;
   const textWidth = 620;
   let y = 280;
   ctx.fillStyle = '#24211d';
   ctx.font = 'bold 26px monospace';
-  ctx.fillText('Coupes et angles', textX, y);
+  ctx.fillText(cleanPdfText(tr('cuts_and_angles')), textX, y);
   y += 42;
   ctx.font = '23px monospace';
-  y = drawWrappedCanvasText(ctx, piece.note || 'coupe droite / aucun angle special', textX, y, textWidth, 32);
+  y = drawWrappedCanvasText(ctx, piece.note || tr('default_piece_cut'), textX, y, textWidth, 32);
   y += 24;
   ctx.font = 'bold 24px monospace';
-  ctx.fillText('Angles du modele', textX, y);
+  ctx.fillText(cleanPdfText(tr('model_angles_short')), textX, y);
   y += 36;
   ctx.font = '19px monospace';
   angleLines.slice(0, 10).forEach((line) => {
@@ -1137,7 +1462,7 @@ function renderPieceCard(piece, angleLines, mime = 'image/jpeg') {
 function renderExplosionImage(mime = 'image/png') {
   const exportParams = { ...params, explode: Math.max(Number(params.explode || 0), 72), mode: 'solid' };
   const payload = parseResponse(scene_meshes_json(JSON.stringify(exportParams)));
-  if (!payload?.meshes?.length) throw new Error('aucun mesh pour image eclatee');
+  if (!payload?.meshes?.length) throw new Error(tr('exploded_mesh_missing'));
 
   const width = 1600;
   const height = 1100;
@@ -1228,27 +1553,28 @@ async function downloadPlanPdf() {
   try {
     const payload = parseResponse(plan_preview_svg(JSON.stringify(params)));
     if (!payload?.svg) {
-      setExportStatus('PDF plan impossible: aucun plan SVG genere.', 'warn');
+      setExportStatus(tr('plan_pdf_empty'), 'warn');
       return false;
     }
     const planImage = await renderSvgToJpeg(payload.svg);
     const angleLines = collectAngleLines();
     const pieceImages = collectPlanPieces().map((piece) => ({
-      title: `Piece ${piece.index + 1}: ${piece.name}`,
+      title: tr('piece_card_title', { index: piece.index + 1, name: piece.name }),
       image: renderPieceCard(piece, angleLines, 'image/jpeg'),
     }));
     const explosionImage = renderExplosionImage('image/jpeg');
     const pdf = buildPlanPdf([], [
       ...pieceImages,
-      { title: 'Assemblage eclate', image: explosionImage },
-      { title: 'Plan de coupe', image: planImage },
+      { title: tr('exploded_assembly'), image: explosionImage },
+      { title: tr('cut_plan_title'), image: planImage },
     ]);
-    download(pdf, 'nichoir_plan_de_coupe.pdf', 'application/pdf');
-    setExportStatus('Fichier cree: nichoir_plan_de_coupe.pdf', 'ok');
+    const filename = exportFilename('plan_pdf');
+    download(pdf, filename, 'application/pdf');
+    setExportStatus(tr('file_created_named', { filename }), 'ok');
     return true;
   } catch (err) {
     console.error(err);
-    setExportStatus(`Erreur PDF plan: ${err?.message || err}`, 'error');
+    setExportStatus(tr('export_error', { error: err?.message || err }), 'error');
     return false;
   }
 }
@@ -1257,16 +1583,17 @@ async function downloadPlanPng() {
   try {
     const payload = parseResponse(plan_preview_svg(JSON.stringify(params)));
     if (!payload?.svg) {
-      setExportStatus('PNG plan impossible: aucun plan SVG genere.', 'warn');
+      setExportStatus(tr('plan_png_empty'), 'warn');
       return false;
     }
     const image = await renderSvgToPng(payload.svg);
-    download(image.bytes, 'nichoir_plan_de_coupe.png', 'image/png');
-    setExportStatus('Fichier cree: nichoir_plan_de_coupe.png', 'ok');
+    const filename = exportFilename('plan_png');
+    download(image.bytes, filename, 'image/png');
+    setExportStatus(tr('file_created_named', { filename }), 'ok');
     return true;
   } catch (err) {
     console.error(err);
-    setExportStatus(`Erreur PNG plan: ${err?.message || err}`, 'error');
+    setExportStatus(tr('export_error', { error: err?.message || err }), 'error');
     return false;
   }
 }
@@ -1274,12 +1601,13 @@ async function downloadPlanPng() {
 function downloadExplosionPng() {
   try {
     const image = renderExplosionImage('image/png');
-    download(image.bytes, 'nichoir_assemblage_eclate.png', 'image/png');
-    setExportStatus('Fichier cree: nichoir_assemblage_eclate.png', 'ok');
+    const filename = exportFilename('explosion_png');
+    download(image.bytes, filename, 'image/png');
+    setExportStatus(tr('file_created_named', { filename }), 'ok');
     return true;
   } catch (err) {
     console.error(err);
-    setExportStatus(`Erreur PNG explosion: ${err?.message || err}`, 'error');
+    setExportStatus(tr('export_error', { error: err?.message || err }), 'error');
     return false;
   }
 }
@@ -1292,10 +1620,10 @@ function exportText(filename, type, producer, emptyMessage) {
       return;
     }
     download(String(text), filename, type);
-    setExportStatus(`Fichier cree: ${filename} (${String(text).length.toLocaleString('fr-CA')} caracteres)`, 'ok');
+    setExportStatus(tr('file_created_simple_chars', { filename, size: formatCountText(String(text).length) }), 'ok');
   } catch (err) {
     console.error(err);
-    setExportStatus(`Erreur export: ${err?.message || err}`, 'error');
+    setExportStatus(tr('export_error', { error: err?.message || err }), 'error');
   }
 }
 
@@ -1310,6 +1638,7 @@ function parseResponse(raw) {
 
 function captureUiState() {
   const scroller = root.querySelector('.tab-scroll');
+  const accountModal = root.querySelector('[data-account-modal]');
   const active = document.activeElement;
   const focus = active && active.dataset ? {
     param: active.dataset.param || null,
@@ -1324,6 +1653,7 @@ function captureUiState() {
   } : null;
   return {
     scrollTop: scroller ? scroller.scrollTop : 0,
+    modalOpen: Boolean(accountModal && !accountModal.hidden),
     focus,
   };
 }
@@ -1611,6 +1941,7 @@ function renderPlanPreview() {
 
 function render() {
   const uiState = captureUiState();
+  setDocumentLanguage();
   ensureDecos();
   if (frameId) cancelAnimationFrame(frameId);
   if (cleanupViewer) cleanupViewer();
@@ -1624,6 +1955,7 @@ function render() {
     if (!accountModal || accountModal.hidden) return;
     accountModal.classList.remove('is-open');
     accountModal.hidden = true;
+    modalWasOpen = false;
     if (lastAccountFocus && document.contains(lastAccountFocus)) lastAccountFocus.focus();
   };
   const openAccountModal = () => {
@@ -1631,6 +1963,7 @@ function render() {
     lastAccountFocus = document.activeElement;
     accountModal.hidden = false;
     accountModal.classList.add('is-open');
+    modalWasOpen = true;
     refreshAccountState({ silent: true });
     accountModal.querySelector('[data-account-modal-close]')?.focus();
   };
@@ -1680,7 +2013,7 @@ function render() {
     try {
       await loadAccountTicketDetail(button.dataset.accountTicketOpen);
     } catch (err) {
-      accountState.error = `Ticket: ${err?.message || err}`;
+      accountState.error = tr('ticket_error', { error: err?.message || err });
       updateAccountDom();
     }
   });
@@ -1695,9 +2028,9 @@ function render() {
       event.currentTarget.reset();
       selectedAccountTicketId = payload.ticket_id || null;
       await loadAccountTickets({ openFirst: true });
-      setExportStatus('Ticket cree.', 'ok');
+      setExportStatus(tr('ticket_created'), 'ok');
     } catch (err) {
-      accountState.error = `Ticket refuse: ${err?.message || err}`;
+      accountState.error = tr('ticket_denied', { error: err?.message || err });
       updateAccountDom();
     }
   });
@@ -1713,9 +2046,9 @@ function render() {
       event.currentTarget.reset();
       renderAccountTicketDetail(payload);
       await loadAccountTickets();
-      setExportStatus('Reponse ticket envoyee.', 'ok');
+      setExportStatus(tr('ticket_reply_sent'), 'ok');
     } catch (err) {
-      accountState.error = `Reponse refusee: ${err?.message || err}`;
+      accountState.error = tr('ticket_reply_denied', { error: err?.message || err });
       updateAccountDom();
     }
   });
@@ -1729,17 +2062,25 @@ function render() {
       });
       renderAccountTicketDetail(payload);
       await loadAccountTickets();
-      setExportStatus(status === 'open' ? 'Ticket rouvert.' : 'Ticket ferme.', 'ok');
+      setExportStatus(status === 'open' ? tr('ticket_reopened') : tr('ticket_closed'), 'ok');
     } catch (err) {
-      accountState.error = `Statut ticket refuse: ${err?.message || err}`;
+      accountState.error = tr('ticket_status_denied', { error: err?.message || err });
       updateAccountDom();
     }
   });
   [
-    ['token-pricing', 'Credits: STL 3, PDF 2, ZIP 5, SVG/PNG 1. Le site PHP reste la source de verite.'],
+    ['token-pricing', tr('pricing_info')],
   ].forEach(([action, message]) => {
     root.querySelector(`[data-action="${action}"]`)?.addEventListener('click', () => {
       setExportStatus(message, 'info');
+    });
+  });
+  root.querySelectorAll('[data-action="lang-switch"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const next = normalizeLang(button.dataset.lang);
+      params.lang = next;
+      localStorage.setItem(LANG_KEY, next);
+      render();
     });
   });
 
@@ -1869,11 +2210,11 @@ function render() {
     const isSvg = file.type.includes('svg') || file.name.toLowerCase().endsWith('.svg');
     const isRaster = /image\/(png|jpeg|gif|webp)/i.test(file.type) || /\.(png|jpe?g|gif|webp)$/i.test(file.name);
     if (!isSvg && !isRaster) {
-      setExportStatus('Decor: charge un SVG, PNG, JPG, GIF ou WEBP.', 'warn');
+      setExportStatus(tr('decor_load_supported'), 'warn');
       return;
     }
     if (file.size > MAX_DECO_FILE_BYTES) {
-      setExportStatus('Decor: fichier trop lourd. Limite actuelle: 2 Mo.', 'warn');
+      setExportStatus(tr('decor_too_large'), 'warn');
       return;
     }
     const reader = new FileReader();
@@ -1888,7 +2229,7 @@ function render() {
           deco.mode = 'heightmap';
           deco.enabled = true;
           deco.clipToPanel = true;
-          setExportStatus('Decor: SVG rasterise en heightmap et envoye au WASM.', 'ok');
+          setExportStatus(tr('decor_svg_heightmap'), 'ok');
         } else {
           const lower = file.name.toLowerCase();
           deco.sourceType = lower.endsWith('.webp') || file.type.includes('webp')
@@ -1903,15 +2244,15 @@ function render() {
           deco.mode = 'heightmap';
           deco.enabled = true;
           deco.clipToPanel = true;
-          setExportStatus('Decor: image heightmap envoyee au WASM.', 'ok');
+          setExportStatus(tr('decor_image_heightmap'), 'ok');
         }
         render();
       } catch (err) {
         console.error(err);
-        setExportStatus(`Decor: conversion heightmap impossible (${err?.message || err}).`, 'error');
+        setExportStatus(tr('decor_heightmap_failed', { error: err?.message || err }), 'error');
       }
     };
-    reader.onerror = () => setExportStatus('Decor: impossible de lire le fichier.', 'error');
+    reader.onerror = () => setExportStatus(tr('decor_read_failed'), 'error');
     if (isSvg) reader.readAsText(file);
     else reader.readAsArrayBuffer(file);
   });
@@ -1968,91 +2309,95 @@ function render() {
 
   root.querySelector('[data-action="export-house"]')?.addEventListener('click', () => {
     exportBinaryAuthorized(
-      'nichoir_maison.stl',
+      exportFilename('house_stl'),
       'model/stl',
       'stl',
       () => export_house_stl(JSON.stringify(params)),
-      'Export maison vide: le modele n a genere aucun triangle.'
+      tr('export_house_empty')
     );
   });
 
   root.querySelector('[data-action="export-door"]')?.addEventListener('click', () => {
     exportBinaryAuthorized(
-      'nichoir_porte.stl',
+      exportFilename('door_stl'),
       'model/stl',
       'stl',
       () => export_door_stl(JSON.stringify(params)),
-      'Pas de porte STL: choisis une porte et active "Creer le panneau de porte".'
+      tr('export_door_empty')
     );
   });
 
   root.querySelector('[data-action="export-panels"]')?.addEventListener('click', () => {
     exportBinaryAuthorized(
-      'nichoir_panneaux.zip',
+      exportFilename('panels_zip'),
       'application/zip',
       'zip',
       () => export_panels_zip(JSON.stringify(params)),
-      'Export panneaux vide: aucune piece n a ete generee.'
+      tr('export_panels_empty')
     );
   });
 
   root.querySelector('[data-action="export-plan"]')?.addEventListener('click', () => {
     exportTextAuthorized(
-      'nichoir_plan.svg',
+      exportFilename('plan_svg'),
       'image/svg+xml',
       'svg',
       () => {
         const payload = parseResponse(plan_preview_svg(JSON.stringify(params)));
         return payload?.svg || '';
       },
-      'Export plan impossible: aucun SVG genere.'
+      tr('export_plan_empty')
     );
   });
 
   root.querySelector('[data-action="download-plan-png"]')?.addEventListener('click', async () => {
-    await runAuthorizedExport('png', 'nichoir_plan_de_coupe.png', downloadPlanPng);
+    await runAuthorizedExport('png', exportFilename('plan_png'), downloadPlanPng);
   });
 
   root.querySelector('[data-action="download-explosion-png"]')?.addEventListener('click', async () => {
-    await runAuthorizedExport('png', 'nichoir_assemblage_eclate.png', downloadExplosionPng);
+    await runAuthorizedExport('png', exportFilename('explosion_png'), downloadExplosionPng);
   });
 
   root.querySelector('[data-action="download-plan-pdf"]')?.addEventListener('click', async () => {
-    await runAuthorizedExport('pdf', 'nichoir_plan_de_coupe.pdf', downloadPlanPdf);
+    await runAuthorizedExport('pdf', exportFilename('plan_pdf'), downloadPlanPdf);
   });
 
   root.querySelector('[data-action="export-obj"]')?.addEventListener('click', () => {
     exportText(
-      'nichoir_maison_debug.obj',
+      exportFilename('debug_obj'),
       'text/plain',
       () => export_house_obj(JSON.stringify(params)),
-      'Export OBJ vide: le modele n a genere aucun triangle.'
+      tr('export_obj_empty')
     );
   });
 
   root.querySelector('[data-action="download-calcs-pdf"]')?.addEventListener('click', async () => {
-    await runAuthorizedExport('pdf', 'nichoir_calculs.pdf', downloadCalculationsPdf);
+    await runAuthorizedExport('pdf', exportFilename('calcs_pdf'), downloadCalculationsPdf);
   });
 
   root.querySelector('[data-action="mesh-report"]')?.addEventListener('click', () => {
     try {
       const payload = parseResponse(mesh_report_json(JSON.stringify(params)));
       if (!payload) {
-        setExportStatus('Rapport mesh impossible: reponse WASM invalide.', 'error');
+        setExportStatus(tr('mesh_report_invalid'), 'error');
         return;
       }
       const report = JSON.stringify(payload, null, 2);
-      download(report, 'nichoir_mesh_report.json', 'application/json');
+      download(report, exportFilename('mesh_report_json'), 'application/json');
       const deg = payload.house?.degenerate_triangles ?? 0;
       const warnCount = payload.house?.warnings?.length ?? 0;
       const tone = deg || warnCount ? 'warn' : 'ok';
       setExportStatus(
-        `Rapport cree: maison ${payload.house?.triangles ?? 0} triangles, ${deg} degeneres, ZIP ${(payload.zip_bytes ?? 0).toLocaleString('fr-CA')} octets`,
+        tr('mesh_report_created', {
+          triangles: formatCountText(payload.house?.triangles ?? 0),
+          degenerate: formatCountText(deg),
+          bytes: formatCountText(payload.zip_bytes ?? 0),
+        }),
         tone
       );
     } catch (err) {
       console.error(err);
-      setExportStatus(`Erreur rapport mesh: ${err?.message || err}`, 'error');
+      setExportStatus(tr('mesh_report_error', { error: err?.message || err }), 'error');
     }
   });
 
@@ -2061,11 +2406,15 @@ function render() {
   renderViewer();
   updateAccountDom();
   restoreUiState(uiState);
+  if (uiState.modalOpen || modalWasOpen) openAccountModal();
 }
 
 try {
   await init(new URL(`../wasm/pkg/wasm_bg.wasm?v=${APP_BUILD_ID}`, import.meta.url));
   params = JSON.parse(default_params_json());
+  params.lang = normalizeLang(params.lang || detectInitialLanguage());
+  localStorage.setItem(LANG_KEY, params.lang);
+  setDocumentLanguage();
   cameraState = initialCameraState();
   applyTheme();
   render();
@@ -2074,6 +2423,6 @@ try {
   console.error(err);
   sendClientLog('critical', 'wasm_load_failed', err?.message || 'WASM load failed', clientErrorContext(err));
   if (root) {
-    root.textContent = 'Application indisponible. Recharge la page.';
+    root.textContent = tr('app_unavailable');
   }
 }

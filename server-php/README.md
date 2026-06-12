@@ -13,6 +13,13 @@ Ce dossier est aussi la base cible du futur site PHP complet:
 
 L'app Rust/WASM reste sous `/app/` et continue de generer localement les plans/STL/ZIP.
 
+## Structure
+
+- `public/`: document root PHP, routeur HTTP et CSS site. Voir `public/README.md`.
+- `src/`: logique PHP comptes, auth, pages, API helpers et webhook. Voir `src/README.md`.
+- `migrations/`: schema SQLite versionne. Voir `migrations/README.md`.
+- `data/`: base SQLite locale de developpement. Voir `data/README.md`.
+
 Etat actuel:
 
 - `/`, `/pricing`, `/account` et `/admin` sont routes par PHP.

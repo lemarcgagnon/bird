@@ -1,6 +1,13 @@
-# Nichoir16 License API
+# Nichoir16 License API historique
 
-Mini backend FastAPI/SQLite pour tester l'autorisation avant d'ajouter Stripe.
+Mini backend FastAPI/SQLite cree pour tester l'autorisation avant la plateforme PHP.
+
+Etat actuel: cette section est secondaire. Le serveur cible actif est `server-php/`, qui gere maintenant comptes, credits, admin, API, billing placeholder et webhook Stripe. Ne pas ajouter de nouvelle logique produit ici sans decision explicite.
+
+## Structure
+
+- `app/`: code FastAPI historique. Voir `app/README.md`.
+- `requirements.txt`: dependances Python de ce prototype.
 
 ## Installer l'API
 

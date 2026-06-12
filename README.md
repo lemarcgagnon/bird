@@ -35,6 +35,16 @@ Separation des responsabilites:
 - PHP/API: comptes, sessions, credits, abonnements, tickets, paiements, webhooks Stripe, autorisations courtes.
 - Stripe: paiement externe; les secrets et webhooks restent toujours cote PHP.
 
+## Carte rapide du repo
+
+- `app/`: interface navigateur, viewer Three.js, appels API PHP et exports. Voir `app/README.md`.
+- `wasm/`: coeur Rust compile en WebAssembly. Voir `wasm/README.md`.
+- `server-php/`: serveur cible PHP/SQLite pour site, API, admin, comptes, credits et Stripe. Voir `server-php/README.md`.
+- `server/`: prototype FastAPI historique de licence, secondaire. Voir `server/README.md`.
+- `docs/`: roadmap et securite. Voir `docs/README.md`.
+- `scripts/`: validations locales, surtout smoke tests mesh. Voir `scripts/README.md`.
+- `nichoir_v16.html`: ancienne reference fonctionnelle monofichier, pas l'app finale.
+
 ## Lancer l'app localement
 
 En dev, utiliser deux serveurs pour eviter de melanger l'app statique et l'API:

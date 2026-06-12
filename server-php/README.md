@@ -32,12 +32,14 @@ Etat actuel:
 - `/admin` permet de repondre aux tickets, changer open/closed, definir priorite et assignation, configurer SMTP cPanel et tester l'envoi email.
 - `/admin` > `Reglages` permet aussi de configurer/tester les coordonnees DB cPanel/MySQL. Enregistrer cree le schema MySQL si la base est vide.
 - `/admin` > `Exports` permet d'exporter la base en CSV, Excel compatible `.xls` ou JSON par portee: base complete, clients, billing, support, credits ou autorisations.
+- `/admin` > `Logs` affiche alertes, logs applicatifs, audit actions et evenements Stripe avec filtres niveau/channel/event/recherche.
+- `app_logs`, `audit_logs` et `stripe_event_logs` tracent erreurs, securite, actions importantes, emails, tickets, exports, auth et webhooks sans stocker mots de passe, tokens ou secrets.
 - Les notifications tickets sont journalisees dans `ticket_notifications`, puis envoyees immediatement via SMTP si l'envoi est active.
 - `GET /api/credits/ledger` retourne l'historique credits du client connecte.
 - `GET /api/billing/summary` retourne l'abonnement courant et les paiements synchronises du client connecte.
 - `POST /api/checkout/stripe-link` cree une session Checkout Stripe reelle si Stripe est configure.
 - `POST /api/billing/portal` cree une session portail client Stripe.
-- `/stripe/webhook` verifie `Stripe-Signature` quand un webhook secret est configure, journalise `stripe_events`, traite `checkout.session.completed`, `invoice.*` et les evenements `customer.subscription.*`.
+- `/stripe/webhook` verifie `Stripe-Signature` quand un webhook secret est configure, journalise `stripe_events` et `stripe_event_logs`, traite `checkout.session.completed`, `invoice.*` et les evenements `customer.subscription.*`.
 - En local, `/admin` est accessible pour le dev. En production, definir `NICHOIR_ADMIN_KEY`.
 - CORS est limite par `NICHOIR_CORS_ORIGINS` (`http://127.0.0.1:8016` par defaut en dev).
 - Les payloads JSON sont limites a `256 KiB`; offres checkout, types d'export, tickets, profil et mots de passe sont valides cote serveur.
@@ -55,6 +57,12 @@ Base de donnees:
 - cPanel: creer une base MySQL et un utilisateur dans cPanel, puis entrer host/base/user/password dans `/admin` > `Reglages` > `Base de donnees`.
 - Les valeurs enregistrees sont ecrites dans `server-php/data/db-config.php`, ignore par Git.
 - Les variables serveur `NICHOIR_DB_DRIVER`, `NICHOIR_DB_HOST`, `NICHOIR_DB_PORT`, `NICHOIR_DB_NAME`, `NICHOIR_DB_USER`, `NICHOIR_DB_PASSWORD`, `NICHOIR_DB_CHARSET` surchargent le fichier local.
+
+Logs:
+
+- `NICHOIR_LOG_HASH_SALT` doit etre defini en production pour hasher IP/courriels de facon stable sans exposer les valeurs brutes.
+- `NICHOIR_SLOW_REQUEST_MS` controle le seuil `slow_request` via shutdown handler PHP (`1500` ms par defaut, `0` pour desactiver).
+- `POST /api/client-log` recoit les erreurs navigateur/WASM et applique un rate limit de 10 logs/minute par user ou IP.
 
 Deploiement cPanel:
 
@@ -98,6 +106,7 @@ php -S 127.0.0.1:8021 -t server-php/public
 - `GET /api/tickets/{id}`
 - `POST /api/tickets/{id}/messages`
 - `POST /api/tickets/{id}/status`
+- `POST /api/client-log`
 - `POST /stripe/webhook`
 
 ## Test rapide
@@ -113,6 +122,8 @@ curl -X POST http://127.0.0.1:8021/api/auth/login \
 ```
 
 `POST /api/auth/register` cree un compte `pending` et envoie un code a 6 chiffres par le SMTP configure dans `/admin` > `Reglages`. Sans SMTP valide, l'inscription est refusee et la transaction est annulee.
+
+Les endpoints auth (`register`, `login`, `activate`, `resend-activation`) ont un rate limit par IP et par email. L'activation bloque temporairement un compte pending apres 5 codes invalides, les comptes pending trop vieux sont nettoyes automatiquement, et les emails d'activation ont un quota journalier par IP/email.
 
 Le token retourne doit etre envoye comme ceci:
 
@@ -142,9 +153,9 @@ Comptes utiles:
 ## A ajouter
 
 - Admin complet: filtres billing avances, surveillance des echecs email et journal d'audit plus lisible.
-- Rate limiting login/register/tickets/webhooks.
+- Rate limiting tickets/webhooks. L'auth client et `/api/client-log` sont deja limites.
 - CSRF et authentification admin production; eviter le `key` admin en query string.
-- CSP, sanitizer SVG complet et plafonds Rust/WASM pour fichiers/meshes/exports.
+- CSP, retention/rotation des logs, sanitizer SVG complet et plafonds Rust/WASM pour fichiers/meshes/exports.
 - Tests live Stripe avec les vrais price IDs, portail active dans le dashboard Stripe et webhook de production.
 - Configuration dev/prod pour CORS, URL publique, secrets Stripe/SMTP et base de donnees.
 - Script de packaging/installation cPanel.

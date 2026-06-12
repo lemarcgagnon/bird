@@ -20,6 +20,8 @@ const PHP_BASE = window.NICHOIR_PHP_BASE
   || (window.location.port === '8016' ? DEV_PHP_ORIGIN : window.location.origin);
 const AUTH_TOKEN_KEY = 'nichoir-auth-token';
 const MAX_DECO_FILE_BYTES = 2 * 1024 * 1024;
+const CLIENT_LOG_LIMIT = 10;
+const CLIENT_LOG_WINDOW_MS = 60 * 1000;
 const FORBIDDEN_SVG_TAGS = [
   'script',
   'foreignObject',
@@ -51,6 +53,7 @@ let accountState = {
 let accountTickets = [];
 let accountTicketDetail = null;
 let selectedAccountTicketId = null;
+let clientLogTimestamps = [];
 let theme = localStorage.getItem(THEME_KEY)
   || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
@@ -132,6 +135,69 @@ function dataUrlBytes(dataUrl) {
 function phpUrl(path = '/') {
   return new URL(path, PHP_BASE).toString();
 }
+
+function clientLogAllowed() {
+  const now = Date.now();
+  clientLogTimestamps = clientLogTimestamps.filter((timestamp) => now - timestamp < CLIENT_LOG_WINDOW_MS);
+  if (clientLogTimestamps.length >= CLIENT_LOG_LIMIT) return false;
+  clientLogTimestamps.push(now);
+  return true;
+}
+
+function shortClientText(value, fallback = '') {
+  const text = String(value || fallback);
+  return text.length > 500 ? `${text.slice(0, 500)}...` : text;
+}
+
+function clientErrorContext(error) {
+  return {
+    name: shortClientText(error?.name || 'Error', 'Error'),
+    message: shortClientText(error?.message || error, 'Client error'),
+    stack: shortClientText(error?.stack || ''),
+    app_version: APP_BUILD_ID,
+    screen: activeTab,
+    browser: shortClientText(navigator.userAgent || ''),
+    url: shortClientText(window.location.pathname || ''),
+  };
+}
+
+function sendClientLog(level, eventCode, message, context = {}) {
+  if (!clientLogAllowed()) return;
+  const headers = { 'Content-Type': 'application/json' };
+  const token = localStorage.getItem(AUTH_TOKEN_KEY);
+  if (token) headers.Authorization = `Bearer ${token}`;
+  fetch(phpUrl('/api/client-log'), {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      level,
+      event_code: eventCode,
+      message: shortClientText(message, 'Client log'),
+      context,
+    }),
+    keepalive: true,
+  }).catch(() => {});
+}
+
+function clientRuntimeEventCode(event) {
+  const source = `${event?.message || ''} ${event?.filename || ''}`.toLowerCase();
+  return source.includes('wasm') || source.includes('webassembly') ? 'wasm_runtime_error' : 'client_runtime_error';
+}
+
+window.addEventListener('error', (event) => {
+  const error = event.error || new Error(event.message || 'Client runtime error');
+  sendClientLog('error', clientRuntimeEventCode(event), error.message || event.message, {
+    ...clientErrorContext(error),
+    filename: shortClientText(event.filename || ''),
+    line: Number.isFinite(event.lineno) ? event.lineno : null,
+    column: Number.isFinite(event.colno) ? event.colno : null,
+  });
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason instanceof Error ? event.reason : new Error(String(event.reason || 'Unhandled rejection'));
+  sendClientLog('error', 'client_unhandled_rejection', reason.message, clientErrorContext(reason));
+});
 
 function rasterizeSvgToPngBase64(svgText, size = 256) {
   return new Promise((resolve, reject) => {
@@ -263,9 +329,10 @@ function accountStatusLabel() {
 function readableApiError(error) {
   const code = error?.message || String(error);
   return {
-    account_pending: 'Compte en attente: active-le avec le code recu par email sur le site.',
-    activation_email_failed: 'Email activation non envoye. SMTP doit etre configure dans Admin.',
-    invalid_credentials: 'Courriel ou mot de passe invalide.',
+    activation_unavailable: 'Activation indisponible. SMTP doit etre configure dans Admin.',
+    activation_failed: 'Activation refusee. Verifie le code sur le site.',
+    too_many_requests: 'Trop de tentatives. Attends quelques minutes.',
+    invalid_credentials: 'Connexion refusee. Verifie le mot de passe ou active le compte sur le site.',
   }[code] || code;
 }
 
@@ -1996,9 +2063,17 @@ function render() {
   restoreUiState(uiState);
 }
 
-await init(new URL(`../wasm/pkg/wasm_bg.wasm?v=${APP_BUILD_ID}`, import.meta.url));
-params = JSON.parse(default_params_json());
-cameraState = initialCameraState();
-applyTheme();
-render();
-refreshAccountState({ silent: true });
+try {
+  await init(new URL(`../wasm/pkg/wasm_bg.wasm?v=${APP_BUILD_ID}`, import.meta.url));
+  params = JSON.parse(default_params_json());
+  cameraState = initialCameraState();
+  applyTheme();
+  render();
+  refreshAccountState({ silent: true });
+} catch (err) {
+  console.error(err);
+  sendClientLog('critical', 'wasm_load_failed', err?.message || 'WASM load failed', clientErrorContext(err));
+  if (root) {
+    root.textContent = 'Application indisponible. Recharge la page.';
+  }
+}

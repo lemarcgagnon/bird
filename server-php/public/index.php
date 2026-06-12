@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../src/db.php';
+require_once __DIR__ . '/../src/logger.php';
 require_once __DIR__ . '/../src/auth.php';
 require_once __DIR__ . '/../src/mail.php';
 require_once __DIR__ . '/../src/stripe.php';
@@ -10,7 +11,9 @@ require_once __DIR__ . '/../src/pages.php';
 require_once __DIR__ . '/../src/response.php';
 require_once __DIR__ . '/../src/stripe_webhook.php';
 
+$requestStartedAt = microtime(true);
 run_migrations();
+log_register_shutdown(db(), $requestStartedAt);
 
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
@@ -105,6 +108,16 @@ function send_account_activation_email(PDO $pdo, string $email, string $displayN
     );
 }
 
+function auth_activation_response(string $email, int $status = 202): void
+{
+    json_response(['ok' => true, 'requires_activation' => true, 'email' => $email], $status);
+}
+
+function auth_activation_failed_response(): void
+{
+    json_response(['ok' => false, 'error' => 'activation_failed'], 400);
+}
+
 function load_user_ticket(PDO $pdo, int $ticketId, int $userId): ?array
 {
     $stmt = $pdo->prepare('SELECT id, user_id, subject, status, priority, assigned_to, created_at, updated_at, closed_at FROM tickets WHERE id = ? AND user_id = ?');
@@ -133,12 +146,43 @@ if ($method === 'GET' && $path === '/api/health') {
     exit;
 }
 
+if ($method === 'POST' && $path === '/api/client-log') {
+    $pdo = db();
+    $user = current_user();
+    $key = $user ? 'user:' . (int) $user['id'] : 'ip:' . auth_client_ip();
+    if (!auth_rate_limit_hit($pdo, 'client_log', $key, 10, 60)) {
+        app_log($pdo, 'security', 'client', 'rate_limit_triggered', 'Rate limit client-log atteint', ['scope' => $user ? 'user' : 'ip'], $user ? (int) $user['id'] : null, 429);
+        json_response(['ok' => false, 'error' => 'too_many_requests'], 429);
+        exit;
+    }
+    $data = read_json_body();
+    $level = (string) ($data['level'] ?? 'error');
+    $eventCode = preg_replace('/[^a-zA-Z0-9_.-]+/', '_', (string) ($data['event_code'] ?? 'client_error')) ?: 'client_error';
+    $message = trim((string) ($data['message'] ?? 'Client log'));
+    $context = $data['context'] ?? [];
+    app_log(
+        $pdo,
+        in_array($level, ['debug', 'info', 'warning', 'error', 'critical'], true) ? $level : 'error',
+        'client',
+        substr($eventCode, 0, 100),
+        $message === '' ? 'Client log' : substr($message, 0, 500),
+        is_array($context) ? $context : [],
+        $user ? (int) $user['id'] : null,
+        202
+    );
+    json_response(['ok' => true], 202);
+    exit;
+}
+
 if ($method === 'POST' && $path === '/api/auth/register') {
     $data = read_json_body();
     require_fields($data, ['email', 'password']);
     $email = strtolower(trim((string) $data['email']));
     $password = (string) $data['password'];
     $name = trim((string) ($data['display_name'] ?? ''));
+    $pdo = db();
+    auth_cleanup_security_state($pdo);
+    auth_rate_limit_or_exit($pdo, 'register', $email);
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) {
         json_response(['ok' => false, 'error' => 'invalid_email'], 400);
@@ -153,7 +197,15 @@ if ($method === 'POST' && $path === '/api/auth/register') {
         exit;
     }
 
-    $pdo = db();
+    $existing = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+    $existing->execute([$email]);
+    if ($existing->fetchColumn()) {
+        app_log($pdo, 'security', 'auth', 'register_existing_hidden', 'Inscription masquee pour courriel existant', ['email_hash' => log_hash_value($email)], null, 202);
+        auth_activation_response($email);
+        exit;
+    }
+
+    auth_email_quota_or_exit($pdo, $email);
     $code = email_verification_code();
     $now = email_verification_timestamp();
     $expires = email_verification_timestamp(EMAIL_VERIFICATION_TTL);
@@ -165,19 +217,24 @@ if ($method === 'POST' && $path === '/api/auth/register') {
              VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $stmt->execute([$email, password_hash($password, PASSWORD_DEFAULT), $name, 0, 'pending', token_hash($code), $expires, $now]);
+        $userId = (int) $pdo->lastInsertId();
         send_account_activation_email($pdo, $email, $name, $code);
+        app_log($pdo, 'security', 'auth', 'email_verification_sent', 'Code activation envoye', ['email_hash' => log_hash_value($email)], $userId, 202);
+        audit_log($pdo, $userId, 'client', 'account_registered', 'user', (string) $userId, 'success', 'pending_activation', ['email_hash' => log_hash_value($email)]);
         $pdo->commit();
-        json_response(['ok' => true, 'requires_activation' => true, 'email_sent' => true, 'email' => $email], 201);
+        auth_activation_response($email);
     } catch (PDOException $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
-        json_response(['ok' => false, 'error' => 'email_exists'], 409);
+        app_log($pdo, 'security', 'auth', 'register_existing_hidden', 'Inscription masquee apres collision unique', ['email_hash' => log_hash_value($email)], null, 202);
+        auth_activation_response($email);
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
-        json_response(['ok' => false, 'error' => 'activation_email_failed', 'detail' => $e->getMessage()], 503);
+        app_log($pdo, 'error', 'email', 'email_failed', 'Echec envoi code activation', ['email_hash' => log_hash_value($email), 'error' => $e->getMessage()], null, 503);
+        json_response(['ok' => false, 'error' => 'activation_unavailable'], 503);
     }
     exit;
 }
@@ -187,31 +244,43 @@ if ($method === 'POST' && $path === '/api/auth/activate') {
     require_fields($data, ['email', 'code']);
     $email = strtolower(trim((string) $data['email']));
     $code = normalize_email_verification_code((string) $data['code']);
+    $pdo = db();
+    auth_cleanup_security_state($pdo);
+    auth_rate_limit_or_exit($pdo, 'activate', $email);
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) {
-        json_response(['ok' => false, 'error' => 'invalid_email'], 400);
+        auth_activation_failed_response();
         exit;
     }
     if (strlen($code) !== EMAIL_VERIFICATION_CODE_DIGITS) {
-        json_response(['ok' => false, 'error' => 'invalid_activation_code'], 400);
+        auth_activation_failed_response();
         exit;
     }
 
-    $pdo = db();
     $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ?');
     $stmt->execute([$email]);
     $user = $stmt->fetch();
     if (!is_array($user) || (string) ($user['status'] ?? '') !== 'pending') {
-        json_response(['ok' => false, 'error' => 'invalid_activation'], 404);
+        app_log($pdo, 'security', 'auth', 'email_verification_failed', 'Activation refusee', ['email_hash' => log_hash_value($email), 'reason' => 'not_pending_or_missing'], null, 400);
+        auth_activation_failed_response();
+        exit;
+    }
+    if (auth_activation_blocked($user)) {
+        app_log($pdo, 'security', 'auth', 'rate_limit_triggered', 'Activation bloquee temporairement', ['user_id' => (int) $user['id']], (int) $user['id'], 429);
+        json_response(['ok' => false, 'error' => 'too_many_requests'], 429);
         exit;
     }
     if ((string) ($user['email_verification_code_hash'] ?? '') === '' || !hash_equals((string) $user['email_verification_code_hash'], token_hash($code))) {
-        json_response(['ok' => false, 'error' => 'invalid_activation_code'], 400);
+        auth_record_activation_failure($pdo, $user);
+        app_log($pdo, 'security', 'auth', 'email_verification_failed', 'Code activation invalide', ['user_id' => (int) $user['id']], (int) $user['id'], 400);
+        auth_activation_failed_response();
         exit;
     }
     $expiresAt = (string) ($user['email_verification_expires_at'] ?? '');
-    if ($expiresAt === '' || new DateTimeImmutable($expiresAt) < new DateTimeImmutable()) {
-        json_response(['ok' => false, 'error' => 'activation_code_expired'], 410);
+    if ($expiresAt === '' || $expiresAt < email_verification_timestamp()) {
+        auth_record_activation_failure($pdo, $user);
+        app_log($pdo, 'security', 'auth', 'email_verification_failed', 'Code activation expire', ['user_id' => (int) $user['id']], (int) $user['id'], 400);
+        auth_activation_failed_response();
         exit;
     }
 
@@ -225,7 +294,9 @@ if ($method === 'POST' && $path === '/api/auth/activate') {
                  email_verified_at = CURRENT_TIMESTAMP,
                  email_verification_code_hash = '',
                  email_verification_expires_at = NULL,
-                 email_verification_sent_at = NULL
+                 email_verification_sent_at = NULL,
+                 email_verification_attempts = 0,
+                 email_verification_blocked_until = NULL
              WHERE id = ? AND status = 'pending'"
         );
         $updated->execute([WELCOME_CREDITS, $userId]);
@@ -234,6 +305,8 @@ if ($method === 'POST' && $path === '/api/auth/activate') {
         }
         $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
             ->execute([$userId, WELCOME_CREDITS, 'welcome_credits', 'email_activation']);
+        app_log($pdo, 'security', 'auth', 'email_verified', 'Compte active par code email', ['user_id' => $userId], $userId);
+        audit_log($pdo, $userId, 'client', 'email_verified', 'user', (string) $userId);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -252,38 +325,47 @@ if ($method === 'POST' && $path === '/api/auth/resend-activation') {
     $data = read_json_body();
     require_fields($data, ['email']);
     $email = strtolower(trim((string) $data['email']));
+    $pdo = db();
+    auth_cleanup_security_state($pdo);
+    auth_rate_limit_or_exit($pdo, 'resend_activation', $email);
     if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) {
         json_response(['ok' => false, 'error' => 'invalid_email'], 400);
         exit;
     }
 
-    $pdo = db();
     $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ?');
     $stmt->execute([$email]);
     $user = $stmt->fetch();
     if (!is_array($user) || (string) ($user['status'] ?? '') !== 'pending') {
-        json_response(['ok' => true, 'sent' => false]);
+        auth_activation_response($email);
+        exit;
+    }
+    if (auth_activation_blocked($user)) {
+        auth_activation_response($email);
         exit;
     }
     $sentAt = (string) ($user['email_verification_sent_at'] ?? '');
     if ($sentAt !== '' && new DateTimeImmutable($sentAt) > new DateTimeImmutable('-60 seconds')) {
-        json_response(['ok' => false, 'error' => 'activation_resend_wait'], 429);
+        auth_activation_response($email);
         exit;
     }
 
+    auth_email_quota_or_exit($pdo, $email);
     $code = email_verification_code();
     $now = email_verification_timestamp();
     $expires = email_verification_timestamp(EMAIL_VERIFICATION_TTL);
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('UPDATE users SET email_verification_code_hash = ?, email_verification_expires_at = ?, email_verification_sent_at = ? WHERE id = ?')
+        $pdo->prepare('UPDATE users SET email_verification_code_hash = ?, email_verification_expires_at = ?, email_verification_sent_at = ?, email_verification_attempts = 0, email_verification_blocked_until = NULL WHERE id = ?')
             ->execute([token_hash($code), $expires, $now, (int) $user['id']]);
         send_account_activation_email($pdo, $email, (string) ($user['display_name'] ?? ''), $code);
+        app_log($pdo, 'security', 'auth', 'email_verification_sent', 'Code activation renvoye', ['user_id' => (int) $user['id']], (int) $user['id'], 202);
         $pdo->commit();
-        json_response(['ok' => true, 'sent' => true]);
+        auth_activation_response($email);
     } catch (Throwable $e) {
         $pdo->rollBack();
-        json_response(['ok' => false, 'error' => 'activation_email_failed', 'detail' => $e->getMessage()], 503);
+        app_log($pdo, 'error', 'email', 'email_failed', 'Echec renvoi code activation', ['email_hash' => log_hash_value($email), 'error' => $e->getMessage()], null, 503);
+        json_response(['ok' => false, 'error' => 'activation_unavailable'], 503);
     }
     exit;
 }
@@ -291,27 +373,40 @@ if ($method === 'POST' && $path === '/api/auth/resend-activation') {
 if ($method === 'POST' && $path === '/api/auth/login') {
     $data = read_json_body();
     require_fields($data, ['email', 'password']);
-    $stmt = db()->prepare('SELECT * FROM users WHERE email = ?');
-    $stmt->execute([strtolower(trim((string) $data['email']))]);
+    $email = strtolower(trim((string) $data['email']));
+    $pdo = db();
+    auth_cleanup_security_state($pdo);
+    auth_rate_limit_or_exit($pdo, 'login', $email);
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ?');
+    $stmt->execute([$email]);
     $user = $stmt->fetch();
     if (!is_array($user) || !password_verify((string) $data['password'], $user['password_hash'])) {
+        app_log($pdo, 'security', 'auth', 'login_failed', 'Connexion refusee', ['email_hash' => log_hash_value($email), 'reason' => 'invalid_credentials'], null, 401);
         json_response(['ok' => false, 'error' => 'invalid_credentials'], 401);
         exit;
     }
     if ((string) ($user['status'] ?? '') === 'pending') {
-        json_response(['ok' => false, 'error' => 'account_pending'], 403);
+        app_log($pdo, 'security', 'auth', 'login_failed', 'Connexion refusee pour compte non active', ['user_id' => (int) $user['id'], 'reason' => 'pending'], (int) $user['id'], 401);
+        json_response(['ok' => false, 'error' => 'invalid_credentials'], 401);
         exit;
     }
     $token = create_session((int) $user['id']);
+    app_log($pdo, 'security', 'auth', 'login_success', 'Connexion reussie', ['user_id' => (int) $user['id']], (int) $user['id']);
+    audit_log($pdo, (int) $user['id'], 'client', 'login_success', 'user', (string) $user['id']);
     json_response(['ok' => true, 'token' => $token, 'user' => public_user($user)]);
     exit;
 }
 
 if ($method === 'POST' && $path === '/api/auth/logout') {
     $token = bearer_token();
+    $user = current_user();
     if ($token !== null) {
         $stmt = db()->prepare('DELETE FROM sessions WHERE token_hash = ?');
         $stmt->execute([token_hash($token)]);
+    }
+    if ($user !== null) {
+        app_log(db(), 'info', 'auth', 'logout', 'Deconnexion', ['user_id' => (int) $user['id']], (int) $user['id']);
+        audit_log(db(), (int) $user['id'], 'client', 'logout', 'user', (string) $user['id']);
     }
     json_response(['ok' => true]);
     exit;
@@ -342,9 +437,15 @@ if ($method === 'POST' && $path === '/api/profile') {
         if ($password !== '') {
             $stmt = $pdo->prepare('UPDATE users SET email = ?, display_name = ?, password_hash = ? WHERE id = ?');
             $stmt->execute([$email, $name, password_hash($password, PASSWORD_DEFAULT), (int) $user['id']]);
+            app_log($pdo, 'security', 'auth', 'password_changed', 'Mot de passe modifie', ['user_id' => (int) $user['id']], (int) $user['id']);
+            audit_log($pdo, (int) $user['id'], 'client', 'password_changed', 'user', (string) $user['id']);
         } else {
             $stmt = $pdo->prepare('UPDATE users SET email = ?, display_name = ? WHERE id = ?');
             $stmt->execute([$email, $name, (int) $user['id']]);
+        }
+        if ($email !== (string) $user['email']) {
+            app_log($pdo, 'security', 'auth', 'email_changed', 'Courriel modifie', ['user_id' => (int) $user['id'], 'email_hash' => log_hash_value($email)], (int) $user['id']);
+            audit_log($pdo, (int) $user['id'], 'client', 'email_changed', 'user', (string) $user['id'], 'success', '', ['email_hash' => log_hash_value($email)]);
         }
         $fresh = $pdo->prepare('SELECT * FROM users WHERE id = ?');
         $fresh->execute([(int) $user['id']]);
@@ -395,6 +496,11 @@ if ($method === 'POST' && $path === '/api/checkout/stripe-link') {
     }
     try {
         $session = stripe_create_checkout_session(db(), $user, $offer);
+        app_log(db(), 'info', 'stripe', 'checkout_session_created', 'Session Checkout creee', [
+            'offer' => $offer,
+            'session_id' => (string) ($session['id'] ?? ''),
+            'mode' => (string) ($session['mode'] ?? ''),
+        ], (int) $user['id']);
         json_response([
             'ok' => true,
             'checkout_url' => (string) ($session['url'] ?? ''),
@@ -445,6 +551,7 @@ if ($method === 'POST' && $path === '/api/exports/authorize') {
     $expires = (new DateTimeImmutable('+10 minutes'))->format(DATE_ATOM);
     $stmt = db()->prepare('INSERT INTO export_authorizations (user_id, export_type, credit_cost, auth_token_hash, expires_at) VALUES (?, ?, ?, ?, ?)');
     $stmt->execute([(int) $user['id'], $type, $cost, token_hash($authToken), $expires]);
+    app_log(db(), 'info', 'api', 'export_authorized', 'Export autorise', ['export_type' => $type, 'cost' => $cost], (int) $user['id']);
     json_response(['ok' => true, 'authorization' => $authToken, 'export_type' => $type, 'cost' => $cost, 'expires_at' => $expires]);
     exit;
 }
@@ -487,6 +594,8 @@ if ($method === 'POST' && $path === '/api/exports/consume') {
         }
         $pdo->prepare('UPDATE export_authorizations SET status = ?, consumed_at = CURRENT_TIMESTAMP WHERE id = ?')->execute(['consumed', (int) $auth['id']]);
         $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')->execute([(int) $user['id'], -$cost, 'export_' . $auth['export_type'], (string) $auth['id']]);
+        app_log($pdo, 'info', 'api', 'export_consumed', 'Export consomme', ['export_type' => (string) $auth['export_type'], 'cost' => $cost, 'authorization_id' => (int) $auth['id']], (int) $user['id']);
+        audit_log($pdo, (int) $user['id'], 'client', 'export_consumed', 'export_authorization', (string) $auth['id'], 'success', '', ['export_type' => (string) $auth['export_type'], 'cost' => $cost]);
         $pdo->commit();
         $fresh = $pdo->query('SELECT * FROM users WHERE id = ' . (int) $user['id'])->fetch();
         json_response(['ok' => true, 'user' => public_user($fresh), 'cost' => $cost]);
@@ -544,6 +653,8 @@ if ($method === 'POST' && $path === '/api/tickets') {
             'Nouveau ticket #' . $ticketId . ': ' . $subject,
             "Client: " . (string) $user['email'] . "\n\n" . $body
         );
+        app_log($pdo, 'info', 'ticket', 'ticket_created', 'Ticket client cree', ['ticket_id' => $ticketId], (int) $user['id']);
+        audit_log($pdo, (int) $user['id'], 'client', 'ticket_created', 'ticket', (string) $ticketId);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -588,6 +699,8 @@ if ($method === 'POST' && preg_match('#^/api/tickets/(\d+)/messages$#', $path, $
             'Reponse client ticket #' . (int) $ticket['id'],
             "Client: " . (string) $user['email'] . "\nTicket: #" . (int) $ticket['id'] . ' - ' . (string) $ticket['subject'] . "\n\n" . $body
         );
+        app_log($pdo, 'info', 'ticket', 'ticket_replied', 'Reponse client ticket', ['ticket_id' => (int) $ticket['id']], (int) $user['id']);
+        audit_log($pdo, (int) $user['id'], 'client', 'ticket_replied', 'ticket', (string) $ticket['id']);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -627,6 +740,9 @@ if ($method === 'POST' && preg_match('#^/api/tickets/(\d+)/status$#', $path, $ma
             'Statut ticket #' . (int) $ticket['id'] . ': ' . $status,
             "Client: " . (string) $user['email'] . "\nTicket: #" . (int) $ticket['id'] . ' - ' . (string) $ticket['subject'] . "\nNouveau statut: " . $status
         );
+        $eventCode = $status === 'closed' ? 'ticket_closed' : 'ticket_reopened';
+        app_log($pdo, 'info', 'ticket', $eventCode, 'Statut ticket client modifie', ['ticket_id' => (int) $ticket['id'], 'status' => $status], (int) $user['id']);
+        audit_log($pdo, (int) $user['id'], 'client', $eventCode, 'ticket', (string) $ticket['id'], 'success', '', ['status' => $status]);
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();

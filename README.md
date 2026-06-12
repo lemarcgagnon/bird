@@ -23,7 +23,7 @@ En production, le site doit etre un site PHP unique qui sert les pages publiques
 /pricing          Offres, credits et abonnements
 /app/             Application Rust/WASM de conception
 /account          Espace client: profil, credits, abonnement, factures, tickets
-/admin            Administration privee: clients, credits, abonnements, paiements, tickets
+/admin            Administration privee: clients, billing, exports, tickets, logs, reglages
 /api/...          API JSON utilisee par l'app et l'espace client
 /stripe/webhook   Webhook Stripe cote serveur
 ```
@@ -33,6 +33,7 @@ Separation des responsabilites:
 - Rust/WASM: geometrie, calculs, viewer, plans, STL, ZIP, decorations.
 - JavaScript front: glue navigateur, appels API, telechargements, Three.js.
 - PHP/API: comptes, sessions, credits, abonnements, tickets, paiements, webhooks Stripe, autorisations courtes.
+- Logs/audit: evenements applicatifs, securite, actions admin/client, erreurs client/WASM et webhooks Stripe.
 - Stripe: paiement externe; les secrets et webhooks restent toujours cote PHP.
 
 ## Carte rapide du repo
@@ -255,10 +256,11 @@ Etat actuel:
 
 - PHP sert deja `/`, `/pricing`, `/account`, `/admin` et `/api/...`.
 - `/account` gere login/register/logout, activation compte par code email, edition profil, credits, historique, abonnement, portail Stripe, paiements/factures, creation de tickets, fil de messages, reponses client et statut open/closed.
-- `/admin` gere repertoire utilisateurs, creation, edition profil, reset mot de passe, suppression confirmee, credits, suspension/reactivation, abonnement manuel, tickets avec fil/reponse/statut/priorite/assignation, configuration DB cPanel/MySQL, configuration Stripe, configuration SMTP cPanel, paiements/factures et exports DB CSV/Excel/JSON.
-- `/stripe/webhook` verifie `Stripe-Signature` quand le secret est configure, journalise les evenements et peut appliquer `checkout.session.completed`, `invoice.*` ou `customer.subscription.*`.
+- `/admin` gere repertoire utilisateurs, creation, edition profil, reset mot de passe, suppression confirmee, credits, suspension/reactivation, abonnement manuel, tickets avec fil/reponse/statut/priorite/assignation, logs applicatifs/audit/Stripe, configuration DB cPanel/MySQL, configuration Stripe, configuration SMTP cPanel, paiements/factures et exports DB CSV/Excel/JSON.
+- `/api/client-log` recoit les erreurs client/WASM limitees a 10/minute par user/IP, sans geometrie ni contenu de formulaire.
+- `/stripe/webhook` verifie `Stripe-Signature` quand le secret est configure, journalise `stripe_events` et `stripe_event_logs`, puis applique `checkout.session.completed`, `invoice.*` ou `customer.subscription.*`.
 - L'app WASM garde seulement un resume compte et des liens vers le site; le serveur PHP reste la source de verite. Hors localhost, le login demo rapide est desactive sauf config explicite `window.NICHOIR_DEMO_ACCOUNT`.
-- Garde-fous API ajoutes: CORS configurable par `NICHOIR_CORS_ORIGINS`, payload JSON limite, validation stricte des offres/types d'export, revalidation du compte au debit, limites serveur sur tickets/profil et headers HTTP de base.
+- Garde-fous API ajoutes: CORS configurable par `NICHOIR_CORS_ORIGINS`, payload JSON limite, validation stricte des offres/types d'export, revalidation du compte au debit, rate limit auth par IP/email, quotas email activation, limites serveur sur tickets/profil et headers HTTP de base.
 - Garde-fous app ajoutes: limite `2 Mo` sur les fichiers decor importes et configuration PHP/demo hors build local.
 - Stripe Checkout/portail/factures sont branches cote PHP. Avant production, il faut tester avec les vrais price IDs, activer le portail dans le dashboard Stripe et configurer `NICHOIR_STRIPE_WEBHOOK_SECRET`.
 
@@ -269,13 +271,14 @@ Deploiement cPanel:
 - creer la base et l'utilisateur MySQL dans cPanel, puis tester/enregistrer dans `/admin` > `Reglages` > `Base de donnees`;
 - le fichier local `server-php/data/db-config.php` est ignore par Git;
 - prochaine etape: ajouter un script de packaging/installation cPanel pour automatiser ces controles.
+- definir `NICHOIR_LOG_HASH_SALT` en production pour hasher IP/courriels dans les logs sans exposer les valeurs brutes.
 
 Risques securite encore ouverts avant production:
 
-- Ajouter rate limiting sur login, inscription, tickets et webhooks.
+- Ajouter rate limiting sur tickets et webhooks; login, inscription, activation, renvoi de code et logs client sont deja limites.
 - Ajouter CSRF et authentification admin propre; ne pas utiliser un `key` en query string en production.
 - Configurer `NICHOIR_STRIPE_WEBHOOK_SECRET` et tester les webhooks Stripe live.
-- Ajouter CSP, rate limiting, CSRF admin et plafonds triangles/STL/ZIP. Sanitizer SVG et clamps Rust/WASM ont maintenant une premiere passe.
+- Ajouter CSP, retention/rotation des logs, CSRF admin et plafonds triangles/STL/ZIP. Sanitizer SVG et clamps Rust/WASM ont maintenant une premiere passe.
 
 ## Roadmap courte
 

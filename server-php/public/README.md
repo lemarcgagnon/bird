@@ -12,6 +12,7 @@ Regles d'architecture:
 - Garder le routage HTTP dans `index.php` et deplacer la logique partagee dans `server-php/src`.
 - Ne pas mettre la base SQLite, secrets ou fichiers internes dans `public`.
 - Les endpoints `/api/...` doivent retourner JSON via `json_response`.
+- `/api/client-log` accepte seulement des logs client/WASM courts et rates limites; ne jamais y envoyer fichiers, geometrie, tokens ou contenu de formulaire.
 - Les pages HTML doivent rester dans `pages.php` sauf besoin clair.
 
 Demarrage local:

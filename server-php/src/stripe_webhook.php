@@ -42,6 +42,51 @@ function stripe_webhook_allowed(): bool
     return (string) getenv('NICHOIR_ALLOW_UNSIGNED_STRIPE_WEBHOOKS') === '1';
 }
 
+function stripe_webhook_object_id(array $object): string
+{
+    return stripe_text($object, 'id');
+}
+
+function stripe_webhook_livemode(array $event): bool
+{
+    return !empty($event['livemode']);
+}
+
+function stripe_webhook_payload_hash(string $raw): string
+{
+    return hash('sha256', $raw);
+}
+
+function stripe_app_log(PDO $pdo, string $level, string $eventCode, string $message, array $context = [], ?int $httpStatus = null): void
+{
+    if (function_exists('app_log')) {
+        app_log($pdo, $level, 'stripe', $eventCode, $message, $context, null, $httpStatus);
+    }
+}
+
+function stripe_store_event_log(PDO $pdo, string $eventId, string $type, array $object, bool $livemode, string $status, string $payloadHash, string $error = ''): void
+{
+    if (function_exists('stripe_event_log')) {
+        stripe_event_log($pdo, $eventId, $type, stripe_webhook_object_id($object), $livemode, $status, $error, $payloadHash);
+    }
+}
+
+function stripe_processed_event_code(string $type, array $result): string
+{
+    if ((string) ($result['status'] ?? '') === 'ignored') {
+        return 'stripe_webhook_ignored';
+    }
+    return match ($type) {
+        'checkout.session.completed' => 'payment_succeeded',
+        'customer.subscription.created' => 'subscription_created',
+        'customer.subscription.updated' => 'subscription_updated',
+        'customer.subscription.deleted' => 'subscription_cancelled',
+        'invoice.paid', 'invoice.payment_succeeded' => 'invoice_paid',
+        'invoice.payment_failed' => 'invoice_payment_failed',
+        default => 'stripe_webhook_processed',
+    };
+}
+
 function stripe_find_user(PDO $pdo, array $object): ?array
 {
     $metadata = stripe_object_metadata($object);
@@ -305,23 +350,33 @@ function stripe_process_event(PDO $pdo, string $type, array $object): array
 function handle_stripe_webhook(): void
 {
     $raw = file_get_contents('php://input');
+    $payloadHash = is_string($raw) ? stripe_webhook_payload_hash($raw) : '';
+    $pdo = db();
     if ($raw === false || trim($raw) === '') {
+        stripe_app_log($pdo, 'warning', 'stripe_webhook_empty_payload', 'Webhook Stripe vide', [], 400);
         json_response(['ok' => false, 'error' => 'empty_payload'], 400);
         return;
     }
-    $settings = stripe_settings(db());
+    $settings = stripe_settings($pdo);
     if ($settings['webhook_secret'] !== '') {
         $signature = $_SERVER['HTTP_STRIPE_SIGNATURE'] ?? '';
         if (!stripe_verify_webhook_signature($raw, $signature, $settings['webhook_secret'])) {
+            $eventId = 'evt_invalid_' . $payloadHash;
+            if (function_exists('stripe_event_log')) {
+                stripe_event_log($pdo, $eventId, 'unknown', '', false, 'failed', 'invalid_stripe_signature', $payloadHash);
+            }
+            stripe_app_log($pdo, 'security', 'stripe_webhook_signature_failed', 'Signature Stripe invalide', ['payload_hash' => $payloadHash], 400);
             json_response(['ok' => false, 'error' => 'invalid_stripe_signature'], 400);
             return;
         }
     } elseif (!stripe_webhook_allowed()) {
+        stripe_app_log($pdo, 'security', 'stripe_webhook_unsigned_blocked', 'Webhook Stripe non signe bloque', ['payload_hash' => $payloadHash], 403);
         json_response(['ok' => false, 'error' => 'unsigned_webhook_disabled'], 403);
         return;
     }
     $event = json_decode($raw, true);
     if (!is_array($event)) {
+        stripe_app_log($pdo, 'warning', 'stripe_webhook_invalid_json', 'Webhook Stripe JSON invalide', ['payload_hash' => $payloadHash], 400);
         json_response(['ok' => false, 'error' => 'invalid_json'], 400);
         return;
     }
@@ -330,20 +385,38 @@ function handle_stripe_webhook(): void
     $type = stripe_text($event, 'type');
     $object = $event['data']['object'] ?? [];
     if ($type === '' || !is_array($object)) {
+        stripe_store_event_log($pdo, $eventId, $type !== '' ? $type : 'unknown', [], stripe_webhook_livemode($event), 'failed', $payloadHash, 'invalid_stripe_event');
+        stripe_app_log($pdo, 'warning', 'stripe_webhook_invalid_event', 'Webhook Stripe invalide', ['event_id' => $eventId, 'type' => $type], 400);
         json_response(['ok' => false, 'error' => 'invalid_stripe_event'], 400);
         return;
     }
 
-    $pdo = db();
+    $livemode = stripe_webhook_livemode($event);
+    stripe_store_event_log($pdo, $eventId, $type, $object, $livemode, 'received', $payloadHash);
+    stripe_app_log($pdo, 'info', 'stripe_webhook_received', 'Webhook Stripe recu', [
+        'event_id' => $eventId,
+        'type' => $type,
+        'object_id' => stripe_webhook_object_id($object),
+        'livemode' => $livemode,
+    ]);
+
     try {
         $pdo->prepare('INSERT INTO stripe_events (event_id, type, payload) VALUES (?, ?, ?)')->execute([$eventId, $type, $raw]);
     } catch (PDOException $e) {
         $stmt = $pdo->prepare('SELECT id FROM stripe_events WHERE event_id = ?');
         $stmt->execute([$eventId]);
         if ($stmt->fetchColumn()) {
+            stripe_store_event_log($pdo, $eventId, $type, $object, $livemode, 'ignored', $payloadHash, 'duplicate');
+            stripe_app_log($pdo, 'warning', 'stripe_webhook_duplicate', 'Webhook Stripe deja traite', ['event_id' => $eventId, 'type' => $type]);
             json_response(['ok' => true, 'status' => 'duplicate', 'event_id' => $eventId]);
             return;
         }
+        stripe_store_event_log($pdo, $eventId, $type, $object, $livemode, 'failed', $payloadHash, 'event_store_failed');
+        stripe_app_log($pdo, 'error', 'stripe_webhook_store_failed', 'Stockage webhook Stripe impossible', [
+            'event_id' => $eventId,
+            'type' => $type,
+            'error' => $e->getMessage(),
+        ], 500);
         json_response(['ok' => false, 'error' => 'event_store_failed', 'event_id' => $eventId], 500);
         return;
     }
@@ -353,12 +426,25 @@ function handle_stripe_webhook(): void
         $result = stripe_process_event($pdo, $type, $object);
         $pdo->prepare('UPDATE stripe_events SET status = ?, processed_at = CURRENT_TIMESTAMP WHERE event_id = ?')
             ->execute([(string) $result['status'], $eventId]);
+        stripe_store_event_log($pdo, $eventId, $type, $object, $livemode, (string) $result['status'] === 'ignored' ? 'ignored' : 'processed', $payloadHash, (string) ($result['reason'] ?? ''));
+        stripe_app_log($pdo, 'info', stripe_processed_event_code($type, $result), 'Webhook Stripe traite', [
+            'event_id' => $eventId,
+            'type' => $type,
+            'status' => (string) $result['status'],
+            'reason' => (string) ($result['reason'] ?? ''),
+        ]);
         $pdo->commit();
         json_response(['ok' => true, 'event_id' => $eventId] + $result);
     } catch (Throwable $e) {
         $pdo->rollBack();
         $pdo->prepare('UPDATE stripe_events SET status = ?, error = ? WHERE event_id = ?')
             ->execute(['failed', $e->getMessage(), $eventId]);
+        stripe_store_event_log($pdo, $eventId, $type, $object, $livemode, 'failed', $payloadHash, $e->getMessage());
+        stripe_app_log($pdo, 'error', 'stripe_webhook_failed', 'Webhook Stripe echoue', [
+            'event_id' => $eventId,
+            'type' => $type,
+            'error' => $e->getMessage(),
+        ], 500);
         json_response(['ok' => false, 'error' => 'webhook_failed', 'event_id' => $eventId], 500);
     }
 }

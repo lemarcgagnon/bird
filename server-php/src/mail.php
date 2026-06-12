@@ -130,6 +130,21 @@ function smtp_send_email(PDO $pdo, string $to, string $subject, string $body): v
             throw new RuntimeException('smtp_data_failed: ' . $dataResponse);
         }
         smtp_command($socket, 'QUIT', [221]);
+        if (function_exists('app_log')) {
+            app_log($pdo, 'info', 'email', 'email_sent', 'Email envoye', [
+                'recipient_hash' => function_exists('log_hash_value') ? log_hash_value($to) : null,
+                'subject' => $subject,
+            ]);
+        }
+    } catch (Throwable $e) {
+        if (function_exists('app_log')) {
+            app_log($pdo, 'error', 'email', 'email_failed', 'Echec envoi email', [
+                'recipient_hash' => function_exists('log_hash_value') ? log_hash_value($to) : null,
+                'subject' => $subject,
+                'error' => $e->getMessage(),
+            ]);
+        }
+        throw $e;
     } finally {
         fclose($socket);
     }

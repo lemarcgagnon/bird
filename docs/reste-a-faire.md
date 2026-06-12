@@ -346,6 +346,8 @@ Architecture web cible:
   - Admin restructure par onglets metier avec details client/ticket en modales.
   - Exports admin de base ajoutes: CSV, Excel compatible `.xls` et JSON par portee (`all`, `clients`, `billing`, `support`, `credits`, `exports`).
   - Configuration DB cPanel/MySQL ajoutee dans `/admin` > `Reglages`; SQLite reste le mode local par defaut.
+  - Durcissement auth ajoute: rate limit par IP/email sur register/login/activate/resend, quota journalier emails activation, blocage temporaire apres 5 codes invalides et nettoyage des comptes pending expires.
+  - Systeme de logs ajoute: `app_logs`, `audit_logs`, `stripe_event_logs`, logger PHP central, endpoint `/api/client-log`, onglet admin `Logs`, shutdown fatal/slow request et traces Stripe idempotentes.
 
 - Le backend local PHP + SQLite teste maintenant le flux compte/credits/autorisation.
 - Les tables utilisateurs, sessions, credits, abonnements, paiements, consommations, tickets et messages sont initialisees.
@@ -363,10 +365,12 @@ Travail restant dans cette phase:
 
 - Completer la landing page PHP publique (`/`) avec contenu produit reel.
 - Completer page prix/offres (`/pricing`) pour credits et abonnements.
-- Completer admin prive (`/admin`) pour filtres billing avances, surveillance des echecs email et audit lisible.
+- Completer admin prive (`/admin`) pour filtres billing avances et vues d'alertes plus poussees.
 - Retirer les identifiants demo visibles du build de production.
 - Ajouter une configuration dev/prod pour URL API, CORS, demo user et affichage debug.
-- Durcir la configuration email production: secret SMTP via variable serveur si possible, suivi des echecs et retry manuel/automatique.
+- Durcir la configuration email production: secret SMTP via variable serveur si possible et retry manuel/automatique.
+- Ajouter rate limiting tickets/webhooks et supervision des compteurs auth.
+- Ajouter retention/rotation des logs et export cible des alertes si le volume augmente.
 - Tester Stripe en mode live/test avec les vrais price IDs, le portail active dans Stripe et `NICHOIR_STRIPE_WEBHOOK_SECRET`.
 - Tester la connexion MySQL avec les vraies coordonnees cPanel et verifier le schema cree sur le serveur.
 - Creer le script de packaging/installation cPanel: zip propre, verification extensions PHP, `data/` writable, test DB, schema, SMTP optionnel.

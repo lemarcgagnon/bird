@@ -341,14 +341,10 @@ function render_account_page(): void
       function readableError(error) {
         const code = error?.message || String(error);
         const labels = {
-          account_pending: "Compte en attente: entre le code recu par email.",
-          activation_email_failed: "Email activation non envoye. Configure SMTP dans Admin > Reglages.",
-          activation_code_expired: "Code expire. Renvoie un nouveau code.",
-          activation_resend_wait: "Attends une minute avant de renvoyer un code.",
-          invalid_activation_code: "Code activation invalide.",
-          invalid_activation: "Compte a activer introuvable.",
-          email_exists: "Ce courriel existe deja.",
-          invalid_credentials: "Courriel ou mot de passe invalide.",
+          activation_unavailable: "Activation indisponible. Verifie SMTP dans Admin > Reglages.",
+          activation_failed: "Activation refusee. Verifie le courriel/code ou renvoie un nouveau code.",
+          too_many_requests: "Trop de tentatives. Attends quelques minutes puis reessaie.",
+          invalid_credentials: "Connexion refusee. Verifie le mot de passe ou active le compte avec le code email.",
         };
         return labels[code] || code;
       }
@@ -474,7 +470,7 @@ function render_account_page(): void
           });
           document.querySelector("[data-activation-form] [name=email]").value = payload.email || data.get("email");
           document.querySelector("[data-activation-form] [name=code]").focus();
-          document.querySelector("[data-account-message]").textContent = "Compte cree. Code activation envoye par email.";
+          document.querySelector("[data-account-message]").textContent = "Si inscription possible, un code activation est envoye par email.";
         } catch (err) {
           document.querySelector("[data-account-message]").textContent = `Inscription refusee: ${readableError(err)}`;
         }
@@ -689,7 +685,7 @@ function admin_redirect_url(array $params = []): string
 
 function admin_tab_value(string $value, string $fallback = 'admin-clients'): string
 {
-    $allowed = ['admin-support', 'admin-clients', 'admin-billing', 'admin-exports', 'admin-settings'];
+    $allowed = ['admin-support', 'admin-clients', 'admin-billing', 'admin-exports', 'admin-logs', 'admin-settings'];
     return in_array($value, $allowed, true) ? $value : $fallback;
 }
 
@@ -1066,6 +1062,12 @@ function audit_admin_action(PDO $pdo, ?int $userId, string $action, ?int $delta,
     $hash = $key === '' ? '' : hash('sha256', $key);
     $stmt = $pdo->prepare('INSERT INTO admin_audit_log (admin_key_hash, user_id, action, delta, note) VALUES (?, ?, ?, ?, ?)');
     $stmt->execute([$hash, $userId, $action, $delta, $note]);
+    if (function_exists('audit_log')) {
+        audit_log($pdo, null, 'admin', $action, $userId === null ? '' : 'user', $userId === null ? '' : (string) $userId, 'success', '', [
+            'delta' => $delta,
+            'note' => $note,
+        ]);
+    }
 }
 
 function admin_load_user(PDO $pdo, int $userId): ?array
@@ -1544,6 +1546,9 @@ function admin_handle_database_settings(PDO $pdo, bool $save): void
 function handle_admin_post(): void
 {
     if (!admin_allowed()) {
+        if (function_exists('app_log')) {
+            app_log(db(), 'security', 'admin', 'admin_access_denied', 'POST admin refuse', [], null, 403);
+        }
         page_response('Admin', '<section class="page-title"><h1>Admin protege</h1><p>Acces refuse.</p></section>', '/admin', 403);
         return;
     }
@@ -2204,9 +2209,140 @@ function render_admin_database_export_panel(): string
     ';
 }
 
+function admin_log_text(string $value, int $limit = 220): string
+{
+    $value = trim($value);
+    return strlen($value) > $limit ? substr($value, 0, $limit) . '...' : $value;
+}
+
+function admin_log_filter_link(array $params = []): string
+{
+    $base = [];
+    $key = trim((string) ($_GET['key'] ?? ''));
+    if ($key !== '') {
+        $base['key'] = $key;
+    }
+    return '/admin' . ($base || $params ? '?' . http_build_query(array_merge($base, $params)) : '') . '#admin-logs';
+}
+
+function render_app_log_rows(array $logs): string
+{
+    $rows = '';
+    foreach ($logs as $log) {
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['level']) . '</td><td>' . h((string) $log['channel']) . '</td><td>' . h((string) $log['event_code']) . '</td><td>' . h(admin_log_text((string) $log['message'])) . '</td><td>' . h((string) ($log['user_id'] ?? '')) . '</td><td>' . h((string) ($log['http_status'] ?? '')) . '</td><td><code>' . h(admin_log_text((string) ($log['context_json'] ?? ''), 160)) . '</code></td></tr>';
+    }
+    return $rows ?: '<tr><td colspan="8">Aucun log.</td></tr>';
+}
+
+function render_audit_log_rows(array $logs): string
+{
+    $rows = '';
+    foreach ($logs as $log) {
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['actor_role']) . '</td><td>' . h((string) ($log['actor_user_id'] ?? '')) . '</td><td>' . h((string) $log['action']) . '</td><td>' . h((string) ($log['target_type'] ?? '')) . '</td><td>' . h((string) ($log['target_id'] ?? '')) . '</td><td>' . h((string) $log['outcome']) . '</td><td><code>' . h(admin_log_text((string) ($log['metadata_json'] ?? ''), 180)) . '</code></td></tr>';
+    }
+    return $rows ?: '<tr><td colspan="8">Aucun audit.</td></tr>';
+}
+
+function render_stripe_log_rows(array $logs): string
+{
+    $rows = '';
+    foreach ($logs as $log) {
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['stripe_event_id']) . '</td><td>' . h((string) $log['event_type']) . '</td><td>' . h((string) ($log['stripe_object_id'] ?? '')) . '</td><td>' . h((string) $log['status']) . '</td><td>' . (int) $log['attempt_count'] . '</td><td>' . h(admin_log_text((string) ($log['error_message'] ?? ''), 180)) . '</td></tr>';
+    }
+    return $rows ?: '<tr><td colspan="7">Aucun evenement Stripe.</td></tr>';
+}
+
+function render_admin_logs_panel(PDO $pdo): string
+{
+    $level = trim((string) ($_GET['log_level'] ?? ''));
+    $channel = trim((string) ($_GET['log_channel'] ?? ''));
+    $event = trim((string) ($_GET['log_event'] ?? ''));
+    $query = trim((string) ($_GET['log_q'] ?? ''));
+    $where = [];
+    $params = [];
+    if ($level !== '' && in_array($level, LOG_LEVELS, true)) {
+        $where[] = 'level = ?';
+        $params[] = $level;
+    }
+    if ($channel !== '') {
+        $where[] = 'channel = ?';
+        $params[] = substr($channel, 0, 50);
+    }
+    if ($event !== '') {
+        $where[] = 'event_code LIKE ?';
+        $params[] = '%' . substr($event, 0, 100) . '%';
+    }
+    if ($query !== '') {
+        $where[] = '(message LIKE ? OR context_json LIKE ? OR request_id LIKE ?)';
+        $term = '%' . substr($query, 0, 120) . '%';
+        array_push($params, $term, $term, $term);
+    }
+    $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+
+    $appStmt = $pdo->prepare('SELECT created_at, level, channel, event_code, message, user_id, http_status, context_json FROM app_logs ' . $whereSql . ' ORDER BY id DESC LIMIT 80');
+    $appStmt->execute($params);
+    $appRows = render_app_log_rows($appStmt->fetchAll());
+
+    $security = $pdo->query(
+        "SELECT created_at, level, channel, event_code, message, user_id, http_status, context_json
+         FROM app_logs
+         WHERE level IN ('security', 'critical') OR event_code IN ('rate_limit_triggered', 'admin_access_denied', 'stripe_webhook_signature_failed', 'email_failed', 'php_error')
+         ORDER BY id DESC LIMIT 60"
+    )->fetchAll();
+    $securityRows = render_app_log_rows($security);
+
+    $audit = $pdo->query('SELECT created_at, actor_user_id, actor_role, action, target_type, target_id, outcome, metadata_json FROM audit_logs ORDER BY id DESC LIMIT 80')->fetchAll();
+    $auditRows = render_audit_log_rows($audit);
+
+    $stripe = $pdo->query('SELECT created_at, stripe_event_id, event_type, stripe_object_id, status, attempt_count, error_message FROM stripe_event_logs ORDER BY id DESC LIMIT 80')->fetchAll();
+    $stripeRows = render_stripe_log_rows($stripe);
+
+    $levelOptions = '<option value="">Tous</option>';
+    foreach (LOG_LEVELS as $option) {
+        $levelOptions .= '<option value="' . h($option) . '"' . ($level === $option ? ' selected' : '') . '>' . h($option) . '</option>';
+    }
+
+    return '
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Logs applicatifs</h2>
+            <p>Evenements techniques, securite, audit, Stripe et client. Les IP/courriels sensibles sont hashes.</p>
+          </div>
+          <a class="secondary compact-link" href="' . h(admin_log_filter_link()) . '">Reinitialiser filtres</a>
+        </div>
+        <form class="admin-directory-form" method="get" action="/admin#admin-logs">
+          ' . admin_key_input() . '
+          <label><span>Niveau</span><select name="log_level">' . $levelOptions . '</select></label>
+          <label><span>Channel</span><input type="search" name="log_channel" value="' . h($channel) . '" placeholder="auth, api, stripe"></label>
+          <label><span>Event</span><input type="search" name="log_event" value="' . h($event) . '" placeholder="login_failed"></label>
+          <label><span>Recherche</span><input type="search" name="log_q" value="' . h($query) . '" placeholder="message, contexte, request_id"></label>
+          <button type="submit">Filtrer</button>
+        </form>
+        <h3>Alertes</h3>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Channel</th><th>Event</th><th>Message</th><th>User</th><th>HTTP</th><th>Contexte</th></tr></thead><tbody>' . $securityRows . '</tbody></table></div>
+      </section>
+      <section class="panel">
+        <h2>Application</h2>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Channel</th><th>Event</th><th>Message</th><th>User</th><th>HTTP</th><th>Contexte</th></tr></thead><tbody>' . $appRows . '</tbody></table></div>
+      </section>
+      <section class="panel">
+        <h2>Audit actions</h2>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Role</th><th>Acteur</th><th>Action</th><th>Cible</th><th>ID</th><th>Issue</th><th>Meta</th></tr></thead><tbody>' . $auditRows . '</tbody></table></div>
+      </section>
+      <section class="panel">
+        <h2>Stripe events</h2>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Event ID</th><th>Type</th><th>Objet</th><th>Statut</th><th>Essais</th><th>Erreur</th></tr></thead><tbody>' . $stripeRows . '</tbody></table></div>
+      </section>
+    ';
+}
+
 function render_admin_page(): void
 {
     if (!admin_allowed()) {
+        if (function_exists('app_log')) {
+            app_log(db(), 'security', 'admin', 'admin_access_denied', 'GET admin refuse', [], null, 403);
+        }
         http_response_code(403);
         page_response('Admin', '
           <section class="page-title">
@@ -2275,6 +2411,7 @@ function render_admin_page(): void
         <a role="tab" aria-selected="false" data-tab-target="admin-clients" href="#admin-clients">Clients</a>
         <a role="tab" aria-selected="false" data-tab-target="admin-billing" href="#admin-billing">Billing</a>
         <a role="tab" aria-selected="false" data-tab-target="admin-exports" href="#admin-exports">Exports</a>
+        <a role="tab" aria-selected="false" data-tab-target="admin-logs" href="#admin-logs">Logs</a>
         <a role="tab" aria-selected="false" data-tab-target="admin-settings" href="#admin-settings">Reglages</a>
       </nav>
       <section class="tab-panel" id="admin-support" data-tab-panel>
@@ -2299,6 +2436,9 @@ function render_admin_page(): void
           </div>
           <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Type</th><th>Cout</th><th>Etat</th><th>Consomme</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div>
         </section>
+      </section>
+      <section class="tab-panel" id="admin-logs" data-tab-panel hidden>
+        ' . render_admin_logs_panel($pdo) . '
       </section>
       <section class="tab-panel" id="admin-settings" data-tab-panel hidden>
         ' . render_database_settings_panel() . '

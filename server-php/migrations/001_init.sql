@@ -12,9 +12,88 @@ CREATE TABLE IF NOT EXISTS users (
   email_verification_code_hash TEXT NOT NULL DEFAULT '',
   email_verification_expires_at TEXT,
   email_verification_sent_at TEXT,
+  email_verification_attempts INTEGER NOT NULL DEFAULT 0,
+  email_verification_blocked_until TEXT,
   stripe_customer_id TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS auth_rate_limits (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  scope TEXT NOT NULL,
+  key_hash TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  reset_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(scope, key_hash)
+);
+
+CREATE TABLE IF NOT EXISTS app_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  level TEXT NOT NULL DEFAULT 'info',
+  channel TEXT NOT NULL,
+  event_code TEXT NOT NULL,
+  message TEXT NOT NULL,
+  user_id INTEGER,
+  request_id TEXT,
+  ip_hash TEXT,
+  user_agent TEXT,
+  route TEXT,
+  http_method TEXT,
+  http_status INTEGER,
+  context_json TEXT,
+  stack_trace TEXT,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_app_logs_created_at ON app_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level);
+CREATE INDEX IF NOT EXISTS idx_app_logs_channel ON app_logs(channel);
+CREATE INDEX IF NOT EXISTS idx_app_logs_event_code ON app_logs(event_code);
+CREATE INDEX IF NOT EXISTS idx_app_logs_user_id ON app_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_app_logs_request_id ON app_logs(request_id);
+
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actor_user_id INTEGER,
+  actor_role TEXT,
+  action TEXT NOT NULL,
+  target_type TEXT,
+  target_id TEXT,
+  outcome TEXT NOT NULL DEFAULT 'success',
+  reason TEXT,
+  request_id TEXT,
+  ip_hash TEXT,
+  user_agent TEXT,
+  metadata_json TEXT,
+  FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_user_id ON audit_logs(actor_user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_target ON audit_logs(target_type, target_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_outcome ON audit_logs(outcome);
+
+CREATE TABLE IF NOT EXISTS stripe_event_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  stripe_event_id TEXT NOT NULL UNIQUE,
+  event_type TEXT NOT NULL,
+  stripe_object_id TEXT,
+  livemode INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'received',
+  attempt_count INTEGER NOT NULL DEFAULT 1,
+  processed_at TEXT,
+  error_message TEXT,
+  payload_hash TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_stripe_event_logs_event_type ON stripe_event_logs(event_type);
+CREATE INDEX IF NOT EXISTS idx_stripe_event_logs_status ON stripe_event_logs(status);
+CREATE INDEX IF NOT EXISTS idx_stripe_event_logs_created_at ON stripe_event_logs(created_at);
 
 CREATE TABLE IF NOT EXISTS sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

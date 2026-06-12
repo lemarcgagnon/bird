@@ -253,9 +253,93 @@ function ensure_runtime_schema(PDO $pdo): void
     if (!table_has_column($pdo, 'users', 'email_verification_sent_at')) {
         $pdo->exec("ALTER TABLE users ADD COLUMN email_verification_sent_at TEXT");
     }
+    if (!table_has_column($pdo, 'users', 'email_verification_attempts')) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN email_verification_attempts INTEGER NOT NULL DEFAULT 0");
+    }
+    if (!table_has_column($pdo, 'users', 'email_verification_blocked_until')) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN email_verification_blocked_until TEXT");
+    }
     if (!table_has_column($pdo, 'users', 'stripe_customer_id')) {
         $pdo->exec("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT NOT NULL DEFAULT ''");
     }
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS auth_rate_limits (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            scope TEXT NOT NULL,
+            key_hash TEXT NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            reset_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(scope, key_hash)
+        )"
+    );
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS app_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            level TEXT NOT NULL DEFAULT 'info',
+            channel TEXT NOT NULL,
+            event_code TEXT NOT NULL,
+            message TEXT NOT NULL,
+            user_id INTEGER,
+            request_id TEXT,
+            ip_hash TEXT,
+            user_agent TEXT,
+            route TEXT,
+            http_method TEXT,
+            http_status INTEGER,
+            context_json TEXT,
+            stack_trace TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        )"
+    );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_app_logs_created_at ON app_logs(created_at)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_app_logs_level ON app_logs(level)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_app_logs_channel ON app_logs(channel)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_app_logs_event_code ON app_logs(event_code)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_app_logs_user_id ON app_logs(user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_app_logs_request_id ON app_logs(request_id)');
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            actor_user_id INTEGER,
+            actor_role TEXT,
+            action TEXT NOT NULL,
+            target_type TEXT,
+            target_id TEXT,
+            outcome TEXT NOT NULL DEFAULT 'success',
+            reason TEXT,
+            request_id TEXT,
+            ip_hash TEXT,
+            user_agent TEXT,
+            metadata_json TEXT,
+            FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )"
+    );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_user_id ON audit_logs(actor_user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_audit_logs_target ON audit_logs(target_type, target_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_audit_logs_outcome ON audit_logs(outcome)');
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS stripe_event_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            stripe_event_id TEXT NOT NULL UNIQUE,
+            event_type TEXT NOT NULL,
+            stripe_object_id TEXT,
+            livemode INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'received',
+            attempt_count INTEGER NOT NULL DEFAULT 1,
+            processed_at TEXT,
+            error_message TEXT,
+            payload_hash TEXT
+        )"
+    );
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_stripe_event_logs_event_type ON stripe_event_logs(event_type)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_stripe_event_logs_status ON stripe_event_logs(status)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_stripe_event_logs_created_at ON stripe_event_logs(created_at)');
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS subscriptions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -393,8 +477,81 @@ function ensure_mysql_schema(PDO $pdo): void
         email_verification_code_hash VARCHAR(128) NOT NULL DEFAULT \'\',
         email_verification_expires_at DATETIME NULL,
         email_verification_sent_at DATETIME NULL,
+        email_verification_attempts INT NOT NULL DEFAULT 0,
+        email_verification_blocked_until DATETIME NULL,
         stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\',
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )' . $tableOptions);
+    $pdo->exec('CREATE TABLE IF NOT EXISTS auth_rate_limits (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        scope VARCHAR(120) NOT NULL,
+        key_hash VARCHAR(128) NOT NULL,
+        attempts INT NOT NULL DEFAULT 0,
+        reset_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY auth_rate_limits_scope_key (scope, key_hash)
+    )' . $tableOptions);
+    $pdo->exec('CREATE TABLE IF NOT EXISTS app_logs (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        level VARCHAR(32) NOT NULL DEFAULT \'info\',
+        channel VARCHAR(50) NOT NULL,
+        event_code VARCHAR(100) NOT NULL,
+        message VARCHAR(500) NOT NULL,
+        user_id INT UNSIGNED NULL,
+        request_id VARCHAR(64) NULL,
+        ip_hash VARCHAR(64) NULL,
+        user_agent VARCHAR(255) NULL,
+        route VARCHAR(255) NULL,
+        http_method VARCHAR(10) NULL,
+        http_status INT NULL,
+        context_json LONGTEXT NULL,
+        stack_trace MEDIUMTEXT NULL,
+        INDEX idx_app_logs_created_at (created_at),
+        INDEX idx_app_logs_level (level),
+        INDEX idx_app_logs_channel (channel),
+        INDEX idx_app_logs_event_code (event_code),
+        INDEX idx_app_logs_user_id (user_id),
+        INDEX idx_app_logs_request_id (request_id),
+        CONSTRAINT fk_app_logs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+    )' . $tableOptions);
+    $pdo->exec('CREATE TABLE IF NOT EXISTS audit_logs (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        actor_user_id INT UNSIGNED NULL,
+        actor_role VARCHAR(50) NULL,
+        action VARCHAR(100) NOT NULL,
+        target_type VARCHAR(50) NULL,
+        target_id VARCHAR(100) NULL,
+        outcome VARCHAR(32) NOT NULL DEFAULT \'success\',
+        reason VARCHAR(255) NULL,
+        request_id VARCHAR(64) NULL,
+        ip_hash VARCHAR(64) NULL,
+        user_agent VARCHAR(255) NULL,
+        metadata_json LONGTEXT NULL,
+        INDEX idx_audit_logs_created_at (created_at),
+        INDEX idx_audit_logs_actor_user_id (actor_user_id),
+        INDEX idx_audit_logs_action (action),
+        INDEX idx_audit_logs_target (target_type, target_id),
+        INDEX idx_audit_logs_outcome (outcome),
+        CONSTRAINT fk_audit_logs_actor FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+    )' . $tableOptions);
+    $pdo->exec('CREATE TABLE IF NOT EXISTS stripe_event_logs (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        stripe_event_id VARCHAR(255) NOT NULL,
+        event_type VARCHAR(255) NOT NULL,
+        stripe_object_id VARCHAR(255) NULL,
+        livemode TINYINT(1) NOT NULL DEFAULT 0,
+        status VARCHAR(32) NOT NULL DEFAULT \'received\',
+        attempt_count INT NOT NULL DEFAULT 1,
+        processed_at DATETIME NULL,
+        error_message TEXT NULL,
+        payload_hash VARCHAR(64) NULL,
+        UNIQUE KEY uniq_stripe_event_logs_event_id (stripe_event_id),
+        INDEX idx_stripe_event_logs_event_type (event_type),
+        INDEX idx_stripe_event_logs_status (status),
+        INDEX idx_stripe_event_logs_created_at (created_at)
     )' . $tableOptions);
     $pdo->exec('CREATE TABLE IF NOT EXISTS sessions (
         id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -525,6 +682,8 @@ function ensure_mysql_schema(PDO $pdo): void
     mysql_add_column_if_missing($pdo, 'users', 'email_verification_code_hash', 'email_verification_code_hash VARCHAR(128) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'users', 'email_verification_expires_at', 'email_verification_expires_at DATETIME NULL');
     mysql_add_column_if_missing($pdo, 'users', 'email_verification_sent_at', 'email_verification_sent_at DATETIME NULL');
+    mysql_add_column_if_missing($pdo, 'users', 'email_verification_attempts', 'email_verification_attempts INT NOT NULL DEFAULT 0');
+    mysql_add_column_if_missing($pdo, 'users', 'email_verification_blocked_until', 'email_verification_blocked_until DATETIME NULL');
     mysql_add_column_if_missing($pdo, 'users', 'stripe_customer_id', 'stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'subscriptions', 'stripe_price_id', 'stripe_price_id VARCHAR(255) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'payments', 'stripe_customer_id', 'stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\'');

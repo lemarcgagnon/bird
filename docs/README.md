@@ -23,6 +23,7 @@ Points de vigilance:
 - Les exports admin de base sont disponibles en CSV, Excel compatible `.xls` et JSON depuis `/admin` > `Exports`.
 - Les logs admin sont maintenant exportables en CSV, Excel compatible `.xls`, JSON et SQL depuis `/admin` > `Logs`, avec filtres rapides et avances.
 - `/admin` suit maintenant une grille HIG active: detail en modal, clic direct sur l element principal des listes, badges metier et separation nette par domaine.
+- Le backend PHP expose maintenant une base i18n FR/EN sur `/`, `/pricing`, `/account` et `/admin`, plus les emails backend lisibles (activation compte et notifications ticket).
 - Le rate limiting, le CSRF admin, la CSP et le sanitizer SVG complet restent a faire avant production.
 - Le script de packaging/installation cPanel reste a creer avant copie finale sur serveur.
 - Le serveur PHP est maintenant le maitre pour compte/credits/admin/API; l'app/WASM est le client calcul.

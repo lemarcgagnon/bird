@@ -31,6 +31,9 @@ Etat actuel:
 - `/account` permet maintenant login/register/logout, activation par code email, edition profil, affichage credits, historique credits, abonnement, paiements/factures Stripe, creation/liste de tickets, fil de messages, reponses client et changement open/closed.
 - `/admin` permet de repondre aux tickets, changer open/closed, definir priorite et assignation, configurer SMTP cPanel et tester l'envoi email.
 - `/admin` > `Reglages` permet aussi de configurer/tester les coordonnees DB cPanel/MySQL. Enregistrer cree le schema MySQL si la base est vide.
+- `/`, `/pricing`, `/account` et `/admin` partagent maintenant une base i18n FR/EN cote PHP, avec `?lang=fr|en`, cookie `nichoir_lang` et fallback `Accept-Language`.
+- Les messages du compte (`/account`) sont traduits aussi dans le script inline: login/register/activation, billing, tickets, etats vides et statuts metier.
+- Les emails backend visibles par utilisateur ou support suivent la meme logique FR/EN: code d activation compte, nouveau ticket, reponse client ticket et changement de statut ticket.
 - `/admin` > `Exports` permet d'exporter la base en CSV, Excel compatible `.xls` ou JSON par portee: base complete, clients, billing, support, credits ou autorisations.
 - `/admin` > `Logs` affiche alertes, logs applicatifs, audit actions et evenements Stripe avec portee par domaine, filtres rapides/avances, badges d'etat, exports CSV/Excel compatible `.xls`/JSON/SQL et tables "metier d'abord, code ensuite".
 - Le back-office suit maintenant les conventions `docs/admin-hig.md`: separation par domaine, detail en modal, filtres structures et contexte preserve.

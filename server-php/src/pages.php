@@ -7,6 +7,62 @@ function h(string $value): string
     return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+function current_lang(): string
+{
+    static $lang = null;
+    if ($lang !== null) {
+        return $lang;
+    }
+
+    $allowed = ['fr', 'en'];
+    $queryLang = strtolower(trim((string) ($_GET['lang'] ?? '')));
+    if (in_array($queryLang, $allowed, true)) {
+        $lang = $queryLang;
+        setcookie('nichoir_lang', $lang, [
+            'expires' => time() + 31536000,
+            'path' => '/',
+            'samesite' => 'Lax',
+        ]);
+        return $lang;
+    }
+
+    $cookieLang = strtolower(trim((string) ($_COOKIE['nichoir_lang'] ?? '')));
+    if (in_array($cookieLang, $allowed, true)) {
+        $lang = $cookieLang;
+        return $lang;
+    }
+
+    $acceptLanguage = strtolower((string) ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? ''));
+    $lang = str_starts_with($acceptLanguage, 'en') ? 'en' : 'fr';
+    return $lang;
+}
+
+function t(string $fr, string $en, array $vars = []): string
+{
+    $text = current_lang() === 'en' ? $en : $fr;
+    if ($vars === []) {
+        return $text;
+    }
+    $replacements = [];
+    foreach ($vars as $key => $value) {
+        $replacements['{' . $key . '}'] = (string) $value;
+    }
+    return strtr($text, $replacements);
+}
+
+function current_path_with_lang(string $lang): string
+{
+    $uri = (string) ($_SERVER['REQUEST_URI'] ?? '/');
+    $path = parse_url($uri, PHP_URL_PATH) ?: '/';
+    $queryText = parse_url($uri, PHP_URL_QUERY);
+    $params = [];
+    if (is_string($queryText) && $queryText !== '') {
+        parse_str($queryText, $params);
+    }
+    $params['lang'] = $lang;
+    return $path . '?' . http_build_query($params);
+}
+
 function dev_app_url(): string
 {
     $host = $_SERVER['HTTP_HOST'] ?? '';
@@ -38,13 +94,14 @@ function page_response(string $title, string $body, string $active = '', int $st
     http_response_code($status);
     header('Content-Type: text/html; charset=utf-8');
     $appUrl = h(dev_app_url());
+    $lang = current_lang();
     $nav = [
-        '/' => 'Accueil',
-        '/pricing' => 'Offres',
-        '/account' => 'Compte',
+        '/' => t('Accueil', 'Home'),
+        '/pricing' => t('Offres', 'Pricing'),
+        '/account' => t('Compte', 'Account'),
         '/admin' => 'Admin',
     ];
-    echo '<!doctype html><html lang="fr"><head><meta charset="utf-8">';
+    echo '<!doctype html><html lang="' . h($lang) . '"><head><meta charset="utf-8">';
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . h($title) . ' - Nichoir</title>';
     echo '<style>';
@@ -55,14 +112,25 @@ function page_response(string $title, string $body, string $active = '', int $st
         $class = $active === $href ? ' class="active"' : '';
         echo '<a' . $class . ' href="' . h($href) . '">' . h($label) . '</a>';
     }
-    echo '<a class="button-link" href="' . $appUrl . '">Ouvrir app</a>';
+    echo '<a class="lang-link' . ($lang === 'fr' ? ' active' : '') . '" href="' . h(current_path_with_lang('fr')) . '" data-lang-link="fr">FR</a>';
+    echo '<a class="lang-link' . ($lang === 'en' ? ' active' : '') . '" href="' . h(current_path_with_lang('en')) . '" data-lang-link="en">EN</a>';
+    echo '<a class="button-link" href="' . $appUrl . '">' . h(t('Ouvrir app', 'Open app')) . '</a>';
     echo '</nav></header>';
     echo '<main>' . $body . '</main>';
-    echo '<footer>Rust/WASM pour les plans et exports. PHP pour comptes, credits, admin et Stripe.</footer>';
+    echo '<footer>' . h(t('Rust/WASM pour les plans et exports. PHP pour comptes, credits, admin et Stripe.', 'Rust/WASM for plans and exports. PHP handles accounts, credits, admin, and Stripe.')) . '</footer>';
     echo '<script>
       (() => {
         const isAdminPage = document.body?.dataset.page === "/admin";
         const adminScrollKey = "nichoir:admin:scroll";
+
+        document.querySelectorAll("[data-lang-link]").forEach((link) => {
+          try {
+            const url = new URL(link.getAttribute("href"), window.location.origin);
+            url.hash = window.location.hash;
+            link.setAttribute("href", url.pathname + url.search + url.hash);
+          } catch (_err) {
+          }
+        });
 
         const saveAdminScroll = () => {
           if (!isAdminPage) return;
@@ -202,104 +270,169 @@ function page_response(string $title, string $body, string $active = '', int $st
 function render_landing_page(): void
 {
     $appUrl = h(dev_app_url());
-    page_response('Accueil', '
+    page_response(t('Accueil', 'Home'), '
       <section class="hero">
-        <p class="eyebrow">Conception parametrique</p>
+        <p class="eyebrow">' . h(t('Conception parametrique', 'Parametric design')) . '</p>
         <h1>Nichoir</h1>
-        <p>Un outil pour concevoir, visualiser et exporter des nichoirs en STL, ZIP panneaux et plans de coupe, avec calculs locaux dans le navigateur.</p>
+        <p>' . h(t('Un outil pour concevoir, visualiser et exporter des nichoirs en STL, ZIP panneaux et plans de coupe, avec calculs locaux dans le navigateur.', 'A tool to design, visualize, and export birdhouses as STL, panel ZIPs, and cut plans, with local calculations in the browser.')) . '</p>
         <div class="hero-actions">
-          <a class="primary" href="' . $appUrl . '">Ouvrir l app</a>
-          <a class="secondary" href="/pricing">Voir les offres</a>
+          <a class="primary" href="' . $appUrl . '">' . h(t('Ouvrir l app', 'Open the app')) . '</a>
+          <a class="secondary" href="/pricing">' . h(t('Voir les offres', 'See pricing')) . '</a>
         </div>
       </section>
       <section class="grid">
-        <article><h2>WASM local</h2><p>La geometrie, les plans et les exports restent cote client pour eviter le calcul lourd serveur.</p></article>
-        <article><h2>Credits</h2><p>Les telechargements premium passent par une autorisation courte et un debit de credits.</p></article>
-        <article><h2>Fabrication</h2><p>Les panneaux, epaisseurs commerciales et traits de scie preparent une fabrication plus realiste.</p></article>
+        <article><h2>' . h(t('WASM local', 'Local WASM')) . '</h2><p>' . h(t('La geometrie, les plans et les exports restent cote client pour eviter le calcul lourd serveur.', 'Geometry, plans, and exports stay client-side to avoid heavy server computation.')) . '</p></article>
+        <article><h2>' . h(t('Credits', 'Credits')) . '</h2><p>' . h(t('Les telechargements premium passent par une autorisation courte et un debit de credits.', 'Premium downloads use short-lived authorization and credit consumption.')) . '</p></article>
+        <article><h2>' . h(t('Fabrication', 'Fabrication')) . '</h2><p>' . h(t('Les panneaux, epaisseurs commerciales et traits de scie preparent une fabrication plus realiste.', 'Panels, market thicknesses, and kerf settings prepare a more realistic fabrication workflow.')) . '</p></article>
       </section>
     ', '/');
 }
 
 function render_pricing_page(): void
 {
-    page_response('Offres', '
+    page_response(t('Offres', 'Pricing'), '
       <section class="page-title">
-        <p class="eyebrow">Credits et abonnements</p>
-        <h1>Offres</h1>
-        <p>Stripe est encore placeholder. Ces cartes fixent la structure produit avant Checkout et webhook.</p>
+        <p class="eyebrow">' . h(t('Credits et abonnements', 'Credits and subscriptions')) . '</p>
+        <h1>' . h(t('Offres', 'Pricing')) . '</h1>
+        <p>' . h(t('Stripe est encore placeholder. Ces cartes fixent la structure produit avant Checkout et webhook.', 'Stripe is still a placeholder. These cards define the product structure before Checkout and webhooks.')) . '</p>
       </section>
       <section class="pricing-grid">
-        <article><h2>Credits</h2><strong>A venir</strong><p>Achat ponctuel de credits pour STL, plans PDF, ZIP panneaux et exports image.</p></article>
-        <article><h2>Atelier</h2><strong>A venir</strong><p>Abonnement pour usage regulier, historique de consommation et support prioritaire.</p></article>
-        <article><h2>Pro</h2><strong>A venir</strong><p>Acces plus large, gestion multi-projets et limites commerciales plus hautes.</p></article>
+        <article><h2>' . h(t('Credits', 'Credits')) . '</h2><strong>' . h(t('A venir', 'Coming soon')) . '</strong><p>' . h(t('Achat ponctuel de credits pour STL, plans PDF, ZIP panneaux et exports image.', 'One-off credit purchases for STL, PDF plans, panel ZIPs, and image exports.')) . '</p></article>
+        <article><h2>Atelier</h2><strong>' . h(t('A venir', 'Coming soon')) . '</strong><p>' . h(t('Abonnement pour usage regulier, historique de consommation et support prioritaire.', 'Subscription for regular usage, consumption history, and priority support.')) . '</p></article>
+        <article><h2>Pro</h2><strong>' . h(t('A venir', 'Coming soon')) . '</strong><p>' . h(t('Acces plus large, gestion multi-projets et limites commerciales plus hautes.', 'Broader access, multi-project management, and higher commercial limits.')) . '</p></article>
       </section>
-      <section class="panel"><h2>Couts dev actuels</h2><p>STL: 3 credits. PDF: 2 credits. ZIP: 5 credits. SVG/PNG: 1 credit.</p></section>
+      <section class="panel"><h2>' . h(t('Couts dev actuels', 'Current dev costs')) . '</h2><p>' . h(t('STL: 3 credits. PDF: 2 credits. ZIP: 5 credits. SVG/PNG: 1 credit.', 'STL: 3 credits. PDF: 2 credits. ZIP: 5 credits. SVG/PNG: 1 credit.')) . '</p></section>
     ', '/pricing');
 }
 
 function render_account_page(): void
 {
-    page_response('Compte', '
+    $accountI18n = json_encode([
+        'activation_unavailable' => t('Activation indisponible. Verifie SMTP dans Admin > Reglages.', 'Activation unavailable. Check SMTP in Admin > Settings.'),
+        'activation_failed' => t('Activation refusee. Verifie le courriel/code ou renvoie un nouveau code.', 'Activation denied. Check the email/code or send a new code.'),
+        'too_many_requests' => t('Trop de tentatives. Attends quelques minutes puis reessaie.', 'Too many attempts. Wait a few minutes and try again.'),
+        'invalid_credentials' => t('Connexion refusee. Verifie le mot de passe ou active le compte avec le code email.', 'Login denied. Check the password or activate the account with the email code.'),
+        'signed_out' => t('Non connecte', 'Signed out'),
+        'connect_prompt' => t('Connecte-toi pour charger ton compte.', 'Sign in to load your account.'),
+        'none' => t('Aucun', 'None'),
+        'credits_plan' => t('Credits', 'Credits'),
+        'atelier_plan' => 'Atelier',
+        'pro_plan' => 'Pro',
+        'pending' => t('En attente', 'Pending'),
+        'active' => t('Actif', 'Active'),
+        'suspended' => t('Suspendu', 'Suspended'),
+        'archived' => t('Archive', 'Archived'),
+        'canceled' => t('Annule', 'Canceled'),
+        'cancelled' => t('Annule', 'Cancelled'),
+        'past_due' => t('Paiement en retard', 'Past due'),
+        'unpaid' => t('Impaye', 'Unpaid'),
+        'trialing' => t('Essai', 'Trial'),
+        'incomplete' => t('Incomplet', 'Incomplete'),
+        'paid' => t('Paye', 'Paid'),
+        'succeeded' => t('Paye', 'Paid'),
+        'failed' => t('Echec', 'Failed'),
+        'open_state' => t('Ouvert', 'Open'),
+        'closed_state' => t('Ferme', 'Closed'),
+        'low' => t('Basse', 'Low'),
+        'normal' => t('Normale', 'Normal'),
+        'high' => t('Haute', 'High'),
+        'urgent' => t('Urgente', 'Urgent'),
+        'no_ledger' => t('Aucun mouvement.', 'No entry.'),
+        'no_payment' => t('Aucun paiement synchronise.', 'No synchronized payment.'),
+        'no_ticket' => t('Aucun ticket.', 'No ticket.'),
+        'no_message' => t('Aucun message.', 'No message.'),
+        'account_loaded' => t('Compte charge.', 'Account loaded.'),
+        'invalid_session' => t('Session invalide: {error}', 'Invalid session: {error}'),
+        'status_label' => t('Statut', 'Status'),
+        'priority_label' => t('Priorite', 'Priority'),
+        'updated_label' => t('MAJ', 'Updated'),
+        'close' => t('Fermer', 'Close'),
+        'reopen' => t('Reouvrir', 'Reopen'),
+        'support' => 'Support',
+        'client' => t('Client', 'Client'),
+        'ticket_not_found' => t('Ticket introuvable: {error}', 'Ticket not found: {error}'),
+        'login_denied' => t('Connexion refusee: {error}', 'Login denied: {error}'),
+        'register_notice' => t('Si inscription possible, un code activation est envoye par email.', 'If registration is allowed, an activation code has been sent by email.'),
+        'register_denied' => t('Inscription refusee: {error}', 'Registration denied: {error}'),
+        'account_activated' => t('Compte active.', 'Account activated.'),
+        'activation_denied' => t('Activation refusee: {error}', 'Activation denied: {error}'),
+        'resend_notice' => t('Si ce compte attend une activation, un nouveau code vient d etre envoye.', 'If this account is waiting for activation, a new code has been sent.'),
+        'resend_denied' => t('Renvoi refuse: {error}', 'Resend denied: {error}'),
+        'profile_saved' => t('Profil enregistre.', 'Profile saved.'),
+        'profile_denied' => t('Profil refuse: {error}', 'Profile denied: {error}'),
+        'checkout_redirect' => t('Redirection Checkout {offer}...', 'Redirecting to Checkout {offer}...'),
+        'checkout_denied' => t('Checkout refuse: {error}', 'Checkout denied: {error}'),
+        'portal_redirect' => t('Redirection portail Stripe...', 'Redirecting to Stripe portal...'),
+        'portal_denied' => t('Portail refuse: {error}', 'Portal denied: {error}'),
+        'ticket_denied' => t('Ticket refuse: {error}', 'Ticket denied: {error}'),
+        'reply_denied' => t('Reponse refusee: {error}', 'Reply denied: {error}'),
+        'status_denied' => t('Statut refuse: {error}', 'Status denied: {error}'),
+        'open_label' => t('Ouvrir', 'Open'),
+        'view_label' => t('Voir', 'View'),
+        'ticket_title' => t('Ticket', 'Ticket'),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    page_response(t('Compte', 'Account'), '
       <section class="page-title">
-        <p class="eyebrow">Espace client</p>
-        <h1>Compte</h1>
-        <p>Profil, credits, abonnement, factures et support tickets.</p>
+        <p class="eyebrow">' . h(t('Espace client', 'Client area')) . '</p>
+        <h1>' . h(t('Compte', 'Account')) . '</h1>
+        <p>' . h(t('Profil, credits, abonnement, factures et support tickets.', 'Profile, credits, subscription, invoices, and support tickets.')) . '</p>
       </section>
       <section class="panel account-panel">
-        <div class="stat"><span>Etat</span><strong data-account-state>Non connecte</strong></div>
-        <div class="stat"><span>Courriel</span><strong data-account-email>-</strong></div>
-        <div class="stat"><span>Credits</span><strong data-account-credits>0</strong></div>
-        <div class="stat"><span>Abonnement</span><strong data-account-plan>none</strong></div>
-        <p data-account-message>Connecte-toi pour charger ton compte.</p>
+        <div class="stat"><span>' . h(t('Etat', 'Status')) . '</span><strong data-account-state>' . h(t('Non connecte', 'Signed out')) . '</strong></div>
+        <div class="stat"><span>' . h(t('Courriel', 'Email')) . '</span><strong data-account-email>-</strong></div>
+        <div class="stat"><span>' . h(t('Credits', 'Credits')) . '</span><strong data-account-credits>0</strong></div>
+        <div class="stat"><span>' . h(t('Abonnement', 'Subscription')) . '</span><strong data-account-plan>' . h(t('Aucun', 'None')) . '</strong></div>
+        <p data-account-message>' . h(t('Connecte-toi pour charger ton compte.', 'Sign in to load your account.')) . '</p>
       </section>
-      <nav class="tab-nav" data-tab-nav role="tablist" aria-label="Sections compte">
-        <a role="tab" aria-selected="true" data-tab-target="account-profile" href="#account-profile">Profil</a>
-        <a role="tab" aria-selected="false" data-tab-target="account-billing" href="#account-billing">Billing</a>
-        <a role="tab" aria-selected="false" data-tab-target="account-support" href="#account-support">Support</a>
+      <nav class="tab-nav" data-tab-nav role="tablist" aria-label="' . h(t('Sections compte', 'Account sections')) . '">
+        <a role="tab" aria-selected="true" data-tab-target="account-profile" href="#account-profile">' . h(t('Profil', 'Profile')) . '</a>
+        <a role="tab" aria-selected="false" data-tab-target="account-billing" href="#account-billing">' . h(t('Facturation', 'Billing')) . '</a>
+        <a role="tab" aria-selected="false" data-tab-target="account-support" href="#account-support">' . h(t('Support', 'Support')) . '</a>
         <a role="tab" aria-selected="false" data-tab-target="account-app" href="#account-app">App</a>
       </nav>
 
       <section class="tab-panel" id="account-profile" data-tab-panel>
         <section class="panel">
-          <h2>Profil</h2>
+          <h2>' . h(t('Profil', 'Profile')) . '</h2>
           <form class="client-form profile-form" data-profile-form>
-            <label><span>Nom</span><input name="display_name" type="text" maxlength="120"></label>
-            <label><span>Courriel</span><input name="email" type="email" required></label>
-            <label><span>Nouveau mot de passe</span><input name="password" type="password" minlength="8" maxlength="200" placeholder="laisser vide pour conserver"></label>
-            <button type="submit">Enregistrer profil</button>
+            <label><span>' . h(t('Nom', 'Name')) . '</span><input name="display_name" type="text" maxlength="120"></label>
+            <label><span>' . h(t('Courriel', 'Email')) . '</span><input name="email" type="email" required></label>
+            <label><span>' . h(t('Nouveau mot de passe', 'New password')) . '</span><input name="password" type="password" minlength="8" maxlength="200" placeholder="' . h(t('laisser vide pour conserver', 'leave empty to keep current password')) . '"></label>
+            <button type="submit">' . h(t('Enregistrer profil', 'Save profile')) . '</button>
           </form>
         </section>
 
         <section class="account-grid">
         <div class="panel">
-          <h2>Connexion</h2>
+          <h2>' . h(t('Connexion', 'Login')) . '</h2>
           <form class="client-form" data-login-form>
-            <label><span>Courriel</span><input name="email" type="email" value="demo@nichoir.local" autocomplete="username" required></label>
-            <label><span>Mot de passe</span><input name="password" type="password" value="password123" autocomplete="current-password" required></label>
+            <label><span>' . h(t('Courriel', 'Email')) . '</span><input name="email" type="email" value="demo@nichoir.local" autocomplete="username" required></label>
+            <label><span>' . h(t('Mot de passe', 'Password')) . '</span><input name="password" type="password" value="password123" autocomplete="current-password" required></label>
             <div class="form-actions">
-              <button type="submit">Connexion</button>
+              <button type="submit">' . h(t('Connexion', 'Login')) . '</button>
               <button type="button" data-demo-login>Demo</button>
-              <button type="button" data-logout>Sortir</button>
+              <button type="button" data-logout>' . h(t('Sortir', 'Logout')) . '</button>
             </div>
           </form>
         </div>
         <div class="panel">
-          <h2>Inscription dev</h2>
+          <h2>' . h(t('Inscription dev', 'Dev registration')) . '</h2>
           <form class="client-form" data-register-form>
-            <label><span>Nom</span><input name="display_name" type="text" value="Demo" maxlength="120"></label>
-            <label><span>Courriel</span><input name="email" type="email" placeholder="client@example.com" required></label>
-            <label><span>Mot de passe</span><input name="password" type="password" minlength="8" maxlength="200" required></label>
-            <button type="submit">Creer le compte</button>
+            <label><span>' . h(t('Nom', 'Name')) . '</span><input name="display_name" type="text" value="Demo" maxlength="120"></label>
+            <label><span>' . h(t('Courriel', 'Email')) . '</span><input name="email" type="email" placeholder="client@example.com" required></label>
+            <label><span>' . h(t('Mot de passe', 'Password')) . '</span><input name="password" type="password" minlength="8" maxlength="200" required></label>
+            <button type="submit">' . h(t('Creer le compte', 'Create account')) . '</button>
           </form>
         </div>
         <div class="panel">
-          <h2>Activation</h2>
+          <h2>' . h(t('Activation', 'Activation')) . '</h2>
           <form class="client-form" data-activation-form>
-            <label><span>Courriel</span><input name="email" type="email" placeholder="client@example.com" required></label>
-            <label><span>Code</span><input name="code" type="text" inputmode="numeric" minlength="6" maxlength="6" autocomplete="one-time-code" required></label>
+            <label><span>' . h(t('Courriel', 'Email')) . '</span><input name="email" type="email" placeholder="client@example.com" required></label>
+            <label><span>' . h(t('Code', 'Code')) . '</span><input name="code" type="text" inputmode="numeric" minlength="6" maxlength="6" autocomplete="one-time-code" required></label>
             <div class="form-actions">
-              <button type="submit">Activer</button>
-              <button type="button" data-resend-activation>Renvoyer code</button>
+              <button type="submit">' . h(t('Activer', 'Activate')) . '</button>
+              <button type="button" data-resend-activation>' . h(t('Renvoyer code', 'Resend code')) . '</button>
             </div>
           </form>
         </div>
@@ -308,35 +441,35 @@ function render_account_page(): void
 
       <section class="tab-panel" id="account-billing" data-tab-panel hidden>
         <section class="panel">
-          <h2>Historique credits</h2>
-          <div class="table-wrap"><table><thead><tr><th>Delta</th><th>Raison</th><th>Reference</th><th>Date</th></tr></thead><tbody data-ledger-rows><tr><td colspan="4">Non connecte.</td></tr></tbody></table></div>
+          <h2>' . h(t('Historique credits', 'Credit history')) . '</h2>
+          <div class="table-wrap"><table><thead><tr><th>Delta</th><th>' . h(t('Raison', 'Reason')) . '</th><th>' . h(t('Reference', 'Reference')) . '</th><th>' . h(t('Date', 'Date')) . '</th></tr></thead><tbody data-ledger-rows><tr><td colspan="4">' . h(t('Non connecte.', 'Signed out.')) . '</td></tr></tbody></table></div>
         </section>
 
         <section class="account-grid">
         <div class="panel">
-          <h2>Abonnement</h2>
+          <h2>' . h(t('Abonnement', 'Subscription')) . '</h2>
           <div class="client-summary compact">
-            <div class="stat"><span>Plan</span><strong data-billing-plan>none</strong></div>
-            <div class="stat"><span>Etat</span><strong data-billing-status>none</strong></div>
-            <div class="stat"><span>Fin periode</span><strong data-billing-period>-</strong></div>
+            <div class="stat"><span>' . h(t('Plan', 'Plan')) . '</span><strong data-billing-plan>' . h(t('Aucun', 'None')) . '</strong></div>
+            <div class="stat"><span>' . h(t('Etat', 'Status')) . '</span><strong data-billing-status>' . h(t('Aucun', 'None')) . '</strong></div>
+            <div class="stat"><span>' . h(t('Fin periode', 'Period end')) . '</span><strong data-billing-period>-</strong></div>
           </div>
         </div>
         <div class="panel">
           <h2>Stripe</h2>
-          <p>Checkout, portail client et factures sont generes cote serveur avec Stripe.</p>
+          <p>' . h(t('Checkout, portail client et factures sont generes cote serveur avec Stripe.', 'Checkout, customer portal, and invoices are generated server-side with Stripe.')) . '</p>
           <div class="form-actions billing-actions">
-            <button type="button" data-billing-offer="credits">Credits</button>
+            <button type="button" data-billing-offer="credits">' . h(t('Credits', 'Credits')) . '</button>
             <button type="button" data-billing-offer="atelier">Atelier</button>
             <button type="button" data-billing-offer="pro">Pro</button>
-            <button type="button" data-billing-portal>Portail Stripe</button>
+            <button type="button" data-billing-portal>' . h(t('Portail Stripe', 'Stripe portal')) . '</button>
           </div>
           <p data-checkout-message></p>
         </div>
       </section>
 
         <section class="panel">
-          <h2>Factures et paiements</h2>
-          <div class="table-wrap"><table><thead><tr><th>ID</th><th>Montant</th><th>Etat</th><th>Description</th><th>Facture</th><th>Date</th></tr></thead><tbody data-payment-rows><tr><td colspan="6">Non connecte.</td></tr></tbody></table></div>
+          <h2>' . h(t('Factures et paiements', 'Invoices and payments')) . '</h2>
+          <div class="table-wrap"><table><thead><tr><th>ID</th><th>' . h(t('Montant', 'Amount')) . '</th><th>' . h(t('Etat', 'Status')) . '</th><th>' . h(t('Description', 'Description')) . '</th><th>' . h(t('Facture', 'Invoice')) . '</th><th>' . h(t('Date', 'Date')) . '</th></tr></thead><tbody data-payment-rows><tr><td colspan="6">' . h(t('Non connecte.', 'Signed out.')) . '</td></tr></tbody></table></div>
         </section>
       </section>
 
@@ -344,32 +477,32 @@ function render_account_page(): void
         <div class="section-heading">
           <div>
             <p class="eyebrow">Support</p>
-            <h2>Tickets</h2>
+            <h2>' . h(t('Tickets', 'Tickets')) . '</h2>
           </div>
-          <span class="section-hint">Creer, ouvrir le fil, repondre, fermer ou reouvrir.</span>
+          <span class="section-hint">' . h(t('Creer, ouvrir le fil, repondre, fermer ou reouvrir.', 'Create, open the thread, reply, close, or reopen.')) . '</span>
         </div>
         <div class="support-layout">
           <form class="client-form ticket-form support-compose" data-ticket-form>
-            <h3>Nouveau ticket</h3>
-            <label><span>Sujet</span><input name="subject" type="text" placeholder="Question sur un export" maxlength="140" required></label>
-            <label><span>Message</span><textarea name="body" rows="4" placeholder="Decris le probleme ou la demande" maxlength="5000" required></textarea></label>
-            <button type="submit">Envoyer ticket</button>
+            <h3>' . h(t('Nouveau ticket', 'New ticket')) . '</h3>
+            <label><span>' . h(t('Sujet', 'Subject')) . '</span><input name="subject" type="text" placeholder="' . h(t('Question sur un export', 'Question about an export')) . '" maxlength="140" required></label>
+            <label><span>' . h(t('Message', 'Message')) . '</span><textarea name="body" rows="4" placeholder="' . h(t('Decris le probleme ou la demande', 'Describe the issue or request')) . '" maxlength="5000" required></textarea></label>
+            <button type="submit">' . h(t('Envoyer ticket', 'Send ticket')) . '</button>
           </form>
           <div class="support-inbox">
-            <h3>Mes demandes</h3>
-            <div class="table-wrap"><table><thead><tr><th>ID</th><th>Sujet</th><th>Etat</th><th>Priorite</th><th>MAJ</th><th></th></tr></thead><tbody data-ticket-rows><tr><td colspan="6">Non connecte.</td></tr></tbody></table></div>
+            <h3>' . h(t('Mes demandes', 'My requests')) . '</h3>
+            <div class="table-wrap"><table><thead><tr><th>ID</th><th>' . h(t('Sujet', 'Subject')) . '</th><th>' . h(t('Etat', 'Status')) . '</th><th>' . h(t('Priorite', 'Priority')) . '</th><th>' . h(t('MAJ', 'Updated')) . '</th><th></th></tr></thead><tbody data-ticket-rows><tr><td colspan="6">' . h(t('Non connecte.', 'Signed out.')) . '</td></tr></tbody></table></div>
             <div class="ticket-detail" data-ticket-detail hidden>
               <div class="ticket-detail-header">
                 <div>
                   <h3 data-ticket-title>Ticket</h3>
                   <p data-ticket-meta></p>
                 </div>
-                <button type="button" data-ticket-toggle-status>Changer statut</button>
+                <button type="button" data-ticket-toggle-status>' . h(t('Changer statut', 'Change status')) . '</button>
               </div>
               <div class="ticket-thread" data-ticket-thread></div>
               <form class="client-form ticket-form" data-ticket-reply-form>
-                <label><span>Reponse</span><textarea name="body" rows="3" maxlength="5000" required></textarea></label>
-                <button type="submit">Repondre au fil</button>
+                <label><span>' . h(t('Reponse', 'Reply')) . '</span><textarea name="body" rows="3" maxlength="5000" required></textarea></label>
+                <button type="submit">' . h(t('Repondre au fil', 'Reply to thread')) . '</button>
               </form>
             </div>
           </div>
@@ -377,12 +510,13 @@ function render_account_page(): void
       </section>
 
       <section class="tab-panel grid" id="account-app" data-tab-panel hidden>
-        <article><h2>App</h2><p>Les exports premium utilisent les credits visibles ici.</p></article>
-        <article><h2>Serveur maitre</h2><p>Le compte, les credits, les abonnements, les paiements et les tickets viennent de PHP.</p></article>
-        <article><h2>Stripe</h2><p>Le webhook remplira les paiements et mettra a jour l abonnement.</p></article>
+        <article><h2>App</h2><p>' . h(t('Les exports premium utilisent les credits visibles ici.', 'Premium exports use the credits shown here.')) . '</p></article>
+        <article><h2>' . h(t('Serveur maitre', 'Source of truth')) . '</h2><p>' . h(t('Le compte, les credits, les abonnements, les paiements et les tickets viennent de PHP.', 'Account, credits, subscriptions, payments, and tickets come from PHP.')) . '</p></article>
+        <article><h2>Stripe</h2><p>' . h(t('Le webhook remplira les paiements et mettra a jour l abonnement.', 'The webhook will populate payments and update the subscription.')) . '</p></article>
       </section>
 
       <script>
+      const ACCOUNT_I18N = ' . $accountI18n . ';
       const TOKEN_KEY = "nichoir-auth-token";
       const demo = { email: "demo@nichoir.local", password: "password123" };
       let selectedTicketId = null;
@@ -391,6 +525,49 @@ function render_account_page(): void
       const setText = (selector, value) => document.querySelector(selector).textContent = value;
       const esc = (value) => String(value ?? "").replace(/[&<>"\x27]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\x27": "&#39;" }[c]));
       const row = (cells) => `<tr>${cells.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`;
+      const ti = (key, vars = {}) => {
+        const template = ACCOUNT_I18N[key] || key;
+        return Object.entries(vars).reduce((text, [name, value]) => text.replaceAll(`{${name}}`, String(value)), template);
+      };
+      const accountStatusLabel = (value) => ({
+        pending: ti("pending"),
+        active: ti("active"),
+        suspended: ti("suspended"),
+        closed: ti("archived"),
+      }[String(value || "").toLowerCase()] || String(value || "-"));
+      const subscriptionLabel = (value) => ({
+        none: ti("none"),
+        active: ti("active"),
+        canceled: ti("canceled"),
+        cancelled: ti("cancelled"),
+        past_due: ti("past_due"),
+        unpaid: ti("unpaid"),
+        trialing: ti("trialing"),
+        incomplete: ti("incomplete"),
+        suspended: ti("suspended"),
+      }[String(value || "").toLowerCase()] || String(value || "-"));
+      const planLabel = (value) => ({
+        none: ti("none"),
+        credits: ti("credits_plan"),
+        atelier: ti("atelier_plan"),
+        pro: ti("pro_plan"),
+      }[String(value || "").toLowerCase()] || String(value || "-"));
+      const ticketStatusLabel = (value) => ({
+        open: ti("open_state"),
+        closed: ti("closed_state"),
+      }[String(value || "").toLowerCase()] || String(value || "-"));
+      const paymentStatusLabel = (value) => ({
+        pending: ti("pending"),
+        paid: ti("paid"),
+        succeeded: ti("succeeded"),
+        failed: ti("failed"),
+      }[String(value || "").toLowerCase()] || String(value || "-"));
+      const ticketPriorityLabel = (value) => ({
+        low: ti("low"),
+        normal: ti("normal"),
+        high: ti("high"),
+        urgent: ti("urgent"),
+      }[String(value || "").toLowerCase()] || String(value || "-"));
 
       async function api(path, options = {}) {
         const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
@@ -404,10 +581,10 @@ function render_account_page(): void
       function readableError(error) {
         const code = error?.message || String(error);
         const labels = {
-          activation_unavailable: "Activation indisponible. Verifie SMTP dans Admin > Reglages.",
-          activation_failed: "Activation refusee. Verifie le courriel/code ou renvoie un nouveau code.",
-          too_many_requests: "Trop de tentatives. Attends quelques minutes puis reessaie.",
-          invalid_credentials: "Connexion refusee. Verifie le mot de passe ou active le compte avec le code email.",
+          activation_unavailable: ti("activation_unavailable"),
+          activation_failed: ti("activation_failed"),
+          too_many_requests: ti("too_many_requests"),
+          invalid_credentials: ti("invalid_credentials"),
         };
         return labels[code] || code;
       }
@@ -417,54 +594,54 @@ function render_account_page(): void
         if (!token()) {
           selectedTicketId = null;
           selectedTicket = null;
-          setText("[data-account-state]", "Non connecte");
+          setText("[data-account-state]", ti("signed_out"));
           setText("[data-account-email]", "-");
           setText("[data-account-credits]", "0");
-          setText("[data-account-plan]", "none");
+          setText("[data-account-plan]", ti("none"));
           document.querySelector("[data-profile-form]").reset();
-          setText("[data-billing-plan]", "none");
-          setText("[data-billing-status]", "none");
+          setText("[data-billing-plan]", ti("none"));
+          setText("[data-billing-status]", ti("none"));
           setText("[data-billing-period]", "-");
-          document.querySelector("[data-ledger-rows]").innerHTML = `<tr><td colspan="4">Non connecte.</td></tr>`;
-          document.querySelector("[data-payment-rows]").innerHTML = `<tr><td colspan="6">Non connecte.</td></tr>`;
-          document.querySelector("[data-ticket-rows]").innerHTML = `<tr><td colspan="6">Non connecte.</td></tr>`;
+          document.querySelector("[data-ledger-rows]").innerHTML = `<tr><td colspan="4">${esc(ti("signed_out"))}.</td></tr>`;
+          document.querySelector("[data-payment-rows]").innerHTML = `<tr><td colspan="6">${esc(ti("signed_out"))}.</td></tr>`;
+          document.querySelector("[data-ticket-rows]").innerHTML = `<tr><td colspan="6">${esc(ti("signed_out"))}.</td></tr>`;
           renderTicketDetail(null);
-          message.textContent = "Connecte-toi pour charger ton compte.";
+          message.textContent = ti("connect_prompt");
           return;
         }
         try {
           const account = await api("/api/me");
-          setText("[data-account-state]", account.user.status || "active");
+          setText("[data-account-state]", accountStatusLabel(account.user.status || "active"));
           setText("[data-account-email]", account.user.email);
           setText("[data-account-credits]", account.user.credits);
-          setText("[data-account-plan]", account.user.subscription_status);
+          setText("[data-account-plan]", subscriptionLabel(account.user.subscription_status));
           document.querySelector("[data-profile-form] [name=display_name]").value = account.user.display_name || "";
           document.querySelector("[data-profile-form] [name=email]").value = account.user.email || "";
           const ledger = await api("/api/credits/ledger");
           document.querySelector("[data-ledger-rows]").innerHTML = ledger.ledger.length
             ? ledger.ledger.map((item) => row([item.delta, item.reason, item.reference || "-", item.created_at])).join("")
-            : `<tr><td colspan="4">Aucun mouvement.</td></tr>`;
+            : `<tr><td colspan="4">${esc(ti("no_ledger"))}</td></tr>`;
           const billing = await api("/api/billing/summary");
-          setText("[data-billing-plan]", billing.subscription.plan || "none");
-          setText("[data-billing-status]", billing.subscription.status || "none");
+          setText("[data-billing-plan]", planLabel(billing.subscription.plan || "none"));
+          setText("[data-billing-status]", subscriptionLabel(billing.subscription.status || "none"));
           setText("[data-billing-period]", billing.subscription.current_period_end || "-");
           document.querySelector("[data-payment-rows]").innerHTML = billing.payments.length
-            ? billing.payments.map((item) => `<tr><td>${esc(item.id)}</td><td>${esc(`${(item.amount_cents / 100).toFixed(2)} ${String(item.currency).toUpperCase()}`)}</td><td>${esc(item.status)}</td><td>${esc(item.description || "-")}</td><td>${item.invoice_url ? `<a href="${esc(item.invoice_url)}" target="_blank" rel="noreferrer">Voir</a>` : "-"} ${item.invoice_pdf ? `<a href="${esc(item.invoice_pdf)}" target="_blank" rel="noreferrer">PDF</a>` : ""}</td><td>${esc(item.created_at)}</td></tr>`).join("")
-            : `<tr><td colspan="6">Aucun paiement synchronise.</td></tr>`;
+            ? billing.payments.map((item) => `<tr><td>${esc(item.id)}</td><td>${esc(`${(item.amount_cents / 100).toFixed(2)} ${String(item.currency).toUpperCase()}`)}</td><td>${esc(paymentStatusLabel(item.status))}</td><td>${esc(item.description || "-")}</td><td>${item.invoice_url ? `<a href="${esc(item.invoice_url)}" target="_blank" rel="noreferrer">${esc(ti("view_label"))}</a>` : "-"} ${item.invoice_pdf ? `<a href="${esc(item.invoice_pdf)}" target="_blank" rel="noreferrer">PDF</a>` : ""}</td><td>${esc(item.created_at)}</td></tr>`).join("")
+            : `<tr><td colspan="6">${esc(ti("no_payment"))}</td></tr>`;
           const tickets = await api("/api/tickets");
           renderTicketRows(tickets.tickets || []);
-          message.textContent = "Compte charge.";
+          message.textContent = ti("account_loaded");
         } catch (err) {
           localStorage.removeItem(TOKEN_KEY);
-          message.textContent = `Session invalide: ${err.message || err}`;
+          message.textContent = ti("invalid_session", { error: err.message || err });
           await loadAccount();
         }
       }
 
       function renderTicketRows(tickets) {
         document.querySelector("[data-ticket-rows]").innerHTML = tickets.length
-          ? tickets.map((item) => `<tr${Number(item.id) === Number(selectedTicketId) ? ` class="selected-row"` : ``}><td>#${esc(item.id)}</td><td>${esc(item.subject)}</td><td>${esc(item.status)}</td><td>${esc(item.priority || "normal")}</td><td>${esc(item.updated_at || item.created_at)}</td><td><button type="button" data-open-ticket="${esc(item.id)}">Ouvrir</button></td></tr>`).join("")
-          : `<tr><td colspan="6">Aucun ticket.</td></tr>`;
+          ? tickets.map((item) => `<tr${Number(item.id) === Number(selectedTicketId) ? ` class="selected-row"` : ``}><td>#${esc(item.id)}</td><td>${esc(item.subject)}</td><td>${esc(ticketStatusLabel(item.status))}</td><td>${esc(ticketPriorityLabel(item.priority || "normal"))}</td><td>${esc(item.updated_at || item.created_at)}</td><td><button type="button" data-open-ticket="${esc(item.id)}">${esc(ti("open_label"))}</button></td></tr>`).join("")
+          : `<tr><td colspan="6">${esc(ti("no_ticket"))}</td></tr>`;
         if (!tickets.some((item) => Number(item.id) === Number(selectedTicketId))) {
           selectedTicketId = tickets[0]?.id || null;
         }
@@ -482,12 +659,12 @@ function render_account_page(): void
         selectedTicket = payload.ticket;
         box.hidden = false;
         document.querySelector("[data-ticket-title]").textContent = `#${payload.ticket.id} - ${payload.ticket.subject}`;
-        document.querySelector("[data-ticket-meta]").textContent = `Statut: ${payload.ticket.status} · Priorite: ${payload.ticket.priority || "normal"} · MAJ: ${payload.ticket.updated_at}`;
-        document.querySelector("[data-ticket-toggle-status]").textContent = payload.ticket.status === "open" ? "Fermer" : "Reouvrir";
+        document.querySelector("[data-ticket-meta]").textContent = `${ti("status_label")}: ${ticketStatusLabel(payload.ticket.status)} · ${ti("priority_label")}: ${ticketPriorityLabel(payload.ticket.priority || "normal")} · ${ti("updated_label")}: ${payload.ticket.updated_at}`;
+        document.querySelector("[data-ticket-toggle-status]").textContent = payload.ticket.status === "open" ? ti("close") : ti("reopen");
         document.querySelector("[data-ticket-reply-form]").hidden = payload.ticket.status !== "open";
         document.querySelector("[data-ticket-thread]").innerHTML = (payload.messages || []).length
-          ? payload.messages.map((message) => `<article class="ticket-message ${esc(message.author_role || "client")}"><header><strong>${message.author_role === "admin" ? "Support" : "Client"}</strong><span>${esc(message.created_at)}</span></header><p>${esc(message.body).replace(/\\n/g, "<br>")}</p></article>`).join("")
-          : `<p>Aucun message.</p>`;
+          ? payload.messages.map((message) => `<article class="ticket-message ${esc(message.author_role || "client")}"><header><strong>${message.author_role === "admin" ? esc(ti("support")) : esc(ti("client"))}</strong><span>${esc(message.created_at)}</span></header><p>${esc(message.body).replace(/\\n/g, "<br>")}</p></article>`).join("")
+          : `<p>${esc(ti("no_message"))}</p>`;
       }
 
       async function loadTicketDetail(ticketId) {
@@ -496,7 +673,7 @@ function render_account_page(): void
         try {
           renderTicketDetail(await api(`/api/tickets/${ticketId}`));
         } catch (err) {
-          document.querySelector("[data-account-message]").textContent = `Ticket introuvable: ${err.message || err}`;
+          document.querySelector("[data-account-message]").textContent = ti("ticket_not_found", { error: err.message || err });
         }
       }
 
@@ -515,7 +692,7 @@ function render_account_page(): void
         try {
           await login(data.get("email"), data.get("password"));
         } catch (err) {
-          document.querySelector("[data-account-message]").textContent = `Connexion refusee: ${readableError(err)}`;
+          document.querySelector("[data-account-message]").textContent = ti("login_denied", { error: readableError(err) });
         }
       });
 
@@ -533,9 +710,9 @@ function render_account_page(): void
           });
           document.querySelector("[data-activation-form] [name=email]").value = payload.email || data.get("email");
           document.querySelector("[data-activation-form] [name=code]").focus();
-          document.querySelector("[data-account-message]").textContent = "Si inscription possible, un code activation est envoye par email.";
+          document.querySelector("[data-account-message]").textContent = ti("register_notice");
         } catch (err) {
-          document.querySelector("[data-account-message]").textContent = `Inscription refusee: ${readableError(err)}`;
+          document.querySelector("[data-account-message]").textContent = ti("register_denied", { error: readableError(err) });
         }
       });
 
@@ -549,10 +726,10 @@ function render_account_page(): void
           });
           localStorage.setItem(TOKEN_KEY, payload.token);
           event.currentTarget.reset();
-          document.querySelector("[data-account-message]").textContent = "Compte active.";
+          document.querySelector("[data-account-message]").textContent = ti("account_activated");
           await loadAccount();
         } catch (err) {
-          document.querySelector("[data-account-message]").textContent = `Activation refusee: ${readableError(err)}`;
+          document.querySelector("[data-account-message]").textContent = ti("activation_denied", { error: readableError(err) });
         }
       });
 
@@ -563,9 +740,9 @@ function render_account_page(): void
             method: "POST",
             body: JSON.stringify({ email }),
           });
-          document.querySelector("[data-account-message]").textContent = "Si ce compte attend une activation, un nouveau code vient d etre envoye.";
+          document.querySelector("[data-account-message]").textContent = ti("resend_notice");
         } catch (err) {
-          document.querySelector("[data-account-message]").textContent = `Renvoi refuse: ${readableError(err)}`;
+          document.querySelector("[data-account-message]").textContent = ti("resend_denied", { error: readableError(err) });
         }
       });
 
@@ -583,10 +760,10 @@ function render_account_page(): void
             body: JSON.stringify(body),
           });
           event.currentTarget.querySelector("[name=password]").value = "";
-          document.querySelector("[data-account-message]").textContent = "Profil enregistre.";
+          document.querySelector("[data-account-message]").textContent = ti("profile_saved");
           await loadAccount();
         } catch (err) {
-          document.querySelector("[data-account-message]").textContent = `Profil refuse: ${err.message || err}`;
+          document.querySelector("[data-account-message]").textContent = ti("profile_denied", { error: err.message || err });
         }
       });
 
@@ -594,24 +771,24 @@ function render_account_page(): void
       document.querySelectorAll("[data-billing-offer]").forEach((button) => {
         button.addEventListener("click", async () => {
           try {
-            const payload = await api("/api/checkout/stripe-link", {
-              method: "POST",
-              body: JSON.stringify({ offer: button.dataset.billingOffer }),
-            });
-            document.querySelector("[data-checkout-message]").textContent = `Redirection Checkout ${payload.offer}...`;
-            window.location.href = payload.checkout_url;
-          } catch (err) {
-            document.querySelector("[data-checkout-message]").textContent = `Checkout refuse: ${err.message || err}`;
-          }
-        });
+          const payload = await api("/api/checkout/stripe-link", {
+            method: "POST",
+            body: JSON.stringify({ offer: button.dataset.billingOffer }),
+          });
+          document.querySelector("[data-checkout-message]").textContent = ti("checkout_redirect", { offer: payload.offer });
+          window.location.href = payload.checkout_url;
+        } catch (err) {
+          document.querySelector("[data-checkout-message]").textContent = ti("checkout_denied", { error: err.message || err });
+        }
+      });
       });
       document.querySelector("[data-billing-portal]").addEventListener("click", async () => {
         try {
           const payload = await api("/api/billing/portal", { method: "POST" });
-          document.querySelector("[data-checkout-message]").textContent = "Redirection portail Stripe...";
+          document.querySelector("[data-checkout-message]").textContent = ti("portal_redirect");
           window.location.href = payload.portal_url;
         } catch (err) {
-          document.querySelector("[data-checkout-message]").textContent = `Portail refuse: ${err.message || err}`;
+          document.querySelector("[data-checkout-message]").textContent = ti("portal_denied", { error: err.message || err });
         }
       });
       document.querySelector("[data-logout]").addEventListener("click", async () => {
@@ -632,7 +809,7 @@ function render_account_page(): void
           selectedTicketId = null;
           await loadAccount();
         } catch (err) {
-          document.querySelector("[data-account-message]").textContent = `Ticket refuse: ${err.message || err}`;
+          document.querySelector("[data-account-message]").textContent = ti("ticket_denied", { error: err.message || err });
         }
       });
 
@@ -656,7 +833,7 @@ function render_account_page(): void
           renderTicketDetail(payload);
           await loadAccount();
         } catch (err) {
-          document.querySelector("[data-account-message]").textContent = `Reponse refusee: ${err.message || err}`;
+          document.querySelector("[data-account-message]").textContent = ti("reply_denied", { error: err.message || err });
         }
       });
 
@@ -670,7 +847,7 @@ function render_account_page(): void
           }));
           await loadAccount();
         } catch (err) {
-          document.querySelector("[data-account-message]").textContent = `Statut refuse: ${err.message || err}`;
+          document.querySelector("[data-account-message]").textContent = ti("status_denied", { error: err.message || err });
         }
       });
 
@@ -888,13 +1065,13 @@ function admin_table_controls_with_context(string $tableKey, array $state, strin
     foreach ([10, 25, 50, 100] as $option) {
         $options .= '<option value="' . $option . '"' . ($state['rows'] === $option ? ' selected' : '') . '>' . $option . '</option>';
     }
-    $options .= '<option value="all"' . ($state['rows'] === 0 ? ' selected' : '') . '>Toutes</option>';
+    $options .= '<option value="all"' . ($state['rows'] === 0 ? ' selected' : '') . '>' . h(t('Toutes', 'All')) . '</option>';
     return '
       <div class="table-toolbar">
         <div class="table-count">' . $totalRows . ' ' . h($label) . '</div>
         <form class="table-rows-form" method="get" action="/admin' . h($hash) . '">
           ' . admin_hidden_query_inputs([$tableKey . '_rows'], $contextKeys) . '
-          <label><span>Afficher</span><select name="' . h($tableKey . '_rows') . '" data-auto-submit-select>' . $options . '</select></label>
+          <label><span>' . h(t('Afficher', 'Show')) . '</span><select name="' . h($tableKey . '_rows') . '" data-auto-submit-select>' . $options . '</select></label>
         </form>
       </div>
     ';
@@ -1025,19 +1202,22 @@ function admin_billing_content_nav(array $filters, int $subscriptionCount, int $
     }
     $current = (string) ($filters['billing_view'] ?? 'subscriptions');
     $items = [
-        'subscriptions' => ['Abonnements', $subscriptionCount],
-        'payments' => ['Paiements', $paymentCount],
+        'subscriptions' => [t('Abonnements', 'Subscriptions'), $subscriptionCount],
+        'payments' => [t('Paiements', 'Payments'), $paymentCount],
     ];
     $links = '';
     foreach ($items as $view => [$label, $count]) {
         $classAttr = $current === $view ? ' class="active"' : '';
         $links .= '<a' . $classAttr . ' href="' . h(admin_billing_filter_url(['billing_view' => $view])) . '"><span>' . h($label) . '</span><strong>' . (int) $count . '</strong></a>';
     }
-    return '<nav class="tab-nav billing-detail-nav" aria-label="Detail billing">' . $links . '</nav>';
+    return '<nav class="tab-nav billing-detail-nav" aria-label="' . h(t('Detail billing', 'Billing detail')) . '">' . $links . '</nav>';
 }
 
-function admin_select_options(array $values, string $selected, string $emptyLabel = 'Tous'): string
+function admin_select_options(array $values, string $selected, string $emptyLabel = ''): string
 {
+    if ($emptyLabel === '') {
+        $emptyLabel = t('Tous', 'All');
+    }
     $html = '<option value="">' . h($emptyLabel) . '</option>';
     foreach ($values as $value => $label) {
         $optionValue = is_int($value) ? (string) $label : (string) $value;
@@ -1064,7 +1244,13 @@ function admin_code_label(string $value): string
 function admin_user_status_label(string $status): string
 {
     $normalized = strtolower(trim($status));
-    return ADMIN_USER_STATUSES[$normalized] ?? admin_code_label($status);
+    return match ($normalized) {
+        'pending' => t('En attente', 'Pending'),
+        'active' => t('Actif', 'Active'),
+        'suspended' => t('Suspendu', 'Suspended'),
+        'closed' => t('Archive', 'Archived'),
+        default => admin_code_label($status),
+    };
 }
 
 function admin_user_status_tone(string $status): string
@@ -1080,8 +1266,8 @@ function admin_user_status_tone(string $status): string
 function admin_plan_label(string $plan): string
 {
     return match (strtolower(trim($plan))) {
-        'none' => 'Aucun',
-        'credits' => 'Credits',
+        'none' => t('Aucun', 'None'),
+        'credits' => t('Credits', 'Credits'),
         'atelier' => 'Atelier',
         'pro' => 'Pro',
         default => admin_code_label($plan),
@@ -1091,13 +1277,13 @@ function admin_plan_label(string $plan): string
 function admin_subscription_status_label(string $status): string
 {
     return match (strtolower(trim($status))) {
-        'active' => 'Actif',
-        'trialing' => 'Essai',
-        'past_due' => 'En retard',
-        'incomplete' => 'Incomplet',
-        'canceled', 'cancelled' => 'Annule',
-        'unpaid' => 'Impaye',
-        'none' => 'Aucun',
+        'active' => t('Actif', 'Active'),
+        'trialing' => t('Essai', 'Trial'),
+        'past_due' => t('En retard', 'Past due'),
+        'incomplete' => t('Incomplet', 'Incomplete'),
+        'canceled', 'cancelled' => t('Annule', 'Canceled'),
+        'unpaid' => t('Impaye', 'Unpaid'),
+        'none' => t('Aucun', 'None'),
         default => admin_code_label($status),
     };
 }
@@ -1116,12 +1302,12 @@ function admin_subscription_status_tone(string $status): string
 function admin_payment_status_label(string $status): string
 {
     return match (strtolower(trim($status))) {
-        'paid', 'succeeded' => 'Paye',
-        'pending' => 'En attente',
-        'processing' => 'En traitement',
-        'requires_action' => 'Action requise',
-        'failed' => 'Echec',
-        'canceled', 'cancelled' => 'Annule',
+        'paid', 'succeeded' => t('Paye', 'Paid'),
+        'pending' => t('En attente', 'Pending'),
+        'processing' => t('En traitement', 'Processing'),
+        'requires_action' => t('Action requise', 'Action required'),
+        'failed' => t('Echec', 'Failed'),
+        'canceled', 'cancelled' => t('Annule', 'Canceled'),
         default => admin_code_label($status),
     };
 }
@@ -1147,7 +1333,7 @@ function admin_provider_label(string $provider): string
 function admin_smtp_encryption_label(string $mode): string
 {
     return match (strtolower(trim($mode))) {
-        'none' => 'Sans chiffrement',
+        'none' => t('Sans chiffrement', 'No encryption'),
         'tls' => 'TLS',
         'ssl' => 'SSL',
         default => admin_code_label($mode),
@@ -1157,11 +1343,11 @@ function admin_smtp_encryption_label(string $mode): string
 function admin_notification_status_label(string $status): string
 {
     return match (strtolower(trim($status))) {
-        'sent' => 'Envoye',
-        'failed' => 'Echec',
-        'pending', 'queued' => 'En attente',
-        'skipped' => 'Ignore',
-        'smtp_disabled' => 'SMTP inactif',
+        'sent' => t('Envoye', 'Sent'),
+        'failed' => t('Echec', 'Failed'),
+        'pending', 'queued' => t('En attente', 'Pending'),
+        'skipped' => t('Ignore', 'Skipped'),
+        'smtp_disabled' => t('SMTP inactif', 'SMTP disabled'),
         default => admin_code_label($status),
     };
 }
@@ -1181,8 +1367,8 @@ function admin_notification_error_label(string $error): string
 {
     return match (strtolower(trim($error))) {
         '' => '-',
-        'smtp_disabled' => 'SMTP inactif',
-        'smtp_demo_failure' => 'Echec du test SMTP',
+        'smtp_disabled' => t('SMTP inactif', 'SMTP disabled'),
+        'smtp_demo_failure' => t('Echec du test SMTP', 'SMTP test failed'),
         default => admin_code_label($error),
     };
 }
@@ -1190,11 +1376,11 @@ function admin_notification_error_label(string $error): string
 function admin_export_type_label(string $type): string
 {
     return match (strtolower(trim($type))) {
-        'stl' => 'Modele STL',
-        'zip' => 'Archive ZIP',
-        'pdf' => 'Plan PDF',
-        'svg' => 'Vectoriel SVG',
-        'png' => 'Image PNG',
+        'stl' => t('Modele STL', 'STL model'),
+        'zip' => t('Archive ZIP', 'ZIP archive'),
+        'pdf' => t('Plan PDF', 'PDF plan'),
+        'svg' => t('Vectoriel SVG', 'SVG vector'),
+        'png' => t('Image PNG', 'PNG image'),
         default => admin_code_label($type),
     };
 }
@@ -1202,14 +1388,14 @@ function admin_export_type_label(string $type): string
 function admin_log_channel_label(string $channel): string
 {
     return match (strtolower(trim($channel))) {
-        'auth' => 'Authentification',
-        'admin' => 'Administration',
+        'auth' => t('Authentification', 'Authentication'),
+        'admin' => t('Administration', 'Administration'),
         'api' => 'API',
-        'email' => 'Email',
+        'email' => t('Email', 'Email'),
         'stripe' => 'Stripe',
         'wasm' => 'WASM',
         'cron' => 'Cron',
-        'browser' => 'Navigateur',
+        'browser' => t('Navigateur', 'Browser'),
         'support' => 'Support',
         default => admin_code_label($channel),
     };
@@ -1220,10 +1406,10 @@ function admin_log_level_label(string $level): string
     return match (strtolower(trim($level))) {
         'debug' => 'Debug',
         'info' => 'Info',
-        'warning' => 'Alerte',
-        'error' => 'Erreur',
-        'critical' => 'Critique',
-        'security' => 'Securite',
+        'warning' => t('Alerte', 'Warning'),
+        'error' => t('Erreur', 'Error'),
+        'critical' => t('Critique', 'Critical'),
+        'security' => t('Securite', 'Security'),
         default => admin_code_label($level),
     };
 }
@@ -1232,8 +1418,8 @@ function admin_actor_role_label(string $role): string
 {
     return match (strtolower(trim($role))) {
         'admin' => 'Admin',
-        'client', 'user' => 'Client',
-        'system' => 'Systeme',
+        'client', 'user' => t('Client', 'Client'),
+        'system' => t('Systeme', 'System'),
         'cron' => 'Cron',
         default => admin_code_label($role),
     };
@@ -1242,16 +1428,16 @@ function admin_actor_role_label(string $role): string
 function admin_target_type_label(string $type): string
 {
     return match (strtolower(trim($type))) {
-        'user' => 'Client',
-        'ticket' => 'Ticket',
-        'ticket_message' => 'Message ticket',
-        'ticket_notification' => 'Notification ticket',
-        'subscription' => 'Abonnement',
-        'payment' => 'Paiement',
-        'export_authorization' => 'Autorisation export',
-        'email_settings' => 'Reglages email',
-        'stripe_settings' => 'Reglages Stripe',
-        'database_settings' => 'Reglages base de donnees',
+        'user' => t('Client', 'Client'),
+        'ticket' => t('Ticket', 'Ticket'),
+        'ticket_message' => t('Message ticket', 'Ticket message'),
+        'ticket_notification' => t('Notification ticket', 'Ticket notification'),
+        'subscription' => t('Abonnement', 'Subscription'),
+        'payment' => t('Paiement', 'Payment'),
+        'export_authorization' => t('Autorisation export', 'Export authorization'),
+        'email_settings' => t('Reglages email', 'Email settings'),
+        'stripe_settings' => t('Reglages Stripe', 'Stripe settings'),
+        'database_settings' => t('Reglages base de donnees', 'Database settings'),
         default => admin_code_label($type),
     };
 }
@@ -1259,21 +1445,21 @@ function admin_target_type_label(string $type): string
 function admin_log_event_label(string $event): string
 {
     return match (strtolower(trim($event))) {
-        'login_success' => 'Connexion reussie',
-        'login_failed' => 'Echec de connexion',
-        'export_authorized' => 'Export autorise',
-        'export_consumed' => 'Export consomme',
-        'rate_limit_triggered' => 'Limite atteinte',
-        'admin_access_denied' => 'Acces admin refuse',
-        'email_failed' => 'Envoi email echoue',
-        'php_error' => 'Erreur PHP',
-        'permission_denied' => 'Permission refusee',
-        'csrf_failed' => 'Controle CSRF refuse',
-        'invalid_token' => 'Jeton invalide',
-        'email_sent' => 'Email envoye',
-        'ticket_created' => 'Ticket cree',
-        'ticket_replied' => 'Reponse ticket',
-        'ticket_status_changed' => 'Statut ticket modifie',
+        'login_success' => t('Connexion reussie', 'Login successful'),
+        'login_failed' => t('Echec de connexion', 'Login failed'),
+        'export_authorized' => t('Export autorise', 'Export authorized'),
+        'export_consumed' => t('Export consomme', 'Export consumed'),
+        'rate_limit_triggered' => t('Limite atteinte', 'Rate limit reached'),
+        'admin_access_denied' => t('Acces admin refuse', 'Admin access denied'),
+        'email_failed' => t('Envoi email echoue', 'Email send failed'),
+        'php_error' => t('Erreur PHP', 'PHP error'),
+        'permission_denied' => t('Permission refusee', 'Permission denied'),
+        'csrf_failed' => t('Controle CSRF refuse', 'CSRF check failed'),
+        'invalid_token' => t('Jeton invalide', 'Invalid token'),
+        'email_sent' => t('Email envoye', 'Email sent'),
+        'ticket_created' => t('Ticket cree', 'Ticket created'),
+        'ticket_replied' => t('Reponse ticket', 'Ticket reply'),
+        'ticket_status_changed' => t('Statut ticket modifie', 'Ticket status changed'),
         default => admin_code_label($event),
     };
 }
@@ -1281,12 +1467,12 @@ function admin_log_event_label(string $event): string
 function admin_audit_action_label(string $action): string
 {
     return match (strtolower(trim($action))) {
-        'admin_user_updated' => 'Profil client modifie',
-        'admin_user_suspended' => 'Client suspendu',
-        'admin_settings_changed' => 'Reglages modifies',
-        'send_test_email_failed' => 'Test email echoue',
-        'export_consumed' => 'Export consomme',
-        'login_success' => 'Connexion reussie',
+        'admin_user_updated' => t('Profil client modifie', 'Client profile updated'),
+        'admin_user_suspended' => t('Client suspendu', 'Client suspended'),
+        'admin_settings_changed' => t('Reglages modifies', 'Settings updated'),
+        'send_test_email_failed' => t('Test email echoue', 'Email test failed'),
+        'export_consumed' => t('Export consomme', 'Export consumed'),
+        'login_success' => t('Connexion reussie', 'Login successful'),
         default => admin_log_event_label($action),
     };
 }
@@ -1294,12 +1480,12 @@ function admin_audit_action_label(string $action): string
 function admin_stripe_event_label(string $eventType): string
 {
     return match (strtolower(trim($eventType))) {
-        'checkout.session.completed' => 'Checkout termine',
-        'invoice.paid' => 'Facture payee',
-        'invoice.payment_failed' => 'Paiement facture echoue',
-        'customer.subscription.created' => 'Abonnement cree',
-        'customer.subscription.updated' => 'Abonnement mis a jour',
-        'customer.subscription.deleted' => 'Abonnement supprime',
+        'checkout.session.completed' => t('Checkout termine', 'Checkout completed'),
+        'invoice.paid' => t('Facture payee', 'Invoice paid'),
+        'invoice.payment_failed' => t('Paiement facture echoue', 'Invoice payment failed'),
+        'customer.subscription.created' => t('Abonnement cree', 'Subscription created'),
+        'customer.subscription.updated' => t('Abonnement mis a jour', 'Subscription updated'),
+        'customer.subscription.deleted' => t('Abonnement supprime', 'Subscription deleted'),
         default => ucwords(str_replace(['.', '_'], ' ', strtolower(trim($eventType)))),
     };
 }
@@ -1316,7 +1502,11 @@ function admin_table_stack(string $primary, string $secondary = '', bool $second
 
 function admin_ticket_status_label(string $status): string
 {
-    return TICKET_STATUSES[strtolower(trim($status))] ?? admin_code_label($status);
+    return match (strtolower(trim($status))) {
+        'open' => t('Ouvert', 'Open'),
+        'closed' => t('Ferme', 'Closed'),
+        default => admin_code_label($status),
+    };
 }
 
 function admin_ticket_status_tone(string $status): string
@@ -1330,7 +1520,13 @@ function admin_ticket_status_tone(string $status): string
 
 function admin_ticket_priority_label(string $priority): string
 {
-    return TICKET_PRIORITIES[strtolower(trim($priority))] ?? admin_code_label($priority);
+    return match (strtolower(trim($priority))) {
+        'low' => t('Basse', 'Low'),
+        'normal' => t('Normale', 'Normal'),
+        'high' => t('Haute', 'High'),
+        'urgent' => t('Urgente', 'Urgent'),
+        default => admin_code_label($priority),
+    };
 }
 
 function admin_ticket_priority_tone(string $priority): string
@@ -1346,9 +1542,9 @@ function admin_ticket_priority_tone(string $priority): string
 function admin_audit_outcome_label(string $outcome): string
 {
     return match (strtolower(trim($outcome))) {
-        'success' => 'Succes',
-        'failed' => 'Echec',
-        'blocked' => 'Bloque',
+        'success' => t('Succes', 'Success'),
+        'failed' => t('Echec', 'Failed'),
+        'blocked' => t('Bloque', 'Blocked'),
         default => admin_code_label($outcome),
     };
 }
@@ -1356,11 +1552,11 @@ function admin_audit_outcome_label(string $outcome): string
 function admin_stripe_status_label(string $status): string
 {
     return match (strtolower(trim($status))) {
-        'received' => 'Recu',
-        'processing' => 'En traitement',
-        'processed' => 'Traite',
-        'failed' => 'Echec',
-        'ignored' => 'Ignore',
+        'received' => t('Recu', 'Received'),
+        'processing' => t('En traitement', 'Processing'),
+        'processed' => t('Traite', 'Processed'),
+        'failed' => t('Echec', 'Failed'),
+        'ignored' => t('Ignore', 'Ignored'),
         default => admin_code_label($status),
     };
 }
@@ -1369,16 +1565,16 @@ function admin_billing_scope_nav(array $filters, int $subscriptionCount, int $pa
 {
     $current = (string) ($filters['billing_scope'] ?? 'all');
     $items = [
-        'all' => ['Tout', $subscriptionCount + $paymentCount],
-        'subscriptions' => ['Abonnements', $subscriptionCount],
-        'payments' => ['Paiements', $paymentCount],
+        'all' => [t('Tout', 'All'), $subscriptionCount + $paymentCount],
+        'subscriptions' => [t('Abonnements', 'Subscriptions'), $subscriptionCount],
+        'payments' => [t('Paiements', 'Payments'), $paymentCount],
     ];
     $links = '';
     foreach ($items as $scope => [$label, $count]) {
         $class = 'log-scope-link' . ($current === $scope ? ' active' : '');
         $links .= '<a class="' . $class . '" href="' . h(admin_billing_filter_url(['billing_scope' => $scope])) . '"><span>' . h($label) . '</span><strong>' . (int) $count . '</strong></a>';
     }
-    return '<nav class="log-scope-nav" aria-label="Portee billing">' . $links . '</nav>';
+    return '<nav class="log-scope-nav" aria-label="' . h(t('Portee billing', 'Billing scope')) . '">' . $links . '</nav>';
 }
 
 function admin_billing_filter_summary(array $filters): string
@@ -1386,21 +1582,21 @@ function admin_billing_filter_summary(array $filters): string
     $chips = [];
     $scope = (string) ($filters['billing_scope'] ?? 'all');
     $map = [
-        'billing_q' => ['Recherche', static fn (string $value): string => $value],
+        'billing_q' => [t('Recherche', 'Search'), static fn (string $value): string => $value],
         'billing_provider' => ['Provider', 'admin_provider_label'],
-        'billing_date_from' => ['Depuis', static fn (string $value): string => $value],
-        'billing_date_to' => ['Jusqu a', static fn (string $value): string => $value],
+        'billing_date_from' => [t('Depuis', 'From'), static fn (string $value): string => $value],
+        'billing_date_to' => [t('Jusqu a', 'To'), static fn (string $value): string => $value],
     ];
     if ($scope !== 'payments') {
-        $map['billing_plan'] = ['Plan', 'admin_plan_label'];
-        $map['billing_subscription_status'] = ['Etat abo', 'admin_subscription_status_label'];
+        $map['billing_plan'] = [t('Plan', 'Plan'), 'admin_plan_label'];
+        $map['billing_subscription_status'] = [t('Etat abo', 'Subscription status'), 'admin_subscription_status_label'];
     }
     if ($scope !== 'subscriptions') {
-        $map['billing_payment_status'] = ['Etat paiement', 'admin_payment_status_label'];
-        $map['billing_currency'] = ['Devise', 'strtoupper'];
-        $map['billing_invoice'] = ['Facture', static fn (string $value): string => $value === 'yes' ? 'Avec facture' : 'Sans facture'];
-        $map['billing_amount_min'] = ['Min', static fn (string $value): string => $value];
-        $map['billing_amount_max'] = ['Max', static fn (string $value): string => $value];
+        $map['billing_payment_status'] = [t('Etat paiement', 'Payment status'), 'admin_payment_status_label'];
+        $map['billing_currency'] = [t('Devise', 'Currency'), 'strtoupper'];
+        $map['billing_invoice'] = [t('Facture', 'Invoice'), static fn (string $value): string => $value === 'yes' ? t('Avec facture', 'With invoice') : t('Sans facture', 'Without invoice')];
+        $map['billing_amount_min'] = [t('Min', 'Min'), static fn (string $value): string => $value];
+        $map['billing_amount_max'] = [t('Max', 'Max'), static fn (string $value): string => $value];
     }
     foreach ($map as $key => $label) {
         $value = trim((string) ($filters[$key] ?? ''));
@@ -1412,9 +1608,9 @@ function admin_billing_filter_summary(array $filters): string
         }
     }
     if (!$chips) {
-        return '<p class="section-hint">Vue standard du billing. Utilise la recherche, la periode et les statuts pour isoler un cas avant d ouvrir le detail client.</p>';
+        return '<p class="section-hint">' . h(t('Vue standard du billing. Utilise la recherche, la periode et les statuts pour isoler un cas avant d ouvrir le detail client.', 'Default billing view. Use search, date range, and statuses to isolate a case before opening client details.')) . '</p>';
     }
-    return '<ul class="filter-chip-list" aria-label="Filtres billing actifs">' . implode('', $chips) . '</ul>';
+    return '<ul class="filter-chip-list" aria-label="' . h(t('Filtres billing actifs', 'Active billing filters')) . '">' . implode('', $chips) . '</ul>';
 }
 
 function admin_log_scope_value(string $value): string
@@ -1739,9 +1935,9 @@ function handle_admin_exports_download(): void
 function admin_status_options(string $current): string
 {
     $html = '';
-    foreach (ADMIN_USER_STATUSES as $value => $label) {
+    foreach (array_keys(ADMIN_USER_STATUSES) as $value) {
         $selected = $current === $value ? ' selected' : '';
-        $html .= '<option value="' . h($value) . '"' . $selected . '>' . h($label) . '</option>';
+        $html .= '<option value="' . h($value) . '"' . $selected . '>' . h(admin_user_status_label($value)) . '</option>';
     }
     return $html;
 }
@@ -1769,9 +1965,9 @@ function admin_subscription_status_options(string $current): string
 function ticket_status_options(string $current): string
 {
     $html = '';
-    foreach (TICKET_STATUSES as $value => $label) {
+    foreach (array_keys(TICKET_STATUSES) as $value) {
         $selected = $current === $value ? ' selected' : '';
-        $html .= '<option value="' . h($value) . '"' . $selected . '>' . h($label) . '</option>';
+        $html .= '<option value="' . h($value) . '"' . $selected . '>' . h(admin_ticket_status_label($value)) . '</option>';
     }
     return $html;
 }
@@ -1779,9 +1975,9 @@ function ticket_status_options(string $current): string
 function ticket_priority_options(string $current): string
 {
     $html = '';
-    foreach (TICKET_PRIORITIES as $value => $label) {
+    foreach (array_keys(TICKET_PRIORITIES) as $value) {
         $selected = $current === $value ? ' selected' : '';
-        $html .= '<option value="' . h($value) . '"' . $selected . '>' . h($label) . '</option>';
+        $html .= '<option value="' . h($value) . '"' . $selected . '>' . h(admin_ticket_priority_label($value)) . '</option>';
     }
     return $html;
 }
@@ -2331,7 +2527,7 @@ function handle_admin_post(): void
         if (function_exists('app_log')) {
             app_log(db(), 'security', 'admin', 'admin_access_denied', 'POST admin refuse', [], null, 403);
         }
-        page_response('Admin', '<section class="page-title"><h1>Admin protege</h1><p>Acces refuse.</p></section>', '/admin', 403);
+        page_response('Admin', '<section class="page-title"><h1>' . h(t('Admin protege', 'Protected admin')) . '</h1><p>' . h(t('Acces refuse.', 'Access denied.')) . '</p></section>', '/admin', 403);
         return;
     }
 
@@ -2404,16 +2600,16 @@ function render_create_user_panel(): string
 {
     return '
       <section class="panel">
-        <h2>Creer utilisateur</h2>
+        <h2>' . h(t('Creer utilisateur', 'Create user')) . '</h2>
         <form class="admin-create-form" method="post" action="/admin">
           ' . admin_key_input() . '
           <input type="hidden" name="action" value="create_user">
-          <label><span>Courriel</span><input type="email" name="email" required></label>
-          <label><span>Nom</span><input type="text" name="display_name"></label>
-          <label><span>Mot de passe initial</span><input type="password" name="password" minlength="8" required></label>
-          <label><span>Credits initiaux</span><input type="number" name="credits" min="0" step="1" value="0"></label>
-          <label><span>Statut</span><select name="status">' . admin_status_options('active') . '</select></label>
-          <button type="submit">Creer</button>
+          <label><span>' . h(t('Courriel', 'Email')) . '</span><input type="email" name="email" required></label>
+          <label><span>' . h(t('Nom', 'Name')) . '</span><input type="text" name="display_name"></label>
+          <label><span>' . h(t('Mot de passe initial', 'Initial password')) . '</span><input type="password" name="password" minlength="8" required></label>
+          <label><span>' . h(t('Credits initiaux', 'Initial credits')) . '</span><input type="number" name="credits" min="0" step="1" value="0"></label>
+          <label><span>' . h(t('Statut', 'Status')) . '</span><select name="status">' . admin_status_options('active') . '</select></label>
+          <button type="submit">' . h(t('Creer', 'Create')) . '</button>
         </form>
       </section>
     ';
@@ -2517,32 +2713,32 @@ function render_user_directory(PDO $pdo): string
         $userState = (string) ($user['status'] ?? 'active');
         $rows .= '<tr><td><a href="' . h($href) . '">' . (int) $user['id'] . '</a></td><td><a href="' . h($href) . '">' . h((string) $user['email']) . '</a></td><td>' . h((string) ($user['display_name'] ?: '-')) . '</td><td>' . (int) $user['credits'] . '</td><td>' . admin_log_badge(admin_subscription_status_tone($subscriptionState), admin_subscription_status_label($subscriptionState)) . '</td><td>' . admin_log_badge(admin_user_status_tone($userState), admin_user_status_label($userState)) . '</td><td>' . h((string) $user['created_at']) . '</td></tr>';
     }
-    $rows = $rows ?: '<tr><td colspan="7">Aucun utilisateur trouve.</td></tr>';
+    $rows = $rows ?: '<tr><td colspan="7">' . h(t('Aucun utilisateur trouve.', 'No user found.')) . '</td></tr>';
 
     return '
       <section class="panel">
         <div class="section-heading">
           <div>
-            <h2>Repertoire utilisateurs</h2>
-            <p>Le clic sur l ID ou le courriel ouvre directement la fiche client en fenetre modale.</p>
+            <h2>' . h(t('Repertoire utilisateurs', 'User directory')) . '</h2>
+            <p>' . h(t('Le clic sur l ID ou le courriel ouvre directement la fiche client en fenetre modale.', 'Click the ID or email to open the client record directly in a modal.')) . '</p>
           </div>
           <div>' . admin_log_badge('neutral', (string) $total) . '</div>
         </div>
         <div class="stats-grid billing-summary-grid">
-          <div class="stat"><span>Filtres</span><strong>' . $total . '</strong></div>
-          <div class="stat"><span>Actifs</span><strong>' . $statusCounts['active'] . '</strong></div>
-          <div class="stat"><span>Suspendus</span><strong>' . $statusCounts['suspended'] . '</strong></div>
-          <div class="stat"><span>Archives</span><strong>' . $statusCounts['closed'] . '</strong></div>
+          <div class="stat"><span>' . h(t('Filtres', 'Filtered')) . '</span><strong>' . $total . '</strong></div>
+          <div class="stat"><span>' . h(t('Actifs', 'Active')) . '</span><strong>' . $statusCounts['active'] . '</strong></div>
+          <div class="stat"><span>' . h(t('Suspendus', 'Suspended')) . '</span><strong>' . $statusCounts['suspended'] . '</strong></div>
+          <div class="stat"><span>' . h(t('Archives', 'Archived')) . '</span><strong>' . $statusCounts['closed'] . '</strong></div>
         </div>
         <form class="admin-directory-form" method="get" action="/admin">
           ' . admin_key_input() . '
-          <label><span>Recherche</span><input type="search" name="q" value="' . h((string) ($_GET['q'] ?? '')) . '" placeholder="id, courriel ou nom"></label>
-          <label><span>Statut</span><select name="status"><option value="">Tous</option>' . admin_status_options($status) . '</select></label>
-          <label><span>Abonnement</span><select name="subscription_status"><option value="">Tous</option>' . admin_subscription_status_options($subscriptionStatus) . '</select></label>
-          <button type="submit">Filtrer</button>
+          <label><span>' . h(t('Recherche', 'Search')) . '</span><input type="search" name="q" value="' . h((string) ($_GET['q'] ?? '')) . '" placeholder="' . h(t('id, courriel ou nom', 'id, email, or name')) . '"></label>
+          <label><span>' . h(t('Statut', 'Status')) . '</span><select name="status"><option value="">' . h(t('Tous', 'All')) . '</option>' . admin_status_options($status) . '</select></label>
+          <label><span>' . h(t('Abonnement', 'Subscription')) . '</span><select name="subscription_status"><option value="">' . h(t('Tous', 'All')) . '</option>' . admin_subscription_status_options($subscriptionStatus) . '</select></label>
+          <button type="submit">' . h(t('Filtrer', 'Filter')) . '</button>
         </form>
-        ' . admin_table_controls_with_context('clients_table', $tableState, '#admin-clients', $total, 'clients', $contextKeys) . '
-        <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'clients_table', 'id', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Courriel', 'clients_table', 'email', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Nom', 'clients_table', 'display_name', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Credits', 'clients_table', 'credits', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Abonnement', 'clients_table', 'subscription_status', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Statut', 'clients_table', 'status', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Cree', 'clients_table', 'created_at', $tableState, '#admin-clients', $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
+        ' . admin_table_controls_with_context('clients_table', $tableState, '#admin-clients', $total, t('clients', 'clients'), $contextKeys) . '
+        <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'clients_table', 'id', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Courriel', 'Email'), 'clients_table', 'email', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Nom', 'Name'), 'clients_table', 'display_name', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Credits', 'Credits'), 'clients_table', 'credits', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Abonnement', 'Subscription'), 'clients_table', 'subscription_status', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Statut', 'Status'), 'clients_table', 'status', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Cree', 'Created'), 'clients_table', 'created_at', $tableState, '#admin-clients', $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
       </section>
     ';
 }
@@ -2578,19 +2774,19 @@ function render_open_tickets_panel(PDO $pdo): string
         $priority = (string) ($ticket['priority'] ?? 'normal');
         $rows .= '<tr><td><a href="' . h($href) . '">#' . (int) $ticket['id'] . '</a></td><td><a href="' . h($clientHref) . '">' . h((string) $ticket['email']) . '</a></td><td>' . h((string) $ticket['subject']) . '</td><td>' . admin_log_badge(admin_ticket_priority_tone($priority), admin_ticket_priority_label($priority)) . '</td><td>' . h((string) $ticket['updated_at']) . '</td></tr>';
     }
-    $rows = $rows ?: '<tr><td colspan="5">Aucun ticket ouvert.</td></tr>';
+    $rows = $rows ?: '<tr><td colspan="5">' . h(t('Aucun ticket ouvert.', 'No open ticket.')) . '</td></tr>';
 
     return '
       <section class="panel" id="support-queue">
         <div class="section-heading">
           <div>
             <p class="eyebrow">Support</p>
-            <h2>Tickets ouverts</h2>
+            <h2>' . h(t('Tickets ouverts', 'Open tickets')) . '</h2>
           </div>
-          <span class="section-hint">Clique sur l identifiant du ticket pour ouvrir le fil complet et repondre au client.</span>
+          <span class="section-hint">' . h(t('Clique sur l identifiant du ticket pour ouvrir le fil complet et repondre au client.', 'Click the ticket ID to open the full thread and reply to the client.')) . '</span>
         </div>
-        ' . admin_table_controls_with_context('support_table', $tableState, '#admin-support', count($allTickets), 'tickets', $contextKeys) . '
-        <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'support_table', 'id', $tableState, '#admin-support', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Client', 'support_table', 'email', $tableState, '#admin-support', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Sujet', 'support_table', 'subject', $tableState, '#admin-support', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Priorite', 'support_table', 'priority', $tableState, '#admin-support', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('MAJ', 'support_table', 'updated_at', $tableState, '#admin-support', $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
+        ' . admin_table_controls_with_context('support_table', $tableState, '#admin-support', count($allTickets), t('tickets', 'tickets'), $contextKeys) . '
+        <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'support_table', 'id', $tableState, '#admin-support', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Client', 'Client'), 'support_table', 'email', $tableState, '#admin-support', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Sujet', 'Subject'), 'support_table', 'subject', $tableState, '#admin-support', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Priorite', 'Priority'), 'support_table', 'priority', $tableState, '#admin-support', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('MAJ', 'Updated'), 'support_table', 'updated_at', $tableState, '#admin-support', $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
       </section>
     ';
 }
@@ -2603,24 +2799,24 @@ function render_admin_support_panel(PDO $pdo): string
 function render_client_profile_panel(?array $user): string
 {
     if ($user === null) {
-        return '<section class="panel"><h2>Fiche client</h2><p>Selectionne un client dans le repertoire.</p></section>';
+        return '<section class="panel"><h2>' . h(t('Fiche client', 'Client record')) . '</h2><p>' . h(t('Selectionne un client dans le repertoire.', 'Select a client in the directory.')) . '</p></section>';
     }
 
     $userId = (int) $user['id'];
     $status = (string) ($user['status'] ?? 'active');
     $deletedAt = (string) ($user['deleted_at'] ?? '');
     $nextStatus = $status === 'active' ? 'suspended' : 'active';
-    $nextLabel = $nextStatus === 'active' ? 'Reactiver' : 'Suspendre';
+    $nextLabel = $nextStatus === 'active' ? t('Reactiver', 'Reactivate') : t('Suspendre', 'Suspend');
 
     return '
       <section class="panel client-detail">
-        <h2>Fiche client</h2>
+        <h2>' . h(t('Fiche client', 'Client record')) . '</h2>
         <div class="client-summary">
           <div class="stat"><span>ID</span><strong>' . $userId . '</strong></div>
-          <div class="stat"><span>Courriel</span><strong>' . h((string) $user['email']) . '</strong></div>
-          <div class="stat"><span>Credits</span><strong>' . (int) $user['credits'] . '</strong></div>
-          <div class="stat"><span>Statut</span>' . admin_log_badge(admin_user_status_tone($status), admin_user_status_label($status)) . '</div>
-          ' . ($deletedAt !== '' ? '<div class="stat"><span>Archive le</span><strong>' . h($deletedAt) . '</strong></div>' : '') . '
+          <div class="stat"><span>' . h(t('Courriel', 'Email')) . '</span><strong>' . h((string) $user['email']) . '</strong></div>
+          <div class="stat"><span>' . h(t('Credits', 'Credits')) . '</span><strong>' . (int) $user['credits'] . '</strong></div>
+          <div class="stat"><span>' . h(t('Statut', 'Status')) . '</span>' . admin_log_badge(admin_user_status_tone($status), admin_user_status_label($status)) . '</div>
+          ' . ($deletedAt !== '' ? '<div class="stat"><span>' . h(t('Archive le', 'Archived on')) . '</span><strong>' . h($deletedAt) . '</strong></div>' : '') . '
         </div>
         <div class="admin-actions">
           <form class="span-all admin-profile-form" method="post" action="/admin">
@@ -2628,17 +2824,17 @@ function render_client_profile_panel(?array $user): string
             <input type="hidden" name="action" value="update_user">
             <input type="hidden" name="user_id" value="' . $userId . '">
             <input type="hidden" name="credits" value="' . (int) $user['credits'] . '">
-            <label><span>Courriel</span><input type="email" name="email" value="' . h((string) $user['email']) . '" required></label>
-            <label><span>Nom</span><input type="text" name="display_name" value="' . h((string) $user['display_name']) . '"></label>
-            <label><span>Statut</span><select name="status">' . admin_status_options($status) . '</select></label>
-            <button type="submit">Enregistrer profil</button>
+            <label><span>' . h(t('Courriel', 'Email')) . '</span><input type="email" name="email" value="' . h((string) $user['email']) . '" required></label>
+            <label><span>' . h(t('Nom', 'Name')) . '</span><input type="text" name="display_name" value="' . h((string) $user['display_name']) . '"></label>
+            <label><span>' . h(t('Statut', 'Status')) . '</span><select name="status">' . admin_status_options($status) . '</select></label>
+            <button type="submit">' . h(t('Enregistrer profil', 'Save profile')) . '</button>
           </form>
           <form method="post" action="/admin">
             ' . admin_key_input() . '
             <input type="hidden" name="action" value="reset_password">
             <input type="hidden" name="user_id" value="' . $userId . '">
-            <label><span>Nouveau mot de passe</span><input type="password" name="password" minlength="8" required></label>
-            <button type="submit">Reset mot de passe</button>
+            <label><span>' . h(t('Nouveau mot de passe', 'New password')) . '</span><input type="password" name="password" minlength="8" required></label>
+            <button type="submit">' . h(t('Reset mot de passe', 'Reset password')) . '</button>
           </form>
           <form method="post" action="/admin">
             ' . admin_key_input() . '
@@ -2651,8 +2847,8 @@ function render_client_profile_panel(?array $user): string
             ' . admin_key_input() . '
             <input type="hidden" name="action" value="delete_user">
             <input type="hidden" name="user_id" value="' . $userId . '">
-            <label><span>Archivage avec retention</span><input type="text" name="confirm" placeholder="taper DELETE pour confirmer"></label>
-            <button type="submit">Archiver utilisateur</button>
+            <label><span>' . h(t('Archivage avec retention', 'Archive with retention')) . '</span><input type="text" name="confirm" placeholder="' . h(t('taper DELETE pour confirmer', 'type DELETE to confirm')) . '"></label>
+            <button type="submit">' . h(t('Archiver utilisateur', 'Archive user')) . '</button>
           </form>
         </div>
       </section>
@@ -2662,7 +2858,7 @@ function render_client_profile_panel(?array $user): string
 function render_client_credits_panel(PDO $pdo, ?array $user): string
 {
     if ($user === null) {
-        return '<section class="panel"><h2>Credits client</h2><p>Selectionne un client dans l onglet Clients.</p></section>';
+        return '<section class="panel"><h2>' . h(t('Credits client', 'Client credits')) . '</h2><p>' . h(t('Selectionne un client dans l onglet Clients.', 'Select a client from the Clients tab.')) . '</p></section>';
     }
     $userId = (int) $user['id'];
     $modalHash = '#' . admin_tab_value((string) ($_GET['return_tab'] ?? 'admin-clients'));
@@ -2686,26 +2882,26 @@ function render_client_credits_panel(PDO $pdo, ?array $user): string
     foreach ($ledgerItems as $row) {
         $rows .= '<tr><td>' . (int) $row['delta'] . '</td><td>' . h((string) $row['reason']) . '</td><td>' . h((string) $row['reference']) . '</td><td>' . h((string) $row['created_at']) . '</td></tr>';
     }
-    $rows = $rows ?: '<tr><td colspan="4">Aucune entree.</td></tr>';
+    $rows = $rows ?: '<tr><td colspan="4">' . h(t('Aucune entree.', 'No entry.')) . '</td></tr>';
 
     return '
       <section class="panel">
-        <h2>Credits client</h2>
+        <h2>' . h(t('Credits client', 'Client credits')) . '</h2>
         <div class="client-summary compact">
-          <div class="stat"><span>Client</span><strong>' . h((string) $user['email']) . '</strong></div>
-          <div class="stat"><span>Solde</span><strong>' . (int) $user['credits'] . '</strong></div>
-          <div class="stat"><span>Statut</span>' . admin_log_badge(admin_user_status_tone((string) ($user['status'] ?? 'active')), admin_user_status_label((string) ($user['status'] ?? 'active'))) . '</div>
+          <div class="stat"><span>' . h(t('Client', 'Client')) . '</span><strong>' . h((string) $user['email']) . '</strong></div>
+          <div class="stat"><span>' . h(t('Solde', 'Balance')) . '</span><strong>' . (int) $user['credits'] . '</strong></div>
+          <div class="stat"><span>' . h(t('Statut', 'Status')) . '</span>' . admin_log_badge(admin_user_status_tone((string) ($user['status'] ?? 'active')), admin_user_status_label((string) ($user['status'] ?? 'active'))) . '</div>
         </div>
         <form class="admin-directory-form" method="post" action="/admin">
           ' . admin_key_input() . '
           <input type="hidden" name="action" value="adjust_credits">
           <input type="hidden" name="user_id" value="' . $userId . '">
-          <label><span>Ajustement credits</span><input type="number" name="delta" step="1" required></label>
-          <label><span>Note</span><input type="text" name="note" placeholder="raison interne"></label>
-          <button type="submit">Appliquer</button>
+          <label><span>' . h(t('Ajustement credits', 'Credit adjustment')) . '</span><input type="number" name="delta" step="1" required></label>
+          <label><span>' . h(t('Note', 'Note')) . '</span><input type="text" name="note" placeholder="' . h(t('raison interne', 'internal reason')) . '"></label>
+          <button type="submit">' . h(t('Appliquer', 'Apply')) . '</button>
         </form>
       </section>
-      <section class="panel"><h2>Historique credits</h2>' . admin_table_controls_with_context('client_credits_table', $tableState, $modalHash, count($ledgerAll), 'lignes', $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Delta', 'client_credits_table', 'delta', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Raison', 'client_credits_table', 'reason', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Reference', 'client_credits_table', 'reference', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Date', 'client_credits_table', 'created_at', $tableState, $modalHash, $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>
+      <section class="panel"><h2>' . h(t('Historique credits', 'Credit history')) . '</h2>' . admin_table_controls_with_context('client_credits_table', $tableState, $modalHash, count($ledgerAll), t('lignes', 'rows'), $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context(t('Delta', 'Delta'), 'client_credits_table', 'delta', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Raison', 'Reason'), 'client_credits_table', 'reason', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Reference', 'Reference'), 'client_credits_table', 'reference', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Date', 'Date'), 'client_credits_table', 'created_at', $tableState, $modalHash, $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>
     ';
 }
 
@@ -2716,7 +2912,7 @@ function render_admin_modal_shell(string $title, string $closeUrl, string $body)
         <article class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title" tabindex="-1">
           <header class="admin-modal-header">
             <h2 id="admin-modal-title">' . h($title) . '</h2>
-            <a class="secondary compact-link" href="' . h($closeUrl) . '" data-modal-close>Fermer</a>
+            <a class="secondary compact-link" href="' . h($closeUrl) . '" data-modal-close>' . h(t('Fermer', 'Close')) . '</a>
           </header>
           <div class="admin-modal-body">' . $body . '</div>
         </article>
@@ -2767,9 +2963,9 @@ function render_client_billing_detail_panel(PDO $pdo, array $user): string
     $subscriptionRows = '';
     foreach ($subscriptionItems as $row) {
         $subscriptionStatus = (string) ($row['status'] ?? '');
-        $subscriptionRows .= '<tr><td><strong>' . h(admin_plan_label((string) $row['plan'])) . '</strong></td><td>' . admin_log_badge(admin_subscription_status_tone($subscriptionStatus), admin_subscription_status_label($subscriptionStatus)) . '</td><td>' . h(admin_provider_label((string) $row['provider'])) . '</td><td>' . h((string) ($row['current_period_end'] ?: '-')) . '</td><td>' . ((int) $row['cancel_at_period_end'] === 1 ? 'oui' : 'non') . '</td><td>' . h((string) $row['updated_at']) . '</td></tr>';
+        $subscriptionRows .= '<tr><td><strong>' . h(admin_plan_label((string) $row['plan'])) . '</strong></td><td>' . admin_log_badge(admin_subscription_status_tone($subscriptionStatus), admin_subscription_status_label($subscriptionStatus)) . '</td><td>' . h(admin_provider_label((string) $row['provider'])) . '</td><td>' . h((string) ($row['current_period_end'] ?: '-')) . '</td><td>' . h(admin_bool_label((int) $row['cancel_at_period_end'] === 1, t('Oui', 'Yes'), t('Non', 'No'))) . '</td><td>' . h((string) $row['updated_at']) . '</td></tr>';
     }
-    $subscriptionRows = $subscriptionRows ?: '<tr><td colspan="6">Aucun abonnement synchronise.</td></tr>';
+    $subscriptionRows = $subscriptionRows ?: '<tr><td colspan="6">' . h(t('Aucun abonnement synchronise.', 'No synchronized subscription.')) . '</td></tr>';
     $paymentItemsAll = $payments->fetchAll();
     $paymentItems = admin_apply_table_state($paymentItemsAll, $paymentState, [
         'id' => 'int',
@@ -2781,12 +2977,12 @@ function render_client_billing_detail_panel(PDO $pdo, array $user): string
     ]);
     $paymentRows = '';
     foreach ($paymentItems as $row) {
-        $invoiceLinks = ((string) $row['invoice_url'] !== '' ? '<a href="' . h((string) $row['invoice_url']) . '" target="_blank" rel="noreferrer">Voir</a> ' : '')
+        $invoiceLinks = ((string) $row['invoice_url'] !== '' ? '<a href="' . h((string) $row['invoice_url']) . '" target="_blank" rel="noreferrer">' . h(t('Voir', 'View')) . '</a> ' : '')
             . ((string) $row['invoice_pdf'] !== '' ? '<a href="' . h((string) $row['invoice_pdf']) . '" target="_blank" rel="noreferrer">PDF</a>' : '');
         $paymentStatus = (string) ($row['status'] ?? '');
         $paymentRows .= '<tr><td>' . (int) $row['id'] . '</td><td>' . h(money_cents((int) $row['amount_cents'], (string) $row['currency'])) . '</td><td>' . admin_log_badge(admin_payment_status_tone($paymentStatus), admin_payment_status_label($paymentStatus)) . '</td><td>' . h((string) $row['description']) . '</td><td>' . ($invoiceLinks ?: '-') . '</td><td>' . h((string) $row['created_at']) . '</td></tr>';
     }
-    $paymentRows = $paymentRows ?: '<tr><td colspan="6">Aucun paiement synchronise.</td></tr>';
+    $paymentRows = $paymentRows ?: '<tr><td colspan="6">' . h(t('Aucun paiement synchronise.', 'No synchronized payment.')) . '</td></tr>';
     $periodValue = h(substr((string) ($latestSubscription['current_period_end'] ?? ''), 0, 10));
     $latestSubscriptionState = (string) ($latestSubscription['status'] ?? 'none');
     $latestSubscriptionProvider = (string) ($latestSubscription['provider'] ?? '');
@@ -2794,25 +2990,25 @@ function render_client_billing_detail_panel(PDO $pdo, array $user): string
     return '
       <section class="modal-section">
         <div class="client-summary compact">
-          <div class="stat"><span>Plan courant</span><strong>' . h(admin_plan_label((string) $latestSubscription['plan'])) . '</strong></div>
-          <div class="stat"><span>Etat</span>' . admin_log_badge(admin_subscription_status_tone($latestSubscriptionState), admin_subscription_status_label($latestSubscriptionState)) . '</div>
+          <div class="stat"><span>' . h(t('Plan courant', 'Current plan')) . '</span><strong>' . h(admin_plan_label((string) $latestSubscription['plan'])) . '</strong></div>
+          <div class="stat"><span>' . h(t('Etat', 'Status')) . '</span>' . admin_log_badge(admin_subscription_status_tone($latestSubscriptionState), admin_subscription_status_label($latestSubscriptionState)) . '</div>
           <div class="stat"><span>Provider</span><strong>' . h($latestSubscriptionProvider !== '' ? admin_provider_label($latestSubscriptionProvider) : '-') . '</strong></div>
         </div>
       </section>
       <section class="modal-section">
-        <h3>Abonnement</h3>
+        <h3>' . h(t('Abonnement', 'Subscription')) . '</h3>
         <form class="admin-directory-form" method="post" action="/admin">
           ' . admin_key_input() . '
           <input type="hidden" name="action" value="set_subscription">
           <input type="hidden" name="user_id" value="' . $userId . '">
           <label><span>Plan</span><select name="plan">' . admin_plan_options((string) $latestSubscription['plan']) . '</select></label>
-          <label><span>Etat abonnement</span><select name="subscription_status">' . admin_subscription_status_options((string) $latestSubscription['status']) . '</select></label>
-          <label><span>Fin periode</span><input type="date" name="current_period_end" value="' . $periodValue . '"></label>
-          <button type="submit">Mettre a jour abonnement</button>
+          <label><span>' . h(t('Etat abonnement', 'Subscription status')) . '</span><select name="subscription_status">' . admin_subscription_status_options((string) $latestSubscription['status']) . '</select></label>
+          <label><span>' . h(t('Fin periode', 'Period end')) . '</span><input type="date" name="current_period_end" value="' . $periodValue . '"></label>
+          <button type="submit">' . h(t('Mettre a jour abonnement', 'Update subscription')) . '</button>
         </form>
       </section>
-      <section class="modal-section"><h3>Historique abonnements</h3>' . admin_table_controls_with_context('client_subscriptions_table', $subscriptionState, $modalHash, count($subscriptionItemsAll), 'lignes', $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Plan', 'client_subscriptions_table', 'plan', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'client_subscriptions_table', 'status', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Provider', 'client_subscriptions_table', 'provider', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Fin periode', 'client_subscriptions_table', 'current_period_end', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Annule fin', 'client_subscriptions_table', 'cancel_at_period_end', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('MAJ', 'client_subscriptions_table', 'updated_at', $subscriptionState, $modalHash, $contextKeys) . '</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div></section>
-      <section class="modal-section"><h3>Paiements</h3>' . admin_table_controls_with_context('client_payments_table', $paymentState, $modalHash, count($paymentItemsAll), 'lignes', $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'client_payments_table', 'id', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Montant', 'client_payments_table', 'amount_cents', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'client_payments_table', 'status', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Description', 'client_payments_table', 'description', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Facture', 'client_payments_table', 'invoice', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Date', 'client_payments_table', 'created_at', $paymentState, $modalHash, $contextKeys) . '</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div></section>
+      <section class="modal-section"><h3>' . h(t('Historique abonnements', 'Subscription history')) . '</h3>' . admin_table_controls_with_context('client_subscriptions_table', $subscriptionState, $modalHash, count($subscriptionItemsAll), t('lignes', 'rows'), $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context(t('Plan', 'Plan'), 'client_subscriptions_table', 'plan', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Etat', 'Status'), 'client_subscriptions_table', 'status', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Provider', 'client_subscriptions_table', 'provider', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Fin periode', 'Period end'), 'client_subscriptions_table', 'current_period_end', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Annule fin', 'Cancel at end'), 'client_subscriptions_table', 'cancel_at_period_end', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('MAJ', 'Updated'), 'client_subscriptions_table', 'updated_at', $subscriptionState, $modalHash, $contextKeys) . '</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div></section>
+      <section class="modal-section"><h3>' . h(t('Paiements', 'Payments')) . '</h3>' . admin_table_controls_with_context('client_payments_table', $paymentState, $modalHash, count($paymentItemsAll), t('lignes', 'rows'), $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'client_payments_table', 'id', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Montant', 'Amount'), 'client_payments_table', 'amount_cents', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Etat', 'Status'), 'client_payments_table', 'status', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Description', 'Description'), 'client_payments_table', 'description', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Facture', 'Invoice'), 'client_payments_table', 'invoice', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Date', 'Date'), 'client_payments_table', 'created_at', $paymentState, $modalHash, $contextKeys) . '</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div></section>
     ';
 }
 
@@ -2842,8 +3038,8 @@ function render_client_exports_detail_panel(PDO $pdo, array $user): string
         $status = (string) ($row['status'] ?? '');
         $rows .= '<tr><td>' . h((string) $row['export_type']) . '</td><td>' . (int) $row['credit_cost'] . '</td><td>' . admin_log_badge(admin_export_status_tone($status), admin_export_status_label($status)) . '</td><td>' . h((string) $row['created_at']) . '</td><td>' . h((string) ($row['consumed_at'] ?: '-')) . '</td></tr>';
     }
-    $rows = $rows ?: '<tr><td colspan="5">Aucun export.</td></tr>';
-    return '<section class="modal-section"><h3>Exports client</h3>' . admin_table_controls_with_context('client_exports_table', $tableState, $modalHash, count($exportItemsAll), 'lignes', $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Type', 'client_exports_table', 'export_type', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Cout', 'client_exports_table', 'credit_cost', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'client_exports_table', 'status', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Cree', 'client_exports_table', 'created_at', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Consomme', 'client_exports_table', 'consumed_at', $tableState, $modalHash, $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
+    $rows = $rows ?: '<tr><td colspan="5">' . h(t('Aucun export.', 'No export.')) . '</td></tr>';
+    return '<section class="modal-section"><h3>' . h(t('Exports client', 'Client exports')) . '</h3>' . admin_table_controls_with_context('client_exports_table', $tableState, $modalHash, count($exportItemsAll), t('lignes', 'rows'), $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context(t('Type', 'Type'), 'client_exports_table', 'export_type', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Cout', 'Cost'), 'client_exports_table', 'credit_cost', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Etat', 'Status'), 'client_exports_table', 'status', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Cree', 'Created'), 'client_exports_table', 'created_at', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Consomme', 'Consumed'), 'client_exports_table', 'consumed_at', $tableState, $modalHash, $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
 }
 
 function render_client_modal(PDO $pdo, array $user, string $closeUrl, string $activePanel): string
@@ -2854,10 +3050,10 @@ function render_client_modal(PDO $pdo, array $user, string $closeUrl, string $ac
     $billing = render_client_billing_detail_panel($pdo, $user);
     $exports = render_client_exports_detail_panel($pdo, $user);
     $tabs = [
-        'client-profile' => 'Profil',
-        'client-credits' => 'Credits',
-        'client-billing' => 'Billing',
-        'client-exports' => 'Exports',
+        'client-profile' => t('Profil', 'Profile'),
+        'client-credits' => t('Credits', 'Credits'),
+        'client-billing' => t('Facturation', 'Billing'),
+        'client-exports' => t('Exports', 'Exports'),
     ];
     if (!array_key_exists($activePanel, $tabs)) {
         $activePanel = 'client-profile';
@@ -2868,7 +3064,7 @@ function render_client_modal(PDO $pdo, array $user, string $closeUrl, string $ac
         $tabButtons .= '<button type="button"' . ($active ? ' class="active"' : '') . ' data-modal-tab="' . h($panel) . '" role="tab" aria-selected="' . ($active ? 'true' : 'false') . '">' . h($label) . '</button>';
     }
     return render_admin_modal_shell($title, $closeUrl, '
-      <nav class="modal-tab-nav" data-modal-tabs role="tablist" aria-label="Sections client">
+      <nav class="modal-tab-nav" data-modal-tabs role="tablist" aria-label="' . h(t('Sections client', 'Client sections')) . '">
         ' . $tabButtons . '
       </nav>
       <div data-modal-panel="client-profile"' . ($activePanel === 'client-profile' ? '' : ' hidden') . '>' . $profile . '</div>
@@ -2889,9 +3085,9 @@ function render_ticket_modal(PDO $pdo, int $ticketId): string
     $messageRows = '';
     foreach ($messageStmt->fetchAll() as $message) {
         $role = (string) ($message['author_role'] ?: 'client');
-        $messageRows .= '<article class="ticket-message ' . h($role) . '"><header><strong>' . h($role === 'admin' ? 'Support' : 'Client') . '</strong><span>' . h((string) $message['created_at']) . '</span></header><p>' . nl2br(h((string) $message['body'])) . '</p></article>';
+        $messageRows .= '<article class="ticket-message ' . h($role) . '"><header><strong>' . h($role === 'admin' ? 'Support' : t('Client', 'Client')) . '</strong><span>' . h((string) $message['created_at']) . '</span></header><p>' . nl2br(h((string) $message['body'])) . '</p></article>';
     }
-    $messageRows = $messageRows ?: '<p>Aucun message.</p>';
+    $messageRows = $messageRows ?: '<p>' . h(t('Aucun message.', 'No message.')) . '</p>';
     $statusOptions = ticket_status_options((string) $ticket['status']);
     $priorityOptions = ticket_priority_options((string) ($ticket['priority'] ?? 'normal'));
     $disabledReply = (string) $ticket['status'] === 'open' ? '' : ' disabled';
@@ -2904,17 +3100,17 @@ function render_ticket_modal(PDO $pdo, int $ticketId): string
             <p class="eyebrow">Support</p>
             <h3>' . h((string) $ticket['email']) . '</h3>
           </div>
-          <a class="secondary compact-link" href="' . h($clientHref) . '">Ouvrir client</a>
+          <a class="secondary compact-link" href="' . h($clientHref) . '">' . h(t('Ouvrir client', 'Open client')) . '</a>
         </div>
         <div class="client-summary compact">
-          <div class="stat"><span>Compte</span>' . admin_log_badge(admin_user_status_tone((string) $ticket['user_status']), admin_user_status_label((string) $ticket['user_status'])) . '</div>
-          <div class="stat"><span>Credits</span><strong>' . (int) $ticket['credits'] . '</strong></div>
-          <div class="stat"><span>Ticket</span>' . admin_log_badge(admin_ticket_status_tone((string) $ticket['status']), admin_ticket_status_label((string) $ticket['status'])) . '</div>
+          <div class="stat"><span>' . h(t('Compte', 'Account')) . '</span>' . admin_log_badge(admin_user_status_tone((string) $ticket['user_status']), admin_user_status_label((string) $ticket['user_status'])) . '</div>
+          <div class="stat"><span>' . h(t('Credits', 'Credits')) . '</span><strong>' . (int) $ticket['credits'] . '</strong></div>
+          <div class="stat"><span>' . h(t('Ticket', 'Ticket')) . '</span>' . admin_log_badge(admin_ticket_status_tone((string) $ticket['status']), admin_ticket_status_label((string) $ticket['status'])) . '</div>
         </div>
       </section>
       <section class="modal-section">
-        <h3>Fil de conversation</h3>
-        <p>Priorite: ' . h(admin_ticket_priority_label((string) ($ticket['priority'] ?? 'normal'))) . ' · Assigne: ' . h((string) ($ticket['assigned_to'] ?: '-')) . '</p>
+        <h3>' . h(t('Fil de conversation', 'Conversation thread')) . '</h3>
+        <p>' . h(t('Priorite', 'Priority')) . ': ' . h(admin_ticket_priority_label((string) ($ticket['priority'] ?? 'normal'))) . ' · ' . h(t('Assigne', 'Assigned')) . ': ' . h((string) ($ticket['assigned_to'] ?: '-')) . '</p>
         <div class="ticket-thread">' . $messageRows . '</div>
       </section>
       <section class="modal-section">
@@ -2924,25 +3120,25 @@ function render_ticket_modal(PDO $pdo, int $ticketId): string
             <input type="hidden" name="action" value="reply_ticket">
             <input type="hidden" name="user_id" value="' . (int) $ticket['user_id'] . '">
             <input type="hidden" name="ticket_id" value="' . (int) $ticket['id'] . '">
-            <label><span>Reponse support</span><textarea name="body" maxlength="5000" rows="4"' . $disabledReply . '></textarea></label>
-            <button type="submit"' . $disabledReply . '>Envoyer reponse client</button>
+            <label><span>' . h(t('Reponse support', 'Support reply')) . '</span><textarea name="body" maxlength="5000" rows="4"' . $disabledReply . '></textarea></label>
+            <button type="submit"' . $disabledReply . '>' . h(t('Envoyer reponse client', 'Send client reply')) . '</button>
           </form>
           <form method="post" action="/admin">
             ' . admin_key_input() . '
             <input type="hidden" name="action" value="set_ticket_status">
             <input type="hidden" name="user_id" value="' . (int) $ticket['user_id'] . '">
             <input type="hidden" name="ticket_id" value="' . (int) $ticket['id'] . '">
-            <label><span>Statut</span><select name="ticket_status">' . $statusOptions . '</select></label>
-            <button type="submit">Fermer / reouvrir</button>
+            <label><span>' . h(t('Statut', 'Status')) . '</span><select name="ticket_status">' . $statusOptions . '</select></label>
+            <button type="submit">' . h(t('Fermer / reouvrir', 'Close / reopen')) . '</button>
           </form>
           <form method="post" action="/admin">
             ' . admin_key_input() . '
             <input type="hidden" name="action" value="update_ticket_meta">
             <input type="hidden" name="user_id" value="' . (int) $ticket['user_id'] . '">
             <input type="hidden" name="ticket_id" value="' . (int) $ticket['id'] . '">
-            <label><span>Priorite</span><select name="priority">' . $priorityOptions . '</select></label>
-            <label><span>Assigne a</span><input type="text" name="assigned_to" maxlength="120" value="' . h((string) ($ticket['assigned_to'] ?? '')) . '"></label>
-            <button type="submit">Mettre a jour</button>
+            <label><span>' . h(t('Priorite', 'Priority')) . '</span><select name="priority">' . $priorityOptions . '</select></label>
+            <label><span>' . h(t('Assigne a', 'Assigned to')) . '</span><input type="text" name="assigned_to" maxlength="120" value="' . h((string) ($ticket['assigned_to'] ?? '')) . '"></label>
+            <button type="submit">' . h(t('Mettre a jour', 'Update')) . '</button>
           </form>
         </div>
       </section>
@@ -2966,25 +3162,91 @@ function render_admin_modal(PDO $pdo, ?array $selectedUser): string
     return '';
 }
 
-function admin_bool_label(bool $value, string $trueLabel = 'Actif', string $falseLabel = 'Inactif'): string
+function admin_bool_label(bool $value, string $trueLabel = '', string $falseLabel = ''): string
 {
+    if ($trueLabel === '') {
+        $trueLabel = t('Actif', 'Active');
+    }
+    if ($falseLabel === '') {
+        $falseLabel = t('Inactif', 'Inactive');
+    }
     return $value ? $trueLabel : $falseLabel;
 }
 
 function admin_db_driver_label(string $driver): string
 {
-    return $driver === 'mysql' ? 'MySQL cPanel' : 'SQLite local';
+    return $driver === 'mysql' ? 'MySQL cPanel' : t('SQLite local', 'Local SQLite');
 }
 
 function admin_secret_source_label(bool $fromEnv, bool $hasStored, string $kind = 'Secret'): string
 {
     if ($fromEnv) {
-        return $kind . ' via variable serveur';
+        return $kind . t(' via variable serveur', ' from server variable');
     }
     if ($hasStored) {
-        return $kind . ' enregistre';
+        return $kind . t(' enregistre', ' saved');
     }
-    return $kind . ' absent';
+    return $kind . t(' absent', ' missing');
+}
+
+function admin_notice_label(string $notice): string
+{
+    $normalized = strtolower(trim($notice));
+    if ($normalized === '') {
+        return '';
+    }
+    if (str_starts_with($normalized, 'email_test_erreur_')) {
+        return t('Le test email a echoue.', 'Email test failed.');
+    }
+
+    return match ($normalized) {
+        'creation_invalide' => t('Creation utilisateur invalide.', 'Invalid user creation request.'),
+        'client_cree' => t('Client cree.', 'Client created.'),
+        'creation_erreur' => t('Erreur pendant la creation du client.', 'Error while creating the client.'),
+        'profil_invalide' => t('Profil client invalide.', 'Invalid client profile.'),
+        'profil_modifie' => t('Profil client mis a jour.', 'Client profile updated.'),
+        'profil_erreur' => t('Erreur pendant la mise a jour du profil.', 'Error while updating the profile.'),
+        'mot_de_passe_invalide' => t('Mot de passe invalide.', 'Invalid password.'),
+        'mot_de_passe_modifie' => t('Mot de passe mis a jour.', 'Password updated.'),
+        'confirmation_requise' => t('Confirmation requise pour archiver le client.', 'Confirmation required to archive the client.'),
+        'client_archive' => t('Client archive.', 'Client archived.'),
+        'suppression_erreur' => t('Erreur pendant l archivage du client.', 'Error while archiving the client.'),
+        'delta_zero' => t('Ajustement de credits invalide.', 'Invalid credit adjustment.'),
+        'credits_ajustes' => t('Credits ajustes.', 'Credits adjusted.'),
+        'erreur_credits' => t('Erreur pendant l ajustement des credits.', 'Error while adjusting credits.'),
+        'statut_invalide' => t('Statut invalide.', 'Invalid status.'),
+        'statut_modifie' => t('Statut mis a jour.', 'Status updated.'),
+        'statut_erreur' => t('Erreur pendant la mise a jour du statut.', 'Error while updating status.'),
+        'abonnement_invalide' => t('Abonnement invalide.', 'Invalid subscription.'),
+        'abonnement_modifie' => t('Abonnement mis a jour.', 'Subscription updated.'),
+        'erreur_abonnement' => t('Erreur pendant la mise a jour de l abonnement.', 'Error while updating the subscription.'),
+        'client_invalide' => t('Client invalide.', 'Invalid client.'),
+        'client_introuvable' => t('Client introuvable.', 'Client not found.'),
+        'action_inconnue' => t('Action admin inconnue.', 'Unknown admin action.'),
+        'ticket_introuvable' => t('Ticket introuvable.', 'Ticket not found.'),
+        'ticket_ferme' => t('Le ticket est ferme.', 'The ticket is closed.'),
+        'message_ticket_invalide' => t('Reponse ticket invalide.', 'Invalid ticket reply.'),
+        'reponse_ticket_envoyee' => t('Reponse ticket envoyee.', 'Ticket reply sent.'),
+        'erreur_ticket' => t('Erreur ticket.', 'Ticket error.'),
+        'statut_ticket_invalide' => t('Statut ticket invalide.', 'Invalid ticket status.'),
+        'statut_ticket_modifie' => t('Statut ticket mis a jour.', 'Ticket status updated.'),
+        'meta_ticket_invalide' => t('Meta ticket invalide.', 'Invalid ticket metadata.'),
+        'ticket_modifie' => t('Ticket mis a jour.', 'Ticket updated.'),
+        'smtp_invalide' => t('Configuration SMTP invalide.', 'Invalid SMTP configuration.'),
+        'smtp_champs_requis' => t('Les champs SMTP requis sont manquants.', 'Missing required SMTP fields.'),
+        'smtp_modifie' => t('Configuration SMTP enregistree.', 'SMTP settings saved.'),
+        'email_test_invalide' => t('Adresse de test invalide.', 'Invalid test address.'),
+        'email_test_envoye' => t('Email de test envoye.', 'Test email sent.'),
+        'stripe_devise_invalide' => t('Devise Stripe invalide.', 'Invalid Stripe currency.'),
+        'stripe_prix_requis' => t('Prix Stripe requis.', 'Stripe prices are required.'),
+        'stripe_modifie' => t('Configuration Stripe enregistree.', 'Stripe settings saved.'),
+        'db_champs_requis' => t('Les champs base de donnees requis sont manquants.', 'Missing required database fields.'),
+        'db_sqlite_requis' => t('Le chemin SQLite est requis.', 'SQLite path is required.'),
+        'db_modifie' => t('Configuration base de donnees enregistree.', 'Database settings saved.'),
+        'db_connexion_ok' => t('Connexion base de donnees validee.', 'Database connection validated.'),
+        'db_connexion_erreur' => t('Erreur de connexion a la base.', 'Database connection failed.'),
+        default => admin_code_label($notice),
+    };
 }
 
 function render_email_settings_panel(PDO $pdo): string
@@ -3020,8 +3282,8 @@ function render_email_settings_panel(PDO $pdo): string
         $status = (string) ($row['status'] ?? '');
         $rows .= '<tr><td>' . (int) $row['id'] . '</td><td>#' . (int) $row['ticket_id'] . '</td><td>' . h((string) $row['recipient']) . '</td><td>' . h((string) $row['subject']) . '</td><td>' . admin_log_badge(admin_notification_status_tone($status), admin_notification_status_label($status)) . '</td><td>' . h(admin_notification_error_label((string) ($row['error'] ?? ''))) . '</td><td>' . h((string) ($row['sent_at'] ?: $row['created_at'])) . '</td></tr>';
     }
-    $rows = $rows ?: '<tr><td colspan="7">Aucun email ticket.</td></tr>';
-    $passwordNote = getenv('NICHOIR_SMTP_PASSWORD') ? 'Mot de passe fourni par variable serveur NICHOIR_SMTP_PASSWORD.' : 'Laisser vide pour conserver le mot de passe actuel.';
+    $rows = $rows ?: '<tr><td colspan="7">' . h(t('Aucun email ticket.', 'No ticket email.')) . '</td></tr>';
+    $passwordNote = getenv('NICHOIR_SMTP_PASSWORD') ? t('Mot de passe fourni par variable serveur NICHOIR_SMTP_PASSWORD.', 'Password provided by server variable NICHOIR_SMTP_PASSWORD.') : t('Laisser vide pour conserver le mot de passe actuel.', 'Leave empty to keep the current password.');
     $sentCount = 0;
     $failedCount = 0;
     foreach ($recent as $row) {
@@ -3037,54 +3299,54 @@ function render_email_settings_panel(PDO $pdo): string
       <section class="panel">
         <div class="section-heading">
           <div>
-            <h2>Email tickets</h2>
-            <p>Configure le relais SMTP utilise pour les tickets, puis valide l envoi avant de compter dessus en production.</p>
+            <h2>' . h(t('Email tickets', 'Ticket email')) . '</h2>
+            <p>' . h(t('Configure le relais SMTP utilise pour les tickets, puis valide l envoi avant de compter dessus en production.', 'Configure the SMTP relay used for tickets, then validate delivery before relying on it in production.')) . '</p>
           </div>
-          <div>' . admin_log_badge($settings['enabled'] ? 'success' : 'neutral', admin_bool_label($settings['enabled'], 'SMTP actif', 'SMTP inactif')) . '</div>
+          <div>' . admin_log_badge($settings['enabled'] ? 'success' : 'neutral', admin_bool_label($settings['enabled'], t('SMTP actif', 'SMTP active'), t('SMTP inactif', 'SMTP inactive'))) . '</div>
         </div>
         <div class="stats-grid billing-summary-grid">
-          <div class="stat"><span>Etat</span><strong>' . h(admin_bool_label($settings['enabled'], 'Actif', 'Inactif')) . '</strong></div>
+          <div class="stat"><span>' . h(t('Etat', 'Status')) . '</span><strong>' . h(admin_bool_label($settings['enabled'], t('Actif', 'Active'), t('Inactif', 'Inactive'))) . '</strong></div>
           <div class="stat"><span>Support</span><strong>' . h((string) ($settings['support_email'] ?: '-')) . '</strong></div>
-          <div class="stat"><span>Envoyes</span><strong>' . $sentCount . '</strong></div>
-          <div class="stat"><span>Echecs</span><strong>' . $failedCount . '</strong></div>
+          <div class="stat"><span>' . h(t('Envoyes', 'Sent')) . '</span><strong>' . $sentCount . '</strong></div>
+          <div class="stat"><span>' . h(t('Echecs', 'Failures')) . '</span><strong>' . $failedCount . '</strong></div>
         </div>
         <form class="admin-email-form" method="post" action="/admin">
           ' . admin_key_input() . '
           <input type="hidden" name="action" value="update_email_settings">
-          <label class="checkbox-label"><input type="checkbox" name="smtp_enabled" value="1"' . ($settings['enabled'] ? ' checked' : '') . '> Activer envoi SMTP</label>
-          <label><span>Serveur SMTP</span><input type="text" name="smtp_host" value="' . h((string) $settings['host']) . '" placeholder="mail.domaine.com"></label>
+          <label class="checkbox-label"><input type="checkbox" name="smtp_enabled" value="1"' . ($settings['enabled'] ? ' checked' : '') . '> ' . h(t('Activer envoi SMTP', 'Enable SMTP sending')) . '</label>
+          <label><span>' . h(t('Serveur SMTP', 'SMTP server')) . '</span><input type="text" name="smtp_host" value="' . h((string) $settings['host']) . '" placeholder="mail.domaine.com"></label>
           <label><span>Port</span><input type="number" name="smtp_port" min="1" max="65535" value="' . (int) $settings['port'] . '"></label>
-          <label><span>Chiffrement</span><select name="smtp_encryption">' . $encryptionOptions . '</select></label>
-          <label><span>Utilisateur SMTP</span><input type="text" name="smtp_username" value="' . h((string) $settings['username']) . '" autocomplete="username"></label>
-          <label><span>Mot de passe SMTP</span><input type="password" name="smtp_password" autocomplete="new-password" placeholder="' . h($passwordNote) . '"></label>
-          <label><span>Email expediteur</span><input type="email" name="smtp_from_email" value="' . h((string) $settings['from_email']) . '" placeholder="support@domaine.com"></label>
-          <label><span>Nom expediteur</span><input type="text" name="smtp_from_name" value="' . h((string) $settings['from_name']) . '" maxlength="120"></label>
-          <label><span>Email support</span><input type="email" name="support_email" value="' . h((string) $settings['support_email']) . '" placeholder="support@domaine.com"></label>
-          <button type="submit">Enregistrer email</button>
+          <label><span>' . h(t('Chiffrement', 'Encryption')) . '</span><select name="smtp_encryption">' . $encryptionOptions . '</select></label>
+          <label><span>' . h(t('Utilisateur SMTP', 'SMTP username')) . '</span><input type="text" name="smtp_username" value="' . h((string) $settings['username']) . '" autocomplete="username"></label>
+          <label><span>' . h(t('Mot de passe SMTP', 'SMTP password')) . '</span><input type="password" name="smtp_password" autocomplete="new-password" placeholder="' . h($passwordNote) . '"></label>
+          <label><span>' . h(t('Email expediteur', 'Sender email')) . '</span><input type="email" name="smtp_from_email" value="' . h((string) $settings['from_email']) . '" placeholder="support@domaine.com"></label>
+          <label><span>' . h(t('Nom expediteur', 'Sender name')) . '</span><input type="text" name="smtp_from_name" value="' . h((string) $settings['from_name']) . '" maxlength="120"></label>
+          <label><span>' . h(t('Email support', 'Support email')) . '</span><input type="email" name="support_email" value="' . h((string) $settings['support_email']) . '" placeholder="support@domaine.com"></label>
+          <button type="submit">' . h(t('Enregistrer email', 'Save email settings')) . '</button>
         </form>
         <div class="settings-subsection">
           <div class="section-heading log-section-heading">
             <div>
-              <h3>Test d envoi</h3>
-              <p>Valide les identifiants SMTP et l expedition reelle avant de fermer la configuration.</p>
+              <h3>' . h(t('Test d envoi', 'Send test')) . '</h3>
+              <p>' . h(t('Valide les identifiants SMTP et l expedition reelle avant de fermer la configuration.', 'Validate SMTP credentials and real delivery before closing the configuration.')) . '</p>
             </div>
           </div>
           <form class="admin-email-test" method="post" action="/admin">
             ' . admin_key_input() . '
             <input type="hidden" name="action" value="send_test_email">
-            <label><span>Email test</span><input type="email" name="test_recipient" value="' . h((string) $settings['support_email']) . '" required></label>
-            <button type="submit">Envoyer test</button>
+            <label><span>' . h(t('Email test', 'Test email')) . '</span><input type="email" name="test_recipient" value="' . h((string) $settings['support_email']) . '" required></label>
+            <button type="submit">' . h(t('Envoyer test', 'Send test')) . '</button>
           </form>
         </div>
         <div class="settings-subsection">
           <div class="section-heading log-section-heading">
             <div>
-              <h3>Activite recente</h3>
-              <p>Historique court des notifications tickets envoye es, ratees ou en attente.</p>
+              <h3>' . h(t('Activite recente', 'Recent activity')) . '</h3>
+              <p>' . h(t('Historique court des notifications tickets envoye es, ratees ou en attente.', 'Short history of ticket notifications sent, failed, or pending.')) . '</p>
             </div>
           </div>
-          ' . admin_table_controls_with_context('settings_emails_table', $tableState, '#admin-settings', count($recent), 'emails', $contextKeys) . '
-          <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'settings_emails_table', 'id', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Ticket', 'settings_emails_table', 'ticket_id', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Destinataire', 'settings_emails_table', 'recipient', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Sujet', 'settings_emails_table', 'subject', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'settings_emails_table', 'status', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Erreur', 'settings_emails_table', 'error', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Date', 'settings_emails_table', 'sent_at', $tableState, '#admin-settings', $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
+          ' . admin_table_controls_with_context('settings_emails_table', $tableState, '#admin-settings', count($recent), t('emails', 'emails'), $contextKeys) . '
+          <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'settings_emails_table', 'id', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Ticket', 'Ticket'), 'settings_emails_table', 'ticket_id', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Destinataire', 'Recipient'), 'settings_emails_table', 'recipient', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Sujet', 'Subject'), 'settings_emails_table', 'subject', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Etat', 'Status'), 'settings_emails_table', 'status', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Erreur', 'Error'), 'settings_emails_table', 'error', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Date', 'Date'), 'settings_emails_table', 'sent_at', $tableState, '#admin-settings', $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
         </div>
       </section>
     ';
@@ -3093,8 +3355,8 @@ function render_email_settings_panel(PDO $pdo): string
 function render_stripe_settings_panel(PDO $pdo): string
 {
     $settings = stripe_settings($pdo);
-    $secretNote = stripe_setting_secret_is_env('NICHOIR_STRIPE_SECRET_KEY') ? 'Cle fournie par NICHOIR_STRIPE_SECRET_KEY.' : 'Laisser vide pour conserver la cle actuelle.';
-    $webhookNote = stripe_setting_secret_is_env('NICHOIR_STRIPE_WEBHOOK_SECRET') ? 'Secret fourni par NICHOIR_STRIPE_WEBHOOK_SECRET.' : 'Laisser vide pour conserver le secret actuel.';
+    $secretNote = stripe_setting_secret_is_env('NICHOIR_STRIPE_SECRET_KEY') ? t('Cle fournie par NICHOIR_STRIPE_SECRET_KEY.', 'Key provided by NICHOIR_STRIPE_SECRET_KEY.') : t('Laisser vide pour conserver la cle actuelle.', 'Leave empty to keep the current key.');
+    $webhookNote = stripe_setting_secret_is_env('NICHOIR_STRIPE_WEBHOOK_SECRET') ? t('Secret fourni par NICHOIR_STRIPE_WEBHOOK_SECRET.', 'Secret provided by NICHOIR_STRIPE_WEBHOOK_SECRET.') : t('Laisser vide pour conserver le secret actuel.', 'Leave empty to keep the current secret.');
     $priceCount = 0;
     foreach (['price_credits', 'price_atelier', 'price_pro'] as $key) {
         if (trim((string) ($settings[$key] ?? '')) !== '') {
@@ -3104,7 +3366,7 @@ function render_stripe_settings_panel(PDO $pdo): string
     $secretSource = admin_secret_source_label(
         stripe_setting_secret_is_env('NICHOIR_STRIPE_SECRET_KEY'),
         trim((string) ($settings['secret_key'] ?? '')) !== '',
-        'Cle'
+        t('Cle', 'Key')
     );
     $webhookSource = admin_secret_source_label(
         stripe_setting_secret_is_env('NICHOIR_STRIPE_WEBHOOK_SECRET'),
@@ -3117,30 +3379,30 @@ function render_stripe_settings_panel(PDO $pdo): string
         <div class="section-heading">
           <div>
             <h2>Stripe billing</h2>
-            <p>Configure Checkout, portail client et verification webhook. Les secrets doivent idealement venir des variables serveur.</p>
+            <p>' . h(t('Configure Checkout, portail client et verification webhook. Les secrets doivent idealement venir des variables serveur.', 'Configure Checkout, customer portal, and webhook verification. Secrets should ideally come from server variables.')) . '</p>
           </div>
-          <div>' . admin_log_badge($settings['enabled'] ? 'success' : 'neutral', admin_bool_label($settings['enabled'], 'Stripe actif', 'Stripe inactif')) . '</div>
+          <div>' . admin_log_badge($settings['enabled'] ? 'success' : 'neutral', admin_bool_label($settings['enabled'], t('Stripe actif', 'Stripe active'), t('Stripe inactif', 'Stripe inactive'))) . '</div>
         </div>
         <div class="stats-grid billing-summary-grid">
-          <div class="stat"><span>Etat</span><strong>' . h(admin_bool_label($settings['enabled'], 'Actif', 'Inactif')) . '</strong></div>
-          <div class="stat"><span>Devise</span><strong>' . h(strtoupper((string) $settings['currency'])) . '</strong></div>
+          <div class="stat"><span>' . h(t('Etat', 'Status')) . '</span><strong>' . h(admin_bool_label($settings['enabled'])) . '</strong></div>
+          <div class="stat"><span>' . h(t('Devise', 'Currency')) . '</span><strong>' . h(strtoupper((string) $settings['currency'])) . '</strong></div>
           <div class="stat"><span>Prices</span><strong>' . $priceCount . '</strong></div>
-          <div class="stat"><span>Secrets</span><strong>' . h($webhookSource) . '</strong></div>
+          <div class="stat"><span>' . h(t('Secrets', 'Secrets')) . '</span><strong>' . h($webhookSource) . '</strong></div>
         </div>
         <form class="admin-stripe-form" method="post" action="/admin">
           ' . admin_key_input() . '
           <input type="hidden" name="action" value="update_stripe_settings">
-          <label class="checkbox-label"><input type="checkbox" name="stripe_enabled" value="1"' . ($settings['enabled'] ? ' checked' : '') . '> Activer Stripe reel</label>
-          <label><span>Cle secrete Stripe</span><input type="password" name="stripe_secret_key" autocomplete="new-password" placeholder="' . h($secretNote) . '"></label>
-          <label><span>Webhook secret</span><input type="password" name="stripe_webhook_secret" autocomplete="new-password" placeholder="' . h($webhookNote) . '"></label>
-          <label><span>Devise</span><input type="text" name="stripe_currency" value="' . h((string) $settings['currency']) . '" maxlength="3"></label>
+          <label class="checkbox-label"><input type="checkbox" name="stripe_enabled" value="1"' . ($settings['enabled'] ? ' checked' : '') . '> ' . h(t('Activer Stripe reel', 'Enable live Stripe')) . '</label>
+          <label><span>' . h(t('Cle secrete Stripe', 'Stripe secret key')) . '</span><input type="password" name="stripe_secret_key" autocomplete="new-password" placeholder="' . h($secretNote) . '"></label>
+          <label><span>' . h(t('Webhook secret', 'Webhook secret')) . '</span><input type="password" name="stripe_webhook_secret" autocomplete="new-password" placeholder="' . h($webhookNote) . '"></label>
+          <label><span>' . h(t('Devise', 'Currency')) . '</span><input type="text" name="stripe_currency" value="' . h((string) $settings['currency']) . '" maxlength="3"></label>
           <label><span>Price credits</span><input type="text" name="stripe_price_credits" value="' . h((string) $settings['price_credits']) . '" placeholder="price_..."></label>
-          <label><span>Credits achetes</span><input type="number" name="stripe_credits_quantity" min="1" step="1" value="' . (int) $settings['credits_quantity'] . '"></label>
+          <label><span>' . h(t('Credits achetes', 'Purchased credits')) . '</span><input type="number" name="stripe_credits_quantity" min="1" step="1" value="' . (int) $settings['credits_quantity'] . '"></label>
           <label><span>Price atelier</span><input type="text" name="stripe_price_atelier" value="' . h((string) $settings['price_atelier']) . '" placeholder="price_..."></label>
           <label><span>Price pro</span><input type="text" name="stripe_price_pro" value="' . h((string) $settings['price_pro']) . '" placeholder="price_..."></label>
-          <button type="submit">Enregistrer Stripe</button>
+          <button type="submit">' . h(t('Enregistrer Stripe', 'Save Stripe settings')) . '</button>
         </form>
-        <p class="section-hint settings-inline-hint">Source cle: ' . h($secretSource) . ' · Source webhook: ' . h($webhookSource) . '</p>
+        <p class="section-hint settings-inline-hint">' . h(t('Source cle', 'Key source')) . ': ' . h($secretSource) . ' · ' . h(t('Source webhook', 'Webhook source')) . ': ' . h($webhookSource) . '</p>
       </section>
     ';
 }
@@ -3155,46 +3417,46 @@ function render_database_settings_panel(): string
     $sqliteChecked = $driver === 'sqlite' ? ' checked' : '';
     $mysqlChecked = $driver === 'mysql' ? ' checked' : '';
     $passwordNote = db_env_value('NICHOIR_DB_PASSWORD') !== null
-        ? 'Mot de passe fourni par NICHOIR_DB_PASSWORD.'
-        : (((string) ($local['mysql_password'] ?? '') !== '') ? 'Laisser vide pour conserver le mot de passe enregistre.' : 'Mot de passe utilisateur MySQL cPanel.');
-    $sourceLabel = $env !== [] ? 'Variables serveur' : (is_file(db_config_path()) ? 'Config locale' : 'SQLite par defaut');
-    $configLabel = is_file(db_config_path()) ? 'data/db-config.php' : 'Aucun fichier local';
+        ? t('Mot de passe fourni par NICHOIR_DB_PASSWORD.', 'Password provided by NICHOIR_DB_PASSWORD.')
+        : (((string) ($local['mysql_password'] ?? '') !== '') ? t('Laisser vide pour conserver le mot de passe enregistre.', 'Leave empty to keep the saved password.') : t('Mot de passe utilisateur MySQL cPanel.', 'cPanel MySQL user password.'));
+    $sourceLabel = $env !== [] ? t('Variables serveur', 'Server variables') : (is_file(db_config_path()) ? t('Config locale', 'Local config') : t('SQLite par defaut', 'Default SQLite'));
+    $configLabel = is_file(db_config_path()) ? 'data/db-config.php' : t('Aucun fichier local', 'No local file');
 
     return '
       <section class="panel">
         <div class="section-heading">
           <div>
-            <h2>Base de donnees</h2>
-            <p>Choisis le driver actif, renseigne la connexion cible, puis teste avant enregistrement. Le schema MySQL est cree si la base est vide.</p>
+            <h2>' . h(t('Base de donnees', 'Database')) . '</h2>
+            <p>' . h(t('Choisis le driver actif, renseigne la connexion cible, puis teste avant enregistrement. Le schema MySQL est cree si la base est vide.', 'Choose the active driver, fill in the target connection, then test before saving. The MySQL schema is created if the database is empty.')) . '</p>
           </div>
           <div>' . admin_log_badge($driver === 'mysql' ? 'info' : 'neutral', admin_db_driver_label($driver)) . '</div>
         </div>
         <div class="stats-grid billing-summary-grid">
-          <div class="stat"><span>Driver actif</span><strong>' . h(admin_db_driver_label($driver)) . '</strong></div>
-          <div class="stat"><span>Source</span><strong>' . h($sourceLabel) . '</strong></div>
-          <div class="stat"><span>Config locale</span><strong>' . h($configLabel) . '</strong></div>
-          <div class="stat"><span>Mode local</span><strong>' . h($driver === 'sqlite' ? 'Oui' : 'Non') . '</strong></div>
+          <div class="stat"><span>' . h(t('Driver actif', 'Active driver')) . '</span><strong>' . h(admin_db_driver_label($driver)) . '</strong></div>
+          <div class="stat"><span>' . h(t('Source', 'Source')) . '</span><strong>' . h($sourceLabel) . '</strong></div>
+          <div class="stat"><span>' . h(t('Config locale', 'Local config')) . '</span><strong>' . h($configLabel) . '</strong></div>
+          <div class="stat"><span>' . h(t('Mode local', 'Local mode')) . '</span><strong>' . h($driver === 'sqlite' ? t('Oui', 'Yes') : t('Non', 'No')) . '</strong></div>
         </div>
         <form class="admin-db-form" method="post" action="/admin">
           ' . admin_key_input() . '
           <fieldset class="db-driver-choice">
             <legend>Driver</legend>
-            <label class="checkbox-label"><input type="radio" name="db_driver" value="sqlite"' . $sqliteChecked . '> SQLite local</label>
+            <label class="checkbox-label"><input type="radio" name="db_driver" value="sqlite"' . $sqliteChecked . '> ' . h(t('SQLite local', 'Local SQLite')) . '</label>
             <label class="checkbox-label"><input type="radio" name="db_driver" value="mysql"' . $mysqlChecked . '> MySQL cPanel</label>
           </fieldset>
-          <label><span>Chemin SQLite</span><input type="text" name="sqlite_path" value="' . h((string) $config['sqlite_path']) . '"></label>
+          <label><span>' . h(t('Chemin SQLite', 'SQLite path')) . '</span><input type="text" name="sqlite_path" value="' . h((string) $config['sqlite_path']) . '"></label>
           <label><span>Host MySQL</span><input type="text" name="mysql_host" value="' . h((string) $config['mysql_host']) . '" placeholder="localhost"></label>
           <label><span>Port</span><input type="number" name="mysql_port" min="1" max="65535" value="' . h((string) $config['mysql_port']) . '"></label>
-          <label><span>Nom base</span><input type="text" name="mysql_database" value="' . h((string) $config['mysql_database']) . '" placeholder="cpaneluser_nichoir"></label>
-          <label><span>Utilisateur</span><input type="text" name="mysql_username" value="' . h((string) $config['mysql_username']) . '" autocomplete="username" placeholder="cpaneluser_dbuser"></label>
-          <label><span>Mot de passe</span><input type="password" name="mysql_password" autocomplete="new-password" placeholder="' . h($passwordNote) . '"></label>
+          <label><span>' . h(t('Nom base', 'Database name')) . '</span><input type="text" name="mysql_database" value="' . h((string) $config['mysql_database']) . '" placeholder="cpaneluser_nichoir"></label>
+          <label><span>' . h(t('Utilisateur', 'Username')) . '</span><input type="text" name="mysql_username" value="' . h((string) $config['mysql_username']) . '" autocomplete="username" placeholder="cpaneluser_dbuser"></label>
+          <label><span>' . h(t('Mot de passe', 'Password')) . '</span><input type="password" name="mysql_password" autocomplete="new-password" placeholder="' . h($passwordNote) . '"></label>
           <label><span>Charset</span><input type="text" name="mysql_charset" value="' . h((string) $config['mysql_charset']) . '"></label>
           <div class="form-actions span-all">
-            <button type="submit" name="action" value="test_database_settings">Tester connexion</button>
-            <button type="submit" name="action" value="update_database_settings">Enregistrer DB</button>
+            <button type="submit" name="action" value="test_database_settings">' . h(t('Tester connexion', 'Test connection')) . '</button>
+            <button type="submit" name="action" value="update_database_settings">' . h(t('Enregistrer DB', 'Save DB settings')) . '</button>
           </div>
         </form>
-        <p class="section-hint settings-inline-hint">Source active: ' . h($source) . '. En production, preferer `NICHOIR_DB_*` aux secrets stockes localement.</p>
+        <p class="section-hint settings-inline-hint">' . h(t('Source active', 'Active source')) . ': ' . h($source) . '. ' . h(t('En production, preferer `NICHOIR_DB_*` aux secrets stockes localement.', 'In production, prefer `NICHOIR_DB_*` over secrets stored locally.')) . '</p>
       </section>
     ';
 }
@@ -3207,9 +3469,9 @@ function render_admin_settings_panel(PDO $pdo): string
     $cards = '
       <div class="stats-grid billing-summary-grid">
         <div class="stat"><span>DB</span><strong>' . h(admin_db_driver_label((string) $db['driver'])) . '</strong></div>
-        <div class="stat"><span>SMTP</span><strong>' . h(admin_bool_label((bool) $mail['enabled'], 'Actif', 'Inactif')) . '</strong></div>
-        <div class="stat"><span>Stripe</span><strong>' . h(admin_bool_label((bool) $stripe['enabled'], 'Actif', 'Inactif')) . '</strong></div>
-        <div class="stat"><span>Priorite</span><strong>Tester avant prod</strong></div>
+        <div class="stat"><span>SMTP</span><strong>' . h(admin_bool_label((bool) $mail['enabled'])) . '</strong></div>
+        <div class="stat"><span>Stripe</span><strong>' . h(admin_bool_label((bool) $stripe['enabled'])) . '</strong></div>
+        <div class="stat"><span>' . h(t('Priorite', 'Priority')) . '</span><strong>' . h(t('Tester avant prod', 'Test before production')) . '</strong></div>
       </div>
     ';
 
@@ -3217,8 +3479,8 @@ function render_admin_settings_panel(PDO $pdo): string
       <section class="panel">
         <div class="section-heading">
           <div>
-            <h2>Reglages systeme</h2>
-            <p>Infrastructure, email et billing. Chaque bloc se configure separement et doit etre valide avant deploiement.</p>
+            <h2>' . h(t('Reglages systeme', 'System settings')) . '</h2>
+            <p>' . h(t('Infrastructure, email et billing. Chaque bloc se configure separement et doit etre valide avant deploiement.', 'Infrastructure, email, and billing. Each block is configured separately and should be validated before deployment.')) . '</p>
           </div>
         </div>
         ' . $cards . '
@@ -3436,7 +3698,7 @@ function render_admin_billing_panel(PDO $pdo): string
         $subscriptionRows .= '<tr><td>' . (int) $subscription['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $subscription['email']) . '</a></td><td><strong>' . h(admin_plan_label((string) $subscription['plan'])) . '</strong></td><td>' . admin_log_badge($statusTone, admin_subscription_status_label($subscriptionState)) . '</td><td>' . h(admin_provider_label((string) ($subscription['provider'] ?: ''))) . '</td><td>' . h((string) ($subscription['current_period_end'] ?: '-')) . '</td><td>' . h((string) ($subscription['updated_at'] ?: '-')) . '</td></tr>';
     }
     if ($subscriptionRows === '') {
-        $subscriptionRows = '<tr><td colspan="7">Aucun abonnement pour ces filtres.</td></tr>';
+        $subscriptionRows = '<tr><td colspan="7">' . h(t('Aucun abonnement pour ces filtres.', 'No subscription for these filters.')) . '</td></tr>';
     }
 
     $paymentRows = '';
@@ -3445,7 +3707,7 @@ function render_admin_billing_panel(PDO $pdo): string
     $paidPaymentCount = 0;
     foreach ($payments as $payment) {
         $clientHref = admin_client_modal_url((int) $payment['user_id'], 'admin-billing', 'billing', $filters);
-        $invoiceLinks = ((string) $payment['invoice_url'] !== '' ? '<a href="' . h((string) $payment['invoice_url']) . '" target="_blank" rel="noreferrer">Voir</a> ' : '')
+        $invoiceLinks = ((string) $payment['invoice_url'] !== '' ? '<a href="' . h((string) $payment['invoice_url']) . '" target="_blank" rel="noreferrer">' . h(t('Voir', 'View')) . '</a> ' : '')
             . ((string) $payment['invoice_pdf'] !== '' ? '<a href="' . h((string) $payment['invoice_pdf']) . '" target="_blank" rel="noreferrer">PDF</a>' : '');
         if ($invoiceLinks !== '') {
             $paymentInvoiceCount++;
@@ -3463,7 +3725,7 @@ function render_admin_billing_panel(PDO $pdo): string
         $paymentCurrencies[$currencyKey] += (int) $payment['amount_cents'];
     }
     if ($paymentRows === '') {
-        $paymentRows = '<tr><td colspan="7">Aucun paiement pour ces filtres.</td></tr>';
+        $paymentRows = '<tr><td colspan="7">' . h(t('Aucun paiement pour ces filtres.', 'No payment for these filters.')) . '</td></tr>';
     }
 
     $currencySummary = '-';
@@ -3474,65 +3736,65 @@ function render_admin_billing_panel(PDO $pdo): string
         }
         $currencySummary = implode(' / ', $parts);
     }
-    $invoiceHtml = '<option value="">Toutes</option>'
-        . '<option value="yes"' . ($invoice === 'yes' ? ' selected' : '') . '>Avec facture</option>'
-        . '<option value="no"' . ($invoice === 'no' ? ' selected' : '') . '>Sans facture</option>';
+    $invoiceHtml = '<option value="">' . h(t('Toutes', 'All')) . '</option>'
+        . '<option value="yes"' . ($invoice === 'yes' ? ' selected' : '') . '>' . h(t('Avec facture', 'With invoice')) . '</option>'
+        . '<option value="no"' . ($invoice === 'no' ? ' selected' : '') . '>' . h(t('Sans facture', 'Without invoice')) . '</option>';
     $advancedFiltersOpen = $plan !== '' || $provider !== '' || $currency !== '' || $invoice !== '' || $amountMin !== '' || $amountMax !== '';
     $summaryCards = match ($scope) {
         'subscriptions' => '
-          <div class="stat"><span>Abonnements</span><strong>' . count($subscriptions) . '</strong></div>
-          <div class="stat"><span>Actifs</span><strong>' . $activeSubscriptionCount . '</strong></div>
-          <div class="stat"><span>Echeances</span><strong>' . $upcomingSubscriptionCount . '</strong></div>
+          <div class="stat"><span>' . h(t('Abonnements', 'Subscriptions')) . '</span><strong>' . count($subscriptions) . '</strong></div>
+          <div class="stat"><span>' . h(t('Actifs', 'Active')) . '</span><strong>' . $activeSubscriptionCount . '</strong></div>
+          <div class="stat"><span>' . h(t('Echeances', 'Renewals')) . '</span><strong>' . $upcomingSubscriptionCount . '</strong></div>
           <div class="stat"><span>Providers</span><strong>' . $providerCount . '</strong></div>
         ',
         'payments' => '
-          <div class="stat"><span>Paiements</span><strong>' . count($payments) . '</strong></div>
-          <div class="stat"><span>Payes</span><strong>' . $paidPaymentCount . '</strong></div>
-          <div class="stat"><span>Factures</span><strong>' . $paymentInvoiceCount . '</strong></div>
-          <div class="stat"><span>Total filtre</span><strong>' . h($currencySummary) . '</strong></div>
+          <div class="stat"><span>' . h(t('Paiements', 'Payments')) . '</span><strong>' . count($payments) . '</strong></div>
+          <div class="stat"><span>' . h(t('Payes', 'Paid')) . '</span><strong>' . $paidPaymentCount . '</strong></div>
+          <div class="stat"><span>' . h(t('Factures', 'Invoices')) . '</span><strong>' . $paymentInvoiceCount . '</strong></div>
+          <div class="stat"><span>' . h(t('Total filtre', 'Filtered total')) . '</span><strong>' . h($currencySummary) . '</strong></div>
         ',
         default => '
-          <div class="stat"><span>Abonnements</span><strong>' . count($subscriptions) . '</strong></div>
-          <div class="stat"><span>Paiements</span><strong>' . count($payments) . '</strong></div>
-          <div class="stat"><span>Factures</span><strong>' . $paymentInvoiceCount . '</strong></div>
-          <div class="stat"><span>Total filtre</span><strong>' . h($currencySummary) . '</strong></div>
+          <div class="stat"><span>' . h(t('Abonnements', 'Subscriptions')) . '</span><strong>' . count($subscriptions) . '</strong></div>
+          <div class="stat"><span>' . h(t('Paiements', 'Payments')) . '</span><strong>' . count($payments) . '</strong></div>
+          <div class="stat"><span>' . h(t('Factures', 'Invoices')) . '</span><strong>' . $paymentInvoiceCount . '</strong></div>
+          <div class="stat"><span>' . h(t('Total filtre', 'Filtered total')) . '</span><strong>' . h($currencySummary) . '</strong></div>
         ',
     };
 
     $contentNav = admin_billing_content_nav($filters, count($subscriptions), count($payments));
     $detailState = $billingView === 'payments' ? $paymentTableState : $subscriptionTableState;
     $detailKey = $billingView === 'payments' ? 'billing_payments_table' : 'billing_subscriptions_table';
-    $detailTitle = $billingView === 'payments' ? 'Paiements filtres' : 'Abonnements filtres';
+    $detailTitle = $billingView === 'payments' ? t('Paiements filtres', 'Filtered payments') : t('Abonnements filtres', 'Filtered subscriptions');
     $detailDescription = $billingView === 'payments'
-        ? 'Montants encaisses, statut de traitement et presence de facture.'
-        : 'Etat courant du plan, provider et prochaine echeance.';
+        ? t('Montants encaisses, statut de traitement et presence de facture.', 'Captured amounts, processing status, and invoice presence.')
+        : t('Etat courant du plan, provider et prochaine echeance.', 'Current plan state, provider, and next renewal.');
     $detailCount = $billingView === 'payments' ? count($payments) : count($subscriptions);
     $detailTable = $billingView === 'payments'
-        ? admin_table_controls_with_context('billing_payments_table', $paymentTableState, '#admin-billing', count($payments), 'paiements', $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'billing_payments_table', 'id', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Client', 'billing_payments_table', 'email', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Montant', 'billing_payments_table', 'amount_cents', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'billing_payments_table', 'payment_state', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Description', 'billing_payments_table', 'description', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Facture', 'billing_payments_table', 'invoice', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Date', 'billing_payments_table', 'created_at', $paymentTableState, '#admin-billing', $contextKeys) . '</th></tr></thead><tbody>' . implode('', array_map(static function (array $payment) use ($filters): string {
+        ? admin_table_controls_with_context('billing_payments_table', $paymentTableState, '#admin-billing', count($payments), t('paiements', 'payments'), $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'billing_payments_table', 'id', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Client', 'Client'), 'billing_payments_table', 'email', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Montant', 'Amount'), 'billing_payments_table', 'amount_cents', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Etat', 'Status'), 'billing_payments_table', 'payment_state', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Description', 'Description'), 'billing_payments_table', 'description', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Facture', 'Invoice'), 'billing_payments_table', 'invoice', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Date', 'Date'), 'billing_payments_table', 'created_at', $paymentTableState, '#admin-billing', $contextKeys) . '</th></tr></thead><tbody>' . implode('', array_map(static function (array $payment) use ($filters): string {
             $clientHref = admin_client_modal_url((int) $payment['user_id'], 'admin-billing', 'billing', $filters);
-            $invoiceLinks = ((string) $payment['invoice_url'] !== '' ? '<a href="' . h((string) $payment['invoice_url']) . '" target="_blank" rel="noreferrer">Voir</a> ' : '')
+            $invoiceLinks = ((string) $payment['invoice_url'] !== '' ? '<a href="' . h((string) $payment['invoice_url']) . '" target="_blank" rel="noreferrer">' . h(t('Voir', 'View')) . '</a> ' : '')
                 . ((string) $payment['invoice_pdf'] !== '' ? '<a href="' . h((string) $payment['invoice_pdf']) . '" target="_blank" rel="noreferrer">PDF</a>' : '');
             $paymentState = (string) $payment['payment_state'];
             return '<tr><td>' . (int) $payment['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $payment['email']) . '</a></td><td><strong>' . h(money_cents((int) $payment['amount_cents'], (string) $payment['currency'])) . '</strong></td><td>' . admin_log_badge(admin_payment_status_tone($paymentState), admin_payment_status_label($paymentState)) . '</td><td>' . h(admin_log_text((string) ($payment['description'] ?: '-'), 80)) . '</td><td>' . ($invoiceLinks ?: '-') . '</td><td>' . h((string) $payment['created_at']) . '</td></tr>';
-        }, $paymentTableRows)) . ($paymentTableRows === [] ? '<tr><td colspan="7">Aucun paiement pour ces filtres.</td></tr>' : '') . '</tbody></table></div>'
-        : admin_table_controls_with_context('billing_subscriptions_table', $subscriptionTableState, '#admin-billing', count($subscriptions), 'abonnements', $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'billing_subscriptions_table', 'id', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Client', 'billing_subscriptions_table', 'email', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Plan', 'billing_subscriptions_table', 'plan', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'billing_subscriptions_table', 'subscription_state', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Provider', 'billing_subscriptions_table', 'provider', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Fin periode', 'billing_subscriptions_table', 'current_period_end', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('MAJ', 'billing_subscriptions_table', 'updated_at', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th></tr></thead><tbody>' . implode('', array_map(static function (array $subscription) use ($filters): string {
+        }, $paymentTableRows)) . ($paymentTableRows === [] ? '<tr><td colspan="7">' . h(t('Aucun paiement pour ces filtres.', 'No payment for these filters.')) . '</td></tr>' : '') . '</tbody></table></div>'
+        : admin_table_controls_with_context('billing_subscriptions_table', $subscriptionTableState, '#admin-billing', count($subscriptions), t('abonnements', 'subscriptions'), $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'billing_subscriptions_table', 'id', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Client', 'Client'), 'billing_subscriptions_table', 'email', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Plan', 'Plan'), 'billing_subscriptions_table', 'plan', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Etat', 'Status'), 'billing_subscriptions_table', 'subscription_state', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Provider', 'billing_subscriptions_table', 'provider', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Fin periode', 'Period end'), 'billing_subscriptions_table', 'current_period_end', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('MAJ', 'Updated'), 'billing_subscriptions_table', 'updated_at', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th></tr></thead><tbody>' . implode('', array_map(static function (array $subscription) use ($filters): string {
             $clientHref = admin_client_modal_url((int) $subscription['user_id'], 'admin-billing', 'billing', $filters);
             $subscriptionState = (string) $subscription['subscription_state'];
             return '<tr><td>' . (int) $subscription['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $subscription['email']) . '</a></td><td><strong>' . h(admin_plan_label((string) $subscription['plan'])) . '</strong></td><td>' . admin_log_badge(admin_subscription_status_tone($subscriptionState), admin_subscription_status_label($subscriptionState)) . '</td><td>' . h(admin_provider_label((string) ($subscription['provider'] ?: ''))) . '</td><td>' . h((string) ($subscription['current_period_end'] ?: '-')) . '</td><td>' . h((string) ($subscription['updated_at'] ?: '-')) . '</td></tr>';
-        }, $subscriptionTableRows)) . ($subscriptionTableRows === [] ? '<tr><td colspan="7">Aucun abonnement pour ces filtres.</td></tr>' : '') . '</tbody></table></div>';
+        }, $subscriptionTableRows)) . ($subscriptionTableRows === [] ? '<tr><td colspan="7">' . h(t('Aucun abonnement pour ces filtres.', 'No subscription for these filters.')) . '</td></tr>' : '') . '</tbody></table></div>';
     $detailHint = $scope === 'all'
-        ? '<p class="section-hint billing-detail-hint">Les deux vues partagent les memes filtres. Bascule entre abonnements et paiements sans rallonger la page.</p>'
+        ? '<p class="section-hint billing-detail-hint">' . h(t('Les deux vues partagent les memes filtres. Bascule entre abonnements et paiements sans rallonger la page.', 'Both views share the same filters. Switch between subscriptions and payments without making the page longer.')) . '</p>'
         : '';
 
     return '
       <section class="panel">
         <div class="section-heading">
           <div>
-            <h2>Billing</h2>
-            <p>Vue revenus et abonnements. Garde d abord la portee, la recherche et la periode, puis affine si besoin.</p>
+            <h2>' . h(t('Facturation', 'Billing')) . '</h2>
+            <p>' . h(t('Vue revenus et abonnements. Garde d abord la portee, la recherche et la periode, puis affine si besoin.', 'Revenue and subscription view. Start with scope, search, and date range, then refine if needed.')) . '</p>
           </div>
           <div class="form-actions">
-            <a class="secondary compact-link" href="' . h(admin_redirect_url()) . '#admin-billing">Reinitialiser</a>
+            <a class="secondary compact-link" href="' . h(admin_redirect_url()) . '#admin-billing">' . h(t('Reinitialiser', 'Reset')) . '</a>
           </div>
         </div>
         <div class="stats-grid billing-summary-grid">
@@ -3544,22 +3806,22 @@ function render_admin_billing_panel(PDO $pdo): string
           <input type="hidden" name="billing_scope" value="' . h($scope) . '">
           <input type="hidden" name="billing_view" value="' . h($billingView) . '">
           <div class="admin-directory-form admin-billing-filters">
-            <label class="span-2"><span>Client / recherche</span><input type="search" name="billing_q" value="' . h($query) . '" placeholder="email, id, description"></label>
-            ' . ($scope !== 'payments' ? '<label><span>Etat abonnement</span><select name="billing_subscription_status">' . admin_select_options($subscriptionStatusMap, $subscriptionStatus, 'Tous') . '</select></label>' : '') . '
-            ' . ($scope !== 'subscriptions' ? '<label><span>Etat paiement</span><select name="billing_payment_status">' . admin_select_options($paymentStatusMap, $paymentStatus, 'Tous') . '</select></label>' : '') . '
-            <label><span>Date debut</span><input type="date" name="billing_date_from" value="' . h($dateFrom) . '"></label>
-            <label><span>Date fin</span><input type="date" name="billing_date_to" value="' . h($dateTo) . '"></label>
-            <button type="submit">Appliquer</button>
+            <label class="span-2"><span>' . h(t('Client / recherche', 'Client / search')) . '</span><input type="search" name="billing_q" value="' . h($query) . '" placeholder="' . h(t('email, id, description', 'email, id, description')) . '"></label>
+            ' . ($scope !== 'payments' ? '<label><span>' . h(t('Etat abonnement', 'Subscription status')) . '</span><select name="billing_subscription_status">' . admin_select_options($subscriptionStatusMap, $subscriptionStatus, t('Tous', 'All')) . '</select></label>' : '') . '
+            ' . ($scope !== 'subscriptions' ? '<label><span>' . h(t('Etat paiement', 'Payment status')) . '</span><select name="billing_payment_status">' . admin_select_options($paymentStatusMap, $paymentStatus, t('Tous', 'All')) . '</select></label>' : '') . '
+            <label><span>' . h(t('Date debut', 'Start date')) . '</span><input type="date" name="billing_date_from" value="' . h($dateFrom) . '"></label>
+            <label><span>' . h(t('Date fin', 'End date')) . '</span><input type="date" name="billing_date_to" value="' . h($dateTo) . '"></label>
+            <button type="submit">' . h(t('Appliquer', 'Apply')) . '</button>
           </div>
           <details class="log-filter-details"' . ($advancedFiltersOpen ? ' open' : '') . '>
-            <summary>Filtres avances billing</summary>
+            <summary>' . h(t('Filtres avances billing', 'Advanced billing filters')) . '</summary>
             <div class="admin-directory-form admin-billing-filters advanced">
-              ' . ($scope !== 'payments' ? '<label><span>Plan</span><select name="billing_plan">' . admin_select_options($planMap, $plan, 'Tous') . '</select></label>' : '') . '
-              <label><span>Provider</span><select name="billing_provider">' . admin_select_options($providerMap, $provider, 'Tous') . '</select></label>
-              ' . ($scope !== 'subscriptions' ? '<label><span>Devise</span><select name="billing_currency">' . admin_select_options($currencyMap, $currency, 'Toutes') . '</select></label>' : '') . '
-              ' . ($scope !== 'subscriptions' ? '<label><span>Facture</span><select name="billing_invoice">' . $invoiceHtml . '</select></label>' : '') . '
-              ' . ($scope !== 'subscriptions' ? '<label><span>Montant min</span><input type="number" name="billing_amount_min" min="0" step="0.01" value="' . h($amountMin) . '" placeholder="0.00"></label>' : '') . '
-              ' . ($scope !== 'subscriptions' ? '<label><span>Montant max</span><input type="number" name="billing_amount_max" min="0" step="0.01" value="' . h($amountMax) . '" placeholder="499.00"></label>' : '') . '
+              ' . ($scope !== 'payments' ? '<label><span>' . h(t('Plan', 'Plan')) . '</span><select name="billing_plan">' . admin_select_options($planMap, $plan, t('Tous', 'All')) . '</select></label>' : '') . '
+              <label><span>Provider</span><select name="billing_provider">' . admin_select_options($providerMap, $provider, t('Tous', 'All')) . '</select></label>
+              ' . ($scope !== 'subscriptions' ? '<label><span>' . h(t('Devise', 'Currency')) . '</span><select name="billing_currency">' . admin_select_options($currencyMap, $currency, t('Toutes', 'All')) . '</select></label>' : '') . '
+              ' . ($scope !== 'subscriptions' ? '<label><span>' . h(t('Facture', 'Invoice')) . '</span><select name="billing_invoice">' . $invoiceHtml . '</select></label>' : '') . '
+              ' . ($scope !== 'subscriptions' ? '<label><span>' . h(t('Montant min', 'Min amount')) . '</span><input type="number" name="billing_amount_min" min="0" step="0.01" value="' . h($amountMin) . '" placeholder="0.00"></label>' : '') . '
+              ' . ($scope !== 'subscriptions' ? '<label><span>' . h(t('Montant max', 'Max amount')) . '</span><input type="number" name="billing_amount_max" min="0" step="0.01" value="' . h($amountMax) . '" placeholder="499.00"></label>' : '') . '
             </div>
           </details>
           ' . admin_billing_filter_summary($filters) . '
@@ -3568,8 +3830,8 @@ function render_admin_billing_panel(PDO $pdo): string
       <section class="panel">
         <div class="section-heading log-section-heading">
           <div>
-            <h2>Details billing</h2>
-            <p>La synthese reste visible en haut. Le detail se lit maintenant par sous-vue, pas en pile.</p>
+            <h2>' . h(t('Details facturation', 'Billing details')) . '</h2>
+            <p>' . h(t('La synthese reste visible en haut. Le detail se lit maintenant par sous-vue, pas en pile.', 'The summary stays visible at the top. Details are now read by sub-view, not as a long stacked page.')) . '</p>
           </div>
           <div class="section-heading-side">
             <div>' . admin_log_badge('neutral', (string) $detailCount) . '</div>
@@ -3601,10 +3863,10 @@ function render_admin_export_links(string $scope): string
 function admin_export_status_label(string $status): string
 {
     return match (strtolower(trim($status))) {
-        'authorized' => 'Autorise',
-        'consumed' => 'Consomme',
-        'revoked' => 'Revoque',
-        'expired' => 'Expire',
+        'authorized' => t('Autorise', 'Authorized'),
+        'consumed' => t('Consomme', 'Consumed'),
+        'revoked' => t('Revoque', 'Revoked'),
+        'expired' => t('Expire', 'Expired'),
         default => admin_code_label($status),
     };
 }
@@ -3622,12 +3884,12 @@ function admin_export_status_tone(string $status): string
 function render_admin_database_export_panel(): string
 {
     $scopes = [
-        'all' => ['Base complete', 'Timeline CSV triee par date; Excel/JSON avec tables separees par domaine. Secrets et tokens ne sont pas exportes.'],
-        'clients' => ['Clients', 'Comptes, credits courants, statut et abonnement courant.'],
-        'billing' => ['Billing', 'Abonnements, paiements, factures et identifiants Stripe utiles.'],
-        'support' => ['Support', 'Tickets, messages et notifications email.'],
-        'credits' => ['Credits', 'Historique des mouvements de credits par client.'],
-        'exports' => ['Autorisations', 'Demandes d exports, couts, et consommation.'],
+        'all' => [t('Base complete', 'Full database'), t('Timeline CSV triee par date; Excel/JSON avec tables separees par domaine. Secrets et tokens ne sont pas exportes.', 'Date-sorted CSV timeline; Excel/JSON with separate tables by domain. Secrets and tokens are not exported.')],
+        'clients' => [t('Clients', 'Clients'), t('Comptes, credits courants, statut et abonnement courant.', 'Accounts, current credits, status, and current subscription.')],
+        'billing' => [t('Facturation', 'Billing'), t('Abonnements, paiements, factures et identifiants Stripe utiles.', 'Subscriptions, payments, invoices, and useful Stripe identifiers.')],
+        'support' => ['Support', t('Tickets, messages et notifications email.', 'Tickets, messages, and email notifications.')],
+        'credits' => [t('Credits', 'Credits'), t('Historique des mouvements de credits par client.', 'History of credit movements by client.')],
+        'exports' => [t('Autorisations', 'Authorizations'), t('Demandes d exports, couts, et consommation.', 'Export requests, costs, and consumption.')],
     ];
 
     $cards = '';
@@ -3647,15 +3909,15 @@ function render_admin_database_export_panel(): string
       <section class="panel">
         <div class="section-heading">
           <div>
-            <h2>Exports base de donnees</h2>
-            <p>Choisis une portee metier puis un format. Les exports servent a sortir la base de travail, pas l historique detaille d usage.</p>
+            <h2>' . h(t('Exports base de donnees', 'Database exports')) . '</h2>
+            <p>' . h(t('Choisis une portee metier puis un format. Les exports servent a sortir la base de travail, pas l historique detaille d usage.', 'Choose a business scope, then a format. Exports are for extracting the working database, not the detailed usage history.')) . '</p>
           </div>
         </div>
         <div class="stats-grid billing-summary-grid">
-          <div class="stat"><span>Portees</span><strong>' . count($scopes) . '</strong></div>
-          <div class="stat"><span>Formats</span><strong>CSV / XLS / JSON</strong></div>
-          <div class="stat"><span>Usage</span><strong>Base metier</strong></div>
-          <div class="stat"><span>Securite</span><strong>Secrets exclus</strong></div>
+          <div class="stat"><span>' . h(t('Portees', 'Scopes')) . '</span><strong>' . count($scopes) . '</strong></div>
+          <div class="stat"><span>' . h(t('Formats', 'Formats')) . '</span><strong>CSV / XLS / JSON</strong></div>
+          <div class="stat"><span>' . h(t('Usage', 'Usage')) . '</span><strong>' . h(t('Base metier', 'Business data')) . '</strong></div>
+          <div class="stat"><span>' . h(t('Securite', 'Security')) . '</span><strong>' . h(t('Secrets exclus', 'Secrets excluded')) . '</strong></div>
         </div>
         <div class="export-scope-grid">' . $cards . '</div>
       </section>
@@ -3676,10 +3938,10 @@ function admin_log_badge(string $tone, string $label): string
 function admin_log_scope_label(string $scope): string
 {
     return match ($scope) {
-        'application' => 'Application',
-        'audit' => 'Audit',
+        'application' => t('Application', 'Application'),
+        'audit' => t('Audit', 'Audit'),
         'stripe' => 'Stripe',
-        default => 'Toutes les sources',
+        default => t('Toutes les sources', 'All sources'),
     };
 }
 
@@ -3687,9 +3949,9 @@ function admin_log_scope_nav(array $filters, array $counts): string
 {
     $current = (string) ($filters['log_scope'] ?? 'all');
     $items = [
-        'all' => ['Toutes', (int) (($counts['application'] ?? 0) + ($counts['audit'] ?? 0) + ($counts['stripe'] ?? 0))],
-        'application' => ['Application', (int) ($counts['application'] ?? 0)],
-        'audit' => ['Audit', (int) ($counts['audit'] ?? 0)],
+        'all' => [t('Toutes', 'All'), (int) (($counts['application'] ?? 0) + ($counts['audit'] ?? 0) + ($counts['stripe'] ?? 0))],
+        'application' => [t('Application', 'Application'), (int) ($counts['application'] ?? 0)],
+        'audit' => [t('Audit', 'Audit'), (int) ($counts['audit'] ?? 0)],
         'stripe' => ['Stripe', (int) ($counts['stripe'] ?? 0)],
     ];
     $links = '';
@@ -3697,28 +3959,28 @@ function admin_log_scope_nav(array $filters, array $counts): string
         $class = 'log-scope-link' . ($current === $scope ? ' active' : '');
         $links .= '<a class="' . $class . '" href="' . h(admin_log_filter_link(['log_scope' => $scope])) . '"><span>' . h($label) . '</span><strong>' . $count . '</strong></a>';
     }
-    return '<nav class="log-scope-nav" aria-label="Sources de logs">' . $links . '</nav>';
+    return '<nav class="log-scope-nav" aria-label="' . h(t('Sources de logs', 'Log sources')) . '">' . $links . '</nav>';
 }
 
 function admin_log_filter_summary(array $filters): string
 {
     $chips = [];
     $map = [
-        'log_level' => 'Niveau',
-        'log_channel' => 'Source',
-        'log_event' => 'Evenement',
-        'log_q' => 'Recherche',
-        'log_date_from' => 'Depuis',
-        'log_date_to' => 'Jusqu a',
-        'log_user_id' => 'Client',
+        'log_level' => t('Niveau', 'Level'),
+        'log_channel' => t('Source', 'Source'),
+        'log_event' => t('Evenement', 'Event'),
+        'log_q' => t('Recherche', 'Search'),
+        'log_date_from' => t('Depuis', 'From'),
+        'log_date_to' => t('Jusqu a', 'To'),
+        'log_user_id' => t('Client', 'Client'),
         'log_http_status' => 'HTTP',
-        'log_request_id' => 'Trace',
-        'log_actor_role' => 'Role',
+        'log_request_id' => t('Trace', 'Trace'),
+        'log_actor_role' => t('Role', 'Role'),
         'log_action' => 'Action',
-        'log_target_type' => 'Cible',
-        'log_outcome' => 'Resultat',
+        'log_target_type' => t('Cible', 'Target'),
+        'log_outcome' => t('Resultat', 'Outcome'),
         'log_stripe_status' => 'Stripe',
-        'log_stripe_type' => 'Type Stripe',
+        'log_stripe_type' => t('Type Stripe', 'Stripe type'),
     ];
     foreach ($map as $key => $label) {
         $value = trim((string) ($filters[$key] ?? ''));
@@ -3737,9 +3999,9 @@ function admin_log_filter_summary(array $filters): string
         }
     }
     if (!$chips) {
-        return '<p class="section-hint">Aucun filtre avance actif. La vue montre les evenements les plus recents selon la source selectionnee.</p>';
+        return '<p class="section-hint">' . h(t('Aucun filtre avance actif. La vue montre les evenements les plus recents selon la source selectionnee.', 'No advanced filter is active. The view shows the most recent events for the selected source.')) . '</p>';
     }
-    return '<ul class="filter-chip-list" aria-label="Filtres actifs">' . implode('', $chips) . '</ul>';
+    return '<ul class="filter-chip-list" aria-label="' . h(t('Filtres actifs', 'Active filters')) . '">' . implode('', $chips) . '</ul>';
 }
 
 function admin_log_filter_link(array $params = []): string
@@ -4159,7 +4421,7 @@ function render_app_log_rows(array $logs): string
         };
         $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . admin_log_badge($tone, admin_log_level_label($level)) . '</td><td>' . admin_table_stack(admin_log_channel_label((string) $log['channel']), (string) $log['channel'], true) . '</td><td>' . admin_table_stack(admin_log_event_label((string) $log['event_code']), (string) $log['event_code'], true) . '</td><td>' . h(admin_log_text((string) $log['message'])) . '</td><td>' . h((string) ($log['user_id'] ?? '')) . '</td><td>' . h((string) ($log['http_status'] ?? '')) . '</td><td><code>' . h(admin_log_text((string) ($log['request_id'] ?? ''), 48)) . '</code></td><td><code>' . h(admin_log_text((string) ($log['context_json'] ?? ''), 160)) . '</code></td></tr>';
     }
-    return $rows ?: '<tr><td colspan="9">Aucun log.</td></tr>';
+    return $rows ?: '<tr><td colspan="9">' . h(t('Aucun log.', 'No log.')) . '</td></tr>';
 }
 
 function render_audit_log_rows(array $logs): string
@@ -4175,7 +4437,7 @@ function render_audit_log_rows(array $logs): string
         };
         $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . admin_table_stack(admin_actor_role_label((string) $log['actor_role']), (string) $log['actor_role'], true) . '</td><td>' . h((string) ($log['actor_user_id'] ?? '')) . '</td><td>' . admin_table_stack(admin_audit_action_label((string) $log['action']), (string) $log['action'], true) . '</td><td>' . admin_table_stack(admin_target_type_label((string) ($log['target_type'] ?? '')), (string) ($log['target_type'] ?? ''), true) . '</td><td>' . h((string) ($log['target_id'] ?? '')) . '</td><td>' . admin_log_badge($tone, admin_audit_outcome_label($outcome)) . '</td><td>' . h(admin_log_text((string) ($log['reason'] ?? ''), 120)) . '</td><td><code>' . h(admin_log_text((string) ($log['request_id'] ?? ''), 48)) . '</code></td><td><code>' . h(admin_log_text((string) ($log['metadata_json'] ?? ''), 180)) . '</code></td></tr>';
     }
-    return $rows ?: '<tr><td colspan="10">Aucun audit.</td></tr>';
+    return $rows ?: '<tr><td colspan="10">' . h(t('Aucun audit.', 'No audit entry.')) . '</td></tr>';
 }
 
 function render_stripe_log_rows(array $logs): string
@@ -4192,7 +4454,7 @@ function render_stripe_log_rows(array $logs): string
         };
         $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td><code>' . h((string) $log['stripe_event_id']) . '</code></td><td>' . admin_table_stack(admin_stripe_event_label((string) $log['event_type']), (string) $log['event_type'], true) . '</td><td>' . h((string) ($log['stripe_object_id'] ?? '')) . '</td><td>' . admin_log_badge($tone, admin_stripe_status_label($status)) . '</td><td>' . (int) $log['attempt_count'] . '</td><td><code>' . h(admin_log_text((string) ($log['payload_hash'] ?? ''), 48)) . '</code></td><td>' . h(admin_log_text((string) ($log['error_message'] ?? ''), 180)) . '</td></tr>';
     }
-    return $rows ?: '<tr><td colspan="8">Aucun evenement Stripe.</td></tr>';
+    return $rows ?: '<tr><td colspan="8">' . h(t('Aucun evenement Stripe.', 'No Stripe event.')) . '</td></tr>';
 }
 
 function render_admin_logs_panel(PDO $pdo): string
@@ -4315,34 +4577,34 @@ function render_admin_logs_panel(PDO $pdo): string
         'stripe' => count($logData['stripe_rows']),
     ];
 
-    $levelOptions = '<option value="">Tous</option>';
+    $levelOptions = '<option value="">' . h(t('Tous', 'All')) . '</option>';
     foreach (LOG_LEVELS as $option) {
         $levelOptions .= '<option value="' . h($option) . '"' . ($filters['log_level'] === $option ? ' selected' : '') . '>' . h(admin_log_level_label($option)) . '</option>';
     }
 
-    $outcomeOptions = '<option value="">Tous</option>';
+    $outcomeOptions = '<option value="">' . h(t('Tous', 'All')) . '</option>';
     foreach (['success', 'failed', 'blocked'] as $option) {
         $outcomeOptions .= '<option value="' . h($option) . '"' . ($filters['log_outcome'] === $option ? ' selected' : '') . '>' . h(admin_audit_outcome_label($option)) . '</option>';
     }
 
-    $stripeStatusOptions = '<option value="">Tous</option>';
+    $stripeStatusOptions = '<option value="">' . h(t('Tous', 'All')) . '</option>';
     foreach (['received', 'processing', 'processed', 'failed', 'ignored'] as $option) {
         $stripeStatusOptions .= '<option value="' . h($option) . '"' . ($filters['log_stripe_status'] === $option ? ' selected' : '') . '>' . h(admin_stripe_status_label($option)) . '</option>';
     }
 
-    $channelOptions = '<option value="">Tous</option>';
+    $channelOptions = '<option value="">' . h(t('Tous', 'All')) . '</option>';
     $channelStmt = $pdo->query('SELECT DISTINCT channel FROM app_logs WHERE channel IS NOT NULL AND channel <> "" ORDER BY channel ASC LIMIT 30');
     foreach ($channelStmt->fetchAll(PDO::FETCH_COLUMN) as $option) {
         $channelOptions .= '<option value="' . h((string) $option) . '"' . ($filters['log_channel'] === (string) $option ? ' selected' : '') . '>' . h(admin_log_channel_label((string) $option)) . '</option>';
     }
 
-    $actorRoleOptions = '<option value="">Tous</option>';
+    $actorRoleOptions = '<option value="">' . h(t('Tous', 'All')) . '</option>';
     $actorRoleStmt = $pdo->query('SELECT DISTINCT actor_role FROM audit_logs WHERE actor_role IS NOT NULL AND actor_role <> "" ORDER BY actor_role ASC LIMIT 20');
     foreach ($actorRoleStmt->fetchAll(PDO::FETCH_COLUMN) as $option) {
         $actorRoleOptions .= '<option value="' . h((string) $option) . '"' . ($filters['log_actor_role'] === (string) $option ? ' selected' : '') . '>' . h(admin_actor_role_label((string) $option)) . '</option>';
     }
 
-    $targetTypeOptions = '<option value="">Toutes</option>';
+    $targetTypeOptions = '<option value="">' . h(t('Toutes', 'All')) . '</option>';
     $targetTypeStmt = $pdo->query('SELECT DISTINCT target_type FROM audit_logs WHERE target_type IS NOT NULL AND target_type <> "" ORDER BY target_type ASC LIMIT 25');
     foreach ($targetTypeStmt->fetchAll(PDO::FETCH_COLUMN) as $option) {
         $targetTypeOptions .= '<option value="' . h((string) $option) . '"' . ($filters['log_target_type'] === (string) $option ? ' selected' : '') . '>' . h(admin_target_type_label((string) $option)) . '</option>';
@@ -4357,27 +4619,27 @@ function render_admin_logs_panel(PDO $pdo): string
     }
 
     $appSections = '
-      <div class="section-heading log-section-heading"><div><h3>Alertes</h3><p>Evenements de securite, refus d acces et erreurs a prioriser.</p></div><div>' . admin_log_badge('warning', (string) $counts['security']) . '</div></div>
-      ' . admin_table_controls_with_context('logs_security_table', $securityState, '#admin-logs', $counts['security'], 'alertes', $contextKeys) . '
-      <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Date', 'logs_security_table', 'created_at', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Niveau', 'logs_security_table', 'level', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Source', 'logs_security_table', 'channel', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Evenement', 'logs_security_table', 'event_code', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Message', 'logs_security_table', 'message', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Client', 'logs_security_table', 'user_id', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('HTTP', 'logs_security_table', 'http_status', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Trace', 'logs_security_table', 'request_id', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Contexte', 'logs_security_table', 'context_json', $securityState, '#admin-logs', $contextKeys) . '</th></tr></thead><tbody>' . $securityRows . '</tbody></table></div>
-      <div class="section-heading log-section-heading"><div><h3>Application</h3><p>Trace technique des API, auth, emails, exports et erreurs runtime.</p></div><div>' . admin_log_badge('info', (string) $counts['application']) . '</div></div>
-      ' . admin_table_controls_with_context('logs_application_table', $appState, '#admin-logs', $counts['application'], 'logs', $contextKeys) . '
-      <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Date', 'logs_application_table', 'created_at', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Niveau', 'logs_application_table', 'level', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Source', 'logs_application_table', 'channel', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Evenement', 'logs_application_table', 'event_code', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Message', 'logs_application_table', 'message', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Client', 'logs_application_table', 'user_id', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('HTTP', 'logs_application_table', 'http_status', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Trace', 'logs_application_table', 'request_id', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Contexte', 'logs_application_table', 'context_json', $appState, '#admin-logs', $contextKeys) . '</th></tr></thead><tbody>' . $appRows . '</tbody></table></div>
+      <div class="section-heading log-section-heading"><div><h3>' . h(t('Alertes', 'Alerts')) . '</h3><p>' . h(t('Evenements de securite, refus d acces et erreurs a prioriser.', 'Security events, access denials, and errors to prioritize.')) . '</p></div><div>' . admin_log_badge('warning', (string) $counts['security']) . '</div></div>
+      ' . admin_table_controls_with_context('logs_security_table', $securityState, '#admin-logs', $counts['security'], t('alertes', 'alerts'), $contextKeys) . '
+      <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context(t('Date', 'Date'), 'logs_security_table', 'created_at', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Niveau', 'Level'), 'logs_security_table', 'level', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Source', 'Source'), 'logs_security_table', 'channel', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Evenement', 'Event'), 'logs_security_table', 'event_code', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Message', 'Message'), 'logs_security_table', 'message', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Client', 'Client'), 'logs_security_table', 'user_id', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('HTTP', 'logs_security_table', 'http_status', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Trace', 'Trace'), 'logs_security_table', 'request_id', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Contexte', 'Context'), 'logs_security_table', 'context_json', $securityState, '#admin-logs', $contextKeys) . '</th></tr></thead><tbody>' . $securityRows . '</tbody></table></div>
+      <div class="section-heading log-section-heading"><div><h3>' . h(t('Application', 'Application')) . '</h3><p>' . h(t('Trace technique des API, auth, emails, exports et erreurs runtime.', 'Technical trace for APIs, auth, email, exports, and runtime errors.')) . '</p></div><div>' . admin_log_badge('info', (string) $counts['application']) . '</div></div>
+      ' . admin_table_controls_with_context('logs_application_table', $appState, '#admin-logs', $counts['application'], t('logs', 'logs'), $contextKeys) . '
+      <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context(t('Date', 'Date'), 'logs_application_table', 'created_at', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Niveau', 'Level'), 'logs_application_table', 'level', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Source', 'Source'), 'logs_application_table', 'channel', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Evenement', 'Event'), 'logs_application_table', 'event_code', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Message', 'Message'), 'logs_application_table', 'message', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Client', 'Client'), 'logs_application_table', 'user_id', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('HTTP', 'logs_application_table', 'http_status', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Trace', 'Trace'), 'logs_application_table', 'request_id', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Contexte', 'Context'), 'logs_application_table', 'context_json', $appState, '#admin-logs', $contextKeys) . '</th></tr></thead><tbody>' . $appRows . '</tbody></table></div>
     ';
 
     $auditSection = '
       <section class="panel">
-        <div class="section-heading log-section-heading"><div><h2>Audit actions</h2><p>Qui a fait quoi, sur quelle cible, avec quel resultat.</p></div><div>' . admin_log_badge('neutral', (string) $counts['audit']) . '</div></div>
-        ' . admin_table_controls_with_context('logs_audit_table', $auditState, '#admin-logs', $counts['audit'], 'actions', $contextKeys) . '
-        <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Date', 'logs_audit_table', 'created_at', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Role', 'logs_audit_table', 'actor_role', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Acteur', 'logs_audit_table', 'actor_user_id', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Action', 'logs_audit_table', 'action', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Cible', 'logs_audit_table', 'target_type', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('ID', 'logs_audit_table', 'target_id', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Issue', 'logs_audit_table', 'outcome', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Raison', 'logs_audit_table', 'reason', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Trace', 'logs_audit_table', 'request_id', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Contexte', 'logs_audit_table', 'metadata_json', $auditState, '#admin-logs', $contextKeys) . '</th></tr></thead><tbody>' . $auditRows . '</tbody></table></div>
+        <div class="section-heading log-section-heading"><div><h2>' . h(t('Audit actions', 'Audit actions')) . '</h2><p>' . h(t('Qui a fait quoi, sur quelle cible, avec quel resultat.', 'Who did what, on which target, and with what outcome.')) . '</p></div><div>' . admin_log_badge('neutral', (string) $counts['audit']) . '</div></div>
+        ' . admin_table_controls_with_context('logs_audit_table', $auditState, '#admin-logs', $counts['audit'], t('actions', 'actions'), $contextKeys) . '
+        <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context(t('Date', 'Date'), 'logs_audit_table', 'created_at', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Role', 'Role'), 'logs_audit_table', 'actor_role', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Acteur', 'Actor'), 'logs_audit_table', 'actor_user_id', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Action', 'Action'), 'logs_audit_table', 'action', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Cible', 'Target'), 'logs_audit_table', 'target_type', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('ID', 'logs_audit_table', 'target_id', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Resultat', 'Outcome'), 'logs_audit_table', 'outcome', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Raison', 'Reason'), 'logs_audit_table', 'reason', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Trace', 'Trace'), 'logs_audit_table', 'request_id', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Contexte', 'Context'), 'logs_audit_table', 'metadata_json', $auditState, '#admin-logs', $contextKeys) . '</th></tr></thead><tbody>' . $auditRows . '</tbody></table></div>
       </section>
     ';
 
     $stripeSection = '
       <section class="panel">
-        <div class="section-heading log-section-heading"><div><h2>Stripe events</h2><p>Reception, traitement et echecs des webhooks et operations paiement.</p></div><div>' . admin_log_badge('neutral', (string) $counts['stripe']) . '</div></div>
-        ' . admin_table_controls_with_context('logs_stripe_table', $stripeState, '#admin-logs', $counts['stripe'], 'events', $contextKeys) . '
-        <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Date', 'logs_stripe_table', 'created_at', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Event ID', 'logs_stripe_table', 'stripe_event_id', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Type', 'logs_stripe_table', 'event_type', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Objet', 'logs_stripe_table', 'stripe_object_id', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Statut', 'logs_stripe_table', 'status', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Essais', 'logs_stripe_table', 'attempt_count', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Payload hash', 'logs_stripe_table', 'payload_hash', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Erreur', 'logs_stripe_table', 'error_message', $stripeState, '#admin-logs', $contextKeys) . '</th></tr></thead><tbody>' . $stripeRows . '</tbody></table></div>
+        <div class="section-heading log-section-heading"><div><h2>Stripe events</h2><p>' . h(t('Reception, traitement et echecs des webhooks et operations paiement.', 'Reception, processing, and failures for webhooks and payment operations.')) . '</p></div><div>' . admin_log_badge('neutral', (string) $counts['stripe']) . '</div></div>
+        ' . admin_table_controls_with_context('logs_stripe_table', $stripeState, '#admin-logs', $counts['stripe'], t('events', 'events'), $contextKeys) . '
+        <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context(t('Date', 'Date'), 'logs_stripe_table', 'created_at', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Event ID', 'logs_stripe_table', 'stripe_event_id', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Type', 'Type'), 'logs_stripe_table', 'event_type', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Objet', 'Object'), 'logs_stripe_table', 'stripe_object_id', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Statut', 'Status'), 'logs_stripe_table', 'status', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Essais', 'Attempts'), 'logs_stripe_table', 'attempt_count', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Payload hash', 'logs_stripe_table', 'payload_hash', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Erreur', 'Error'), 'logs_stripe_table', 'error_message', $stripeState, '#admin-logs', $contextKeys) . '</th></tr></thead><tbody>' . $stripeRows . '</tbody></table></div>
       </section>
     ';
 
@@ -4385,17 +4647,17 @@ function render_admin_logs_panel(PDO $pdo): string
       <section class="panel">
         <div class="section-heading">
           <div>
-            <h2>Logs applicatifs</h2>
-            <p>Evenements techniques, securite, audit, Stripe et client. Les IP/courriels sensibles sont hashes.</p>
+            <h2>' . h(t('Logs applicatifs', 'Application logs')) . '</h2>
+            <p>' . h(t('Evenements techniques, securite, audit, Stripe et client. Les IP/courriels sensibles sont hashes.', 'Technical, security, audit, Stripe, and client events. Sensitive IPs/emails are hashed.')) . '</p>
           </div>
           <div class="form-actions">
             ' . admin_log_export_links() . '
-            <a class="secondary compact-link" href="' . h(admin_log_filter_link()) . '">Reinitialiser filtres</a>
+            <a class="secondary compact-link" href="' . h(admin_log_filter_link()) . '">' . h(t('Reinitialiser filtres', 'Reset filters')) . '</a>
           </div>
         </div>
         <div class="stats-grid billing-summary-grid">
-          <div class="stat"><span>Alertes</span><strong>' . $counts['security'] . '</strong></div>
-          <div class="stat"><span>Application</span><strong>' . $counts['application'] . '</strong></div>
+          <div class="stat"><span>' . h(t('Alertes', 'Alerts')) . '</span><strong>' . $counts['security'] . '</strong></div>
+          <div class="stat"><span>' . h(t('Application', 'Application')) . '</span><strong>' . $counts['application'] . '</strong></div>
           <div class="stat"><span>Audit</span><strong>' . $counts['audit'] . '</strong></div>
           <div class="stat"><span>Stripe</span><strong>' . $counts['stripe'] . '</strong></div>
         </div>
@@ -4404,26 +4666,26 @@ function render_admin_logs_panel(PDO $pdo): string
           ' . admin_key_input() . '
           <input type="hidden" name="log_scope" value="' . h($scope) . '">
           <div class="admin-directory-form admin-log-filters">
-          <label><span>Niveau</span><select name="log_level">' . $levelOptions . '</select></label>
-          <label class="span-2"><span>Recherche</span><input type="search" name="log_q" value="' . h((string) $filters['log_q']) . '" placeholder="message, contexte, request_id, metadata"></label>
-          <label><span>Date debut</span><input type="date" name="log_date_from" value="' . h((string) $filters['log_date_from']) . '"></label>
-          <label><span>Date fin</span><input type="date" name="log_date_to" value="' . h((string) $filters['log_date_to']) . '"></label>
-          <button type="submit">Appliquer</button>
+          <label><span>' . h(t('Niveau', 'Level')) . '</span><select name="log_level">' . $levelOptions . '</select></label>
+          <label class="span-2"><span>' . h(t('Recherche', 'Search')) . '</span><input type="search" name="log_q" value="' . h((string) $filters['log_q']) . '" placeholder="message, contexte, request_id, metadata"></label>
+          <label><span>' . h(t('Date debut', 'Start date')) . '</span><input type="date" name="log_date_from" value="' . h((string) $filters['log_date_from']) . '"></label>
+          <label><span>' . h(t('Date fin', 'End date')) . '</span><input type="date" name="log_date_to" value="' . h((string) $filters['log_date_to']) . '"></label>
+          <button type="submit">' . h(t('Appliquer', 'Apply')) . '</button>
           </div>
           <details class="log-filter-details"' . ($advancedFiltersOpen ? ' open' : '') . '>
-            <summary>Filtres avances pour ' . h(strtolower(admin_log_scope_label($scope))) . '</summary>
+            <summary>' . h(t('Filtres avances pour', 'Advanced filters for')) . ' ' . h(strtolower(admin_log_scope_label($scope))) . '</summary>
             <div class="admin-directory-form admin-log-filters advanced">
-          <label><span>Source</span><select name="log_channel">' . $channelOptions . '</select></label>
-          <label><span>Evenement</span><input type="search" name="log_event" value="' . h((string) $filters['log_event']) . '" placeholder="Connexion, limite, ticket..."></label>
-          <label><span>Client ID</span><input type="number" min="1" name="log_user_id" value="' . h((string) $filters['log_user_id']) . '" placeholder="8"></label>
-          <label><span>Statut HTTP</span><input type="number" min="100" max="599" name="log_http_status" value="' . h((string) $filters['log_http_status']) . '" placeholder="403"></label>
-          <label><span>Trace</span><input type="search" name="log_request_id" value="' . h((string) $filters['log_request_id']) . '" placeholder="trace ou fragment"></label>
-          <label><span>Role audit</span><select name="log_actor_role">' . $actorRoleOptions . '</select></label>
-          <label><span>Action audit</span><input type="search" name="log_action" value="' . h((string) $filters['log_action']) . '" placeholder="profil, export, reglages..."></label>
-          <label><span>Cible audit</span><select name="log_target_type">' . $targetTypeOptions . '</select></label>
-          <label><span>Resultat audit</span><select name="log_outcome">' . $outcomeOptions . '</select></label>
-          <label><span>Statut Stripe</span><select name="log_stripe_status">' . $stripeStatusOptions . '</select></label>
-          <label><span>Type Stripe</span><input type="search" name="log_stripe_type" value="' . h((string) $filters['log_stripe_type']) . '" placeholder="invoice, checkout, subscription"></label>
+          <label><span>' . h(t('Source', 'Source')) . '</span><select name="log_channel">' . $channelOptions . '</select></label>
+          <label><span>' . h(t('Evenement', 'Event')) . '</span><input type="search" name="log_event" value="' . h((string) $filters['log_event']) . '" placeholder="' . h(t('Connexion, limite, ticket...', 'login, limit, ticket...')) . '"></label>
+          <label><span>' . h(t('Client ID', 'Client ID')) . '</span><input type="number" min="1" name="log_user_id" value="' . h((string) $filters['log_user_id']) . '" placeholder="8"></label>
+          <label><span>' . h(t('Statut HTTP', 'HTTP status')) . '</span><input type="number" min="100" max="599" name="log_http_status" value="' . h((string) $filters['log_http_status']) . '" placeholder="403"></label>
+          <label><span>' . h(t('Trace', 'Trace')) . '</span><input type="search" name="log_request_id" value="' . h((string) $filters['log_request_id']) . '" placeholder="' . h(t('trace ou fragment', 'trace or fragment')) . '"></label>
+          <label><span>' . h(t('Role audit', 'Audit role')) . '</span><select name="log_actor_role">' . $actorRoleOptions . '</select></label>
+          <label><span>' . h(t('Action audit', 'Audit action')) . '</span><input type="search" name="log_action" value="' . h((string) $filters['log_action']) . '" placeholder="' . h(t('profil, export, reglages...', 'profile, export, settings...')) . '"></label>
+          <label><span>' . h(t('Cible audit', 'Audit target')) . '</span><select name="log_target_type">' . $targetTypeOptions . '</select></label>
+          <label><span>' . h(t('Resultat audit', 'Audit outcome')) . '</span><select name="log_outcome">' . $outcomeOptions . '</select></label>
+          <label><span>' . h(t('Statut Stripe', 'Stripe status')) . '</span><select name="log_stripe_status">' . $stripeStatusOptions . '</select></label>
+          <label><span>' . h(t('Type Stripe', 'Stripe type')) . '</span><input type="search" name="log_stripe_type" value="' . h((string) $filters['log_stripe_type']) . '" placeholder="invoice, checkout, subscription"></label>
             </div>
           </details>
           ' . admin_log_filter_summary($filters) . '
@@ -4444,9 +4706,9 @@ function render_admin_page(): void
         http_response_code(403);
         page_response('Admin', '
           <section class="page-title">
-            <p class="eyebrow">Back-office</p>
-            <h1>Admin protege</h1>
-            <p>Configure `NICHOIR_ADMIN_KEY` cote serveur et ouvre `/admin?key=...` pour acceder au back-office.</p>
+            <p class="eyebrow">' . h(t('Back-office', 'Back office')) . '</p>
+            <h1>' . h(t('Admin protege', 'Protected admin')) . '</h1>
+            <p>' . h(t('Configure `NICHOIR_ADMIN_KEY` cote serveur et ouvre `/admin?key=...` pour acceder au back-office.', 'Configure `NICHOIR_ADMIN_KEY` server-side and open `/admin?key=...` to access the back office.')) . '</p>
           </section>
         ', '/admin', 403);
         return;
@@ -4502,31 +4764,31 @@ function render_admin_page(): void
         $exportRows .= '<tr><td>' . (int) $export['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $export['email']) . '</a></td><td>' . admin_table_stack(admin_export_type_label((string) $export['export_type']), (string) $export['export_type'], true) . '</td><td>' . (int) $export['credit_cost'] . '</td><td>' . admin_log_badge(admin_export_status_tone($status), admin_export_status_label($status)) . '</td><td>' . h((string) $export['created_at']) . '</td><td>' . h((string) ($export['consumed_at'] ?: '-')) . '</td></tr>';
     }
     if ($exportRows === '') {
-        $exportRows = '<tr><td colspan="7">Aucune autorisation.</td></tr>';
+        $exportRows = '<tr><td colspan="7">' . h(t('Aucune autorisation.', 'No authorization.')) . '</td></tr>';
     }
 
     page_response('Admin', '
       <section class="page-title">
-        <p class="eyebrow">Back-office</p>
+        <p class="eyebrow">' . h(t('Back-office', 'Back office')) . '</p>
         <h1>Admin</h1>
-        <p>Vue dev minimale. En local, l admin est ouvert; en production, definir `NICHOIR_ADMIN_KEY`.</p>
+        <p>' . h(t('Vue dev minimale. En local, l admin est ouvert; en production, definir `NICHOIR_ADMIN_KEY`.', 'Minimal dev view. Locally, admin is open; in production, define `NICHOIR_ADMIN_KEY`.')) . '</p>
       </section>
-      ' . ($notice !== '' ? '<p class="notice">' . h($notice) . '</p>' : '') . '
+      ' . ($notice !== '' ? '<p class="notice">' . h(admin_notice_label($notice)) . '</p>' : '') . '
       <section class="metrics">
-        <div><span>Clients</span><strong>' . $summary['users'] . '</strong></div>
-        <div><span>Credits totaux</span><strong>' . $summary['credits'] . '</strong></div>
-        <div><span>Exports demandes</span><strong>' . $summary['exports'] . '</strong></div>
-        <a href="#admin-support" data-tab-target="admin-support"><span>Tickets ouverts</span><strong>' . $summary['tickets'] . '</strong></a>
-        <div><span>Abonnements actifs</span><strong>' . $summary['subscriptions'] . '</strong></div>
-        <div><span>Paiements recus</span><strong>' . h(money_cents((int) $summary['payments'], 'cad')) . '</strong></div>
+        <div><span>' . h(t('Clients', 'Clients')) . '</span><strong>' . $summary['users'] . '</strong></div>
+        <div><span>' . h(t('Credits totaux', 'Total credits')) . '</span><strong>' . $summary['credits'] . '</strong></div>
+        <div><span>' . h(t('Exports demandes', 'Requested exports')) . '</span><strong>' . $summary['exports'] . '</strong></div>
+        <a href="#admin-support" data-tab-target="admin-support"><span>' . h(t('Tickets ouverts', 'Open tickets')) . '</span><strong>' . $summary['tickets'] . '</strong></a>
+        <div><span>' . h(t('Abonnements actifs', 'Active subscriptions')) . '</span><strong>' . $summary['subscriptions'] . '</strong></div>
+        <div><span>' . h(t('Paiements recus', 'Received payments')) . '</span><strong>' . h(money_cents((int) $summary['payments'], 'cad')) . '</strong></div>
       </section>
-      <nav class="tab-nav" data-tab-nav role="tablist" aria-label="Sections admin">
+      <nav class="tab-nav" data-tab-nav role="tablist" aria-label="' . h(t('Sections admin', 'Admin sections')) . '">
         <a role="tab" aria-selected="true" data-tab-target="admin-support" href="#admin-support">Support</a>
-        <a role="tab" aria-selected="false" data-tab-target="admin-clients" href="#admin-clients">Clients</a>
-        <a role="tab" aria-selected="false" data-tab-target="admin-billing" href="#admin-billing">Billing</a>
-        <a role="tab" aria-selected="false" data-tab-target="admin-exports" href="#admin-exports">Exports</a>
-        <a role="tab" aria-selected="false" data-tab-target="admin-logs" href="#admin-logs">Logs</a>
-        <a role="tab" aria-selected="false" data-tab-target="admin-settings" href="#admin-settings">Reglages</a>
+        <a role="tab" aria-selected="false" data-tab-target="admin-clients" href="#admin-clients">' . h(t('Clients', 'Clients')) . '</a>
+        <a role="tab" aria-selected="false" data-tab-target="admin-billing" href="#admin-billing">' . h(t('Facturation', 'Billing')) . '</a>
+        <a role="tab" aria-selected="false" data-tab-target="admin-exports" href="#admin-exports">' . h(t('Exports', 'Exports')) . '</a>
+        <a role="tab" aria-selected="false" data-tab-target="admin-logs" href="#admin-logs">' . h(t('Journaux', 'Logs')) . '</a>
+        <a role="tab" aria-selected="false" data-tab-target="admin-settings" href="#admin-settings">' . h(t('Reglages', 'Settings')) . '</a>
       </nav>
       <section class="tab-panel" id="admin-support" data-tab-panel>
         ' . render_admin_support_panel($pdo) . '
@@ -4543,19 +4805,19 @@ function render_admin_page(): void
         <section class="panel">
           <div class="section-heading">
             <div>
-              <h2>Autorisations recentes</h2>
-              <p>Historique court des autorisations d export, de leur consommation et des credits engages.</p>
+              <h2>' . h(t('Autorisations recentes', 'Recent authorizations')) . '</h2>
+              <p>' . h(t('Historique court des autorisations d export, de leur consommation et des credits engages.', 'Short history of export authorizations, their consumption, and credits committed.')) . '</p>
             </div>
             <div>' . admin_log_badge('neutral', (string) count($exports)) . '</div>
           </div>
           <div class="stats-grid billing-summary-grid">
-            <div class="stat"><span>Autorisees</span><strong>' . $authorizedExportCount . '</strong></div>
-            <div class="stat"><span>Consommees</span><strong>' . $consumedExportCount . '</strong></div>
-            <div class="stat"><span>Revoquees</span><strong>' . $revokedExportCount . '</strong></div>
-            <div class="stat"><span>Credits engages</span><strong>' . $exportCreditTotal . '</strong></div>
+            <div class="stat"><span>' . h(t('Autorisees', 'Authorized')) . '</span><strong>' . $authorizedExportCount . '</strong></div>
+            <div class="stat"><span>' . h(t('Consommees', 'Consumed')) . '</span><strong>' . $consumedExportCount . '</strong></div>
+            <div class="stat"><span>' . h(t('Revoquees', 'Revoked')) . '</span><strong>' . $revokedExportCount . '</strong></div>
+            <div class="stat"><span>' . h(t('Credits engages', 'Credits committed')) . '</span><strong>' . $exportCreditTotal . '</strong></div>
           </div>
-          ' . admin_table_controls_with_context('exports_recent_table', $exportsTableState, '#admin-exports', count($exports), 'autorisations', $exportsContextKeys) . '
-          <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'exports_recent_table', 'id', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context('Client', 'exports_recent_table', 'email', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context('Type', 'exports_recent_table', 'export_type', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context('Cout', 'exports_recent_table', 'credit_cost', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'exports_recent_table', 'export_status', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context('Cree', 'exports_recent_table', 'created_at', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context('Consomme', 'exports_recent_table', 'consumed_at', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div>
+          ' . admin_table_controls_with_context('exports_recent_table', $exportsTableState, '#admin-exports', count($exports), t('autorisations', 'authorizations'), $exportsContextKeys) . '
+          <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'exports_recent_table', 'id', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Client', 'Client'), 'exports_recent_table', 'email', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Type', 'Type'), 'exports_recent_table', 'export_type', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Cout', 'Cost'), 'exports_recent_table', 'credit_cost', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Etat', 'Status'), 'exports_recent_table', 'export_status', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Cree', 'Created'), 'exports_recent_table', 'created_at', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context(t('Consomme', 'Consumed'), 'exports_recent_table', 'consumed_at', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div>
         </section>
       </section>
       <section class="tab-panel" id="admin-logs" data-tab-panel hidden>

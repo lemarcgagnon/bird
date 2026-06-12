@@ -93,9 +93,42 @@ function valid_ticket_status(string $status): bool
     return in_array($status, ['open', 'closed'], true);
 }
 
+function backend_lang(): string
+{
+    if (function_exists('current_lang')) {
+        return current_lang();
+    }
+    $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? ''));
+    return str_starts_with($accept, 'en') ? 'en' : 'fr';
+}
+
+function bt(string $fr, string $en, array $vars = []): string
+{
+    $text = backend_lang() === 'en' ? $en : $fr;
+    foreach ($vars as $key => $value) {
+        $text = str_replace('{' . $key . '}', (string) $value, $text);
+    }
+    return $text;
+}
+
+function ticket_status_text(string $status): string
+{
+    return match ($status) {
+        'closed' => bt('ferme', 'closed'),
+        default => bt('ouvert', 'open'),
+    };
+}
+
 function account_activation_email_body(string $displayName, string $code): string
 {
-    $name = $displayName !== '' ? $displayName : 'Client Nichoir';
+    $name = $displayName !== '' ? $displayName : bt('Client Nichoir', 'Nichoir customer');
+    if (backend_lang() === 'en') {
+        return "Hello " . $name . ",\n\n"
+            . "Here is your Nichoir activation code: " . $code . "\n\n"
+            . "Enter this code in the account activation section to activate your account. "
+            . "The code expires in 24 hours.\n\n"
+            . "If you did not create this account, you can ignore this message.";
+    }
     return "Bonjour " . $name . ",\n\n"
         . "Voici ton code d'autorisation Nichoir: " . $code . "\n\n"
         . "Entre ce code dans la section Activation du compte pour activer ton compte. "
@@ -108,9 +141,58 @@ function send_account_activation_email(PDO $pdo, string $email, string $displayN
     smtp_send_email(
         $pdo,
         $email,
-        'Code d activation Nichoir',
+        bt('Code d activation Nichoir', 'Nichoir activation code'),
         account_activation_email_body($displayName, $code)
     );
+}
+
+function support_ticket_notification_subject(int $ticketId, string $subject): string
+{
+    return bt('Nouveau ticket #{id}: {subject}', 'New ticket #{id}: {subject}', [
+        'id' => $ticketId,
+        'subject' => $subject,
+    ]);
+}
+
+function support_ticket_notification_body(string $email, string $body): string
+{
+    return bt("Client: {email}\n\n{body}", "Client: {email}\n\n{body}", [
+        'email' => $email,
+        'body' => $body,
+    ]);
+}
+
+function support_ticket_reply_subject(int $ticketId): string
+{
+    return bt('Reponse client ticket #{id}', 'Client reply on ticket #{id}', ['id' => $ticketId]);
+}
+
+function support_ticket_reply_body(string $email, int $ticketId, string $subject, string $body): string
+{
+    return bt("Client: {email}\nTicket: #{id} - {subject}\n\n{body}", "Client: {email}\nTicket: #{id} - {subject}\n\n{body}", [
+        'email' => $email,
+        'id' => $ticketId,
+        'subject' => $subject,
+        'body' => $body,
+    ]);
+}
+
+function support_ticket_status_subject(int $ticketId, string $status): string
+{
+    return bt('Statut ticket #{id}: {status}', 'Ticket status #{id}: {status}', [
+        'id' => $ticketId,
+        'status' => ticket_status_text($status),
+    ]);
+}
+
+function support_ticket_status_body(string $email, int $ticketId, string $subject, string $status): string
+{
+    return bt("Client: {email}\nTicket: #{id} - {subject}\nNouveau statut: {status}", "Client: {email}\nTicket: #{id} - {subject}\nNew status: {status}", [
+        'email' => $email,
+        'id' => $ticketId,
+        'subject' => $subject,
+        'status' => ticket_status_text($status),
+    ]);
 }
 
 function auth_activation_response(string $email, int $status = 202): void
@@ -655,8 +737,8 @@ if ($method === 'POST' && $path === '/api/tickets') {
             $ticketId,
             (int) $user['id'],
             mail_settings($pdo)['support_email'],
-            'Nouveau ticket #' . $ticketId . ': ' . $subject,
-            "Client: " . (string) $user['email'] . "\n\n" . $body
+            support_ticket_notification_subject($ticketId, $subject),
+            support_ticket_notification_body((string) $user['email'], $body)
         );
         app_log($pdo, 'info', 'ticket', 'ticket_created', 'Ticket client cree', ['ticket_id' => $ticketId], (int) $user['id']);
         audit_log($pdo, (int) $user['id'], 'client', 'ticket_created', 'ticket', (string) $ticketId);
@@ -701,8 +783,8 @@ if ($method === 'POST' && preg_match('#^/api/tickets/(\d+)/messages$#', $path, $
             (int) $ticket['id'],
             (int) $user['id'],
             mail_settings($pdo)['support_email'],
-            'Reponse client ticket #' . (int) $ticket['id'],
-            "Client: " . (string) $user['email'] . "\nTicket: #" . (int) $ticket['id'] . ' - ' . (string) $ticket['subject'] . "\n\n" . $body
+            support_ticket_reply_subject((int) $ticket['id']),
+            support_ticket_reply_body((string) $user['email'], (int) $ticket['id'], (string) $ticket['subject'], $body)
         );
         app_log($pdo, 'info', 'ticket', 'ticket_replied', 'Reponse client ticket', ['ticket_id' => (int) $ticket['id']], (int) $user['id']);
         audit_log($pdo, (int) $user['id'], 'client', 'ticket_replied', 'ticket', (string) $ticket['id']);
@@ -742,8 +824,8 @@ if ($method === 'POST' && preg_match('#^/api/tickets/(\d+)/status$#', $path, $ma
             (int) $ticket['id'],
             (int) $user['id'],
             mail_settings($pdo)['support_email'],
-            'Statut ticket #' . (int) $ticket['id'] . ': ' . $status,
-            "Client: " . (string) $user['email'] . "\nTicket: #" . (int) $ticket['id'] . ' - ' . (string) $ticket['subject'] . "\nNouveau statut: " . $status
+            support_ticket_status_subject((int) $ticket['id'], $status),
+            support_ticket_status_body((string) $user['email'], (int) $ticket['id'], (string) $ticket['subject'], $status)
         );
         $eventCode = $status === 'closed' ? 'ticket_closed' : 'ticket_reopened';
         app_log($pdo, 'info', 'ticket', $eventCode, 'Statut ticket client modifie', ['ticket_id' => (int) $ticket['id'], 'status' => $status], (int) $user['id']);

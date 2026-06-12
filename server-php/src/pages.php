@@ -795,6 +795,33 @@ function admin_code_label(string $value): string
     return ucwords(str_replace('_', ' ', $normalized));
 }
 
+function admin_user_status_label(string $status): string
+{
+    $normalized = strtolower(trim($status));
+    return ADMIN_USER_STATUSES[$normalized] ?? admin_code_label($status);
+}
+
+function admin_user_status_tone(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'active' => 'success',
+        'pending', 'suspended' => 'warning',
+        'closed' => 'neutral',
+        default => 'neutral',
+    };
+}
+
+function admin_plan_label(string $plan): string
+{
+    return match (strtolower(trim($plan))) {
+        'none' => 'Aucun',
+        'credits' => 'Credits',
+        'atelier' => 'Atelier',
+        'pro' => 'Pro',
+        default => admin_code_label($plan),
+    };
+}
+
 function admin_subscription_status_label(string $status): string
 {
     return match (strtolower(trim($status))) {
@@ -806,6 +833,17 @@ function admin_subscription_status_label(string $status): string
         'unpaid' => 'Impaye',
         'none' => 'Aucun',
         default => admin_code_label($status),
+    };
+}
+
+function admin_subscription_status_tone(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'active', 'trialing' => 'success',
+        'past_due', 'incomplete' => 'warning',
+        'canceled', 'cancelled', 'unpaid' => 'danger',
+        'none' => 'neutral',
+        default => 'neutral',
     };
 }
 
@@ -822,11 +860,105 @@ function admin_payment_status_label(string $status): string
     };
 }
 
+function admin_payment_status_tone(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'paid', 'succeeded' => 'success',
+        'pending', 'processing', 'requires_action' => 'warning',
+        'failed', 'canceled', 'cancelled' => 'danger',
+        default => 'neutral',
+    };
+}
+
 function admin_provider_label(string $provider): string
 {
     return match (strtolower(trim($provider))) {
         'stripe' => 'Stripe',
         default => admin_code_label($provider),
+    };
+}
+
+function admin_smtp_encryption_label(string $mode): string
+{
+    return match (strtolower(trim($mode))) {
+        'none' => 'Sans chiffrement',
+        'tls' => 'TLS',
+        'ssl' => 'SSL',
+        default => admin_code_label($mode),
+    };
+}
+
+function admin_notification_status_label(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'sent' => 'Envoye',
+        'failed' => 'Echec',
+        'pending', 'queued' => 'En attente',
+        'skipped' => 'Ignore',
+        'smtp_disabled' => 'SMTP inactif',
+        default => admin_code_label($status),
+    };
+}
+
+function admin_notification_status_tone(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'sent' => 'success',
+        'pending', 'queued' => 'warning',
+        'failed' => 'danger',
+        'skipped', 'smtp_disabled' => 'neutral',
+        default => 'neutral',
+    };
+}
+
+function admin_ticket_status_label(string $status): string
+{
+    return TICKET_STATUSES[strtolower(trim($status))] ?? admin_code_label($status);
+}
+
+function admin_ticket_status_tone(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'open' => 'warning',
+        'closed' => 'neutral',
+        default => 'neutral',
+    };
+}
+
+function admin_ticket_priority_label(string $priority): string
+{
+    return TICKET_PRIORITIES[strtolower(trim($priority))] ?? admin_code_label($priority);
+}
+
+function admin_ticket_priority_tone(string $priority): string
+{
+    return match (strtolower(trim($priority))) {
+        'high' => 'warning',
+        'urgent' => 'danger',
+        'low' => 'neutral',
+        default => 'info',
+    };
+}
+
+function admin_audit_outcome_label(string $outcome): string
+{
+    return match (strtolower(trim($outcome))) {
+        'success' => 'Succes',
+        'failed' => 'Echec',
+        'blocked' => 'Bloque',
+        default => admin_code_label($outcome),
+    };
+}
+
+function admin_stripe_status_label(string $status): string
+{
+    return match (strtolower(trim($status))) {
+        'received' => 'Recu',
+        'processing' => 'En traitement',
+        'processed' => 'Traite',
+        'failed' => 'Echec',
+        'ignored' => 'Ignore',
+        default => admin_code_label($status),
     };
 }
 
@@ -857,7 +989,7 @@ function admin_billing_filter_summary(array $filters): string
         'billing_date_to' => ['Jusqu a', static fn (string $value): string => $value],
     ];
     if ($scope !== 'payments') {
-        $map['billing_plan'] = ['Plan', static fn (string $value): string => $value];
+        $map['billing_plan'] = ['Plan', 'admin_plan_label'];
         $map['billing_subscription_status'] = ['Etat abo', 'admin_subscription_status_label'];
     }
     if ($scope !== 'subscriptions') {
@@ -1216,7 +1348,7 @@ function admin_plan_options(string $current): string
     $html = '';
     foreach (ADMIN_PLANS as $option) {
         $selected = $current === $option ? ' selected' : '';
-        $html .= '<option value="' . h($option) . '"' . $selected . '>' . h($option) . '</option>';
+        $html .= '<option value="' . h($option) . '"' . $selected . '>' . h(admin_plan_label($option)) . '</option>';
     }
     return $html;
 }
@@ -1226,7 +1358,7 @@ function admin_subscription_status_options(string $current): string
     $html = '';
     foreach (ADMIN_SUBSCRIPTION_STATUSES as $option) {
         $selected = $current === $option ? ' selected' : '';
-        $html .= '<option value="' . h($option) . '"' . $selected . '>' . h($option) . '</option>';
+        $html .= '<option value="' . h($option) . '"' . $selected . '>' . h(admin_subscription_status_label($option)) . '</option>';
     }
     return $html;
 }
@@ -1940,6 +2072,21 @@ function render_user_directory(PDO $pdo): string
     $countStmt->execute($params);
     $total = (int) $countStmt->fetchColumn();
 
+    $metricsStmt = $pdo->prepare('SELECT status, COUNT(*) AS total FROM users ' . $whereSql . ' GROUP BY status');
+    $metricsStmt->execute($params);
+    $statusCounts = [
+        'active' => 0,
+        'pending' => 0,
+        'suspended' => 0,
+        'closed' => 0,
+    ];
+    foreach ($metricsStmt->fetchAll() as $metricRow) {
+        $statusKey = strtolower(trim((string) ($metricRow['status'] ?? '')));
+        if (array_key_exists($statusKey, $statusCounts)) {
+            $statusCounts[$statusKey] = (int) $metricRow['total'];
+        }
+    }
+
     $stmt = $pdo->prepare('SELECT id, email, display_name, credits, subscription_status, status, created_at FROM users ' . $whereSql . ' ORDER BY id DESC LIMIT ? OFFSET ?');
     $stmtParams = $params;
     $stmtParams[] = $perPage;
@@ -1949,9 +2096,11 @@ function render_user_directory(PDO $pdo): string
     $rows = '';
     foreach ($stmt->fetchAll() as $user) {
         $href = admin_client_modal_url((int) $user['id'], 'admin-clients', 'profile');
-        $rows .= '<tr><td><a href="' . h($href) . '">' . (int) $user['id'] . '</a></td><td><a href="' . h($href) . '">' . h((string) $user['email']) . '</a></td><td>' . h((string) $user['display_name']) . '</td><td>' . (int) $user['credits'] . '</td><td>' . h((string) $user['subscription_status']) . '</td><td>' . h((string) ($user['status'] ?? 'active')) . '</td><td>' . h((string) $user['created_at']) . '</td><td><a href="' . h($href) . '">Ouvrir</a></td></tr>';
+        $subscriptionState = (string) ($user['subscription_status'] ?? 'none');
+        $userState = (string) ($user['status'] ?? 'active');
+        $rows .= '<tr><td><a href="' . h($href) . '">' . (int) $user['id'] . '</a></td><td><a href="' . h($href) . '">' . h((string) $user['email']) . '</a></td><td>' . h((string) ($user['display_name'] ?: '-')) . '</td><td>' . (int) $user['credits'] . '</td><td>' . admin_log_badge(admin_subscription_status_tone($subscriptionState), admin_subscription_status_label($subscriptionState)) . '</td><td>' . admin_log_badge(admin_user_status_tone($userState), admin_user_status_label($userState)) . '</td><td>' . h((string) $user['created_at']) . '</td></tr>';
     }
-    $rows = $rows ?: '<tr><td colspan="8">Aucun utilisateur trouve.</td></tr>';
+    $rows = $rows ?: '<tr><td colspan="7">Aucun utilisateur trouve.</td></tr>';
 
     $start = $total === 0 ? 0 : $offset + 1;
     $end = min($offset + $perPage, $total);
@@ -1960,7 +2109,19 @@ function render_user_directory(PDO $pdo): string
 
     return '
       <section class="panel">
-        <h2>Repertoire utilisateurs</h2>
+        <div class="section-heading">
+          <div>
+            <h2>Repertoire utilisateurs</h2>
+            <p>Le clic sur l ID ou le courriel ouvre directement la fiche client en fenetre modale.</p>
+          </div>
+          <div>' . admin_log_badge('neutral', (string) $total) . '</div>
+        </div>
+        <div class="stats-grid billing-summary-grid">
+          <div class="stat"><span>Filtres</span><strong>' . $total . '</strong></div>
+          <div class="stat"><span>Actifs</span><strong>' . $statusCounts['active'] . '</strong></div>
+          <div class="stat"><span>Suspendus</span><strong>' . $statusCounts['suspended'] . '</strong></div>
+          <div class="stat"><span>Archives</span><strong>' . $statusCounts['closed'] . '</strong></div>
+        </div>
         <form class="admin-directory-form" method="get" action="/admin">
           ' . admin_key_input() . '
           <label><span>Recherche</span><input type="search" name="q" value="' . h((string) ($_GET['q'] ?? '')) . '" placeholder="id, courriel ou nom"></label>
@@ -1969,7 +2130,7 @@ function render_user_directory(PDO $pdo): string
           <button type="submit">Filtrer</button>
         </form>
         <p class="directory-count">' . $start . '-' . $end . ' sur ' . $total . ' utilisateur(s)</p>
-        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Courriel</th><th>Nom</th><th>Credits</th><th>Abonnement</th><th>Statut</th><th>Cree</th><th></th></tr></thead><tbody>' . $rows . '</tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Courriel</th><th>Nom</th><th>Credits</th><th>Abonnement</th><th>Statut</th><th>Cree</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
         <div class="pagination">' . $prev . $next . '</div>
       </section>
     ';
@@ -1989,7 +2150,8 @@ function render_open_tickets_panel(PDO $pdo): string
     foreach ($stmt->fetchAll() as $ticket) {
         $href = admin_redirect_url(['ticket_id' => (int) $ticket['id']]) . '#admin-support';
         $clientHref = admin_client_modal_url((int) $ticket['user_id'], 'admin-support', 'profile');
-        $rows .= '<tr><td><a href="' . h($href) . '">#' . (int) $ticket['id'] . '</a></td><td><a href="' . h($clientHref) . '">' . h((string) $ticket['email']) . '</a></td><td>' . h((string) $ticket['subject']) . '</td><td>' . h((string) $ticket['priority']) . '</td><td>' . h((string) $ticket['updated_at']) . '</td><td><a class="secondary compact-link" href="' . h($href) . '">Ouvrir et repondre</a></td></tr>';
+        $priority = (string) ($ticket['priority'] ?? 'normal');
+        $rows .= '<tr><td><a href="' . h($href) . '">#' . (int) $ticket['id'] . '</a></td><td><a href="' . h($clientHref) . '">' . h((string) $ticket['email']) . '</a></td><td>' . h((string) $ticket['subject']) . '</td><td>' . admin_log_badge(admin_ticket_priority_tone($priority), admin_ticket_priority_label($priority)) . '</td><td>' . h((string) $ticket['updated_at']) . '</td><td><a class="secondary compact-link" href="' . h($href) . '">Ouvrir et repondre</a></td></tr>';
     }
     $rows = $rows ?: '<tr><td colspan="6">Aucun ticket ouvert.</td></tr>';
 
@@ -2031,7 +2193,7 @@ function render_client_profile_panel(?array $user): string
           <div class="stat"><span>ID</span><strong>' . $userId . '</strong></div>
           <div class="stat"><span>Courriel</span><strong>' . h((string) $user['email']) . '</strong></div>
           <div class="stat"><span>Credits</span><strong>' . (int) $user['credits'] . '</strong></div>
-          <div class="stat"><span>Statut</span><strong>' . h($status) . '</strong></div>
+          <div class="stat"><span>Statut</span>' . admin_log_badge(admin_user_status_tone($status), admin_user_status_label($status)) . '</div>
           ' . ($deletedAt !== '' ? '<div class="stat"><span>Archive le</span><strong>' . h($deletedAt) . '</strong></div>' : '') . '
         </div>
         <div class="admin-actions">
@@ -2091,7 +2253,7 @@ function render_client_credits_panel(PDO $pdo, ?array $user): string
         <div class="client-summary compact">
           <div class="stat"><span>Client</span><strong>' . h((string) $user['email']) . '</strong></div>
           <div class="stat"><span>Solde</span><strong>' . (int) $user['credits'] . '</strong></div>
-          <div class="stat"><span>Statut</span><strong>' . h((string) ($user['status'] ?? 'active')) . '</strong></div>
+          <div class="stat"><span>Statut</span>' . admin_log_badge(admin_user_status_tone((string) ($user['status'] ?? 'active')), admin_user_status_label((string) ($user['status'] ?? 'active'))) . '</div>
         </div>
         <form class="admin-directory-form" method="post" action="/admin">
           ' . admin_key_input() . '
@@ -2132,23 +2294,35 @@ function render_client_billing_detail_panel(PDO $pdo, array $user): string
     $latestSubscription = $subscriptionItems[0] ?? [
         'plan' => 'none',
         'status' => (string) ($user['subscription_status'] ?? 'none'),
+        'provider' => '',
         'current_period_end' => '',
     ];
     $subscriptionRows = '';
     foreach ($subscriptionItems as $row) {
-        $subscriptionRows .= '<tr><td>' . h((string) $row['plan']) . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) $row['provider']) . '</td><td>' . h((string) ($row['current_period_end'] ?: '-')) . '</td><td>' . ((int) $row['cancel_at_period_end'] === 1 ? 'oui' : 'non') . '</td><td>' . h((string) $row['updated_at']) . '</td></tr>';
+        $subscriptionState = (string) ($row['status'] ?? '');
+        $subscriptionRows .= '<tr><td><strong>' . h(admin_plan_label((string) $row['plan'])) . '</strong></td><td>' . admin_log_badge(admin_subscription_status_tone($subscriptionState), admin_subscription_status_label($subscriptionState)) . '</td><td>' . h(admin_provider_label((string) $row['provider'])) . '</td><td>' . h((string) ($row['current_period_end'] ?: '-')) . '</td><td>' . ((int) $row['cancel_at_period_end'] === 1 ? 'oui' : 'non') . '</td><td>' . h((string) $row['updated_at']) . '</td></tr>';
     }
     $subscriptionRows = $subscriptionRows ?: '<tr><td colspan="6">Aucun abonnement synchronise.</td></tr>';
     $paymentRows = '';
     foreach ($payments->fetchAll() as $row) {
         $invoiceLinks = ((string) $row['invoice_url'] !== '' ? '<a href="' . h((string) $row['invoice_url']) . '" target="_blank" rel="noreferrer">Voir</a> ' : '')
             . ((string) $row['invoice_pdf'] !== '' ? '<a href="' . h((string) $row['invoice_pdf']) . '" target="_blank" rel="noreferrer">PDF</a>' : '');
-        $paymentRows .= '<tr><td>' . (int) $row['id'] . '</td><td>' . h(money_cents((int) $row['amount_cents'], (string) $row['currency'])) . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) $row['description']) . '</td><td>' . ($invoiceLinks ?: '-') . '</td><td>' . h((string) $row['created_at']) . '</td></tr>';
+        $paymentState = (string) ($row['status'] ?? '');
+        $paymentRows .= '<tr><td>' . (int) $row['id'] . '</td><td>' . h(money_cents((int) $row['amount_cents'], (string) $row['currency'])) . '</td><td>' . admin_log_badge(admin_payment_status_tone($paymentState), admin_payment_status_label($paymentState)) . '</td><td>' . h((string) $row['description']) . '</td><td>' . ($invoiceLinks ?: '-') . '</td><td>' . h((string) $row['created_at']) . '</td></tr>';
     }
     $paymentRows = $paymentRows ?: '<tr><td colspan="6">Aucun paiement synchronise.</td></tr>';
     $periodValue = h(substr((string) ($latestSubscription['current_period_end'] ?? ''), 0, 10));
+    $latestSubscriptionState = (string) ($latestSubscription['status'] ?? 'none');
+    $latestSubscriptionProvider = (string) ($latestSubscription['provider'] ?? '');
 
     return '
+      <section class="modal-section">
+        <div class="client-summary compact">
+          <div class="stat"><span>Plan courant</span><strong>' . h(admin_plan_label((string) $latestSubscription['plan'])) . '</strong></div>
+          <div class="stat"><span>Etat</span>' . admin_log_badge(admin_subscription_status_tone($latestSubscriptionState), admin_subscription_status_label($latestSubscriptionState)) . '</div>
+          <div class="stat"><span>Provider</span><strong>' . h($latestSubscriptionProvider !== '' ? admin_provider_label($latestSubscriptionProvider) : '-') . '</strong></div>
+        </div>
+      </section>
       <section class="modal-section">
         <h3>Abonnement</h3>
         <form class="admin-directory-form" method="post" action="/admin">
@@ -2172,7 +2346,8 @@ function render_client_exports_detail_panel(PDO $pdo, array $user): string
     $exports->execute([(int) $user['id']]);
     $rows = '';
     foreach ($exports->fetchAll() as $row) {
-        $rows .= '<tr><td>' . h((string) $row['export_type']) . '</td><td>' . (int) $row['credit_cost'] . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) $row['created_at']) . '</td><td>' . h((string) ($row['consumed_at'] ?: '-')) . '</td></tr>';
+        $status = (string) ($row['status'] ?? '');
+        $rows .= '<tr><td>' . h((string) $row['export_type']) . '</td><td>' . (int) $row['credit_cost'] . '</td><td>' . admin_log_badge(admin_export_status_tone($status), admin_export_status_label($status)) . '</td><td>' . h((string) $row['created_at']) . '</td><td>' . h((string) ($row['consumed_at'] ?: '-')) . '</td></tr>';
     }
     $rows = $rows ?: '<tr><td colspan="5">Aucun export.</td></tr>';
     return '<section class="modal-section"><h3>Exports client</h3><div class="table-wrap"><table><thead><tr><th>Type</th><th>Cout</th><th>Etat</th><th>Cree</th><th>Consomme</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
@@ -2239,14 +2414,14 @@ function render_ticket_modal(PDO $pdo, int $ticketId): string
           <a class="secondary compact-link" href="' . h($clientHref) . '">Ouvrir client</a>
         </div>
         <div class="client-summary compact">
-          <div class="stat"><span>Compte</span><strong>' . h((string) $ticket['user_status']) . '</strong></div>
+          <div class="stat"><span>Compte</span>' . admin_log_badge(admin_user_status_tone((string) $ticket['user_status']), admin_user_status_label((string) $ticket['user_status'])) . '</div>
           <div class="stat"><span>Credits</span><strong>' . (int) $ticket['credits'] . '</strong></div>
-          <div class="stat"><span>Ticket</span><strong>' . h((string) $ticket['status']) . '</strong></div>
+          <div class="stat"><span>Ticket</span>' . admin_log_badge(admin_ticket_status_tone((string) $ticket['status']), admin_ticket_status_label((string) $ticket['status'])) . '</div>
         </div>
       </section>
       <section class="modal-section">
         <h3>Fil de conversation</h3>
-        <p>Priorite: ' . h((string) ($ticket['priority'] ?? 'normal')) . ' · Assigne: ' . h((string) ($ticket['assigned_to'] ?: '-')) . '</p>
+        <p>Priorite: ' . h(admin_ticket_priority_label((string) ($ticket['priority'] ?? 'normal'))) . ' · Assigne: ' . h((string) ($ticket['assigned_to'] ?: '-')) . '</p>
         <div class="ticket-thread">' . $messageRows . '</div>
       </section>
       <section class="modal-section">
@@ -2325,12 +2500,13 @@ function render_email_settings_panel(PDO $pdo): string
     $encryptionOptions = '';
     foreach (SMTP_ENCRYPTIONS as $option) {
         $selected = $settings['encryption'] === $option ? ' selected' : '';
-        $encryptionOptions .= '<option value="' . h($option) . '"' . $selected . '>' . h($option) . '</option>';
+        $encryptionOptions .= '<option value="' . h($option) . '"' . $selected . '>' . h(admin_smtp_encryption_label($option)) . '</option>';
     }
     $recent = $pdo->query('SELECT id, ticket_id, recipient, subject, status, error, created_at, sent_at FROM ticket_notifications ORDER BY id DESC LIMIT 20')->fetchAll();
     $rows = '';
     foreach ($recent as $row) {
-        $rows .= '<tr><td>' . (int) $row['id'] . '</td><td>#' . (int) $row['ticket_id'] . '</td><td>' . h((string) $row['recipient']) . '</td><td>' . h((string) $row['subject']) . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) ($row['error'] ?: '-')) . '</td><td>' . h((string) ($row['sent_at'] ?: $row['created_at'])) . '</td></tr>';
+        $status = (string) ($row['status'] ?? '');
+        $rows .= '<tr><td>' . (int) $row['id'] . '</td><td>#' . (int) $row['ticket_id'] . '</td><td>' . h((string) $row['recipient']) . '</td><td>' . h((string) $row['subject']) . '</td><td>' . admin_log_badge(admin_notification_status_tone($status), admin_notification_status_label($status)) . '</td><td>' . h((string) ($row['error'] ?: '-')) . '</td><td>' . h((string) ($row['sent_at'] ?: $row['created_at'])) . '</td></tr>';
     }
     $rows = $rows ?: '<tr><td colspan="7">Aucun email ticket.</td></tr>';
     $passwordNote = getenv('NICHOIR_SMTP_PASSWORD') ? 'Mot de passe fourni par variable serveur NICHOIR_SMTP_PASSWORD.' : 'Laisser vide pour conserver le mot de passe actuel.';
@@ -2669,6 +2845,10 @@ function render_admin_billing_panel(PDO $pdo): string
     foreach ($providerOptions as $value) {
         $providerMap[(string) $value] = admin_provider_label((string) $value);
     }
+    $planMap = [];
+    foreach ($planOptions as $value) {
+        $planMap[(string) $value] = admin_plan_label((string) $value);
+    }
     $currencyMap = [];
     foreach ($currencyOptions as $value) {
         $currencyMap[(string) $value] = strtoupper((string) $value);
@@ -2680,19 +2860,14 @@ function render_admin_billing_panel(PDO $pdo): string
     foreach ($subscriptions as $subscription) {
         $clientHref = admin_client_modal_url((int) $subscription['user_id'], 'admin-billing', 'billing', $filters);
         $subscriptionState = (string) $subscription['subscription_state'];
-        $statusTone = match ($subscriptionState) {
-            'active', 'trialing' => 'success',
-            'past_due', 'incomplete' => 'warning',
-            'canceled', 'cancelled', 'unpaid' => 'danger',
-            default => 'neutral',
-        };
+        $statusTone = admin_subscription_status_tone($subscriptionState);
         if (in_array($subscriptionState, ['active', 'trialing'], true)) {
             $activeSubscriptionCount++;
         }
         if ((string) ($subscription['current_period_end'] ?? '') !== '') {
             $upcomingSubscriptionCount++;
         }
-        $subscriptionRows .= '<tr><td>' . (int) $subscription['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $subscription['email']) . '</a></td><td><strong>' . h((string) $subscription['plan']) . '</strong></td><td>' . admin_log_badge($statusTone, admin_subscription_status_label($subscriptionState)) . '</td><td><code>' . h(admin_provider_label((string) ($subscription['provider'] ?: ''))) . '</code></td><td>' . h((string) ($subscription['current_period_end'] ?: '-')) . '</td><td>' . h((string) ($subscription['updated_at'] ?: '-')) . '</td></tr>';
+        $subscriptionRows .= '<tr><td>' . (int) $subscription['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $subscription['email']) . '</a></td><td><strong>' . h(admin_plan_label((string) $subscription['plan'])) . '</strong></td><td>' . admin_log_badge($statusTone, admin_subscription_status_label($subscriptionState)) . '</td><td>' . h(admin_provider_label((string) ($subscription['provider'] ?: ''))) . '</td><td>' . h((string) ($subscription['current_period_end'] ?: '-')) . '</td><td>' . h((string) ($subscription['updated_at'] ?: '-')) . '</td></tr>';
     }
     if ($subscriptionRows === '') {
         $subscriptionRows = '<tr><td colspan="7">Aucun abonnement pour ces filtres.</td></tr>';
@@ -2710,12 +2885,7 @@ function render_admin_billing_panel(PDO $pdo): string
             $paymentInvoiceCount++;
         }
         $paymentState = (string) $payment['payment_state'];
-        $statusTone = match ($paymentState) {
-            'paid', 'succeeded' => 'success',
-            'pending', 'processing', 'requires_action' => 'warning',
-            'failed', 'canceled', 'cancelled' => 'danger',
-            default => 'neutral',
-        };
+        $statusTone = admin_payment_status_tone($paymentState);
         if (in_array($paymentState, ['paid', 'succeeded'], true)) {
             $paidPaymentCount++;
         }
@@ -2792,7 +2962,7 @@ function render_admin_billing_panel(PDO $pdo): string
           <details class="log-filter-details"' . ($advancedFiltersOpen ? ' open' : '') . '>
             <summary>Filtres avances billing</summary>
             <div class="admin-directory-form admin-billing-filters advanced">
-              ' . ($scope !== 'payments' ? '<label><span>Plan</span><select name="billing_plan">' . admin_select_options($planOptions, $plan, 'Tous') . '</select></label>' : '') . '
+              ' . ($scope !== 'payments' ? '<label><span>Plan</span><select name="billing_plan">' . admin_select_options($planMap, $plan, 'Tous') . '</select></label>' : '') . '
               <label><span>Provider</span><select name="billing_provider">' . admin_select_options($providerMap, $provider, 'Tous') . '</select></label>
               ' . ($scope !== 'subscriptions' ? '<label><span>Devise</span><select name="billing_currency">' . admin_select_options($currencyMap, $currency, 'Toutes') . '</select></label>' : '') . '
               ' . ($scope !== 'subscriptions' ? '<label><span>Facture</span><select name="billing_invoice">' . $invoiceHtml . '</select></label>' : '') . '
@@ -3395,7 +3565,7 @@ function render_audit_log_rows(array $logs): string
             'failed' => 'danger',
             default => 'neutral',
         };
-        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['actor_role']) . '</td><td>' . h((string) ($log['actor_user_id'] ?? '')) . '</td><td><strong>' . h((string) $log['action']) . '</strong></td><td>' . h((string) ($log['target_type'] ?? '')) . '</td><td>' . h((string) ($log['target_id'] ?? '')) . '</td><td>' . admin_log_badge($tone, $outcome) . '</td><td>' . h(admin_log_text((string) ($log['reason'] ?? ''), 120)) . '</td><td><code>' . h(admin_log_text((string) ($log['request_id'] ?? ''), 48)) . '</code></td><td><code>' . h(admin_log_text((string) ($log['metadata_json'] ?? ''), 180)) . '</code></td></tr>';
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['actor_role']) . '</td><td>' . h((string) ($log['actor_user_id'] ?? '')) . '</td><td><strong>' . h((string) $log['action']) . '</strong></td><td>' . h((string) ($log['target_type'] ?? '')) . '</td><td>' . h((string) ($log['target_id'] ?? '')) . '</td><td>' . admin_log_badge($tone, admin_audit_outcome_label($outcome)) . '</td><td>' . h(admin_log_text((string) ($log['reason'] ?? ''), 120)) . '</td><td><code>' . h(admin_log_text((string) ($log['request_id'] ?? ''), 48)) . '</code></td><td><code>' . h(admin_log_text((string) ($log['metadata_json'] ?? ''), 180)) . '</code></td></tr>';
     }
     return $rows ?: '<tr><td colspan="10">Aucun audit.</td></tr>';
 }
@@ -3412,7 +3582,7 @@ function render_stripe_log_rows(array $logs): string
             'ignored' => 'neutral',
             default => 'warning',
         };
-        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td><code>' . h((string) $log['stripe_event_id']) . '</code></td><td><strong>' . h((string) $log['event_type']) . '</strong></td><td>' . h((string) ($log['stripe_object_id'] ?? '')) . '</td><td>' . admin_log_badge($tone, $status) . '</td><td>' . (int) $log['attempt_count'] . '</td><td><code>' . h(admin_log_text((string) ($log['payload_hash'] ?? ''), 48)) . '</code></td><td>' . h(admin_log_text((string) ($log['error_message'] ?? ''), 180)) . '</td></tr>';
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td><code>' . h((string) $log['stripe_event_id']) . '</code></td><td><strong>' . h((string) $log['event_type']) . '</strong></td><td>' . h((string) ($log['stripe_object_id'] ?? '')) . '</td><td>' . admin_log_badge($tone, admin_stripe_status_label($status)) . '</td><td>' . (int) $log['attempt_count'] . '</td><td><code>' . h(admin_log_text((string) ($log['payload_hash'] ?? ''), 48)) . '</code></td><td>' . h(admin_log_text((string) ($log['error_message'] ?? ''), 180)) . '</td></tr>';
     }
     return $rows ?: '<tr><td colspan="8">Aucun evenement Stripe.</td></tr>';
 }
@@ -3441,12 +3611,12 @@ function render_admin_logs_panel(PDO $pdo): string
 
     $outcomeOptions = '<option value="">Tous</option>';
     foreach (['success', 'failed', 'blocked'] as $option) {
-        $outcomeOptions .= '<option value="' . h($option) . '"' . ($filters['log_outcome'] === $option ? ' selected' : '') . '>' . h($option) . '</option>';
+        $outcomeOptions .= '<option value="' . h($option) . '"' . ($filters['log_outcome'] === $option ? ' selected' : '') . '>' . h(admin_audit_outcome_label($option)) . '</option>';
     }
 
     $stripeStatusOptions = '<option value="">Tous</option>';
     foreach (['received', 'processing', 'processed', 'failed', 'ignored'] as $option) {
-        $stripeStatusOptions .= '<option value="' . h($option) . '"' . ($filters['log_stripe_status'] === $option ? ' selected' : '') . '>' . h($option) . '</option>';
+        $stripeStatusOptions .= '<option value="' . h($option) . '"' . ($filters['log_stripe_status'] === $option ? ' selected' : '') . '>' . h(admin_stripe_status_label($option)) . '</option>';
     }
 
     $limitOptions = '';

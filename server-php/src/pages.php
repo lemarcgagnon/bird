@@ -100,6 +100,13 @@ function page_response(string $title, string $body, string $active = '', int $st
         window.addEventListener("hashchange", activateTabs);
         activateTabs();
 
+        document.addEventListener("change", (event) => {
+          const select = event.target.closest("[data-auto-submit-select]");
+          if (select && select.form) {
+            select.form.requestSubmit();
+          }
+        });
+
         document.querySelectorAll("[data-modal-tabs]").forEach((nav) => {
           const buttons = Array.from(nav.querySelectorAll("[data-modal-tab]"));
           const modal = nav.closest("[data-admin-modal]");
@@ -703,6 +710,179 @@ function admin_client_modal_url(int $userId, string $returnTab = 'admin-clients'
         'return_tab' => $returnTab,
         'client_panel' => admin_client_panel_value($panel),
     ])) . '#' . $returnTab;
+}
+
+function admin_current_query_params(): array
+{
+    $params = $_GET;
+    unset($params['']);
+    return $params;
+}
+
+function admin_query_context(array $keys): array
+{
+    $all = admin_current_query_params();
+    $params = [];
+    foreach ($keys as $key) {
+        $name = (string) $key;
+        if (!array_key_exists($name, $all) || is_array($all[$name])) {
+            continue;
+        }
+        $params[$name] = (string) $all[$name];
+    }
+    return $params;
+}
+
+function admin_current_url(array $overrides = [], string $hash = '', array $remove = []): string
+{
+    $params = admin_current_query_params();
+    foreach ($remove as $key) {
+        unset($params[$key]);
+    }
+    foreach ($overrides as $key => $value) {
+        if ($value === null || $value === '') {
+            unset($params[$key]);
+        } else {
+            $params[$key] = (string) $value;
+        }
+    }
+    return admin_redirect_url($params) . $hash;
+}
+
+function admin_hidden_query_inputs(array $exclude = [], array $include = []): string
+{
+    $html = '';
+    $params = $include === [] ? admin_current_query_params() : admin_query_context($include);
+    foreach ($params as $key => $value) {
+        if (in_array((string) $key, $exclude, true)) {
+            continue;
+        }
+        if (is_array($value)) {
+            continue;
+        }
+        $html .= '<input type="hidden" name="' . h((string) $key) . '" value="' . h((string) $value) . '">';
+    }
+    return $html;
+}
+
+function admin_table_rows_value(string $value, int $default = 10): int
+{
+    $value = strtolower(trim($value));
+    if ($value === 'all') {
+        return 0;
+    }
+    $allowed = [10, 25, 50, 100];
+    $intValue = (int) $value;
+    return in_array($intValue, $allowed, true) ? $intValue : $default;
+}
+
+function admin_table_state(string $tableKey, array $sortableFields, string $defaultSort, string $defaultDir = 'desc', int $defaultRows = 10): array
+{
+    $allowedFields = array_keys($sortableFields);
+    $sort = trim((string) ($_GET[$tableKey . '_sort'] ?? $defaultSort));
+    if (!in_array($sort, $allowedFields, true)) {
+        $sort = $defaultSort;
+    }
+    $dir = strtolower(trim((string) ($_GET[$tableKey . '_dir'] ?? $defaultDir)));
+    if (!in_array($dir, ['asc', 'desc'], true)) {
+        $dir = $defaultDir;
+    }
+    $rows = admin_table_rows_value((string) ($_GET[$tableKey . '_rows'] ?? (string) $defaultRows), $defaultRows);
+    return [
+        'key' => $tableKey,
+        'sort' => $sort,
+        'dir' => $dir,
+        'rows' => $rows,
+        'rows_param' => $rows === 0 ? 'all' : (string) $rows,
+    ];
+}
+
+function admin_table_sort_indicator(array $state, string $field): string
+{
+    if ($state['sort'] !== $field) {
+        return '<span class="sort-indicator">↕</span>';
+    }
+    return '<span class="sort-indicator active">' . ($state['dir'] === 'asc' ? '↑' : '↓') . '</span>';
+}
+
+function admin_table_header_link(string $label, string $tableKey, string $field, array $state, string $hash): string
+{
+    return admin_table_header_link_with_context($label, $tableKey, $field, $state, $hash, []);
+}
+
+function admin_table_header_link_with_context(string $label, string $tableKey, string $field, array $state, string $hash, array $contextKeys): string
+{
+    $nextDir = ($state['sort'] === $field && $state['dir'] === 'asc') ? 'desc' : 'asc';
+    $href = admin_redirect_url(array_merge(admin_query_context($contextKeys), [
+        $tableKey . '_sort' => $field,
+        $tableKey . '_dir' => $nextDir,
+    ])) . $hash;
+    $class = $state['sort'] === $field ? ' class="sort-link active"' : ' class="sort-link"';
+    return '<a' . $class . ' href="' . h($href) . '">' . h($label) . admin_table_sort_indicator($state, $field) . '</a>';
+}
+
+function admin_table_controls(string $tableKey, array $state, string $hash, int $totalRows, string $label = 'Lignes'): string
+{
+    return admin_table_controls_with_context($tableKey, $state, $hash, $totalRows, $label, []);
+}
+
+function admin_table_controls_with_context(string $tableKey, array $state, string $hash, int $totalRows, string $label = 'Lignes', array $contextKeys = []): string
+{
+    $options = '';
+    foreach ([10, 25, 50, 100] as $option) {
+        $options .= '<option value="' . $option . '"' . ($state['rows'] === $option ? ' selected' : '') . '>' . $option . '</option>';
+    }
+    $options .= '<option value="all"' . ($state['rows'] === 0 ? ' selected' : '') . '>Toutes</option>';
+    return '
+      <div class="table-toolbar">
+        <div class="table-count">' . $totalRows . ' ' . h($label) . '</div>
+        <form class="table-rows-form" method="get" action="/admin' . h($hash) . '">
+          ' . admin_hidden_query_inputs([$tableKey . '_rows'], $contextKeys) . '
+          <label><span>Afficher</span><select name="' . h($tableKey . '_rows') . '" data-auto-submit-select>' . $options . '</select></label>
+        </form>
+      </div>
+    ';
+}
+
+function admin_sort_value_for_row(array $row, string $field, mixed $config): mixed
+{
+    if (is_array($config) && isset($config['value']) && is_callable($config['value'])) {
+        return $config['value']($row);
+    }
+    return $row[$field] ?? null;
+}
+
+function admin_normalize_sort_value(mixed $value, string $type): mixed
+{
+    return match ($type) {
+        'int' => (int) $value,
+        'float' => (float) $value,
+        'bool' => $value ? 1 : 0,
+        'date' => (string) ($value ?? ''),
+        default => strtolower(trim((string) ($value ?? ''))),
+    };
+}
+
+function admin_apply_table_state(array $rows, array $state, array $sortableFields): array
+{
+    $field = (string) $state['sort'];
+    $config = $sortableFields[$field] ?? 'string';
+    $type = is_array($config) ? (string) ($config['type'] ?? 'string') : (string) $config;
+    usort($rows, static function (array $left, array $right) use ($field, $config, $type, $state): int {
+        $leftValue = admin_normalize_sort_value(admin_sort_value_for_row($left, $field, $config), $type);
+        $rightValue = admin_normalize_sort_value(admin_sort_value_for_row($right, $field, $config), $type);
+        $result = $leftValue <=> $rightValue;
+        if ($result === 0) {
+            $leftId = (int) ($left['id'] ?? 0);
+            $rightId = (int) ($right['id'] ?? 0);
+            $result = $leftId <=> $rightId;
+        }
+        return $state['dir'] === 'asc' ? $result : -$result;
+    });
+    if ((int) $state['rows'] > 0) {
+        return array_slice($rows, 0, (int) $state['rows']);
+    }
+    return $rows;
 }
 
 function admin_export_scope_value(string $value): string
@@ -2204,14 +2384,21 @@ function admin_directory_link(array $overrides): string
 
 function render_user_directory(PDO $pdo): string
 {
+    $contextKeys = ['key', 'q', 'status', 'subscription_status'];
     $query = strtolower(trim((string) ($_GET['q'] ?? '')));
     $status = trim((string) ($_GET['status'] ?? ''));
     $subscriptionStatus = trim((string) ($_GET['subscription_status'] ?? ''));
-    $page = max(1, (int) ($_GET['page'] ?? 1));
-    $perPage = 25;
-    $offset = ($page - 1) * $perPage;
     $where = [];
     $params = [];
+    $tableState = admin_table_state('clients_table', [
+        'id' => 'int',
+        'email' => 'string',
+        'display_name' => 'string',
+        'credits' => 'int',
+        'subscription_status' => 'string',
+        'status' => 'string',
+        'created_at' => 'date',
+    ], 'id');
 
     if ($query !== '') {
         if (ctype_digit($query)) {
@@ -2254,25 +2441,27 @@ function render_user_directory(PDO $pdo): string
         }
     }
 
-    $stmt = $pdo->prepare('SELECT id, email, display_name, credits, subscription_status, status, created_at FROM users ' . $whereSql . ' ORDER BY id DESC LIMIT ? OFFSET ?');
-    $stmtParams = $params;
-    $stmtParams[] = $perPage;
-    $stmtParams[] = $offset;
-    $stmt->execute($stmtParams);
+    $stmt = $pdo->prepare('SELECT id, email, display_name, credits, subscription_status, status, created_at FROM users ' . $whereSql);
+    $stmt->execute($params);
 
+    $items = $stmt->fetchAll();
+    $items = admin_apply_table_state($items, $tableState, [
+        'id' => 'int',
+        'email' => 'string',
+        'display_name' => 'string',
+        'credits' => 'int',
+        'subscription_status' => 'string',
+        'status' => 'string',
+        'created_at' => 'date',
+    ]);
     $rows = '';
-    foreach ($stmt->fetchAll() as $user) {
+    foreach ($items as $user) {
         $href = admin_client_modal_url((int) $user['id'], 'admin-clients', 'profile');
         $subscriptionState = (string) ($user['subscription_status'] ?? 'none');
         $userState = (string) ($user['status'] ?? 'active');
         $rows .= '<tr><td><a href="' . h($href) . '">' . (int) $user['id'] . '</a></td><td><a href="' . h($href) . '">' . h((string) $user['email']) . '</a></td><td>' . h((string) ($user['display_name'] ?: '-')) . '</td><td>' . (int) $user['credits'] . '</td><td>' . admin_log_badge(admin_subscription_status_tone($subscriptionState), admin_subscription_status_label($subscriptionState)) . '</td><td>' . admin_log_badge(admin_user_status_tone($userState), admin_user_status_label($userState)) . '</td><td>' . h((string) $user['created_at']) . '</td></tr>';
     }
     $rows = $rows ?: '<tr><td colspan="7">Aucun utilisateur trouve.</td></tr>';
-
-    $start = $total === 0 ? 0 : $offset + 1;
-    $end = min($offset + $perPage, $total);
-    $prev = $page > 1 ? '<a class="secondary" href="' . h(admin_directory_link(['page' => $page - 1])) . '">Precedent</a>' : '';
-    $next = $end < $total ? '<a class="secondary" href="' . h(admin_directory_link(['page' => $page + 1])) . '">Suivant</a>' : '';
 
     return '
       <section class="panel">
@@ -2296,25 +2485,38 @@ function render_user_directory(PDO $pdo): string
           <label><span>Abonnement</span><select name="subscription_status"><option value="">Tous</option>' . admin_subscription_status_options($subscriptionStatus) . '</select></label>
           <button type="submit">Filtrer</button>
         </form>
-        <p class="directory-count">' . $start . '-' . $end . ' sur ' . $total . ' utilisateur(s)</p>
-        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Courriel</th><th>Nom</th><th>Credits</th><th>Abonnement</th><th>Statut</th><th>Cree</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
-        <div class="pagination">' . $prev . $next . '</div>
+        ' . admin_table_controls_with_context('clients_table', $tableState, '#admin-clients', $total, 'clients', $contextKeys) . '
+        <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'clients_table', 'id', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Courriel', 'clients_table', 'email', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Nom', 'clients_table', 'display_name', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Credits', 'clients_table', 'credits', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Abonnement', 'clients_table', 'subscription_status', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Statut', 'clients_table', 'status', $tableState, '#admin-clients', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Cree', 'clients_table', 'created_at', $tableState, '#admin-clients', $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
       </section>
     ';
 }
 
 function render_open_tickets_panel(PDO $pdo): string
 {
+    $contextKeys = ['key'];
+    $tableState = admin_table_state('support_table', [
+        'id' => 'int',
+        'email' => 'string',
+        'subject' => 'string',
+        'priority' => 'string',
+        'updated_at' => 'date',
+    ], 'updated_at');
     $stmt = $pdo->query(
         'SELECT tickets.id, tickets.user_id, tickets.subject, tickets.priority, tickets.updated_at, users.email
          FROM tickets
          JOIN users ON users.id = tickets.user_id
-         WHERE tickets.status = "open"
-         ORDER BY tickets.updated_at DESC, tickets.id DESC
-         LIMIT 12'
+         WHERE tickets.status = "open"'
     );
+    $allTickets = $stmt->fetchAll();
+    $tickets = admin_apply_table_state($allTickets, $tableState, [
+        'id' => 'int',
+        'email' => 'string',
+        'subject' => 'string',
+        'priority' => 'string',
+        'updated_at' => 'date',
+    ]);
     $rows = '';
-    foreach ($stmt->fetchAll() as $ticket) {
+    foreach ($tickets as $ticket) {
         $href = admin_redirect_url(['ticket_id' => (int) $ticket['id']]) . '#admin-support';
         $clientHref = admin_client_modal_url((int) $ticket['user_id'], 'admin-support', 'profile');
         $priority = (string) ($ticket['priority'] ?? 'normal');
@@ -2331,7 +2533,8 @@ function render_open_tickets_panel(PDO $pdo): string
           </div>
           <span class="section-hint">Clique sur l identifiant du ticket pour ouvrir le fil complet et repondre au client.</span>
         </div>
-        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Sujet</th><th>Priorite</th><th>MAJ</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
+        ' . admin_table_controls_with_context('support_table', $tableState, '#admin-support', count($allTickets), 'tickets', $contextKeys) . '
+        <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'support_table', 'id', $tableState, '#admin-support', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Client', 'support_table', 'email', $tableState, '#admin-support', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Sujet', 'support_table', 'subject', $tableState, '#admin-support', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Priorite', 'support_table', 'priority', $tableState, '#admin-support', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('MAJ', 'support_table', 'updated_at', $tableState, '#admin-support', $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
       </section>
     ';
 }
@@ -2406,10 +2609,25 @@ function render_client_credits_panel(PDO $pdo, ?array $user): string
         return '<section class="panel"><h2>Credits client</h2><p>Selectionne un client dans l onglet Clients.</p></section>';
     }
     $userId = (int) $user['id'];
-    $ledger = $pdo->prepare('SELECT delta, reason, reference, created_at FROM credit_ledger WHERE user_id = ? ORDER BY id DESC LIMIT 50');
+    $modalHash = '#' . admin_tab_value((string) ($_GET['return_tab'] ?? 'admin-clients'));
+    $contextKeys = ['key', 'user_id', 'return_tab', 'client_panel'];
+    $tableState = admin_table_state('client_credits_table', [
+        'delta' => 'int',
+        'reason' => 'string',
+        'reference' => 'string',
+        'created_at' => 'date',
+    ], 'created_at');
+    $ledger = $pdo->prepare('SELECT delta, reason, reference, created_at FROM credit_ledger WHERE user_id = ? ORDER BY created_at DESC');
     $ledger->execute([$userId]);
+    $ledgerAll = $ledger->fetchAll();
+    $ledgerItems = admin_apply_table_state($ledgerAll, $tableState, [
+        'delta' => 'int',
+        'reason' => 'string',
+        'reference' => 'string',
+        'created_at' => 'date',
+    ]);
     $rows = '';
-    foreach ($ledger->fetchAll() as $row) {
+    foreach ($ledgerItems as $row) {
         $rows .= '<tr><td>' . (int) $row['delta'] . '</td><td>' . h((string) $row['reason']) . '</td><td>' . h((string) $row['reference']) . '</td><td>' . h((string) $row['created_at']) . '</td></tr>';
     }
     $rows = $rows ?: '<tr><td colspan="4">Aucune entree.</td></tr>';
@@ -2431,7 +2649,7 @@ function render_client_credits_panel(PDO $pdo, ?array $user): string
           <button type="submit">Appliquer</button>
         </form>
       </section>
-      <section class="panel"><h2>Historique credits</h2><div class="table-wrap"><table><thead><tr><th>Delta</th><th>Raison</th><th>Reference</th><th>Date</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>
+      <section class="panel"><h2>Historique credits</h2>' . admin_table_controls_with_context('client_credits_table', $tableState, $modalHash, count($ledgerAll), 'lignes', $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Delta', 'client_credits_table', 'delta', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Raison', 'client_credits_table', 'reason', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Reference', 'client_credits_table', 'reference', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Date', 'client_credits_table', 'created_at', $tableState, $modalHash, $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>
     ';
 }
 
@@ -2453,12 +2671,38 @@ function render_admin_modal_shell(string $title, string $closeUrl, string $body)
 function render_client_billing_detail_panel(PDO $pdo, array $user): string
 {
     $userId = (int) $user['id'];
-    $subscriptions = $pdo->prepare('SELECT plan, status, provider, current_period_end, cancel_at_period_end, updated_at FROM subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT 10');
+    $modalHash = '#' . admin_tab_value((string) ($_GET['return_tab'] ?? 'admin-clients'));
+    $contextKeys = ['key', 'user_id', 'return_tab', 'client_panel'];
+    $subscriptionState = admin_table_state('client_subscriptions_table', [
+        'plan' => 'string',
+        'status' => 'string',
+        'provider' => 'string',
+        'current_period_end' => 'date',
+        'cancel_at_period_end' => 'bool',
+        'updated_at' => 'date',
+    ], 'updated_at');
+    $paymentState = admin_table_state('client_payments_table', [
+        'id' => 'int',
+        'amount_cents' => 'int',
+        'status' => 'string',
+        'description' => 'string',
+        'invoice' => ['type' => 'string', 'value' => static fn (array $row): string => ((string) ($row['invoice_url'] ?? '') !== '' || (string) ($row['invoice_pdf'] ?? '') !== '') ? '1' : '0'],
+        'created_at' => 'date',
+    ], 'created_at');
+    $subscriptions = $pdo->prepare('SELECT plan, status, provider, current_period_end, cancel_at_period_end, updated_at FROM subscriptions WHERE user_id = ? ORDER BY id DESC');
     $subscriptions->execute([$userId]);
-    $payments = $pdo->prepare('SELECT id, amount_cents, currency, status, description, invoice_url, invoice_pdf, created_at FROM payments WHERE user_id = ? ORDER BY id DESC LIMIT 20');
+    $payments = $pdo->prepare('SELECT id, amount_cents, currency, status, description, invoice_url, invoice_pdf, created_at FROM payments WHERE user_id = ? ORDER BY id DESC');
     $payments->execute([$userId]);
-    $subscriptionItems = $subscriptions->fetchAll();
-    $latestSubscription = $subscriptionItems[0] ?? [
+    $subscriptionItemsAll = $subscriptions->fetchAll();
+    $subscriptionItems = admin_apply_table_state($subscriptionItemsAll, $subscriptionState, [
+        'plan' => 'string',
+        'status' => 'string',
+        'provider' => 'string',
+        'current_period_end' => 'date',
+        'cancel_at_period_end' => 'bool',
+        'updated_at' => 'date',
+    ]);
+    $latestSubscription = $subscriptionItemsAll[0] ?? [
         'plan' => 'none',
         'status' => (string) ($user['subscription_status'] ?? 'none'),
         'provider' => '',
@@ -2466,16 +2710,25 @@ function render_client_billing_detail_panel(PDO $pdo, array $user): string
     ];
     $subscriptionRows = '';
     foreach ($subscriptionItems as $row) {
-        $subscriptionState = (string) ($row['status'] ?? '');
-        $subscriptionRows .= '<tr><td><strong>' . h(admin_plan_label((string) $row['plan'])) . '</strong></td><td>' . admin_log_badge(admin_subscription_status_tone($subscriptionState), admin_subscription_status_label($subscriptionState)) . '</td><td>' . h(admin_provider_label((string) $row['provider'])) . '</td><td>' . h((string) ($row['current_period_end'] ?: '-')) . '</td><td>' . ((int) $row['cancel_at_period_end'] === 1 ? 'oui' : 'non') . '</td><td>' . h((string) $row['updated_at']) . '</td></tr>';
+        $subscriptionStatus = (string) ($row['status'] ?? '');
+        $subscriptionRows .= '<tr><td><strong>' . h(admin_plan_label((string) $row['plan'])) . '</strong></td><td>' . admin_log_badge(admin_subscription_status_tone($subscriptionStatus), admin_subscription_status_label($subscriptionStatus)) . '</td><td>' . h(admin_provider_label((string) $row['provider'])) . '</td><td>' . h((string) ($row['current_period_end'] ?: '-')) . '</td><td>' . ((int) $row['cancel_at_period_end'] === 1 ? 'oui' : 'non') . '</td><td>' . h((string) $row['updated_at']) . '</td></tr>';
     }
     $subscriptionRows = $subscriptionRows ?: '<tr><td colspan="6">Aucun abonnement synchronise.</td></tr>';
+    $paymentItemsAll = $payments->fetchAll();
+    $paymentItems = admin_apply_table_state($paymentItemsAll, $paymentState, [
+        'id' => 'int',
+        'amount_cents' => 'int',
+        'status' => 'string',
+        'description' => 'string',
+        'invoice' => ['type' => 'string', 'value' => static fn (array $row): string => ((string) ($row['invoice_url'] ?? '') !== '' || (string) ($row['invoice_pdf'] ?? '') !== '') ? '1' : '0'],
+        'created_at' => 'date',
+    ]);
     $paymentRows = '';
-    foreach ($payments->fetchAll() as $row) {
+    foreach ($paymentItems as $row) {
         $invoiceLinks = ((string) $row['invoice_url'] !== '' ? '<a href="' . h((string) $row['invoice_url']) . '" target="_blank" rel="noreferrer">Voir</a> ' : '')
             . ((string) $row['invoice_pdf'] !== '' ? '<a href="' . h((string) $row['invoice_pdf']) . '" target="_blank" rel="noreferrer">PDF</a>' : '');
-        $paymentState = (string) ($row['status'] ?? '');
-        $paymentRows .= '<tr><td>' . (int) $row['id'] . '</td><td>' . h(money_cents((int) $row['amount_cents'], (string) $row['currency'])) . '</td><td>' . admin_log_badge(admin_payment_status_tone($paymentState), admin_payment_status_label($paymentState)) . '</td><td>' . h((string) $row['description']) . '</td><td>' . ($invoiceLinks ?: '-') . '</td><td>' . h((string) $row['created_at']) . '</td></tr>';
+        $paymentStatus = (string) ($row['status'] ?? '');
+        $paymentRows .= '<tr><td>' . (int) $row['id'] . '</td><td>' . h(money_cents((int) $row['amount_cents'], (string) $row['currency'])) . '</td><td>' . admin_log_badge(admin_payment_status_tone($paymentStatus), admin_payment_status_label($paymentStatus)) . '</td><td>' . h((string) $row['description']) . '</td><td>' . ($invoiceLinks ?: '-') . '</td><td>' . h((string) $row['created_at']) . '</td></tr>';
     }
     $paymentRows = $paymentRows ?: '<tr><td colspan="6">Aucun paiement synchronise.</td></tr>';
     $periodValue = h(substr((string) ($latestSubscription['current_period_end'] ?? ''), 0, 10));
@@ -2502,22 +2755,39 @@ function render_client_billing_detail_panel(PDO $pdo, array $user): string
           <button type="submit">Mettre a jour abonnement</button>
         </form>
       </section>
-      <section class="modal-section"><h3>Historique abonnements</h3><div class="table-wrap"><table><thead><tr><th>Plan</th><th>Etat</th><th>Provider</th><th>Fin periode</th><th>Annule fin</th><th>MAJ</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div></section>
-      <section class="modal-section"><h3>Paiements</h3><div class="table-wrap"><table><thead><tr><th>ID</th><th>Montant</th><th>Etat</th><th>Description</th><th>Facture</th><th>Date</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div></section>
+      <section class="modal-section"><h3>Historique abonnements</h3>' . admin_table_controls_with_context('client_subscriptions_table', $subscriptionState, $modalHash, count($subscriptionItemsAll), 'lignes', $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Plan', 'client_subscriptions_table', 'plan', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'client_subscriptions_table', 'status', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Provider', 'client_subscriptions_table', 'provider', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Fin periode', 'client_subscriptions_table', 'current_period_end', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Annule fin', 'client_subscriptions_table', 'cancel_at_period_end', $subscriptionState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('MAJ', 'client_subscriptions_table', 'updated_at', $subscriptionState, $modalHash, $contextKeys) . '</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div></section>
+      <section class="modal-section"><h3>Paiements</h3>' . admin_table_controls_with_context('client_payments_table', $paymentState, $modalHash, count($paymentItemsAll), 'lignes', $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'client_payments_table', 'id', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Montant', 'client_payments_table', 'amount_cents', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'client_payments_table', 'status', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Description', 'client_payments_table', 'description', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Facture', 'client_payments_table', 'invoice', $paymentState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Date', 'client_payments_table', 'created_at', $paymentState, $modalHash, $contextKeys) . '</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div></section>
     ';
 }
 
 function render_client_exports_detail_panel(PDO $pdo, array $user): string
 {
-    $exports = $pdo->prepare('SELECT export_type, credit_cost, status, created_at, consumed_at FROM export_authorizations WHERE user_id = ? ORDER BY id DESC LIMIT 50');
+    $modalHash = '#' . admin_tab_value((string) ($_GET['return_tab'] ?? 'admin-clients'));
+    $contextKeys = ['key', 'user_id', 'return_tab', 'client_panel'];
+    $tableState = admin_table_state('client_exports_table', [
+        'export_type' => 'string',
+        'credit_cost' => 'int',
+        'status' => 'string',
+        'created_at' => 'date',
+        'consumed_at' => 'date',
+    ], 'created_at');
+    $exports = $pdo->prepare('SELECT export_type, credit_cost, status, created_at, consumed_at FROM export_authorizations WHERE user_id = ? ORDER BY id DESC');
     $exports->execute([(int) $user['id']]);
+    $exportItemsAll = $exports->fetchAll();
+    $exportItems = admin_apply_table_state($exportItemsAll, $tableState, [
+        'export_type' => 'string',
+        'credit_cost' => 'int',
+        'status' => 'string',
+        'created_at' => 'date',
+        'consumed_at' => 'date',
+    ]);
     $rows = '';
-    foreach ($exports->fetchAll() as $row) {
+    foreach ($exportItems as $row) {
         $status = (string) ($row['status'] ?? '');
         $rows .= '<tr><td>' . h((string) $row['export_type']) . '</td><td>' . (int) $row['credit_cost'] . '</td><td>' . admin_log_badge(admin_export_status_tone($status), admin_export_status_label($status)) . '</td><td>' . h((string) $row['created_at']) . '</td><td>' . h((string) ($row['consumed_at'] ?: '-')) . '</td></tr>';
     }
     $rows = $rows ?: '<tr><td colspan="5">Aucun export.</td></tr>';
-    return '<section class="modal-section"><h3>Exports client</h3><div class="table-wrap"><table><thead><tr><th>Type</th><th>Cout</th><th>Etat</th><th>Cree</th><th>Consomme</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
+    return '<section class="modal-section"><h3>Exports client</h3>' . admin_table_controls_with_context('client_exports_table', $tableState, $modalHash, count($exportItemsAll), 'lignes', $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Type', 'client_exports_table', 'export_type', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Cout', 'client_exports_table', 'credit_cost', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'client_exports_table', 'status', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Cree', 'client_exports_table', 'created_at', $tableState, $modalHash, $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Consomme', 'client_exports_table', 'consumed_at', $tableState, $modalHash, $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
 }
 
 function render_client_modal(PDO $pdo, array $user, string $closeUrl, string $activePanel): string
@@ -2663,15 +2933,34 @@ function admin_secret_source_label(bool $fromEnv, bool $hasStored, string $kind 
 
 function render_email_settings_panel(PDO $pdo): string
 {
+    $contextKeys = ['key'];
     $settings = mail_settings($pdo);
+    $tableState = admin_table_state('settings_emails_table', [
+        'id' => 'int',
+        'ticket_id' => 'int',
+        'recipient' => 'string',
+        'subject' => 'string',
+        'status' => 'string',
+        'error' => 'string',
+        'sent_at' => ['type' => 'date', 'value' => static fn (array $row): string => (string) ($row['sent_at'] ?: $row['created_at'])],
+    ], 'sent_at');
     $encryptionOptions = '';
     foreach (SMTP_ENCRYPTIONS as $option) {
         $selected = $settings['encryption'] === $option ? ' selected' : '';
         $encryptionOptions .= '<option value="' . h($option) . '"' . $selected . '>' . h(admin_smtp_encryption_label($option)) . '</option>';
     }
-    $recent = $pdo->query('SELECT id, ticket_id, recipient, subject, status, error, created_at, sent_at FROM ticket_notifications ORDER BY id DESC LIMIT 20')->fetchAll();
+    $recent = $pdo->query('SELECT id, ticket_id, recipient, subject, status, error, created_at, sent_at FROM ticket_notifications')->fetchAll();
+    $recentTable = admin_apply_table_state($recent, $tableState, [
+        'id' => 'int',
+        'ticket_id' => 'int',
+        'recipient' => 'string',
+        'subject' => 'string',
+        'status' => 'string',
+        'error' => 'string',
+        'sent_at' => ['type' => 'date', 'value' => static fn (array $row): string => (string) ($row['sent_at'] ?: $row['created_at'])],
+    ]);
     $rows = '';
-    foreach ($recent as $row) {
+    foreach ($recentTable as $row) {
         $status = (string) ($row['status'] ?? '');
         $rows .= '<tr><td>' . (int) $row['id'] . '</td><td>#' . (int) $row['ticket_id'] . '</td><td>' . h((string) $row['recipient']) . '</td><td>' . h((string) $row['subject']) . '</td><td>' . admin_log_badge(admin_notification_status_tone($status), admin_notification_status_label($status)) . '</td><td>' . h(admin_notification_error_label((string) ($row['error'] ?? ''))) . '</td><td>' . h((string) ($row['sent_at'] ?: $row['created_at'])) . '</td></tr>';
     }
@@ -2738,7 +3027,8 @@ function render_email_settings_panel(PDO $pdo): string
               <p>Historique court des notifications tickets envoye es, ratees ou en attente.</p>
             </div>
           </div>
-          <div class="table-wrap"><table><thead><tr><th>ID</th><th>Ticket</th><th>Destinataire</th><th>Sujet</th><th>Etat</th><th>Erreur</th><th>Date</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
+          ' . admin_table_controls_with_context('settings_emails_table', $tableState, '#admin-settings', count($recent), 'emails', $contextKeys) . '
+          <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'settings_emails_table', 'id', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Ticket', 'settings_emails_table', 'ticket_id', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Destinataire', 'settings_emails_table', 'recipient', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Sujet', 'settings_emails_table', 'subject', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'settings_emails_table', 'status', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Erreur', 'settings_emails_table', 'error', $tableState, '#admin-settings', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Date', 'settings_emails_table', 'sent_at', $tableState, '#admin-settings', $contextKeys) . '</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
         </div>
       </section>
     ';
@@ -2886,8 +3176,42 @@ function render_admin_settings_panel(PDO $pdo): string
 function render_admin_billing_panel(PDO $pdo): string
 {
     $filters = admin_billing_filters();
+    $contextKeys = [
+        'key',
+        'billing_scope',
+        'billing_view',
+        'billing_q',
+        'billing_plan',
+        'billing_provider',
+        'billing_subscription_status',
+        'billing_payment_status',
+        'billing_currency',
+        'billing_invoice',
+        'billing_date_from',
+        'billing_date_to',
+        'billing_amount_min',
+        'billing_amount_max',
+    ];
     $scope = (string) $filters['billing_scope'];
     $billingView = (string) $filters['billing_view'];
+    $subscriptionTableState = admin_table_state('billing_subscriptions_table', [
+        'id' => 'int',
+        'email' => 'string',
+        'plan' => 'string',
+        'subscription_state' => 'string',
+        'provider' => 'string',
+        'current_period_end' => 'date',
+        'updated_at' => 'date',
+    ], 'updated_at');
+    $paymentTableState = admin_table_state('billing_payments_table', [
+        'id' => 'int',
+        'email' => 'string',
+        'amount_cents' => 'int',
+        'payment_state' => 'string',
+        'description' => 'string',
+        'invoice' => ['type' => 'string', 'value' => static fn (array $row): string => ((string) ($row['invoice_url'] ?? '') !== '' || (string) ($row['invoice_pdf'] ?? '') !== '') ? '1' : '0'],
+        'created_at' => 'date',
+    ], 'created_at');
     $query = (string) $filters['billing_q'];
     $plan = (string) $filters['billing_plan'];
     $provider = (string) $filters['billing_provider'];
@@ -2938,10 +3262,19 @@ function render_admin_billing_panel(PDO $pdo): string
     if ($subscriptionWhere) {
         $subscriptionSql .= ' WHERE ' . implode(' AND ', $subscriptionWhere);
     }
-    $subscriptionSql .= ' ORDER BY subscriptions.updated_at DESC, subscriptions.id DESC LIMIT 100';
+    $subscriptionSql .= ' ORDER BY subscriptions.updated_at DESC, subscriptions.id DESC';
     $subscriptionStmt = $pdo->prepare($subscriptionSql);
     $subscriptionStmt->execute($subscriptionParams);
     $subscriptions = $subscriptionStmt->fetchAll();
+    $subscriptionTableRows = admin_apply_table_state($subscriptions, $subscriptionTableState, [
+        'id' => 'int',
+        'email' => 'string',
+        'plan' => 'string',
+        'subscription_state' => 'string',
+        'provider' => 'string',
+        'current_period_end' => 'date',
+        'updated_at' => 'date',
+    ]);
 
     $paymentWhere = [];
     $paymentParams = [];
@@ -2990,10 +3323,19 @@ function render_admin_billing_panel(PDO $pdo): string
     if ($paymentWhere) {
         $paymentSql .= ' WHERE ' . implode(' AND ', $paymentWhere);
     }
-    $paymentSql .= ' ORDER BY payments.created_at DESC, payments.id DESC LIMIT 100';
+    $paymentSql .= ' ORDER BY payments.created_at DESC, payments.id DESC';
     $paymentStmt = $pdo->prepare($paymentSql);
     $paymentStmt->execute($paymentParams);
     $payments = $paymentStmt->fetchAll();
+    $paymentTableRows = admin_apply_table_state($payments, $paymentTableState, [
+        'id' => 'int',
+        'email' => 'string',
+        'amount_cents' => 'int',
+        'payment_state' => 'string',
+        'description' => 'string',
+        'invoice' => ['type' => 'string', 'value' => static fn (array $row): string => ((string) ($row['invoice_url'] ?? '') !== '' || (string) ($row['invoice_pdf'] ?? '') !== '') ? '1' : '0'],
+        'created_at' => 'date',
+    ]);
     $providerCount = count(array_unique(array_values(array_filter(array_map(static fn (array $subscription): string => trim((string) ($subscription['provider'] ?? '')), $subscriptions)))));
 
     $planOptions = $pdo->query('SELECT DISTINCT plan FROM subscriptions WHERE plan IS NOT NULL AND plan <> "" ORDER BY plan ASC')->fetchAll(PDO::FETCH_COLUMN);
@@ -3102,14 +3444,26 @@ function render_admin_billing_panel(PDO $pdo): string
     };
 
     $contentNav = admin_billing_content_nav($filters, count($subscriptions), count($payments));
+    $detailState = $billingView === 'payments' ? $paymentTableState : $subscriptionTableState;
+    $detailKey = $billingView === 'payments' ? 'billing_payments_table' : 'billing_subscriptions_table';
     $detailTitle = $billingView === 'payments' ? 'Paiements filtres' : 'Abonnements filtres';
     $detailDescription = $billingView === 'payments'
         ? 'Montants encaisses, statut de traitement et presence de facture.'
         : 'Etat courant du plan, provider et prochaine echeance.';
     $detailCount = $billingView === 'payments' ? count($payments) : count($subscriptions);
     $detailTable = $billingView === 'payments'
-        ? '<div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Montant</th><th>Etat</th><th>Description</th><th>Facture</th><th>Date</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div>'
-        : '<div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Plan</th><th>Etat</th><th>Provider</th><th>Fin periode</th><th>MAJ</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div>';
+        ? admin_table_controls_with_context('billing_payments_table', $paymentTableState, '#admin-billing', count($payments), 'paiements', $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'billing_payments_table', 'id', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Client', 'billing_payments_table', 'email', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Montant', 'billing_payments_table', 'amount_cents', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'billing_payments_table', 'payment_state', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Description', 'billing_payments_table', 'description', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Facture', 'billing_payments_table', 'invoice', $paymentTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Date', 'billing_payments_table', 'created_at', $paymentTableState, '#admin-billing', $contextKeys) . '</th></tr></thead><tbody>' . implode('', array_map(static function (array $payment) use ($filters): string {
+            $clientHref = admin_client_modal_url((int) $payment['user_id'], 'admin-billing', 'billing', $filters);
+            $invoiceLinks = ((string) $payment['invoice_url'] !== '' ? '<a href="' . h((string) $payment['invoice_url']) . '" target="_blank" rel="noreferrer">Voir</a> ' : '')
+                . ((string) $payment['invoice_pdf'] !== '' ? '<a href="' . h((string) $payment['invoice_pdf']) . '" target="_blank" rel="noreferrer">PDF</a>' : '');
+            $paymentState = (string) $payment['payment_state'];
+            return '<tr><td>' . (int) $payment['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $payment['email']) . '</a></td><td><strong>' . h(money_cents((int) $payment['amount_cents'], (string) $payment['currency'])) . '</strong></td><td>' . admin_log_badge(admin_payment_status_tone($paymentState), admin_payment_status_label($paymentState)) . '</td><td>' . h(admin_log_text((string) ($payment['description'] ?: '-'), 80)) . '</td><td>' . ($invoiceLinks ?: '-') . '</td><td>' . h((string) $payment['created_at']) . '</td></tr>';
+        }, $paymentTableRows)) . ($paymentTableRows === [] ? '<tr><td colspan="7">Aucun paiement pour ces filtres.</td></tr>' : '') . '</tbody></table></div>'
+        : admin_table_controls_with_context('billing_subscriptions_table', $subscriptionTableState, '#admin-billing', count($subscriptions), 'abonnements', $contextKeys) . '<div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'billing_subscriptions_table', 'id', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Client', 'billing_subscriptions_table', 'email', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Plan', 'billing_subscriptions_table', 'plan', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'billing_subscriptions_table', 'subscription_state', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Provider', 'billing_subscriptions_table', 'provider', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Fin periode', 'billing_subscriptions_table', 'current_period_end', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('MAJ', 'billing_subscriptions_table', 'updated_at', $subscriptionTableState, '#admin-billing', $contextKeys) . '</th></tr></thead><tbody>' . implode('', array_map(static function (array $subscription) use ($filters): string {
+            $clientHref = admin_client_modal_url((int) $subscription['user_id'], 'admin-billing', 'billing', $filters);
+            $subscriptionState = (string) $subscription['subscription_state'];
+            return '<tr><td>' . (int) $subscription['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $subscription['email']) . '</a></td><td><strong>' . h(admin_plan_label((string) $subscription['plan'])) . '</strong></td><td>' . admin_log_badge(admin_subscription_status_tone($subscriptionState), admin_subscription_status_label($subscriptionState)) . '</td><td>' . h(admin_provider_label((string) ($subscription['provider'] ?: ''))) . '</td><td>' . h((string) ($subscription['current_period_end'] ?: '-')) . '</td><td>' . h((string) ($subscription['updated_at'] ?: '-')) . '</td></tr>';
+        }, $subscriptionTableRows)) . ($subscriptionTableRows === [] ? '<tr><td colspan="7">Aucun abonnement pour ces filtres.</td></tr>' : '') . '</tbody></table></div>';
     $detailHint = $scope === 'all'
         ? '<p class="section-hint billing-detail-hint">Les deux vues partagent les memes filtres. Bascule entre abonnements et paiements sans rallonger la page.</p>'
         : '';
@@ -3399,8 +3753,6 @@ function admin_log_datasets(PDO $pdo, ?array $filters = null): array
     $outcome = (string) $filters['log_outcome'];
     $stripeStatus = (string) $filters['log_stripe_status'];
     $stripeType = (string) $filters['log_stripe_type'];
-    $limit = (int) $filters['log_limit'];
-
     $appWhere = [];
     $appParams = [];
     if ($level !== '' && in_array($level, LOG_LEVELS, true)) {
@@ -3444,7 +3796,7 @@ function admin_log_datasets(PDO $pdo, ?array $filters = null): array
     if ($appWhere) {
         $appSql .= ' WHERE ' . implode(' AND ', $appWhere);
     }
-    $appSql .= ' ORDER BY id DESC LIMIT ' . $limit;
+    $appSql .= ' ORDER BY id DESC';
     $appStmt = $pdo->prepare($appSql);
     $appStmt->execute($appParams);
     $appRows = $appStmt->fetchAll();
@@ -3456,7 +3808,7 @@ function admin_log_datasets(PDO $pdo, ?array $filters = null): array
         OR event_code IN ('rate_limit_triggered', 'admin_access_denied', 'stripe_webhook_signature_failed', 'email_failed', 'php_error', 'login_failed', 'permission_denied', 'csrf_failed', 'invalid_token')
         OR (level = 'security' AND event_code NOT LIKE '%success%' AND event_code NOT LIKE '%verified%' AND event_code NOT LIKE '%_sent')
     )";
-    $securitySql = 'SELECT id, created_at, level, channel, event_code, message, user_id, request_id, route, http_method, http_status, context_json FROM app_logs WHERE ' . implode(' AND ', $securityWhere) . ' ORDER BY id DESC LIMIT ' . min($limit, 120);
+    $securitySql = 'SELECT id, created_at, level, channel, event_code, message, user_id, request_id, route, http_method, http_status, context_json FROM app_logs WHERE ' . implode(' AND ', $securityWhere) . ' ORDER BY id DESC';
     $securityStmt = $pdo->prepare($securitySql);
     $securityStmt->execute($securityParams);
     $securityRows = $securityStmt->fetchAll();
@@ -3504,7 +3856,7 @@ function admin_log_datasets(PDO $pdo, ?array $filters = null): array
     if ($auditWhere) {
         $auditSql .= ' WHERE ' . implode(' AND ', $auditWhere);
     }
-    $auditSql .= ' ORDER BY id DESC LIMIT ' . $limit;
+    $auditSql .= ' ORDER BY id DESC';
     $auditStmt = $pdo->prepare($auditSql);
     $auditStmt->execute($auditParams);
     $auditRows = $auditStmt->fetchAll();
@@ -3536,7 +3888,7 @@ function admin_log_datasets(PDO $pdo, ?array $filters = null): array
     if ($stripeWhere) {
         $stripeSql .= ' WHERE ' . implode(' AND ', $stripeWhere);
     }
-    $stripeSql .= ' ORDER BY id DESC LIMIT ' . $limit;
+    $stripeSql .= ' ORDER BY id DESC';
     $stripeStmt = $pdo->prepare($stripeSql);
     $stripeStmt->execute($stripeParams);
     $stripeRows = $stripeStmt->fetchAll();
@@ -3790,12 +4142,115 @@ function render_stripe_log_rows(array $logs): string
 function render_admin_logs_panel(PDO $pdo): string
 {
     $filters = admin_log_filters();
+    $contextKeys = [
+        'key',
+        'log_scope',
+        'log_level',
+        'log_channel',
+        'log_event',
+        'log_q',
+        'log_date_from',
+        'log_date_to',
+        'log_user_id',
+        'log_http_status',
+        'log_request_id',
+        'log_actor_role',
+        'log_action',
+        'log_target_type',
+        'log_outcome',
+        'log_stripe_status',
+        'log_stripe_type',
+    ];
     $scope = (string) $filters['log_scope'];
     $logData = admin_log_datasets($pdo, $filters);
-    $appRows = render_app_log_rows($logData['app_rows']);
-    $securityRows = render_app_log_rows($logData['security_rows']);
-    $auditRows = render_audit_log_rows($logData['audit_rows']);
-    $stripeRows = render_stripe_log_rows($logData['stripe_rows']);
+    $securityState = admin_table_state('logs_security_table', [
+        'created_at' => 'date',
+        'level' => 'string',
+        'channel' => 'string',
+        'event_code' => 'string',
+        'message' => 'string',
+        'user_id' => 'int',
+        'http_status' => 'int',
+        'request_id' => 'string',
+        'context_json' => 'string',
+    ], 'created_at');
+    $appState = admin_table_state('logs_application_table', [
+        'created_at' => 'date',
+        'level' => 'string',
+        'channel' => 'string',
+        'event_code' => 'string',
+        'message' => 'string',
+        'user_id' => 'int',
+        'http_status' => 'int',
+        'request_id' => 'string',
+        'context_json' => 'string',
+    ], 'created_at');
+    $auditState = admin_table_state('logs_audit_table', [
+        'created_at' => 'date',
+        'actor_role' => 'string',
+        'actor_user_id' => 'int',
+        'action' => 'string',
+        'target_type' => 'string',
+        'target_id' => 'string',
+        'outcome' => 'string',
+        'reason' => 'string',
+        'request_id' => 'string',
+        'metadata_json' => 'string',
+    ], 'created_at');
+    $stripeState = admin_table_state('logs_stripe_table', [
+        'created_at' => 'date',
+        'stripe_event_id' => 'string',
+        'event_type' => 'string',
+        'stripe_object_id' => 'string',
+        'status' => 'string',
+        'attempt_count' => 'int',
+        'payload_hash' => 'string',
+        'error_message' => 'string',
+    ], 'created_at');
+    $securityRows = render_app_log_rows(admin_apply_table_state($logData['security_rows'], $securityState, [
+        'created_at' => 'date',
+        'level' => 'string',
+        'channel' => 'string',
+        'event_code' => 'string',
+        'message' => 'string',
+        'user_id' => 'int',
+        'http_status' => 'int',
+        'request_id' => 'string',
+        'context_json' => 'string',
+    ]));
+    $appRows = render_app_log_rows(admin_apply_table_state($logData['app_rows'], $appState, [
+        'created_at' => 'date',
+        'level' => 'string',
+        'channel' => 'string',
+        'event_code' => 'string',
+        'message' => 'string',
+        'user_id' => 'int',
+        'http_status' => 'int',
+        'request_id' => 'string',
+        'context_json' => 'string',
+    ]));
+    $auditRows = render_audit_log_rows(admin_apply_table_state($logData['audit_rows'], $auditState, [
+        'created_at' => 'date',
+        'actor_role' => 'string',
+        'actor_user_id' => 'int',
+        'action' => 'string',
+        'target_type' => 'string',
+        'target_id' => 'string',
+        'outcome' => 'string',
+        'reason' => 'string',
+        'request_id' => 'string',
+        'metadata_json' => 'string',
+    ]));
+    $stripeRows = render_stripe_log_rows(admin_apply_table_state($logData['stripe_rows'], $stripeState, [
+        'created_at' => 'date',
+        'stripe_event_id' => 'string',
+        'event_type' => 'string',
+        'stripe_object_id' => 'string',
+        'status' => 'string',
+        'attempt_count' => 'int',
+        'payload_hash' => 'string',
+        'error_message' => 'string',
+    ]));
 
     $counts = [
         'security' => count($logData['security_rows']),
@@ -3817,11 +4272,6 @@ function render_admin_logs_panel(PDO $pdo): string
     $stripeStatusOptions = '<option value="">Tous</option>';
     foreach (['received', 'processing', 'processed', 'failed', 'ignored'] as $option) {
         $stripeStatusOptions .= '<option value="' . h($option) . '"' . ($filters['log_stripe_status'] === $option ? ' selected' : '') . '>' . h(admin_stripe_status_label($option)) . '</option>';
-    }
-
-    $limitOptions = '';
-    foreach ([50, 100, 200, 500] as $option) {
-        $limitOptions .= '<option value="' . $option . '"' . ((int) $filters['log_limit'] === $option ? ' selected' : '') . '>' . $option . '</option>';
     }
 
     $channelOptions = '<option value="">Tous</option>';
@@ -3852,22 +4302,26 @@ function render_admin_logs_panel(PDO $pdo): string
 
     $appSections = '
       <div class="section-heading log-section-heading"><div><h3>Alertes</h3><p>Evenements de securite, refus d acces et erreurs a prioriser.</p></div><div>' . admin_log_badge('warning', (string) $counts['security']) . '</div></div>
-      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Source</th><th>Evenement</th><th>Message</th><th>Client</th><th>HTTP</th><th>Trace</th><th>Contexte</th></tr></thead><tbody>' . $securityRows . '</tbody></table></div>
+      ' . admin_table_controls_with_context('logs_security_table', $securityState, '#admin-logs', $counts['security'], 'alertes', $contextKeys) . '
+      <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Date', 'logs_security_table', 'created_at', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Niveau', 'logs_security_table', 'level', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Source', 'logs_security_table', 'channel', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Evenement', 'logs_security_table', 'event_code', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Message', 'logs_security_table', 'message', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Client', 'logs_security_table', 'user_id', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('HTTP', 'logs_security_table', 'http_status', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Trace', 'logs_security_table', 'request_id', $securityState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Contexte', 'logs_security_table', 'context_json', $securityState, '#admin-logs', $contextKeys) . '</th></tr></thead><tbody>' . $securityRows . '</tbody></table></div>
       <div class="section-heading log-section-heading"><div><h3>Application</h3><p>Trace technique des API, auth, emails, exports et erreurs runtime.</p></div><div>' . admin_log_badge('info', (string) $counts['application']) . '</div></div>
-      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Source</th><th>Evenement</th><th>Message</th><th>Client</th><th>HTTP</th><th>Trace</th><th>Contexte</th></tr></thead><tbody>' . $appRows . '</tbody></table></div>
+      ' . admin_table_controls_with_context('logs_application_table', $appState, '#admin-logs', $counts['application'], 'logs', $contextKeys) . '
+      <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Date', 'logs_application_table', 'created_at', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Niveau', 'logs_application_table', 'level', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Source', 'logs_application_table', 'channel', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Evenement', 'logs_application_table', 'event_code', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Message', 'logs_application_table', 'message', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Client', 'logs_application_table', 'user_id', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('HTTP', 'logs_application_table', 'http_status', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Trace', 'logs_application_table', 'request_id', $appState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Contexte', 'logs_application_table', 'context_json', $appState, '#admin-logs', $contextKeys) . '</th></tr></thead><tbody>' . $appRows . '</tbody></table></div>
     ';
 
     $auditSection = '
       <section class="panel">
         <div class="section-heading log-section-heading"><div><h2>Audit actions</h2><p>Qui a fait quoi, sur quelle cible, avec quel resultat.</p></div><div>' . admin_log_badge('neutral', (string) $counts['audit']) . '</div></div>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Role</th><th>Acteur</th><th>Action</th><th>Cible</th><th>ID</th><th>Issue</th><th>Raison</th><th>Trace</th><th>Contexte</th></tr></thead><tbody>' . $auditRows . '</tbody></table></div>
+        ' . admin_table_controls_with_context('logs_audit_table', $auditState, '#admin-logs', $counts['audit'], 'actions', $contextKeys) . '
+        <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Date', 'logs_audit_table', 'created_at', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Role', 'logs_audit_table', 'actor_role', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Acteur', 'logs_audit_table', 'actor_user_id', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Action', 'logs_audit_table', 'action', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Cible', 'logs_audit_table', 'target_type', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('ID', 'logs_audit_table', 'target_id', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Issue', 'logs_audit_table', 'outcome', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Raison', 'logs_audit_table', 'reason', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Trace', 'logs_audit_table', 'request_id', $auditState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Contexte', 'logs_audit_table', 'metadata_json', $auditState, '#admin-logs', $contextKeys) . '</th></tr></thead><tbody>' . $auditRows . '</tbody></table></div>
       </section>
     ';
 
     $stripeSection = '
       <section class="panel">
         <div class="section-heading log-section-heading"><div><h2>Stripe events</h2><p>Reception, traitement et echecs des webhooks et operations paiement.</p></div><div>' . admin_log_badge('neutral', (string) $counts['stripe']) . '</div></div>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Event ID</th><th>Type</th><th>Objet</th><th>Statut</th><th>Essais</th><th>Payload hash</th><th>Erreur</th></tr></thead><tbody>' . $stripeRows . '</tbody></table></div>
+        ' . admin_table_controls_with_context('logs_stripe_table', $stripeState, '#admin-logs', $counts['stripe'], 'events', $contextKeys) . '
+        <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('Date', 'logs_stripe_table', 'created_at', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Event ID', 'logs_stripe_table', 'stripe_event_id', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Type', 'logs_stripe_table', 'event_type', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Objet', 'logs_stripe_table', 'stripe_object_id', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Statut', 'logs_stripe_table', 'status', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Essais', 'logs_stripe_table', 'attempt_count', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Payload hash', 'logs_stripe_table', 'payload_hash', $stripeState, '#admin-logs', $contextKeys) . '</th><th>' . admin_table_header_link_with_context('Erreur', 'logs_stripe_table', 'error_message', $stripeState, '#admin-logs', $contextKeys) . '</th></tr></thead><tbody>' . $stripeRows . '</tbody></table></div>
       </section>
     ';
 
@@ -3898,7 +4352,6 @@ function render_admin_logs_panel(PDO $pdo): string
           <label class="span-2"><span>Recherche</span><input type="search" name="log_q" value="' . h((string) $filters['log_q']) . '" placeholder="message, contexte, request_id, metadata"></label>
           <label><span>Date debut</span><input type="date" name="log_date_from" value="' . h((string) $filters['log_date_from']) . '"></label>
           <label><span>Date fin</span><input type="date" name="log_date_to" value="' . h((string) $filters['log_date_to']) . '"></label>
-          <label><span>Limite</span><select name="log_limit">' . $limitOptions . '</select></label>
           <button type="submit">Appliquer</button>
           </div>
           <details class="log-filter-details"' . ($advancedFiltersOpen ? ' open' : '') . '>
@@ -3947,7 +4400,26 @@ function render_admin_page(): void
     $summary = admin_summary();
     $selected = selected_admin_user($pdo);
     $notice = trim((string) ($_GET['notice'] ?? ''));
-    $exports = $pdo->query('SELECT export_authorizations.id, users.id AS user_id, users.email, export_type, credit_cost, export_authorizations.status AS export_status, export_authorizations.created_at, consumed_at FROM export_authorizations JOIN users ON users.id = export_authorizations.user_id ORDER BY export_authorizations.id DESC LIMIT 20')->fetchAll();
+    $exportsContextKeys = ['key'];
+    $exportsTableState = admin_table_state('exports_recent_table', [
+        'id' => 'int',
+        'email' => 'string',
+        'export_type' => 'string',
+        'credit_cost' => 'int',
+        'export_status' => 'string',
+        'created_at' => 'date',
+        'consumed_at' => 'date',
+    ], 'created_at');
+    $exports = $pdo->query('SELECT export_authorizations.id, users.id AS user_id, users.email, export_type, credit_cost, export_authorizations.status AS export_status, export_authorizations.created_at, consumed_at FROM export_authorizations JOIN users ON users.id = export_authorizations.user_id')->fetchAll();
+    $exportTableRows = admin_apply_table_state($exports, $exportsTableState, [
+        'id' => 'int',
+        'email' => 'string',
+        'export_type' => 'string',
+        'credit_cost' => 'int',
+        'export_status' => 'string',
+        'created_at' => 'date',
+        'consumed_at' => 'date',
+    ]);
 
     $exportRows = '';
     $authorizedExportCount = 0;
@@ -3965,6 +4437,12 @@ function render_admin_page(): void
         } elseif ($status === 'revoked') {
             $revokedExportCount++;
         }
+        $exportRows .= '<tr><td>' . (int) $export['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $export['email']) . '</a></td><td>' . admin_table_stack(admin_export_type_label((string) $export['export_type']), (string) $export['export_type'], true) . '</td><td>' . (int) $export['credit_cost'] . '</td><td>' . admin_log_badge(admin_export_status_tone($status), admin_export_status_label($status)) . '</td><td>' . h((string) $export['created_at']) . '</td><td>' . h((string) ($export['consumed_at'] ?: '-')) . '</td></tr>';
+    }
+    $exportRows = '';
+    foreach ($exportTableRows as $export) {
+        $clientHref = admin_client_modal_url((int) $export['user_id'], 'admin-exports', 'exports');
+        $status = (string) $export['export_status'];
         $exportRows .= '<tr><td>' . (int) $export['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $export['email']) . '</a></td><td>' . admin_table_stack(admin_export_type_label((string) $export['export_type']), (string) $export['export_type'], true) . '</td><td>' . (int) $export['credit_cost'] . '</td><td>' . admin_log_badge(admin_export_status_tone($status), admin_export_status_label($status)) . '</td><td>' . h((string) $export['created_at']) . '</td><td>' . h((string) ($export['consumed_at'] ?: '-')) . '</td></tr>';
     }
     if ($exportRows === '') {
@@ -4020,7 +4498,8 @@ function render_admin_page(): void
             <div class="stat"><span>Revoquees</span><strong>' . $revokedExportCount . '</strong></div>
             <div class="stat"><span>Credits engages</span><strong>' . $exportCreditTotal . '</strong></div>
           </div>
-          <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Type</th><th>Cout</th><th>Etat</th><th>Cree</th><th>Consomme</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div>
+          ' . admin_table_controls_with_context('exports_recent_table', $exportsTableState, '#admin-exports', count($exports), 'autorisations', $exportsContextKeys) . '
+          <div class="table-wrap"><table><thead><tr><th>' . admin_table_header_link_with_context('ID', 'exports_recent_table', 'id', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context('Client', 'exports_recent_table', 'email', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context('Type', 'exports_recent_table', 'export_type', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context('Cout', 'exports_recent_table', 'credit_cost', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context('Etat', 'exports_recent_table', 'export_status', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context('Cree', 'exports_recent_table', 'created_at', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th><th>' . admin_table_header_link_with_context('Consomme', 'exports_recent_table', 'consumed_at', $exportsTableState, '#admin-exports', $exportsContextKeys) . '</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div>
         </section>
       </section>
       <section class="tab-panel" id="admin-logs" data-tab-panel hidden>

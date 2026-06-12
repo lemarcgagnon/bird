@@ -28,7 +28,7 @@ Etat actuel:
 - `/admin` permet de creer un utilisateur, modifier profil/courriel/statut/credits, reset le mot de passe et supprimer un compte avec confirmation.
 - `/admin` permet aussi de modifier manuellement le statut d'abonnement serveur et de configurer Stripe Checkout/portail/webhook.
 - La fiche client affiche historique credits, abonnements, paiements, exports, tickets, fil de messages et audit admin.
-- `/account` permet maintenant login/register/logout, edition profil, affichage credits, historique credits, abonnement, paiements/factures Stripe, creation/liste de tickets, fil de messages, reponses client et changement open/closed.
+- `/account` permet maintenant login/register/logout, activation par code email, edition profil, affichage credits, historique credits, abonnement, paiements/factures Stripe, creation/liste de tickets, fil de messages, reponses client et changement open/closed.
 - `/admin` permet de repondre aux tickets, changer open/closed, definir priorite et assignation, configurer SMTP cPanel et tester l'envoi email.
 - `/admin` > `Reglages` permet aussi de configurer/tester les coordonnees DB cPanel/MySQL. Enregistrer cree le schema MySQL si la base est vide.
 - `/admin` > `Exports` permet d'exporter la base en CSV, Excel compatible `.xls` ou JSON par portee: base complete, clients, billing, support, credits ou autorisations.
@@ -81,6 +81,8 @@ php -S 127.0.0.1:8021 -t server-php/public
 
 - `GET /api/health`
 - `POST /api/auth/register`
+- `POST /api/auth/activate`
+- `POST /api/auth/resend-activation`
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
 - `GET /api/me`
@@ -105,10 +107,12 @@ curl http://127.0.0.1:8021/api/health
 ```
 
 ```bash
-curl -X POST http://127.0.0.1:8021/api/auth/register \
+curl -X POST http://127.0.0.1:8021/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"demo@nichoir.local","password":"password123","display_name":"Demo"}'
+  -d '{"email":"demo@nichoir.local","password":"password123"}'
 ```
+
+`POST /api/auth/register` cree un compte `pending` et envoie un code a 6 chiffres par le SMTP configure dans `/admin` > `Reglages`. Sans SMTP valide, l'inscription est refusee et la transaction est annulee.
 
 Le token retourne doit etre envoye comme ceci:
 

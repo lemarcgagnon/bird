@@ -254,7 +254,7 @@ Cette API ne fait pas la geometrie. Elle valide la session, retourne l'etat du c
 Etat actuel:
 
 - PHP sert deja `/`, `/pricing`, `/account`, `/admin` et `/api/...`.
-- `/account` gere login/register/logout, edition profil, credits, historique, abonnement, portail Stripe, paiements/factures, creation de tickets, fil de messages, reponses client et statut open/closed.
+- `/account` gere login/register/logout, activation compte par code email, edition profil, credits, historique, abonnement, portail Stripe, paiements/factures, creation de tickets, fil de messages, reponses client et statut open/closed.
 - `/admin` gere repertoire utilisateurs, creation, edition profil, reset mot de passe, suppression confirmee, credits, suspension/reactivation, abonnement manuel, tickets avec fil/reponse/statut/priorite/assignation, configuration DB cPanel/MySQL, configuration Stripe, configuration SMTP cPanel, paiements/factures et exports DB CSV/Excel/JSON.
 - `/stripe/webhook` verifie `Stripe-Signature` quand le secret est configure, journalise les evenements et peut appliquer `checkout.session.completed`, `invoice.*` ou `customer.subscription.*`.
 - L'app WASM garde seulement un resume compte et des liens vers le site; le serveur PHP reste la source de verite. Hors localhost, le login demo rapide est desactive sauf config explicite `window.NICHOIR_DEMO_ACCOUNT`.

@@ -5029,7 +5029,7 @@ pub fn render_app_html(input: &str) -> String {
       <div>
         <p class="eyebrow">Gestion usager</p>
         <h2 id="account-title">{account}</h2>
-        <p>Compte, credits, abonnement et paiements seront branches au backend plus tard.</p>
+        <p>Compte, credits, abonnement, tickets et paiements viennent du backend PHP.</p>
       </div>
       <button class="modal-close" data-account-modal-close type="button" aria-label="Fermer le compte">Fermer</button>
     </header>

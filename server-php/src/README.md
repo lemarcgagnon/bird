@@ -5,10 +5,10 @@ Role: logique serveur PHP partagee par le routeur public. C'est la source de ver
 Fichiers importants:
 
 - `db.php`: config SQLite/MySQL, connexion PDO, migrations SQLite et schema MySQL cPanel.
-- `auth.php`: tokens bearer, sessions, utilisateur courant et projection publique.
+- `auth.php`: tokens bearer, sessions, activation email, utilisateur courant et projection publique.
 - `response.php`: reponses JSON, limites payload et headers de securite.
 - `pages.php`: pages HTML PHP, espace client, admin, repertoire utilisateurs et actions admin.
-- `mail.php`: reglages SMTP, envoi email tickets et journal `ticket_notifications`.
+- `mail.php`: reglages SMTP, envoi email tickets/activation et journal `ticket_notifications`.
 - `stripe.php`: configuration Stripe, client API minimal, Checkout, portail client et verification de signature webhook.
 - `stripe_webhook.php`: traitement des evenements Stripe, factures, abonnements et idempotence `stripe_events`.
 

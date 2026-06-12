@@ -75,10 +75,11 @@ function demo_date(string $modifier = 'now'): string
 function demo_insert_user(PDO $pdo, array $user, string $passwordHash): int
 {
     $stmt = $pdo->prepare(
-        'INSERT INTO users (email, password_hash, display_name, credits, subscription_status, status, stripe_customer_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO users (email, password_hash, display_name, credits, subscription_status, status, email_verified_at, stripe_customer_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $customerId = 'cus_demo_' . preg_replace('/[^a-z0-9]+/', '_', strtolower((string) $user['email']));
+    $createdAt = demo_date('-18 days');
     $stmt->execute([
         $user['email'],
         $passwordHash,
@@ -86,8 +87,9 @@ function demo_insert_user(PDO $pdo, array $user, string $passwordHash): int
         $user['credits'],
         $user['subscription_status'],
         $user['status'],
+        $user['status'] === 'pending' ? null : $createdAt,
         $customerId,
-        demo_date('-18 days'),
+        $createdAt,
     ]);
     return (int) $pdo->lastInsertId();
 }

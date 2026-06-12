@@ -321,10 +321,10 @@ Architecture web cible:
 - Etat actuel au 2026-06-11:
   - Backend local PHP SQLite/MySQL cree dans `server-php/`.
   - Migration SQLite initiale creee.
-  - Endpoints `health`, `register`, `login`, `logout`, `me`, `credits/ledger`, `billing/summary`, `stripe-link`, `exports/authorize`, `exports/consume`, `tickets` ajoutes.
+  - Endpoints `health`, `register`, `activate`, `resend-activation`, `login`, `logout`, `me`, `credits/ledger`, `billing/summary`, `stripe-link`, `exports/authorize`, `exports/consume`, `tickets` ajoutes.
   - Utilisateur demo cree pour developpement: `demo@nichoir.local` / `password123`.
   - Credits serveur fonctionnels: autorisation STL testee, debit de 3 credits confirme.
-  - Modal `Compte` ajoute dans l'app, avec login/register/logout/demo et affichage de `GET /api/me`.
+  - Modal `Compte` ajoute dans l'app, avec login/logout/demo, lien vers le site pour activation complete et affichage de `GET /api/me`.
   - Exports premium branches sur `exports/authorize` avant generation locale, puis `exports/consume` apres succes.
   - Identifiants demo limites au localhost/config explicite; hors localhost, le login demo rapide est desactive.
   - Boutons Stripe branches sur `POST /api/checkout/stripe-link` et `POST /api/billing/portal`.
@@ -335,7 +335,7 @@ Architecture web cible:
   - Actions admin ajoutees: ajustement manuel des credits, suspension/reactivation de compte.
   - Action admin abonnement ajoutee: mise a jour manuelle du plan/statut serveur en attendant le webhook Stripe.
   - Schema ajoute: `users.status`, `subscriptions`, `payments`, `stripe_events` et `admin_audit_log`.
-  - Espace client `/account` branche sur API: login/register/logout, credits, historique credits, abonnement, paiements, tickets.
+  - Espace client `/account` branche sur API: login/register/logout, activation par code email, credits, historique credits, abonnement, paiements, tickets.
   - Endpoints `GET /api/credits/ledger` et `GET /api/billing/summary` ajoutes.
   - Endpoint local `/stripe/webhook` ajoute: journalisation idempotente des events, traitement dev de `checkout.session.completed` et `customer.subscription.*`.
   - `/admin` reste ouvert en local; en production, il doit utiliser `NICHOIR_ADMIN_KEY`.

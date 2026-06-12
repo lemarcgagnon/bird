@@ -6,6 +6,9 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/response.php';
 
 const SESSION_DAYS = 14;
+const WELCOME_CREDITS = 10;
+const EMAIL_VERIFICATION_CODE_DIGITS = 6;
+const EMAIL_VERIFICATION_TTL = '+24 hours';
 
 function random_token(): string
 {
@@ -15,6 +18,21 @@ function random_token(): string
 function token_hash(string $token): string
 {
     return hash('sha256', $token);
+}
+
+function email_verification_code(): string
+{
+    return (string) random_int(100000, 999999);
+}
+
+function normalize_email_verification_code(string $code): string
+{
+    return preg_replace('/\D+/', '', trim($code)) ?: '';
+}
+
+function email_verification_timestamp(string $modifier = 'now'): string
+{
+    return (new DateTimeImmutable($modifier))->format('Y-m-d H:i:s');
 }
 
 function bearer_token(): ?string
@@ -35,6 +53,7 @@ function public_user(array $user): array
         'credits' => (int) $user['credits'],
         'subscription_status' => $user['subscription_status'],
         'status' => $user['status'] ?? 'active',
+        'email_verified' => (($user['status'] ?? 'active') !== 'pending') || ((string) ($user['email_verified_at'] ?? '') !== ''),
     ];
 }
 

@@ -8,6 +8,10 @@ CREATE TABLE IF NOT EXISTS users (
   credits INTEGER NOT NULL DEFAULT 10,
   subscription_status TEXT NOT NULL DEFAULT 'none',
   status TEXT NOT NULL DEFAULT 'active',
+  email_verified_at TEXT,
+  email_verification_code_hash TEXT NOT NULL DEFAULT '',
+  email_verification_expires_at TEXT,
+  email_verification_sent_at TEXT,
   stripe_customer_id TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

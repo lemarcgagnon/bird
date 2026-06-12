@@ -23,6 +23,7 @@ function money_cents(int $amountCents, string $currency): string
 }
 
 const ADMIN_USER_STATUSES = [
+    'pending' => 'En attente',
     'active' => 'Actif',
     'suspended' => 'Suspendu',
     'closed' => 'Ferme',
@@ -228,6 +229,17 @@ function render_account_page(): void
             <button type="submit">Creer le compte</button>
           </form>
         </div>
+        <div class="panel">
+          <h2>Activation</h2>
+          <form class="client-form" data-activation-form>
+            <label><span>Courriel</span><input name="email" type="email" placeholder="client@example.com" required></label>
+            <label><span>Code</span><input name="code" type="text" inputmode="numeric" minlength="6" maxlength="6" autocomplete="one-time-code" required></label>
+            <div class="form-actions">
+              <button type="submit">Activer</button>
+              <button type="button" data-resend-activation>Renvoyer code</button>
+            </div>
+          </form>
+        </div>
       </section>
       </section>
 
@@ -324,6 +336,21 @@ function render_account_page(): void
         const payload = await res.json().catch(() => ({}));
         if (!res.ok || payload.ok === false) throw new Error(payload.error || `api_${res.status}`);
         return payload;
+      }
+
+      function readableError(error) {
+        const code = error?.message || String(error);
+        const labels = {
+          account_pending: "Compte en attente: entre le code recu par email.",
+          activation_email_failed: "Email activation non envoye. Configure SMTP dans Admin > Reglages.",
+          activation_code_expired: "Code expire. Renvoie un nouveau code.",
+          activation_resend_wait: "Attends une minute avant de renvoyer un code.",
+          invalid_activation_code: "Code activation invalide.",
+          invalid_activation: "Compte a activer introuvable.",
+          email_exists: "Ce courriel existe deja.",
+          invalid_credentials: "Courriel ou mot de passe invalide.",
+        };
+        return labels[code] || code;
       }
 
       async function loadAccount() {
@@ -429,7 +456,7 @@ function render_account_page(): void
         try {
           await login(data.get("email"), data.get("password"));
         } catch (err) {
-          document.querySelector("[data-account-message]").textContent = `Connexion refusee: ${err.message || err}`;
+          document.querySelector("[data-account-message]").textContent = `Connexion refusee: ${readableError(err)}`;
         }
       });
 
@@ -445,10 +472,41 @@ function render_account_page(): void
               display_name: data.get("display_name"),
             }),
           });
+          document.querySelector("[data-activation-form] [name=email]").value = payload.email || data.get("email");
+          document.querySelector("[data-activation-form] [name=code]").focus();
+          document.querySelector("[data-account-message]").textContent = "Compte cree. Code activation envoye par email.";
+        } catch (err) {
+          document.querySelector("[data-account-message]").textContent = `Inscription refusee: ${readableError(err)}`;
+        }
+      });
+
+      document.querySelector("[data-activation-form]").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = new FormData(event.currentTarget);
+        try {
+          const payload = await api("/api/auth/activate", {
+            method: "POST",
+            body: JSON.stringify({ email: data.get("email"), code: data.get("code") }),
+          });
           localStorage.setItem(TOKEN_KEY, payload.token);
+          event.currentTarget.reset();
+          document.querySelector("[data-account-message]").textContent = "Compte active.";
           await loadAccount();
         } catch (err) {
-          document.querySelector("[data-account-message]").textContent = `Inscription refusee: ${err.message || err}`;
+          document.querySelector("[data-account-message]").textContent = `Activation refusee: ${readableError(err)}`;
+        }
+      });
+
+      document.querySelector("[data-resend-activation]").addEventListener("click", async () => {
+        const email = document.querySelector("[data-activation-form] [name=email]").value || document.querySelector("[data-register-form] [name=email]").value;
+        try {
+          await api("/api/auth/resend-activation", {
+            method: "POST",
+            body: JSON.stringify({ email }),
+          });
+          document.querySelector("[data-account-message]").textContent = "Si ce compte attend une activation, un nouveau code vient d etre envoye.";
+        } catch (err) {
+          document.querySelector("[data-account-message]").textContent = `Renvoi refuse: ${readableError(err)}`;
         }
       });
 
@@ -1081,8 +1139,9 @@ function admin_create_user(PDO $pdo): void
     }
     $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare('INSERT INTO users (email, password_hash, display_name, credits, status) VALUES (?, ?, ?, ?, ?)');
-        $stmt->execute([$email, password_hash($password, PASSWORD_DEFAULT), $name, $credits, $status]);
+        $verifiedAt = $status === 'pending' ? null : (new DateTimeImmutable())->format('Y-m-d H:i:s');
+        $stmt = $pdo->prepare('INSERT INTO users (email, password_hash, display_name, credits, status, email_verified_at) VALUES (?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$email, password_hash($password, PASSWORD_DEFAULT), $name, $credits, $status, $verifiedAt]);
         $newUserId = (int) $pdo->lastInsertId();
         if ($credits > 0) {
             $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
@@ -1111,8 +1170,18 @@ function admin_update_user(PDO $pdo, array $currentUser): void
     $delta = $credits - (int) $currentUser['credits'];
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('UPDATE users SET email = ?, display_name = ?, status = ?, credits = ? WHERE id = ?')
-            ->execute([$email, $name, $status, $credits, $userId]);
+        $pdo->prepare(
+            "UPDATE users
+             SET email = ?,
+                 display_name = ?,
+                 status = ?,
+                 credits = ?,
+                 email_verified_at = CASE WHEN ? <> 'pending' AND email_verified_at IS NULL THEN CURRENT_TIMESTAMP ELSE email_verified_at END,
+                 email_verification_code_hash = CASE WHEN ? <> 'pending' THEN '' ELSE email_verification_code_hash END,
+                 email_verification_expires_at = CASE WHEN ? <> 'pending' THEN NULL ELSE email_verification_expires_at END,
+                 email_verification_sent_at = CASE WHEN ? <> 'pending' THEN NULL ELSE email_verification_sent_at END
+             WHERE id = ?"
+        )->execute([$email, $name, $status, $credits, $status, $status, $status, $status, $userId]);
         if ($delta !== 0) {
             $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
                 ->execute([$userId, $delta, 'admin_set_balance', 'profile']);
@@ -1187,11 +1256,19 @@ function admin_set_status(PDO $pdo, array $currentUser): void
 {
     $userId = (int) $currentUser['id'];
     $status = (string) ($_POST['status'] ?? 'active');
-    if (!in_array($status, ['active', 'suspended'], true)) {
+    if (!in_array($status, ['pending', 'active', 'suspended', 'closed'], true)) {
         redirect_admin($userId, 'statut_invalide');
         return;
     }
-    $pdo->prepare('UPDATE users SET status = ? WHERE id = ?')->execute([$status, $userId]);
+    $pdo->prepare(
+        "UPDATE users
+         SET status = ?,
+             email_verified_at = CASE WHEN ? <> 'pending' AND email_verified_at IS NULL THEN CURRENT_TIMESTAMP ELSE email_verified_at END,
+             email_verification_code_hash = CASE WHEN ? <> 'pending' THEN '' ELSE email_verification_code_hash END,
+             email_verification_expires_at = CASE WHEN ? <> 'pending' THEN NULL ELSE email_verification_expires_at END,
+             email_verification_sent_at = CASE WHEN ? <> 'pending' THEN NULL ELSE email_verification_sent_at END
+         WHERE id = ?"
+    )->execute([$status, $status, $status, $status, $status, $userId]);
     audit_admin_action($pdo, $userId, 'set_status', null, $status);
     redirect_admin($userId, 'statut_modifie');
 }

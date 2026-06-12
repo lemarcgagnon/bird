@@ -260,6 +260,15 @@ function accountStatusLabel() {
   return 'Non connecte';
 }
 
+function readableApiError(error) {
+  const code = error?.message || String(error);
+  return {
+    account_pending: 'Compte en attente: active-le avec le code recu par email sur le site.',
+    activation_email_failed: 'Email activation non envoye. SMTP doit etre configure dans Admin.',
+    invalid_credentials: 'Courriel ou mot de passe invalide.',
+  }[code] || code;
+}
+
 function updateAccountDom() {
   const user = accountState.user;
   setAccountText('[data-account-balance]', user ? String(user.credits ?? 0) : '0');
@@ -413,9 +422,9 @@ async function loginAccount() {
     await loadAccountTickets({ openFirst: true });
     setExportStatus('Compte demo connecte.', 'ok');
   } catch (err) {
-    accountState = { user: null, loading: false, error: err?.message || String(err) };
+    accountState = { user: null, loading: false, error: readableApiError(err) };
     updateAccountDom();
-    setExportStatus(`Compte: ${err?.message || err}`, 'error');
+    setExportStatus(`Compte: ${readableApiError(err)}`, 'error');
   }
 }
 

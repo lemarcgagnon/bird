@@ -85,6 +85,26 @@ function valid_ticket_status(string $status): bool
     return in_array($status, ['open', 'closed'], true);
 }
 
+function account_activation_email_body(string $displayName, string $code): string
+{
+    $name = $displayName !== '' ? $displayName : 'Client Nichoir';
+    return "Bonjour " . $name . ",\n\n"
+        . "Voici ton code d'autorisation Nichoir: " . $code . "\n\n"
+        . "Entre ce code dans la section Activation du compte pour activer ton compte. "
+        . "Le code expire dans 24 heures.\n\n"
+        . "Si tu n'as pas cree ce compte, ignore ce message.";
+}
+
+function send_account_activation_email(PDO $pdo, string $email, string $displayName, string $code): void
+{
+    smtp_send_email(
+        $pdo,
+        $email,
+        'Code d activation Nichoir',
+        account_activation_email_body($displayName, $code)
+    );
+}
+
 function load_user_ticket(PDO $pdo, int $ticketId, int $userId): ?array
 {
     $stmt = $pdo->prepare('SELECT id, user_id, subject, status, priority, assigned_to, created_at, updated_at, closed_at FROM tickets WHERE id = ? AND user_id = ?');
@@ -133,17 +153,137 @@ if ($method === 'POST' && $path === '/api/auth/register') {
         exit;
     }
 
+    $pdo = db();
+    $code = email_verification_code();
+    $now = email_verification_timestamp();
+    $expires = email_verification_timestamp(EMAIL_VERIFICATION_TTL);
+
     try {
-        $stmt = db()->prepare('INSERT INTO users (email, password_hash, display_name) VALUES (?, ?, ?)');
-        $stmt->execute([$email, password_hash($password, PASSWORD_DEFAULT), $name]);
-        $userId = (int) db()->lastInsertId();
-        db()->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
-            ->execute([$userId, 10, 'welcome_credits', 'register']);
-        $token = create_session($userId);
-        $user = db()->query('SELECT * FROM users WHERE id = ' . $userId)->fetch();
-        json_response(['ok' => true, 'token' => $token, 'user' => public_user($user)], 201);
+        $pdo->beginTransaction();
+        $stmt = $pdo->prepare(
+            'INSERT INTO users (email, password_hash, display_name, credits, status, email_verification_code_hash, email_verification_expires_at, email_verification_sent_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        );
+        $stmt->execute([$email, password_hash($password, PASSWORD_DEFAULT), $name, 0, 'pending', token_hash($code), $expires, $now]);
+        send_account_activation_email($pdo, $email, $name, $code);
+        $pdo->commit();
+        json_response(['ok' => true, 'requires_activation' => true, 'email_sent' => true, 'email' => $email], 201);
     } catch (PDOException $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         json_response(['ok' => false, 'error' => 'email_exists'], 409);
+    } catch (Throwable $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        json_response(['ok' => false, 'error' => 'activation_email_failed', 'detail' => $e->getMessage()], 503);
+    }
+    exit;
+}
+
+if ($method === 'POST' && $path === '/api/auth/activate') {
+    $data = read_json_body();
+    require_fields($data, ['email', 'code']);
+    $email = strtolower(trim((string) $data['email']));
+    $code = normalize_email_verification_code((string) $data['code']);
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) {
+        json_response(['ok' => false, 'error' => 'invalid_email'], 400);
+        exit;
+    }
+    if (strlen($code) !== EMAIL_VERIFICATION_CODE_DIGITS) {
+        json_response(['ok' => false, 'error' => 'invalid_activation_code'], 400);
+        exit;
+    }
+
+    $pdo = db();
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ?');
+    $stmt->execute([$email]);
+    $user = $stmt->fetch();
+    if (!is_array($user) || (string) ($user['status'] ?? '') !== 'pending') {
+        json_response(['ok' => false, 'error' => 'invalid_activation'], 404);
+        exit;
+    }
+    if ((string) ($user['email_verification_code_hash'] ?? '') === '' || !hash_equals((string) $user['email_verification_code_hash'], token_hash($code))) {
+        json_response(['ok' => false, 'error' => 'invalid_activation_code'], 400);
+        exit;
+    }
+    $expiresAt = (string) ($user['email_verification_expires_at'] ?? '');
+    if ($expiresAt === '' || new DateTimeImmutable($expiresAt) < new DateTimeImmutable()) {
+        json_response(['ok' => false, 'error' => 'activation_code_expired'], 410);
+        exit;
+    }
+
+    $userId = (int) $user['id'];
+    $pdo->beginTransaction();
+    try {
+        $updated = $pdo->prepare(
+            "UPDATE users
+             SET status = 'active',
+                 credits = credits + ?,
+                 email_verified_at = CURRENT_TIMESTAMP,
+                 email_verification_code_hash = '',
+                 email_verification_expires_at = NULL,
+                 email_verification_sent_at = NULL
+             WHERE id = ? AND status = 'pending'"
+        );
+        $updated->execute([WELCOME_CREDITS, $userId]);
+        if ($updated->rowCount() !== 1) {
+            throw new RuntimeException('activation_already_used');
+        }
+        $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
+            ->execute([$userId, WELCOME_CREDITS, 'welcome_credits', 'email_activation']);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_response(['ok' => false, 'error' => 'activation_failed'], 500);
+        exit;
+    }
+
+    $token = create_session($userId);
+    $fresh = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+    $fresh->execute([$userId]);
+    json_response(['ok' => true, 'token' => $token, 'user' => public_user($fresh->fetch())]);
+    exit;
+}
+
+if ($method === 'POST' && $path === '/api/auth/resend-activation') {
+    $data = read_json_body();
+    require_fields($data, ['email']);
+    $email = strtolower(trim((string) $data['email']));
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) {
+        json_response(['ok' => false, 'error' => 'invalid_email'], 400);
+        exit;
+    }
+
+    $pdo = db();
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE email = ?');
+    $stmt->execute([$email]);
+    $user = $stmt->fetch();
+    if (!is_array($user) || (string) ($user['status'] ?? '') !== 'pending') {
+        json_response(['ok' => true, 'sent' => false]);
+        exit;
+    }
+    $sentAt = (string) ($user['email_verification_sent_at'] ?? '');
+    if ($sentAt !== '' && new DateTimeImmutable($sentAt) > new DateTimeImmutable('-60 seconds')) {
+        json_response(['ok' => false, 'error' => 'activation_resend_wait'], 429);
+        exit;
+    }
+
+    $code = email_verification_code();
+    $now = email_verification_timestamp();
+    $expires = email_verification_timestamp(EMAIL_VERIFICATION_TTL);
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('UPDATE users SET email_verification_code_hash = ?, email_verification_expires_at = ?, email_verification_sent_at = ? WHERE id = ?')
+            ->execute([token_hash($code), $expires, $now, (int) $user['id']]);
+        send_account_activation_email($pdo, $email, (string) ($user['display_name'] ?? ''), $code);
+        $pdo->commit();
+        json_response(['ok' => true, 'sent' => true]);
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        json_response(['ok' => false, 'error' => 'activation_email_failed', 'detail' => $e->getMessage()], 503);
     }
     exit;
 }
@@ -156,6 +296,10 @@ if ($method === 'POST' && $path === '/api/auth/login') {
     $user = $stmt->fetch();
     if (!is_array($user) || !password_verify((string) $data['password'], $user['password_hash'])) {
         json_response(['ok' => false, 'error' => 'invalid_credentials'], 401);
+        exit;
+    }
+    if ((string) ($user['status'] ?? '') === 'pending') {
+        json_response(['ok' => false, 'error' => 'account_pending'], 403);
         exit;
     }
     $token = create_session((int) $user['id']);

@@ -241,6 +241,18 @@ function ensure_runtime_schema(PDO $pdo): void
     if (!table_has_column($pdo, 'users', 'status')) {
         $pdo->exec("ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active'");
     }
+    if (!table_has_column($pdo, 'users', 'email_verified_at')) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN email_verified_at TEXT");
+    }
+    if (!table_has_column($pdo, 'users', 'email_verification_code_hash')) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN email_verification_code_hash TEXT NOT NULL DEFAULT ''");
+    }
+    if (!table_has_column($pdo, 'users', 'email_verification_expires_at')) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN email_verification_expires_at TEXT");
+    }
+    if (!table_has_column($pdo, 'users', 'email_verification_sent_at')) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN email_verification_sent_at TEXT");
+    }
     if (!table_has_column($pdo, 'users', 'stripe_customer_id')) {
         $pdo->exec("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT NOT NULL DEFAULT ''");
     }
@@ -377,6 +389,10 @@ function ensure_mysql_schema(PDO $pdo): void
         credits INT NOT NULL DEFAULT 10,
         subscription_status VARCHAR(32) NOT NULL DEFAULT \'none\',
         status VARCHAR(32) NOT NULL DEFAULT \'active\',
+        email_verified_at DATETIME NULL,
+        email_verification_code_hash VARCHAR(128) NOT NULL DEFAULT \'\',
+        email_verification_expires_at DATETIME NULL,
+        email_verification_sent_at DATETIME NULL,
         stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\',
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )' . $tableOptions);
@@ -505,6 +521,10 @@ function ensure_mysql_schema(PDO $pdo): void
     )' . $tableOptions);
 
     mysql_add_column_if_missing($pdo, 'users', 'status', 'status VARCHAR(32) NOT NULL DEFAULT \'active\'');
+    mysql_add_column_if_missing($pdo, 'users', 'email_verified_at', 'email_verified_at DATETIME NULL');
+    mysql_add_column_if_missing($pdo, 'users', 'email_verification_code_hash', 'email_verification_code_hash VARCHAR(128) NOT NULL DEFAULT \'\'');
+    mysql_add_column_if_missing($pdo, 'users', 'email_verification_expires_at', 'email_verification_expires_at DATETIME NULL');
+    mysql_add_column_if_missing($pdo, 'users', 'email_verification_sent_at', 'email_verification_sent_at DATETIME NULL');
     mysql_add_column_if_missing($pdo, 'users', 'stripe_customer_id', 'stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'subscriptions', 'stripe_price_id', 'stripe_price_id VARCHAR(255) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'payments', 'stripe_customer_id', 'stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\'');

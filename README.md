@@ -246,8 +246,9 @@ Etat actuel:
 - PHP sert deja `/`, `/pricing`, `/account`, `/admin` et `/api/...`.
 - `/account` gere login/register/logout, credits, historique, abonnement, paiements synchronises et tickets.
 - `/admin` gere recherche client, credits, suspension/reactivation, abonnement manuel, exports, tickets, paiements et audit.
+- `/stripe/webhook` journalise les evenements locaux de dev et peut appliquer `checkout.session.completed` ou `customer.subscription.*`.
 - L'app WASM garde seulement un resume compte et des liens vers le site; le serveur PHP reste la source de verite.
-- Stripe est actuellement un placeholder. La version finale devra utiliser Stripe Checkout et un webhook PHP pour mettre a jour les paiements, credits et abonnements.
+- Stripe Checkout reste actuellement un placeholder. Avant production, il faut ajouter Checkout reel et verifier `Stripe-Signature` sur le webhook.
 
 ## Roadmap courte
 
@@ -261,7 +262,7 @@ Etat actuel:
 - Completer le contenu produit de la landing page et de `/pricing`.
 - Ajouter edition profil, portail Stripe et factures reelles dans `/account`.
 - Ajouter pagination, filtres billing, reponses tickets et audit lisible dans `/admin`.
-- Remplacer le placeholder Stripe par Checkout + webhook PHP qui remplit `payments`, `subscriptions` et les credits achetes.
+- Remplacer le placeholder Stripe par Checkout reel et verification `Stripe-Signature`.
 
 ## Branche de sauvegarde
 

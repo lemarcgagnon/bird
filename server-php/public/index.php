@@ -6,6 +6,7 @@ require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/auth.php';
 require_once __DIR__ . '/../src/pages.php';
 require_once __DIR__ . '/../src/response.php';
+require_once __DIR__ . '/../src/stripe_webhook.php';
 
 run_migrations();
 
@@ -43,6 +44,11 @@ if ($method === 'GET' && $path === '/admin') {
 
 if ($method === 'POST' && $path === '/admin') {
     handle_admin_post();
+    exit;
+}
+
+if ($method === 'POST' && $path === '/stripe/webhook') {
+    handle_stripe_webhook();
     exit;
 }
 

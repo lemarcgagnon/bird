@@ -332,9 +332,10 @@ Architecture web cible:
   - Fiche client admin ajoutee: recherche courriel, historique credits, exports, tickets, audit admin.
   - Actions admin ajoutees: ajustement manuel des credits, suspension/reactivation de compte.
   - Action admin abonnement ajoutee: mise a jour manuelle du plan/statut serveur en attendant le webhook Stripe.
-  - Schema ajoute: `users.status`, `subscriptions`, `payments` et `admin_audit_log`.
+  - Schema ajoute: `users.status`, `subscriptions`, `payments`, `stripe_events` et `admin_audit_log`.
   - Espace client `/account` branche sur API: login/register/logout, credits, historique credits, abonnement, paiements, tickets.
   - Endpoints `GET /api/credits/ledger` et `GET /api/billing/summary` ajoutes.
+  - Endpoint local `/stripe/webhook` ajoute: journalisation idempotente des events, traitement dev de `checkout.session.completed` et `customer.subscription.*`.
   - `/admin` reste ouvert en local; en production, il doit utiliser `NICHOIR_ADMIN_KEY`.
 
 - Le backend local PHP + SQLite teste maintenant le flux compte/credits/autorisation.
@@ -342,6 +343,7 @@ Architecture web cible:
 - `GET /api/me` retourne l'etat du compte, le solde credits et le statut abonnement.
 - `GET /api/billing/summary` retourne l'abonnement courant et les paiements que Stripe aura synchronises.
 - `POST /api/checkout/stripe-link` retourne un lien Stripe placeholder genere cote serveur.
+- `POST /stripe/webhook` peut deja appliquer un payload local/dev pour remplir `payments`, `subscriptions` et les credits achetes.
 - `POST /api/exports/authorize` recoit seulement le type d'export demande (`stl`, `pdf`, `zip`, `png`, `svg`) et retourne une autorisation courte si le compte est valide.
 - `POST /api/exports/consume` confirme/debite les credits apres export local reussi.
 - Les exports premium demandent maintenant cette autorisation avant generation.
@@ -357,7 +359,7 @@ Travail restant dans cette phase:
 - Ajouter une configuration dev/prod pour URL API, CORS, demo user et affichage debug.
 - Ajouter l'interface tickets/messages dans le modal.
 - Remplacer Stripe placeholder par Checkout reel.
-- Ajouter webhook Stripe PHP pour mettre a jour credits, abonnements, paiements et factures.
+- Ajouter verification officielle `Stripe-Signature` avant d'exposer `/stripe/webhook` en production.
 - Preparer migration SQLite vers MySQL si le deploiement de production le demande.
 
 Controle anti-drift:

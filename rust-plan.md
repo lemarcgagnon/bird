@@ -471,7 +471,7 @@ Priorité haute :
 
 Priorité moyenne :
 
-1. Remplacer Stripe placeholder par Checkout + webhook PHP, puis remplir `payments` et `subscriptions` cote serveur.
+1. Remplacer Stripe placeholder par Checkout reel et verification `Stripe-Signature`; le webhook local/dev remplit deja `payments` et `subscriptions`.
 2. Ajouter edition profil, portail Stripe et reponses tickets cote PHP.
 3. Recréer les coupes X/Y/Z.
 4. Porter décorations SVG/image (`vector`, `heightmap`) après la géométrie coeur.

@@ -82,6 +82,18 @@ function ensure_runtime_schema(PDO $pdo): void
         )"
     );
     $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS stripe_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_id TEXT NOT NULL UNIQUE,
+            type TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'received',
+            payload TEXT NOT NULL,
+            error TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            processed_at TEXT
+        )"
+    );
+    $pdo->exec(
         "CREATE TABLE IF NOT EXISTS admin_audit_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             admin_key_hash TEXT NOT NULL DEFAULT '',

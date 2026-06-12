@@ -23,8 +23,9 @@ Etat actuel:
 - `/account` permet maintenant login/register/logout, affichage credits, historique credits, abonnement, paiements et creation/liste de tickets.
 - `GET /api/credits/ledger` retourne l'historique credits du client connecte.
 - `GET /api/billing/summary` retourne l'abonnement courant et les paiements synchronises du client connecte.
+- `/stripe/webhook` accepte des evenements Stripe locaux/non signes en dev, journalise `stripe_events`, traite `checkout.session.completed` et les evenements `customer.subscription.*`.
 - En local, `/admin` est accessible pour le dev. En production, definir `NICHOIR_ADMIN_KEY`.
-- `/stripe/webhook` reste a implementer.
+- La verification reelle `Stripe-Signature` reste a implementer avant exposition production.
 
 ## Demarrer
 
@@ -47,6 +48,7 @@ php -S 127.0.0.1:8021 -t server-php/public
 - `POST /api/exports/consume`
 - `GET /api/tickets`
 - `POST /api/tickets`
+- `POST /stripe/webhook`
 
 ## Test rapide
 
@@ -72,11 +74,12 @@ curl http://127.0.0.1:8021/api/me \
 - Espace client complet: edition profil, portail Stripe et factures reelles.
 - Admin complet: reponses tickets, pagination, filtres billing et journal d'audit plus lisible.
 - Stripe Checkout reel.
-- Webhook Stripe pour mettre a jour credits, abonnements et paiements.
+- Verification `Stripe-Signature` du webhook.
 - Configuration dev/prod pour CORS, URL app, secrets Stripe et base de donnees.
 
 ## Notes
 
 - Stripe est un placeholder: le lien Checkout est faux pour l'instant.
+- Le webhook local est volontairement non signe seulement en local/dev. Ne pas l'exposer en production sans verification Stripe officielle.
 - Le serveur ne recoit pas de geometrie et ne genere pas de STL/PDF/ZIP.
 - Les credits sont debites par `POST /api/exports/consume` apres generation locale reussie.

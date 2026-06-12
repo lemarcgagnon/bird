@@ -32,7 +32,8 @@ Etat actuel:
 - `/admin` permet de repondre aux tickets, changer open/closed, definir priorite et assignation, configurer SMTP cPanel et tester l'envoi email.
 - `/admin` > `Reglages` permet aussi de configurer/tester les coordonnees DB cPanel/MySQL. Enregistrer cree le schema MySQL si la base est vide.
 - `/admin` > `Exports` permet d'exporter la base en CSV, Excel compatible `.xls` ou JSON par portee: base complete, clients, billing, support, credits ou autorisations.
-- `/admin` > `Logs` affiche alertes, logs applicatifs, audit actions et evenements Stripe avec filtres niveau/channel/event/recherche.
+- `/admin` > `Logs` affiche alertes, logs applicatifs, audit actions et evenements Stripe avec portee par domaine, filtres rapides/avances, badges d'etat et exports CSV/Excel compatible `.xls`/JSON/SQL.
+- Le back-office suit maintenant les conventions `docs/admin-hig.md`: separation par domaine, detail en modal, filtres structures et contexte preserve.
 - `app_logs`, `audit_logs` et `stripe_event_logs` tracent erreurs, securite, actions importantes, emails, tickets, exports, auth et webhooks sans stocker mots de passe, tokens ou secrets.
 - Les notifications tickets sont journalisees dans `ticket_notifications`, puis envoyees immediatement via SMTP si l'envoi est active.
 - `GET /api/credits/ledger` retourne l'historique credits du client connecte.

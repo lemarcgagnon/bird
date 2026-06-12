@@ -257,6 +257,7 @@ Etat actuel:
 - PHP sert deja `/`, `/pricing`, `/account`, `/admin` et `/api/...`.
 - `/account` gere login/register/logout, activation compte par code email, edition profil, credits, historique, abonnement, portail Stripe, paiements/factures, creation de tickets, fil de messages, reponses client et statut open/closed.
 - `/admin` gere repertoire utilisateurs, creation, edition profil, reset mot de passe, suppression confirmee, credits, suspension/reactivation, abonnement manuel, tickets avec fil/reponse/statut/priorite/assignation, logs applicatifs/audit/Stripe, configuration DB cPanel/MySQL, configuration Stripe, configuration SMTP cPanel, paiements/factures et exports DB CSV/Excel/JSON.
+- `/admin` suit maintenant une grille HIG documentee dans `docs/admin-hig.md`: domaines separes, detail en modal, filtres rapides puis avances, badges d'etat et preservation du contexte.
 - `/api/client-log` recoit les erreurs client/WASM limitees a 10/minute par user/IP, sans geometrie ni contenu de formulaire.
 - `/stripe/webhook` verifie `Stripe-Signature` quand le secret est configure, journalise `stripe_events` et `stripe_event_logs`, puis applique `checkout.session.completed`, `invoice.*` ou `customer.subscription.*`.
 - L'app WASM garde seulement un resume compte et des liens vers le site; le serveur PHP reste la source de verite. Le shell WASM expose maintenant une navigation FR/EN avec icones sur les zones denses, un modal compte plus lisible et une sortie persistante `Site` dans l'en-tete pour revenir au site PHP. Hors localhost, le login demo rapide est desactive sauf config explicite `window.NICHOIR_DEMO_ACCOUNT`.
@@ -284,13 +285,14 @@ Risques securite encore ouverts avant production:
 
 - Finaliser la parite fonctionnelle avec `nichoir_v16.html`.
 - Continuer le nettoyage HIG de l'interface.
+- Appliquer `docs/admin-hig.md` aux onglets `Support`, `Clients`, `Billing`, `Exports` et `Reglages`.
 - Ajouter les coupes X/Y/Z dans le viewer.
 - Completer la parite du plan de coupe.
 - Ajouter une suite de tests de parite entre presets.
 - Renforcer la validation securite des fichiers et inputs.
 - Etudier une union booleenne/CSG pour produire une maison complete fusionnee.
 - Completer le contenu produit de la landing page et de `/pricing`.
-- Ajouter filtres billing avances, surveillance des echecs email et audit lisible dans `/admin`.
+- Continuer le lissage admin: `Support`, `Clients`, `Billing`, `Exports` et `Reglages` selon `docs/admin-hig.md`.
 - Tester Stripe live avec les vrais price IDs et le portail active dans Stripe.
 - Ajouter un script `package_cpanel` et un `install_check.php` pour preparer la copie vers cPanel.
 

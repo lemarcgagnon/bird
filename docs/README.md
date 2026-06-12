@@ -6,6 +6,7 @@ Fichiers importants:
 
 - `reste-a-faire.md`: backlog detaille, etat des phases et prochaines etapes.
 - `securizons.md`: analyse des surfaces d'attaque WASM/PHP et checklist securite.
+- `admin-hig.md`: conventions HIG du back-office PHP pour normaliser `/admin` par domaine.
 
 Regles d'usage:
 
@@ -18,6 +19,7 @@ Points de vigilance:
 - Stripe Checkout/portail/factures sont maintenant branches cote PHP, avec signature webhook quand le secret Stripe est configure.
 - La config DB cPanel/MySQL est branchee dans `/admin` > `Reglages`; SQLite reste le mode local par defaut.
 - Les exports admin de base sont disponibles en CSV, Excel compatible `.xls` et JSON depuis `/admin` > `Exports`.
+- Les logs admin sont maintenant exportables en CSV, Excel compatible `.xls`, JSON et SQL depuis `/admin` > `Logs`, avec filtres rapides et avances.
 - Le rate limiting, le CSRF admin, la CSP et le sanitizer SVG complet restent a faire avant production.
 - Le script de packaging/installation cPanel reste a creer avant copie finale sur serveur.
 - Le serveur PHP est maintenant le maitre pour compte/credits/admin/API; l'app/WASM est le client calcul.

@@ -262,6 +262,9 @@ function ensure_runtime_schema(PDO $pdo): void
     if (!table_has_column($pdo, 'users', 'stripe_customer_id')) {
         $pdo->exec("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT NOT NULL DEFAULT ''");
     }
+    if (!table_has_column($pdo, 'users', 'deleted_at')) {
+        $pdo->exec("ALTER TABLE users ADD COLUMN deleted_at TEXT");
+    }
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS auth_rate_limits (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -480,6 +483,7 @@ function ensure_mysql_schema(PDO $pdo): void
         email_verification_attempts INT NOT NULL DEFAULT 0,
         email_verification_blocked_until DATETIME NULL,
         stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\',
+        deleted_at DATETIME NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     )' . $tableOptions);
     $pdo->exec('CREATE TABLE IF NOT EXISTS auth_rate_limits (
@@ -685,6 +689,7 @@ function ensure_mysql_schema(PDO $pdo): void
     mysql_add_column_if_missing($pdo, 'users', 'email_verification_attempts', 'email_verification_attempts INT NOT NULL DEFAULT 0');
     mysql_add_column_if_missing($pdo, 'users', 'email_verification_blocked_until', 'email_verification_blocked_until DATETIME NULL');
     mysql_add_column_if_missing($pdo, 'users', 'stripe_customer_id', 'stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\'');
+    mysql_add_column_if_missing($pdo, 'users', 'deleted_at', 'deleted_at DATETIME NULL');
     mysql_add_column_if_missing($pdo, 'subscriptions', 'stripe_price_id', 'stripe_price_id VARCHAR(255) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'payments', 'stripe_customer_id', 'stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'payments', 'stripe_invoice_id', 'stripe_invoice_id VARCHAR(255) NOT NULL DEFAULT \'\'');

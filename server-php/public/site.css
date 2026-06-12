@@ -381,6 +381,176 @@ article strong,
   align-items: end;
 }
 
+.admin-billing-filters {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-bottom: 16px;
+}
+
+.admin-log-filters {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin: 16px 0;
+}
+
+.admin-log-filters .span-2 {
+  grid-column: span 2;
+}
+
+.log-filter-stack {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.log-scope-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.log-scope-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--accent-strong);
+  text-decoration: none;
+}
+
+.log-scope-link strong {
+  min-width: 26px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  color: var(--accent-strong);
+  font-size: 12px;
+  text-align: center;
+}
+
+.log-scope-link.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+}
+
+.log-filter-details {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 92%, var(--bg));
+}
+
+.log-filter-details summary {
+  cursor: pointer;
+  padding: 12px 14px;
+  color: var(--accent-strong);
+  font-size: 13px;
+  font-weight: 700;
+  list-style: none;
+}
+
+.log-filter-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.log-filter-details[open] summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.log-filter-details .admin-log-filters {
+  margin: 0;
+  padding: 14px;
+}
+
+.filter-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.filter-chip strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.tone-neutral {
+  background: color-mix(in srgb, var(--line) 32%, var(--panel));
+  color: var(--text);
+}
+
+.tone-info {
+  background: color-mix(in srgb, #5384c8 18%, var(--panel));
+  color: #2d568f;
+}
+
+.tone-success {
+  background: color-mix(in srgb, #4e9a62 18%, var(--panel));
+  color: #2d6f42;
+}
+
+.tone-warning {
+  background: color-mix(in srgb, #d59b2f 20%, var(--panel));
+  color: #895400;
+}
+
+.tone-danger,
+.tone-critical {
+  background: color-mix(in srgb, #b84a4a 18%, var(--panel));
+  color: #8f2727;
+}
+
+.log-section-heading {
+  margin: 18px 0 10px;
+}
+
+.log-section-heading p {
+  margin-top: 4px;
+}
+
+.admin-billing-filters button {
+  min-height: 40px;
+}
+
+.admin-log-filters button {
+  min-height: 40px;
+}
+
+.billing-summary-grid {
+  margin-top: 12px;
+}
+
 .admin-actions {
   display: grid;
   grid-template-columns: 2fr 1fr;
@@ -692,6 +862,7 @@ footer {
   .account-panel,
   .admin-create-form,
   .admin-directory-form,
+  .log-scope-nav,
   .admin-actions,
   .admin-actions form:first-child,
   .admin-actions .admin-profile-form,
@@ -729,5 +900,9 @@ footer {
 
   .admin-modal {
     max-height: calc(100vh - 20px);
+  }
+
+  .admin-log-filters .span-2 {
+    grid-column: auto;
   }
 }

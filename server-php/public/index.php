@@ -62,6 +62,11 @@ if ($method === 'GET' && $path === '/admin/exports/download') {
     exit;
 }
 
+if ($method === 'GET' && $path === '/admin/logs/download') {
+    handle_admin_logs_download();
+    exit;
+}
+
 if ($method === 'POST' && $path === '/admin') {
     handle_admin_post();
     exit;

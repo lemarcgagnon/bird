@@ -26,7 +26,7 @@ const ADMIN_USER_STATUSES = [
     'pending' => 'En attente',
     'active' => 'Actif',
     'suspended' => 'Suspendu',
-    'closed' => 'Ferme',
+    'closed' => 'Archive',
 ];
 const ADMIN_PLANS = ['none', 'credits', 'atelier', 'pro'];
 const ADMIN_SUBSCRIPTION_STATUSES = ['none', 'active', 'past_due', 'canceled'];
@@ -695,14 +695,14 @@ function admin_client_panel_value(string $value): string
     return in_array($value, $allowed, true) ? $value : 'profile';
 }
 
-function admin_client_modal_url(int $userId, string $returnTab = 'admin-clients', string $panel = 'profile'): string
+function admin_client_modal_url(int $userId, string $returnTab = 'admin-clients', string $panel = 'profile', array $extraParams = []): string
 {
     $returnTab = admin_tab_value($returnTab);
-    return admin_redirect_url([
+    return admin_redirect_url(array_merge($extraParams, [
         'user_id' => $userId,
         'return_tab' => $returnTab,
         'client_panel' => admin_client_panel_value($panel),
-    ]) . '#' . $returnTab;
+    ])) . '#' . $returnTab;
 }
 
 function admin_export_scope_value(string $value): string
@@ -711,13 +711,90 @@ function admin_export_scope_value(string $value): string
     return in_array($value, $allowed, true) ? $value : 'exports';
 }
 
+function admin_billing_scope_value(string $value): string
+{
+    $allowed = ['all', 'subscriptions', 'payments'];
+    return in_array($value, $allowed, true) ? $value : 'all';
+}
+
+function admin_date_filter_value(string $value): string
+{
+    $value = trim($value);
+    return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) ? $value : '';
+}
+
+function admin_billing_filters(): array
+{
+    $amountMin = trim((string) ($_GET['billing_amount_min'] ?? ''));
+    $amountMax = trim((string) ($_GET['billing_amount_max'] ?? ''));
+    return [
+        'billing_scope' => admin_billing_scope_value((string) ($_GET['billing_scope'] ?? 'all')),
+        'billing_q' => substr(trim((string) ($_GET['billing_q'] ?? '')), 0, 120),
+        'billing_plan' => substr(trim((string) ($_GET['billing_plan'] ?? '')), 0, 80),
+        'billing_provider' => substr(trim((string) ($_GET['billing_provider'] ?? '')), 0, 80),
+        'billing_subscription_status' => substr(trim((string) ($_GET['billing_subscription_status'] ?? '')), 0, 40),
+        'billing_payment_status' => substr(trim((string) ($_GET['billing_payment_status'] ?? '')), 0, 40),
+        'billing_currency' => substr(strtolower(trim((string) ($_GET['billing_currency'] ?? ''))), 0, 8),
+        'billing_invoice' => in_array((string) ($_GET['billing_invoice'] ?? ''), ['yes', 'no'], true) ? (string) $_GET['billing_invoice'] : '',
+        'billing_date_from' => admin_date_filter_value((string) ($_GET['billing_date_from'] ?? '')),
+        'billing_date_to' => admin_date_filter_value((string) ($_GET['billing_date_to'] ?? '')),
+        'billing_amount_min' => is_numeric($amountMin) ? $amountMin : '',
+        'billing_amount_max' => is_numeric($amountMax) ? $amountMax : '',
+    ];
+}
+
+function admin_billing_filter_url(array $overrides = []): string
+{
+    $params = array_merge(admin_billing_filters(), $overrides);
+    foreach ($params as $key => $value) {
+        if ($value === '' || $value === null) {
+            unset($params[$key]);
+        }
+    }
+    return admin_redirect_url($params) . '#admin-billing';
+}
+
+function admin_log_scope_value(string $value): string
+{
+    $allowed = ['all', 'application', 'audit', 'stripe'];
+    return in_array($value, $allowed, true) ? $value : 'all';
+}
+
+function admin_log_filters(): array
+{
+    $httpStatus = trim((string) ($_GET['log_http_status'] ?? ''));
+    $userId = trim((string) ($_GET['log_user_id'] ?? ''));
+    $limit = (int) ($_GET['log_limit'] ?? 80);
+    $limit = max(20, min(500, $limit));
+
+    return [
+        'log_scope' => admin_log_scope_value((string) ($_GET['log_scope'] ?? 'all')),
+        'log_level' => trim((string) ($_GET['log_level'] ?? '')),
+        'log_channel' => substr(trim((string) ($_GET['log_channel'] ?? '')), 0, 50),
+        'log_event' => substr(trim((string) ($_GET['log_event'] ?? '')), 0, 100),
+        'log_q' => substr(trim((string) ($_GET['log_q'] ?? '')), 0, 120),
+        'log_date_from' => admin_date_filter_value((string) ($_GET['log_date_from'] ?? '')),
+        'log_date_to' => admin_date_filter_value((string) ($_GET['log_date_to'] ?? '')),
+        'log_user_id' => ctype_digit($userId) ? $userId : '',
+        'log_http_status' => ctype_digit($httpStatus) ? $httpStatus : '',
+        'log_request_id' => substr(trim((string) ($_GET['log_request_id'] ?? '')), 0, 64),
+        'log_actor_role' => substr(trim((string) ($_GET['log_actor_role'] ?? '')), 0, 50),
+        'log_action' => substr(trim((string) ($_GET['log_action'] ?? '')), 0, 100),
+        'log_target_type' => substr(trim((string) ($_GET['log_target_type'] ?? '')), 0, 50),
+        'log_outcome' => substr(trim((string) ($_GET['log_outcome'] ?? '')), 0, 32),
+        'log_stripe_status' => substr(trim((string) ($_GET['log_stripe_status'] ?? '')), 0, 32),
+        'log_stripe_type' => substr(trim((string) ($_GET['log_stripe_type'] ?? '')), 0, 255),
+        'log_limit' => (string) $limit,
+    ];
+}
+
 function admin_export_format_value(string $value): string
 {
     $format = strtolower(trim($value));
     if ($format === 'excel') {
         return 'xls';
     }
-    return in_array($format, ['csv', 'json', 'xls'], true) ? $format : 'csv';
+    return in_array($format, ['csv', 'json', 'xls', 'sql'], true) ? $format : 'csv';
 }
 
 function admin_exports_download_url(string $format, string $scope = 'exports'): string
@@ -1128,6 +1205,30 @@ function admin_valid_password(string $password): bool
     return string_length_between($password, 8, 200);
 }
 
+function admin_sync_user_state(PDO $pdo, int $userId, string $status): void
+{
+    if ($status === 'closed') {
+        $pdo->prepare('UPDATE users SET deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP) WHERE id = ?')->execute([$userId]);
+        $pdo->prepare('DELETE FROM sessions WHERE user_id = ?')->execute([$userId]);
+        $pdo->prepare(
+            "UPDATE export_authorizations
+             SET status = CASE WHEN status = 'authorized' THEN 'revoked' ELSE status END,
+                 consumed_at = CASE WHEN status = 'authorized' AND consumed_at IS NULL THEN CURRENT_TIMESTAMP ELSE consumed_at END
+             WHERE user_id = ?"
+        )->execute([$userId]);
+        $pdo->prepare(
+            "UPDATE tickets
+             SET status = 'closed',
+                 closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE user_id = ? AND status <> 'closed'"
+        )->execute([$userId]);
+        return;
+    }
+
+    $pdo->prepare('UPDATE users SET deleted_at = NULL WHERE id = ?')->execute([$userId]);
+}
+
 function admin_create_user(PDO $pdo): void
 {
     $email = strtolower(trim((string) ($_POST['email'] ?? '')));
@@ -1145,6 +1246,7 @@ function admin_create_user(PDO $pdo): void
         $stmt = $pdo->prepare('INSERT INTO users (email, password_hash, display_name, credits, status, email_verified_at) VALUES (?, ?, ?, ?, ?, ?)');
         $stmt->execute([$email, password_hash($password, PASSWORD_DEFAULT), $name, $credits, $status, $verifiedAt]);
         $newUserId = (int) $pdo->lastInsertId();
+        admin_sync_user_state($pdo, $newUserId, $status);
         if ($credits > 0) {
             $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
                 ->execute([$newUserId, $credits, 'admin_create_user', 'initial']);
@@ -1184,6 +1286,7 @@ function admin_update_user(PDO $pdo, array $currentUser): void
                  email_verification_sent_at = CASE WHEN ? <> 'pending' THEN NULL ELSE email_verification_sent_at END
              WHERE id = ?"
         )->execute([$email, $name, $status, $credits, $status, $status, $status, $status, $userId]);
+        admin_sync_user_state($pdo, $userId, $status);
         if ($delta !== 0) {
             $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
                 ->execute([$userId, $delta, 'admin_set_balance', 'profile']);
@@ -1221,10 +1324,18 @@ function admin_delete_user(PDO $pdo, array $currentUser): void
     $email = (string) $currentUser['email'];
     $pdo->beginTransaction();
     try {
-        audit_admin_action($pdo, $userId, 'delete_user', null, $email);
-        $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
+        $pdo->prepare(
+            "UPDATE users
+             SET status = 'closed',
+                 email_verification_code_hash = '',
+                 email_verification_expires_at = NULL,
+                 email_verification_sent_at = NULL
+             WHERE id = ?"
+        )->execute([$userId]);
+        admin_sync_user_state($pdo, $userId, 'closed');
+        audit_admin_action($pdo, $userId, 'soft_delete_user', null, $email);
         $pdo->commit();
-        header('Location: ' . admin_redirect_url(['notice' => 'client_supprime']));
+        header('Location: ' . admin_redirect_url(['notice' => 'client_archive']));
     } catch (Throwable $e) {
         $pdo->rollBack();
         redirect_admin($userId, 'suppression_erreur');
@@ -1262,17 +1373,25 @@ function admin_set_status(PDO $pdo, array $currentUser): void
         redirect_admin($userId, 'statut_invalide');
         return;
     }
-    $pdo->prepare(
-        "UPDATE users
-         SET status = ?,
-             email_verified_at = CASE WHEN ? <> 'pending' AND email_verified_at IS NULL THEN CURRENT_TIMESTAMP ELSE email_verified_at END,
-             email_verification_code_hash = CASE WHEN ? <> 'pending' THEN '' ELSE email_verification_code_hash END,
-             email_verification_expires_at = CASE WHEN ? <> 'pending' THEN NULL ELSE email_verification_expires_at END,
-             email_verification_sent_at = CASE WHEN ? <> 'pending' THEN NULL ELSE email_verification_sent_at END
-         WHERE id = ?"
-    )->execute([$status, $status, $status, $status, $status, $userId]);
-    audit_admin_action($pdo, $userId, 'set_status', null, $status);
-    redirect_admin($userId, 'statut_modifie');
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare(
+            "UPDATE users
+             SET status = ?,
+                 email_verified_at = CASE WHEN ? <> 'pending' AND email_verified_at IS NULL THEN CURRENT_TIMESTAMP ELSE email_verified_at END,
+                 email_verification_code_hash = CASE WHEN ? <> 'pending' THEN '' ELSE email_verification_code_hash END,
+                 email_verification_expires_at = CASE WHEN ? <> 'pending' THEN NULL ELSE email_verification_expires_at END,
+                 email_verification_sent_at = CASE WHEN ? <> 'pending' THEN NULL ELSE email_verification_sent_at END
+             WHERE id = ?"
+        )->execute([$status, $status, $status, $status, $status, $userId]);
+        admin_sync_user_state($pdo, $userId, $status);
+        audit_admin_action($pdo, $userId, 'set_status', null, $status);
+        $pdo->commit();
+        redirect_admin($userId, 'statut_modifie');
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        redirect_admin($userId, 'statut_erreur');
+    }
 }
 
 function admin_set_subscription(PDO $pdo, array $currentUser): void
@@ -1773,6 +1892,7 @@ function render_client_profile_panel(?array $user): string
 
     $userId = (int) $user['id'];
     $status = (string) ($user['status'] ?? 'active');
+    $deletedAt = (string) ($user['deleted_at'] ?? '');
     $nextStatus = $status === 'active' ? 'suspended' : 'active';
     $nextLabel = $nextStatus === 'active' ? 'Reactiver' : 'Suspendre';
 
@@ -1784,6 +1904,7 @@ function render_client_profile_panel(?array $user): string
           <div class="stat"><span>Courriel</span><strong>' . h((string) $user['email']) . '</strong></div>
           <div class="stat"><span>Credits</span><strong>' . (int) $user['credits'] . '</strong></div>
           <div class="stat"><span>Statut</span><strong>' . h($status) . '</strong></div>
+          ' . ($deletedAt !== '' ? '<div class="stat"><span>Archive le</span><strong>' . h($deletedAt) . '</strong></div>' : '') . '
         </div>
         <div class="admin-actions">
           <form class="span-all admin-profile-form" method="post" action="/admin">
@@ -1814,8 +1935,8 @@ function render_client_profile_panel(?array $user): string
             ' . admin_key_input() . '
             <input type="hidden" name="action" value="delete_user">
             <input type="hidden" name="user_id" value="' . $userId . '">
-            <label><span>Suppression definitive</span><input type="text" name="confirm" placeholder="taper DELETE pour confirmer"></label>
-            <button type="submit">Supprimer utilisateur</button>
+            <label><span>Archivage avec retention</span><input type="text" name="confirm" placeholder="taper DELETE pour confirmer"></label>
+            <button type="submit">Archiver utilisateur</button>
           </form>
         </div>
       </section>
@@ -1857,9 +1978,8 @@ function render_client_credits_panel(PDO $pdo, ?array $user): string
     ';
 }
 
-function render_admin_modal_shell(string $title, string $closeHash, string $body): string
+function render_admin_modal_shell(string $title, string $closeUrl, string $body): string
 {
-    $closeUrl = admin_redirect_url() . '#' . $closeHash;
     return '
       <div class="admin-modal-backdrop" data-admin-modal data-close-url="' . h($closeUrl) . '">
         <article class="admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-modal-title">
@@ -1930,7 +2050,7 @@ function render_client_exports_detail_panel(PDO $pdo, array $user): string
     return '<section class="modal-section"><h3>Exports client</h3><div class="table-wrap"><table><thead><tr><th>Type</th><th>Cout</th><th>Etat</th><th>Cree</th><th>Consomme</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
 }
 
-function render_client_modal(PDO $pdo, array $user, string $closeHash, string $activePanel): string
+function render_client_modal(PDO $pdo, array $user, string $closeUrl, string $activePanel): string
 {
     $title = 'Client #' . (int) $user['id'] . ' - ' . (string) $user['email'];
     $profile = render_client_profile_panel($user);
@@ -1951,7 +2071,7 @@ function render_client_modal(PDO $pdo, array $user, string $closeHash, string $a
         $active = $panel === $activePanel;
         $tabButtons .= '<button type="button"' . ($active ? ' class="active"' : '') . ' data-modal-tab="' . h($panel) . '" role="tab" aria-selected="' . ($active ? 'true' : 'false') . '">' . h($label) . '</button>';
     }
-    return render_admin_modal_shell($title, $closeHash, '
+    return render_admin_modal_shell($title, $closeUrl, '
       <nav class="modal-tab-nav" data-modal-tabs role="tablist" aria-label="Sections client">
         ' . $tabButtons . '
       </nav>
@@ -1981,7 +2101,7 @@ function render_ticket_modal(PDO $pdo, int $ticketId): string
     $disabledReply = (string) $ticket['status'] === 'open' ? '' : ' disabled';
     $clientHref = admin_client_modal_url((int) $ticket['user_id'], 'admin-support', 'profile');
 
-    return render_admin_modal_shell('Ticket #' . (int) $ticket['id'] . ' - ' . (string) $ticket['subject'], 'admin-support', '
+    return render_admin_modal_shell('Ticket #' . (int) $ticket['id'] . ' - ' . (string) $ticket['subject'], admin_redirect_url() . '#admin-support', '
       <section class="modal-section">
         <div class="section-heading">
           <div>
@@ -2042,7 +2162,10 @@ function render_admin_modal(PDO $pdo, ?array $selectedUser): string
     if ($selectedUser !== null) {
         $returnTab = admin_tab_value((string) ($_GET['return_tab'] ?? 'admin-clients'));
         $panel = 'client-' . admin_client_panel_value((string) ($_GET['client_panel'] ?? 'profile'));
-        return render_client_modal($pdo, $selectedUser, $returnTab, $panel);
+        $closeUrl = $returnTab === 'admin-billing'
+            ? admin_billing_filter_url()
+            : (admin_redirect_url() . '#' . $returnTab);
+        return render_client_modal($pdo, $selectedUser, $closeUrl, $panel);
     }
     return '';
 }
@@ -2164,6 +2287,204 @@ function render_database_settings_panel(): string
     ';
 }
 
+function render_admin_billing_panel(PDO $pdo): string
+{
+    $filters = admin_billing_filters();
+    $scope = (string) $filters['billing_scope'];
+    $query = (string) $filters['billing_q'];
+    $plan = (string) $filters['billing_plan'];
+    $provider = (string) $filters['billing_provider'];
+    $subscriptionStatus = (string) $filters['billing_subscription_status'];
+    $paymentStatus = (string) $filters['billing_payment_status'];
+    $currency = (string) $filters['billing_currency'];
+    $invoice = (string) $filters['billing_invoice'];
+    $dateFrom = (string) $filters['billing_date_from'];
+    $dateTo = (string) $filters['billing_date_to'];
+    $amountMin = (string) $filters['billing_amount_min'];
+    $amountMax = (string) $filters['billing_amount_max'];
+
+    $subscriptionWhere = [];
+    $subscriptionParams = [];
+    if ($query !== '') {
+        $term = '%' . $query . '%';
+        $subscriptionWhere[] = '(users.email LIKE ? OR users.display_name LIKE ? OR subscriptions.plan LIKE ? OR subscriptions.provider LIKE ? OR COALESCE(subscriptions.stripe_customer_id, "") LIKE ? OR COALESCE(subscriptions.stripe_subscription_id, "") LIKE ?)';
+        array_push($subscriptionParams, $term, $term, $term, $term, $term, $term);
+        if (ctype_digit($query)) {
+            $subscriptionWhere[] = 'users.id = ?';
+            $subscriptionParams[] = (int) $query;
+        }
+    }
+    if ($plan !== '') {
+        $subscriptionWhere[] = 'subscriptions.plan = ?';
+        $subscriptionParams[] = $plan;
+    }
+    if ($provider !== '') {
+        $subscriptionWhere[] = 'subscriptions.provider = ?';
+        $subscriptionParams[] = $provider;
+    }
+    if ($subscriptionStatus !== '') {
+        $subscriptionWhere[] = 'subscriptions.status = ?';
+        $subscriptionParams[] = $subscriptionStatus;
+    }
+    if ($dateFrom !== '') {
+        $subscriptionWhere[] = 'date(COALESCE(subscriptions.updated_at, subscriptions.current_period_end)) >= date(?)';
+        $subscriptionParams[] = $dateFrom;
+    }
+    if ($dateTo !== '') {
+        $subscriptionWhere[] = 'date(COALESCE(subscriptions.updated_at, subscriptions.current_period_end)) <= date(?)';
+        $subscriptionParams[] = $dateTo;
+    }
+
+    $subscriptionSql = 'SELECT subscriptions.id, users.id AS user_id, users.email, plan, subscriptions.status AS subscription_state, provider, current_period_end, subscriptions.updated_at
+        FROM subscriptions
+        JOIN users ON users.id = subscriptions.user_id';
+    if ($subscriptionWhere) {
+        $subscriptionSql .= ' WHERE ' . implode(' AND ', $subscriptionWhere);
+    }
+    $subscriptionSql .= ' ORDER BY subscriptions.updated_at DESC, subscriptions.id DESC LIMIT 100';
+    $subscriptionStmt = $pdo->prepare($subscriptionSql);
+    $subscriptionStmt->execute($subscriptionParams);
+    $subscriptions = $subscriptionStmt->fetchAll();
+
+    $paymentWhere = [];
+    $paymentParams = [];
+    if ($query !== '') {
+        $term = '%' . $query . '%';
+        $paymentWhere[] = '(users.email LIKE ? OR users.display_name LIKE ? OR COALESCE(payments.description, "") LIKE ? OR COALESCE(payments.stripe_invoice_id, "") LIKE ? OR COALESCE(payments.stripe_payment_intent_id, "") LIKE ?)';
+        array_push($paymentParams, $term, $term, $term, $term, $term);
+        if (ctype_digit($query)) {
+            $paymentWhere[] = 'users.id = ?';
+            $paymentParams[] = (int) $query;
+        }
+    }
+    if ($paymentStatus !== '') {
+        $paymentWhere[] = 'payments.status = ?';
+        $paymentParams[] = $paymentStatus;
+    }
+    if ($currency !== '') {
+        $paymentWhere[] = 'LOWER(payments.currency) = ?';
+        $paymentParams[] = $currency;
+    }
+    if ($invoice === 'yes') {
+        $paymentWhere[] = '(COALESCE(payments.invoice_url, "") <> "" OR COALESCE(payments.invoice_pdf, "") <> "")';
+    } elseif ($invoice === 'no') {
+        $paymentWhere[] = '(COALESCE(payments.invoice_url, "") = "" AND COALESCE(payments.invoice_pdf, "") = "")';
+    }
+    if ($dateFrom !== '') {
+        $paymentWhere[] = 'date(payments.created_at) >= date(?)';
+        $paymentParams[] = $dateFrom;
+    }
+    if ($dateTo !== '') {
+        $paymentWhere[] = 'date(payments.created_at) <= date(?)';
+        $paymentParams[] = $dateTo;
+    }
+    if ($amountMin !== '') {
+        $paymentWhere[] = 'payments.amount_cents >= ?';
+        $paymentParams[] = (int) round(((float) $amountMin) * 100);
+    }
+    if ($amountMax !== '') {
+        $paymentWhere[] = 'payments.amount_cents <= ?';
+        $paymentParams[] = (int) round(((float) $amountMax) * 100);
+    }
+
+    $paymentSql = 'SELECT payments.id, users.id AS user_id, users.email, amount_cents, currency, payments.status AS payment_state, description, invoice_url, invoice_pdf, payments.created_at
+        FROM payments
+        JOIN users ON users.id = payments.user_id';
+    if ($paymentWhere) {
+        $paymentSql .= ' WHERE ' . implode(' AND ', $paymentWhere);
+    }
+    $paymentSql .= ' ORDER BY payments.created_at DESC, payments.id DESC LIMIT 100';
+    $paymentStmt = $pdo->prepare($paymentSql);
+    $paymentStmt->execute($paymentParams);
+    $payments = $paymentStmt->fetchAll();
+
+    $subscriptionRows = '';
+    foreach ($subscriptions as $subscription) {
+        $clientHref = admin_client_modal_url((int) $subscription['user_id'], 'admin-billing', 'billing', $filters);
+        $subscriptionRows .= '<tr><td>' . (int) $subscription['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $subscription['email']) . '</a></td><td>' . h((string) $subscription['plan']) . '</td><td>' . h((string) $subscription['subscription_state']) . '</td><td>' . h((string) ($subscription['provider'] ?: '-')) . '</td><td>' . h((string) ($subscription['current_period_end'] ?: '-')) . '</td><td>' . h((string) ($subscription['updated_at'] ?: '-')) . '</td></tr>';
+    }
+    if ($subscriptionRows === '') {
+        $subscriptionRows = '<tr><td colspan="7">Aucun abonnement pour ces filtres.</td></tr>';
+    }
+
+    $paymentRows = '';
+    $paymentCurrencies = [];
+    foreach ($payments as $payment) {
+        $clientHref = admin_client_modal_url((int) $payment['user_id'], 'admin-billing', 'billing', $filters);
+        $invoiceLinks = ((string) $payment['invoice_url'] !== '' ? '<a href="' . h((string) $payment['invoice_url']) . '" target="_blank" rel="noreferrer">Voir</a> ' : '')
+            . ((string) $payment['invoice_pdf'] !== '' ? '<a href="' . h((string) $payment['invoice_pdf']) . '" target="_blank" rel="noreferrer">PDF</a>' : '');
+        $paymentRows .= '<tr><td>' . (int) $payment['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $payment['email']) . '</a></td><td>' . h(money_cents((int) $payment['amount_cents'], (string) $payment['currency'])) . '</td><td>' . h((string) $payment['payment_state']) . '</td><td>' . h((string) ($payment['description'] ?: '-')) . '</td><td>' . ($invoiceLinks ?: '-') . '</td><td>' . h((string) $payment['created_at']) . '</td></tr>';
+        $currencyKey = strtoupper((string) ($payment['currency'] ?: ''));
+        if (!isset($paymentCurrencies[$currencyKey])) {
+            $paymentCurrencies[$currencyKey] = 0;
+        }
+        $paymentCurrencies[$currencyKey] += (int) $payment['amount_cents'];
+    }
+    if ($paymentRows === '') {
+        $paymentRows = '<tr><td colspan="7">Aucun paiement pour ces filtres.</td></tr>';
+    }
+
+    $currencySummary = '-';
+    if ($paymentCurrencies !== []) {
+        $parts = [];
+        foreach ($paymentCurrencies as $currencyCode => $value) {
+            $parts[] = money_cents($value, $currencyCode === '' ? 'cad' : $currencyCode);
+        }
+        $currencySummary = implode(' / ', $parts);
+    }
+
+    $scopeOptions = [
+        'all' => 'Tout',
+        'subscriptions' => 'Abonnements',
+        'payments' => 'Paiements',
+    ];
+    $scopeHtml = '';
+    foreach ($scopeOptions as $value => $label) {
+        $scopeHtml .= '<option value="' . h($value) . '"' . ($scope === $value ? ' selected' : '') . '>' . h($label) . '</option>';
+    }
+    $invoiceHtml = '<option value="">Toutes</option>'
+        . '<option value="yes"' . ($invoice === 'yes' ? ' selected' : '') . '>Avec facture</option>'
+        . '<option value="no"' . ($invoice === 'no' ? ' selected' : '') . '>Sans facture</option>';
+
+    return '
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Billing</h2>
+            <p>Filtre abonnements et paiements par client, statut, dates, devise, facture et montant. Les ouvertures client gardent le contexte billing.</p>
+          </div>
+          <a class="secondary compact-link" href="' . h(admin_redirect_url()) . '#admin-billing">Reinitialiser</a>
+        </div>
+        <form class="admin-directory-form admin-billing-filters" method="get" action="/admin#admin-billing">
+          ' . admin_key_input() . '
+          <label><span>Scope</span><select name="billing_scope">' . $scopeHtml . '</select></label>
+          <label><span>Client / recherche</span><input type="search" name="billing_q" value="' . h($query) . '" placeholder="email, id, description"></label>
+          <label><span>Plan</span><input type="search" name="billing_plan" value="' . h($plan) . '" placeholder="pro, atelier"></label>
+          <label><span>Provider</span><input type="search" name="billing_provider" value="' . h($provider) . '" placeholder="stripe"></label>
+          <label><span>Statut abonnement</span><input type="search" name="billing_subscription_status" value="' . h($subscriptionStatus) . '" placeholder="active, canceled"></label>
+          <label><span>Statut paiement</span><input type="search" name="billing_payment_status" value="' . h($paymentStatus) . '" placeholder="paid, failed"></label>
+          <label><span>Devise</span><input type="search" name="billing_currency" value="' . h($currency) . '" placeholder="cad"></label>
+          <label><span>Facture</span><select name="billing_invoice">' . $invoiceHtml . '</select></label>
+          <label><span>Date debut</span><input type="date" name="billing_date_from" value="' . h($dateFrom) . '"></label>
+          <label><span>Date fin</span><input type="date" name="billing_date_to" value="' . h($dateTo) . '"></label>
+          <label><span>Montant min</span><input type="number" name="billing_amount_min" min="0" step="0.01" value="' . h($amountMin) . '" placeholder="0.00"></label>
+          <label><span>Montant max</span><input type="number" name="billing_amount_max" min="0" step="0.01" value="' . h($amountMax) . '" placeholder="499.00"></label>
+          <button type="submit">Filtrer</button>
+        </form>
+        <div class="grid billing-summary-grid">
+          <div><span>Abonnements filtres</span><strong>' . count($subscriptions) . '</strong></div>
+          <div><span>Paiements filtres</span><strong>' . count($payments) . '</strong></div>
+          <div><span>Total paiements</span><strong>' . h($currencySummary) . '</strong></div>
+        </div>
+      </section>
+      ' . ($scope !== 'payments' ? '
+      <section class="panel"><h2>Abonnements filtres</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Plan</th><th>Etat</th><th>Provider</th><th>Fin periode</th><th>MAJ</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div></section>
+      ' : '') . '
+      ' . ($scope !== 'subscriptions' ? '
+      <section class="panel"><h2>Paiements filtres</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Montant</th><th>Etat</th><th>Description</th><th>Facture</th><th>Date</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div></section>
+      ' : '');
+}
+
 function render_admin_export_links(string $scope): string
 {
     return '
@@ -2215,92 +2536,608 @@ function admin_log_text(string $value, int $limit = 220): string
     return strlen($value) > $limit ? substr($value, 0, $limit) . '...' : $value;
 }
 
+function admin_log_badge(string $tone, string $label): string
+{
+    return '<span class="status-badge tone-' . h($tone) . '">' . h($label) . '</span>';
+}
+
+function admin_log_scope_label(string $scope): string
+{
+    return match ($scope) {
+        'application' => 'Application',
+        'audit' => 'Audit',
+        'stripe' => 'Stripe',
+        default => 'Toutes les sources',
+    };
+}
+
+function admin_log_scope_nav(array $filters, array $counts): string
+{
+    $current = (string) ($filters['log_scope'] ?? 'all');
+    $items = [
+        'all' => ['Toutes', (int) (($counts['application'] ?? 0) + ($counts['audit'] ?? 0) + ($counts['stripe'] ?? 0))],
+        'application' => ['Application', (int) ($counts['application'] ?? 0)],
+        'audit' => ['Audit', (int) ($counts['audit'] ?? 0)],
+        'stripe' => ['Stripe', (int) ($counts['stripe'] ?? 0)],
+    ];
+    $links = '';
+    foreach ($items as $scope => [$label, $count]) {
+        $class = 'log-scope-link' . ($current === $scope ? ' active' : '');
+        $links .= '<a class="' . $class . '" href="' . h(admin_log_filter_link(['log_scope' => $scope])) . '"><span>' . h($label) . '</span><strong>' . $count . '</strong></a>';
+    }
+    return '<nav class="log-scope-nav" aria-label="Sources de logs">' . $links . '</nav>';
+}
+
+function admin_log_filter_summary(array $filters): string
+{
+    $chips = [];
+    $map = [
+        'log_level' => 'Niveau',
+        'log_channel' => 'Channel',
+        'log_event' => 'Event',
+        'log_q' => 'Recherche',
+        'log_date_from' => 'Depuis',
+        'log_date_to' => 'Jusqu a',
+        'log_user_id' => 'User',
+        'log_http_status' => 'HTTP',
+        'log_request_id' => 'Request',
+        'log_actor_role' => 'Role',
+        'log_action' => 'Action',
+        'log_target_type' => 'Cible',
+        'log_outcome' => 'Issue',
+        'log_stripe_status' => 'Stripe',
+        'log_stripe_type' => 'Type Stripe',
+    ];
+    foreach ($map as $key => $label) {
+        $value = trim((string) ($filters[$key] ?? ''));
+        if ($value !== '') {
+            $chips[] = '<li class="filter-chip"><span>' . h($label) . '</span><strong>' . h($value) . '</strong></li>';
+        }
+    }
+    if (!$chips) {
+        return '<p class="section-hint">Aucun filtre avance actif. La vue montre les evenements les plus recents selon la source selectionnee.</p>';
+    }
+    return '<ul class="filter-chip-list" aria-label="Filtres actifs">' . implode('', $chips) . '</ul>';
+}
+
 function admin_log_filter_link(array $params = []): string
 {
-    $base = [];
+    $base = admin_log_filters();
+    foreach ($base as $key => $value) {
+        if ($value === '' || $value === null) {
+            unset($base[$key]);
+        }
+    }
     $key = trim((string) ($_GET['key'] ?? ''));
     if ($key !== '') {
         $base['key'] = $key;
     }
-    return '/admin' . ($base || $params ? '?' . http_build_query(array_merge($base, $params)) : '') . '#admin-logs';
+    $merged = array_merge($base, $params);
+    foreach ($merged as $key => $value) {
+        if ($value === '' || $value === null) {
+            unset($merged[$key]);
+        }
+    }
+    return '/admin' . ($merged ? '?' . http_build_query($merged) : '') . '#admin-logs';
+}
+
+function admin_logs_download_url(string $format): string
+{
+    $params = admin_log_filters();
+    $params['format'] = admin_export_format_value($format);
+    $key = trim((string) ($_GET['key'] ?? ($_POST['key'] ?? '')));
+    if ($key !== '') {
+        $params['key'] = $key;
+    }
+    foreach ($params as $name => $value) {
+        if ($value === '' || $value === null) {
+            unset($params[$name]);
+        }
+    }
+    return '/admin/logs/download?' . http_build_query($params);
+}
+
+function admin_log_export_links(): string
+{
+    return '
+      <div class="form-actions export-download-actions">
+        <a class="secondary compact-link" href="' . h(admin_logs_download_url('csv')) . '">CSV</a>
+        <a class="secondary compact-link" href="' . h(admin_logs_download_url('xls')) . '">Excel</a>
+        <a class="secondary compact-link" href="' . h(admin_logs_download_url('json')) . '">JSON</a>
+        <a class="secondary compact-link" href="' . h(admin_logs_download_url('sql')) . '">SQL</a>
+      </div>
+    ';
+}
+
+function admin_log_datasets(PDO $pdo, ?array $filters = null): array
+{
+    $filters = $filters ?? admin_log_filters();
+    $level = (string) $filters['log_level'];
+    $channel = (string) $filters['log_channel'];
+    $event = (string) $filters['log_event'];
+    $query = (string) $filters['log_q'];
+    $dateFrom = (string) $filters['log_date_from'];
+    $dateTo = (string) $filters['log_date_to'];
+    $userId = (string) $filters['log_user_id'];
+    $httpStatus = (string) $filters['log_http_status'];
+    $requestId = (string) $filters['log_request_id'];
+    $actorRole = (string) $filters['log_actor_role'];
+    $action = (string) $filters['log_action'];
+    $targetType = (string) $filters['log_target_type'];
+    $outcome = (string) $filters['log_outcome'];
+    $stripeStatus = (string) $filters['log_stripe_status'];
+    $stripeType = (string) $filters['log_stripe_type'];
+    $limit = (int) $filters['log_limit'];
+
+    $appWhere = [];
+    $appParams = [];
+    if ($level !== '' && in_array($level, LOG_LEVELS, true)) {
+        $appWhere[] = 'level = ?';
+        $appParams[] = $level;
+    }
+    if ($channel !== '') {
+        $appWhere[] = 'channel = ?';
+        $appParams[] = $channel;
+    }
+    if ($event !== '') {
+        $appWhere[] = 'event_code LIKE ?';
+        $appParams[] = '%' . $event . '%';
+    }
+    if ($query !== '') {
+        $term = '%' . $query . '%';
+        $appWhere[] = '(message LIKE ? OR context_json LIKE ? OR request_id LIKE ? OR route LIKE ?)';
+        array_push($appParams, $term, $term, $term, $term);
+    }
+    if ($dateFrom !== '') {
+        $appWhere[] = 'date(created_at) >= date(?)';
+        $appParams[] = $dateFrom;
+    }
+    if ($dateTo !== '') {
+        $appWhere[] = 'date(created_at) <= date(?)';
+        $appParams[] = $dateTo;
+    }
+    if ($userId !== '') {
+        $appWhere[] = 'user_id = ?';
+        $appParams[] = (int) $userId;
+    }
+    if ($httpStatus !== '') {
+        $appWhere[] = 'http_status = ?';
+        $appParams[] = (int) $httpStatus;
+    }
+    if ($requestId !== '') {
+        $appWhere[] = 'request_id LIKE ?';
+        $appParams[] = '%' . $requestId . '%';
+    }
+    $appSql = 'SELECT id, created_at, level, channel, event_code, message, user_id, request_id, route, http_method, http_status, context_json FROM app_logs';
+    if ($appWhere) {
+        $appSql .= ' WHERE ' . implode(' AND ', $appWhere);
+    }
+    $appSql .= ' ORDER BY id DESC LIMIT ' . $limit;
+    $appStmt = $pdo->prepare($appSql);
+    $appStmt->execute($appParams);
+    $appRows = $appStmt->fetchAll();
+
+    $securityWhere = $appWhere;
+    $securityParams = $appParams;
+    $securityWhere[] = "(
+        level = 'critical'
+        OR event_code IN ('rate_limit_triggered', 'admin_access_denied', 'stripe_webhook_signature_failed', 'email_failed', 'php_error', 'login_failed', 'permission_denied', 'csrf_failed', 'invalid_token')
+        OR (level = 'security' AND event_code NOT LIKE '%success%' AND event_code NOT LIKE '%verified%' AND event_code NOT LIKE '%_sent')
+    )";
+    $securitySql = 'SELECT id, created_at, level, channel, event_code, message, user_id, request_id, route, http_method, http_status, context_json FROM app_logs WHERE ' . implode(' AND ', $securityWhere) . ' ORDER BY id DESC LIMIT ' . min($limit, 120);
+    $securityStmt = $pdo->prepare($securitySql);
+    $securityStmt->execute($securityParams);
+    $securityRows = $securityStmt->fetchAll();
+
+    $auditWhere = [];
+    $auditParams = [];
+    if ($query !== '') {
+        $term = '%' . $query . '%';
+        $auditWhere[] = '(action LIKE ? OR target_id LIKE ? OR metadata_json LIKE ? OR reason LIKE ?)';
+        array_push($auditParams, $term, $term, $term, $term);
+    }
+    if ($dateFrom !== '') {
+        $auditWhere[] = 'date(created_at) >= date(?)';
+        $auditParams[] = $dateFrom;
+    }
+    if ($dateTo !== '') {
+        $auditWhere[] = 'date(created_at) <= date(?)';
+        $auditParams[] = $dateTo;
+    }
+    if ($userId !== '') {
+        $auditWhere[] = 'actor_user_id = ?';
+        $auditParams[] = (int) $userId;
+    }
+    if ($requestId !== '') {
+        $auditWhere[] = 'request_id LIKE ?';
+        $auditParams[] = '%' . $requestId . '%';
+    }
+    if ($actorRole !== '') {
+        $auditWhere[] = 'actor_role = ?';
+        $auditParams[] = $actorRole;
+    }
+    if ($action !== '') {
+        $auditWhere[] = 'action LIKE ?';
+        $auditParams[] = '%' . $action . '%';
+    }
+    if ($targetType !== '') {
+        $auditWhere[] = 'target_type = ?';
+        $auditParams[] = $targetType;
+    }
+    if ($outcome !== '') {
+        $auditWhere[] = 'outcome = ?';
+        $auditParams[] = $outcome;
+    }
+    $auditSql = 'SELECT id, created_at, actor_user_id, actor_role, action, target_type, target_id, outcome, reason, request_id, metadata_json FROM audit_logs';
+    if ($auditWhere) {
+        $auditSql .= ' WHERE ' . implode(' AND ', $auditWhere);
+    }
+    $auditSql .= ' ORDER BY id DESC LIMIT ' . $limit;
+    $auditStmt = $pdo->prepare($auditSql);
+    $auditStmt->execute($auditParams);
+    $auditRows = $auditStmt->fetchAll();
+
+    $stripeWhere = [];
+    $stripeParams = [];
+    if ($query !== '') {
+        $term = '%' . $query . '%';
+        $stripeWhere[] = '(stripe_event_id LIKE ? OR event_type LIKE ? OR stripe_object_id LIKE ? OR error_message LIKE ?)';
+        array_push($stripeParams, $term, $term, $term, $term);
+    }
+    if ($dateFrom !== '') {
+        $stripeWhere[] = 'date(created_at) >= date(?)';
+        $stripeParams[] = $dateFrom;
+    }
+    if ($dateTo !== '') {
+        $stripeWhere[] = 'date(created_at) <= date(?)';
+        $stripeParams[] = $dateTo;
+    }
+    if ($stripeStatus !== '') {
+        $stripeWhere[] = 'status = ?';
+        $stripeParams[] = $stripeStatus;
+    }
+    if ($stripeType !== '') {
+        $stripeWhere[] = 'event_type LIKE ?';
+        $stripeParams[] = '%' . $stripeType . '%';
+    }
+    $stripeSql = 'SELECT id, created_at, stripe_event_id, event_type, stripe_object_id, status, attempt_count, error_message, payload_hash FROM stripe_event_logs';
+    if ($stripeWhere) {
+        $stripeSql .= ' WHERE ' . implode(' AND ', $stripeWhere);
+    }
+    $stripeSql .= ' ORDER BY id DESC LIMIT ' . $limit;
+    $stripeStmt = $pdo->prepare($stripeSql);
+    $stripeStmt->execute($stripeParams);
+    $stripeRows = $stripeStmt->fetchAll();
+
+    return [
+        'scope' => (string) $filters['log_scope'],
+        'filters' => $filters,
+        'app_rows' => $appRows,
+        'security_rows' => $securityRows,
+        'audit_rows' => $auditRows,
+        'stripe_rows' => $stripeRows,
+        'datasets' => [
+            'application' => admin_export_dataset('Application logs', ['id', 'created_at', 'level', 'channel', 'event_code', 'message', 'user_id', 'request_id', 'route', 'http_method', 'http_status', 'context_json'], $appRows),
+            'audit' => admin_export_dataset('Audit logs', ['id', 'created_at', 'actor_user_id', 'actor_role', 'action', 'target_type', 'target_id', 'outcome', 'reason', 'request_id', 'metadata_json'], $auditRows),
+            'stripe' => admin_export_dataset('Stripe event logs', ['id', 'created_at', 'stripe_event_id', 'event_type', 'stripe_object_id', 'status', 'attempt_count', 'error_message', 'payload_hash'], $stripeRows),
+        ],
+    ];
+}
+
+function admin_log_selected_export(array $logData): array
+{
+    $scope = (string) ($logData['scope'] ?? 'all');
+    $datasets = (array) ($logData['datasets'] ?? []);
+    if ($scope === 'all') {
+        return [
+            'label' => 'Logs admin',
+            'filename' => 'admin-logs',
+            'datasets' => $datasets,
+        ];
+    }
+    return [
+        'label' => (string) $datasets[$scope]['label'],
+        'filename' => 'admin-logs-' . $scope,
+        'datasets' => [$scope => $datasets[$scope]],
+    ];
+}
+
+function admin_log_timeline_rows(array $datasets): array
+{
+    $timeline = [];
+    foreach ($datasets as $scope => $dataset) {
+        foreach ($dataset['rows'] as $row) {
+            $timeline[] = [
+                'section' => (string) $dataset['label'],
+                'date' => (string) ($row['created_at'] ?? ''),
+                'record_id' => (string) ($row['id'] ?? ''),
+                'user_id' => (string) (($row['user_id'] ?? $row['actor_user_id']) ?? ''),
+                'type' => (string) (($row['event_code'] ?? $row['action'] ?? $row['event_type']) ?? $scope),
+                'status' => (string) (($row['level'] ?? $row['outcome'] ?? $row['status']) ?? ''),
+                'description' => (string) (($row['message'] ?? $row['reason'] ?? $row['error_message']) ?? ''),
+                'metadata_json' => json_encode($row, JSON_UNESCAPED_SLASHES),
+            ];
+        }
+    }
+    usort($timeline, static fn (array $a, array $b): int => strcmp((string) $b['date'], (string) $a['date']));
+    return $timeline;
+}
+
+function admin_sql_literal(mixed $value): string
+{
+    if ($value === null) {
+        return 'NULL';
+    }
+    if (is_bool($value)) {
+        return $value ? '1' : '0';
+    }
+    if (is_int($value) || is_float($value)) {
+        return (string) $value;
+    }
+    return "'" . str_replace("'", "''", (string) $value) . "'";
+}
+
+function admin_log_export_send_csv(array $export): void
+{
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $export['filename'] . '.csv"');
+    $out = fopen('php://output', 'w');
+    if ($out === false) {
+        http_response_code(500);
+        echo 'Unable to open output stream';
+        return;
+    }
+    if (count($export['datasets']) > 1) {
+        $columns = ['section', 'date', 'record_id', 'user_id', 'type', 'status', 'description', 'metadata_json'];
+        fputcsv($out, $columns);
+        foreach (admin_log_timeline_rows($export['datasets']) as $row) {
+            fputcsv($out, array_map(static fn (string $column): string => (string) ($row[$column] ?? ''), $columns));
+        }
+    } else {
+        $dataset = reset($export['datasets']);
+        fputcsv($out, $dataset['columns']);
+        foreach ($dataset['rows'] as $row) {
+            fputcsv($out, array_map(static fn (string $column): string => admin_export_value($row, $column), $dataset['columns']));
+        }
+    }
+    fclose($out);
+}
+
+function admin_log_export_send_json(array $export): void
+{
+    header('Content-Type: application/json; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $export['filename'] . '.json"');
+    $payload = [
+        'label' => $export['label'],
+        'generated_at' => (new DateTimeImmutable())->format(DateTimeInterface::ATOM),
+        'datasets' => [],
+    ];
+    foreach ($export['datasets'] as $key => $dataset) {
+        $payload['datasets'][$key] = [
+            'label' => $dataset['label'],
+            'rows' => $dataset['rows'],
+        ];
+    }
+    echo json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+}
+
+function admin_log_export_send_excel(array $export): void
+{
+    header('Content-Type: application/vnd.ms-excel; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $export['filename'] . '.xls"');
+    echo '<!doctype html><html><head><meta charset="utf-8"></head><body>';
+    echo '<h1>' . h((string) $export['label']) . '</h1>';
+    echo '<p>Genere le ' . h((new DateTimeImmutable())->format('Y-m-d H:i:s')) . '</p>';
+    foreach ($export['datasets'] as $dataset) {
+        echo '<h2>' . h((string) $dataset['label']) . '</h2>';
+        echo '<table border="1"><thead><tr>';
+        foreach ($dataset['columns'] as $column) {
+            echo '<th>' . h((string) $column) . '</th>';
+        }
+        echo '</tr></thead><tbody>';
+        foreach ($dataset['rows'] as $row) {
+            echo '<tr>';
+            foreach ($dataset['columns'] as $column) {
+                echo '<td>' . h(admin_export_value($row, (string) $column)) . '</td>';
+            }
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+    }
+    echo '</body></html>';
+}
+
+function admin_log_export_send_sql(array $export): void
+{
+    header('Content-Type: application/sql; charset=utf-8');
+    header('Content-Disposition: attachment; filename="' . $export['filename'] . '.sql"');
+    echo "-- Nichoir admin logs export\n";
+    echo '-- Generated at ' . (new DateTimeImmutable())->format(DateTimeInterface::ATOM) . "\n\n";
+    $tableMap = [
+        'application' => 'app_logs',
+        'audit' => 'audit_logs',
+        'stripe' => 'stripe_event_logs',
+    ];
+    foreach ($export['datasets'] as $scope => $dataset) {
+        $table = $tableMap[$scope] ?? $scope;
+        echo "-- " . $dataset['label'] . "\n";
+        foreach ($dataset['rows'] as $row) {
+            $columns = $dataset['columns'];
+            $values = [];
+            foreach ($columns as $column) {
+                $values[] = admin_sql_literal($row[$column] ?? null);
+            }
+            echo 'INSERT INTO ' . $table . ' (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $values) . ");\n";
+        }
+        echo "\n";
+    }
+}
+
+function handle_admin_logs_download(): void
+{
+    if (!admin_allowed()) {
+        http_response_code(403);
+        echo 'Forbidden';
+        return;
+    }
+
+    $format = admin_export_format_value((string) ($_GET['format'] ?? 'csv'));
+    if (!in_array($format, ['csv', 'json', 'xls', 'sql'], true)) {
+        http_response_code(400);
+        echo 'Invalid export format';
+        return;
+    }
+
+    $export = admin_log_selected_export(admin_log_datasets(db()));
+    if ($format === 'json') {
+        admin_log_export_send_json($export);
+        return;
+    }
+    if ($format === 'xls') {
+        admin_log_export_send_excel($export);
+        return;
+    }
+    if ($format === 'sql') {
+        admin_log_export_send_sql($export);
+        return;
+    }
+    admin_log_export_send_csv($export);
 }
 
 function render_app_log_rows(array $logs): string
 {
     $rows = '';
     foreach ($logs as $log) {
-        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['level']) . '</td><td>' . h((string) $log['channel']) . '</td><td>' . h((string) $log['event_code']) . '</td><td>' . h(admin_log_text((string) $log['message'])) . '</td><td>' . h((string) ($log['user_id'] ?? '')) . '</td><td>' . h((string) ($log['http_status'] ?? '')) . '</td><td><code>' . h(admin_log_text((string) ($log['context_json'] ?? ''), 160)) . '</code></td></tr>';
+        $level = (string) $log['level'];
+        $tone = match ($level) {
+            'critical' => 'critical',
+            'error' => 'danger',
+            'security' => 'warning',
+            'warning' => 'warning',
+            'info' => 'info',
+            default => 'neutral',
+        };
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . admin_log_badge($tone, $level) . '</td><td><code>' . h((string) $log['channel']) . '</code></td><td><strong>' . h((string) $log['event_code']) . '</strong></td><td>' . h(admin_log_text((string) $log['message'])) . '</td><td>' . h((string) ($log['user_id'] ?? '')) . '</td><td>' . h((string) ($log['http_status'] ?? '')) . '</td><td><code>' . h(admin_log_text((string) ($log['request_id'] ?? ''), 48)) . '</code></td><td><code>' . h(admin_log_text((string) ($log['context_json'] ?? ''), 160)) . '</code></td></tr>';
     }
-    return $rows ?: '<tr><td colspan="8">Aucun log.</td></tr>';
+    return $rows ?: '<tr><td colspan="9">Aucun log.</td></tr>';
 }
 
 function render_audit_log_rows(array $logs): string
 {
     $rows = '';
     foreach ($logs as $log) {
-        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['actor_role']) . '</td><td>' . h((string) ($log['actor_user_id'] ?? '')) . '</td><td>' . h((string) $log['action']) . '</td><td>' . h((string) ($log['target_type'] ?? '')) . '</td><td>' . h((string) ($log['target_id'] ?? '')) . '</td><td>' . h((string) $log['outcome']) . '</td><td><code>' . h(admin_log_text((string) ($log['metadata_json'] ?? ''), 180)) . '</code></td></tr>';
+        $outcome = (string) $log['outcome'];
+        $tone = match ($outcome) {
+            'success' => 'success',
+            'blocked' => 'warning',
+            'failed' => 'danger',
+            default => 'neutral',
+        };
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['actor_role']) . '</td><td>' . h((string) ($log['actor_user_id'] ?? '')) . '</td><td><strong>' . h((string) $log['action']) . '</strong></td><td>' . h((string) ($log['target_type'] ?? '')) . '</td><td>' . h((string) ($log['target_id'] ?? '')) . '</td><td>' . admin_log_badge($tone, $outcome) . '</td><td>' . h(admin_log_text((string) ($log['reason'] ?? ''), 120)) . '</td><td><code>' . h(admin_log_text((string) ($log['request_id'] ?? ''), 48)) . '</code></td><td><code>' . h(admin_log_text((string) ($log['metadata_json'] ?? ''), 180)) . '</code></td></tr>';
     }
-    return $rows ?: '<tr><td colspan="8">Aucun audit.</td></tr>';
+    return $rows ?: '<tr><td colspan="10">Aucun audit.</td></tr>';
 }
 
 function render_stripe_log_rows(array $logs): string
 {
     $rows = '';
     foreach ($logs as $log) {
-        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['stripe_event_id']) . '</td><td>' . h((string) $log['event_type']) . '</td><td>' . h((string) ($log['stripe_object_id'] ?? '')) . '</td><td>' . h((string) $log['status']) . '</td><td>' . (int) $log['attempt_count'] . '</td><td>' . h(admin_log_text((string) ($log['error_message'] ?? ''), 180)) . '</td></tr>';
+        $status = (string) $log['status'];
+        $tone = match ($status) {
+            'processed' => 'success',
+            'processing', 'received' => 'info',
+            'failed' => 'danger',
+            'ignored' => 'neutral',
+            default => 'warning',
+        };
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td><code>' . h((string) $log['stripe_event_id']) . '</code></td><td><strong>' . h((string) $log['event_type']) . '</strong></td><td>' . h((string) ($log['stripe_object_id'] ?? '')) . '</td><td>' . admin_log_badge($tone, $status) . '</td><td>' . (int) $log['attempt_count'] . '</td><td><code>' . h(admin_log_text((string) ($log['payload_hash'] ?? ''), 48)) . '</code></td><td>' . h(admin_log_text((string) ($log['error_message'] ?? ''), 180)) . '</td></tr>';
     }
-    return $rows ?: '<tr><td colspan="7">Aucun evenement Stripe.</td></tr>';
+    return $rows ?: '<tr><td colspan="8">Aucun evenement Stripe.</td></tr>';
 }
 
 function render_admin_logs_panel(PDO $pdo): string
 {
-    $level = trim((string) ($_GET['log_level'] ?? ''));
-    $channel = trim((string) ($_GET['log_channel'] ?? ''));
-    $event = trim((string) ($_GET['log_event'] ?? ''));
-    $query = trim((string) ($_GET['log_q'] ?? ''));
-    $where = [];
-    $params = [];
-    if ($level !== '' && in_array($level, LOG_LEVELS, true)) {
-        $where[] = 'level = ?';
-        $params[] = $level;
-    }
-    if ($channel !== '') {
-        $where[] = 'channel = ?';
-        $params[] = substr($channel, 0, 50);
-    }
-    if ($event !== '') {
-        $where[] = 'event_code LIKE ?';
-        $params[] = '%' . substr($event, 0, 100) . '%';
-    }
-    if ($query !== '') {
-        $where[] = '(message LIKE ? OR context_json LIKE ? OR request_id LIKE ?)';
-        $term = '%' . substr($query, 0, 120) . '%';
-        array_push($params, $term, $term, $term);
-    }
-    $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    $filters = admin_log_filters();
+    $scope = (string) $filters['log_scope'];
+    $logData = admin_log_datasets($pdo, $filters);
+    $appRows = render_app_log_rows($logData['app_rows']);
+    $securityRows = render_app_log_rows($logData['security_rows']);
+    $auditRows = render_audit_log_rows($logData['audit_rows']);
+    $stripeRows = render_stripe_log_rows($logData['stripe_rows']);
 
-    $appStmt = $pdo->prepare('SELECT created_at, level, channel, event_code, message, user_id, http_status, context_json FROM app_logs ' . $whereSql . ' ORDER BY id DESC LIMIT 80');
-    $appStmt->execute($params);
-    $appRows = render_app_log_rows($appStmt->fetchAll());
-
-    $security = $pdo->query(
-        "SELECT created_at, level, channel, event_code, message, user_id, http_status, context_json
-         FROM app_logs
-         WHERE level IN ('security', 'critical') OR event_code IN ('rate_limit_triggered', 'admin_access_denied', 'stripe_webhook_signature_failed', 'email_failed', 'php_error')
-         ORDER BY id DESC LIMIT 60"
-    )->fetchAll();
-    $securityRows = render_app_log_rows($security);
-
-    $audit = $pdo->query('SELECT created_at, actor_user_id, actor_role, action, target_type, target_id, outcome, metadata_json FROM audit_logs ORDER BY id DESC LIMIT 80')->fetchAll();
-    $auditRows = render_audit_log_rows($audit);
-
-    $stripe = $pdo->query('SELECT created_at, stripe_event_id, event_type, stripe_object_id, status, attempt_count, error_message FROM stripe_event_logs ORDER BY id DESC LIMIT 80')->fetchAll();
-    $stripeRows = render_stripe_log_rows($stripe);
+    $counts = [
+        'security' => count($logData['security_rows']),
+        'application' => count($logData['app_rows']),
+        'audit' => count($logData['audit_rows']),
+        'stripe' => count($logData['stripe_rows']),
+    ];
 
     $levelOptions = '<option value="">Tous</option>';
     foreach (LOG_LEVELS as $option) {
-        $levelOptions .= '<option value="' . h($option) . '"' . ($level === $option ? ' selected' : '') . '>' . h($option) . '</option>';
+        $levelOptions .= '<option value="' . h($option) . '"' . ($filters['log_level'] === $option ? ' selected' : '') . '>' . h($option) . '</option>';
     }
+
+    $outcomeOptions = '<option value="">Tous</option>';
+    foreach (['success', 'failed', 'blocked'] as $option) {
+        $outcomeOptions .= '<option value="' . h($option) . '"' . ($filters['log_outcome'] === $option ? ' selected' : '') . '>' . h($option) . '</option>';
+    }
+
+    $stripeStatusOptions = '<option value="">Tous</option>';
+    foreach (['received', 'processing', 'processed', 'failed', 'ignored'] as $option) {
+        $stripeStatusOptions .= '<option value="' . h($option) . '"' . ($filters['log_stripe_status'] === $option ? ' selected' : '') . '>' . h($option) . '</option>';
+    }
+
+    $limitOptions = '';
+    foreach ([50, 100, 200, 500] as $option) {
+        $limitOptions .= '<option value="' . $option . '"' . ((int) $filters['log_limit'] === $option ? ' selected' : '') . '>' . $option . '</option>';
+    }
+
+    $channelOptions = '<option value="">Tous</option>';
+    $channelStmt = $pdo->query('SELECT DISTINCT channel FROM app_logs WHERE channel IS NOT NULL AND channel <> "" ORDER BY channel ASC LIMIT 30');
+    foreach ($channelStmt->fetchAll(PDO::FETCH_COLUMN) as $option) {
+        $channelOptions .= '<option value="' . h((string) $option) . '"' . ($filters['log_channel'] === (string) $option ? ' selected' : '') . '>' . h((string) $option) . '</option>';
+    }
+
+    $actorRoleOptions = '<option value="">Tous</option>';
+    $actorRoleStmt = $pdo->query('SELECT DISTINCT actor_role FROM audit_logs WHERE actor_role IS NOT NULL AND actor_role <> "" ORDER BY actor_role ASC LIMIT 20');
+    foreach ($actorRoleStmt->fetchAll(PDO::FETCH_COLUMN) as $option) {
+        $actorRoleOptions .= '<option value="' . h((string) $option) . '"' . ($filters['log_actor_role'] === (string) $option ? ' selected' : '') . '>' . h((string) $option) . '</option>';
+    }
+
+    $targetTypeOptions = '<option value="">Toutes</option>';
+    $targetTypeStmt = $pdo->query('SELECT DISTINCT target_type FROM audit_logs WHERE target_type IS NOT NULL AND target_type <> "" ORDER BY target_type ASC LIMIT 25');
+    foreach ($targetTypeStmt->fetchAll(PDO::FETCH_COLUMN) as $option) {
+        $targetTypeOptions .= '<option value="' . h((string) $option) . '"' . ($filters['log_target_type'] === (string) $option ? ' selected' : '') . '>' . h((string) $option) . '</option>';
+    }
+
+    $advancedFiltersOpen = false;
+    foreach (['log_channel', 'log_event', 'log_user_id', 'log_http_status', 'log_request_id', 'log_actor_role', 'log_action', 'log_target_type', 'log_outcome', 'log_stripe_status', 'log_stripe_type'] as $key) {
+        if (trim((string) ($filters[$key] ?? '')) !== '') {
+            $advancedFiltersOpen = true;
+            break;
+        }
+    }
+
+    $appSections = '
+      <div class="section-heading log-section-heading"><div><h3>Alertes</h3><p>Evenements de securite, refus d acces et erreurs a prioriser.</p></div><div>' . admin_log_badge('warning', (string) $counts['security']) . '</div></div>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Channel</th><th>Event</th><th>Message</th><th>User</th><th>HTTP</th><th>Request</th><th>Contexte</th></tr></thead><tbody>' . $securityRows . '</tbody></table></div>
+      <div class="section-heading log-section-heading"><div><h3>Application</h3><p>Trace technique des API, auth, emails, exports et erreurs runtime.</p></div><div>' . admin_log_badge('info', (string) $counts['application']) . '</div></div>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Channel</th><th>Event</th><th>Message</th><th>User</th><th>HTTP</th><th>Request</th><th>Contexte</th></tr></thead><tbody>' . $appRows . '</tbody></table></div>
+    ';
+
+    $auditSection = '
+      <section class="panel">
+        <div class="section-heading log-section-heading"><div><h2>Audit actions</h2><p>Qui a fait quoi, sur quelle cible, avec quel resultat.</p></div><div>' . admin_log_badge('neutral', (string) $counts['audit']) . '</div></div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Role</th><th>Acteur</th><th>Action</th><th>Cible</th><th>ID</th><th>Issue</th><th>Raison</th><th>Request</th><th>Meta</th></tr></thead><tbody>' . $auditRows . '</tbody></table></div>
+      </section>
+    ';
+
+    $stripeSection = '
+      <section class="panel">
+        <div class="section-heading log-section-heading"><div><h2>Stripe events</h2><p>Reception, traitement et echecs des webhooks et operations paiement.</p></div><div>' . admin_log_badge('neutral', (string) $counts['stripe']) . '</div></div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Event ID</th><th>Type</th><th>Objet</th><th>Statut</th><th>Essais</th><th>Payload hash</th><th>Erreur</th></tr></thead><tbody>' . $stripeRows . '</tbody></table></div>
+      </section>
+    ';
 
     return '
       <section class="panel">
@@ -2309,31 +3146,51 @@ function render_admin_logs_panel(PDO $pdo): string
             <h2>Logs applicatifs</h2>
             <p>Evenements techniques, securite, audit, Stripe et client. Les IP/courriels sensibles sont hashes.</p>
           </div>
-          <a class="secondary compact-link" href="' . h(admin_log_filter_link()) . '">Reinitialiser filtres</a>
+          <div class="form-actions">
+            ' . admin_log_export_links() . '
+            <a class="secondary compact-link" href="' . h(admin_log_filter_link()) . '">Reinitialiser filtres</a>
+          </div>
         </div>
-        <form class="admin-directory-form" method="get" action="/admin#admin-logs">
+        <div class="stats-grid billing-summary-grid">
+          <div class="stat"><span>Alertes</span><strong>' . $counts['security'] . '</strong></div>
+          <div class="stat"><span>Application</span><strong>' . $counts['application'] . '</strong></div>
+          <div class="stat"><span>Audit</span><strong>' . $counts['audit'] . '</strong></div>
+          <div class="stat"><span>Stripe</span><strong>' . $counts['stripe'] . '</strong></div>
+        </div>
+        ' . admin_log_scope_nav($filters, $counts) . '
+        <form class="log-filter-stack" method="get" action="/admin#admin-logs">
           ' . admin_key_input() . '
+          <input type="hidden" name="log_scope" value="' . h($scope) . '">
+          <div class="admin-directory-form admin-log-filters">
           <label><span>Niveau</span><select name="log_level">' . $levelOptions . '</select></label>
-          <label><span>Channel</span><input type="search" name="log_channel" value="' . h($channel) . '" placeholder="auth, api, stripe"></label>
-          <label><span>Event</span><input type="search" name="log_event" value="' . h($event) . '" placeholder="login_failed"></label>
-          <label><span>Recherche</span><input type="search" name="log_q" value="' . h($query) . '" placeholder="message, contexte, request_id"></label>
-          <button type="submit">Filtrer</button>
+          <label class="span-2"><span>Recherche</span><input type="search" name="log_q" value="' . h((string) $filters['log_q']) . '" placeholder="message, contexte, request_id, metadata"></label>
+          <label><span>Date debut</span><input type="date" name="log_date_from" value="' . h((string) $filters['log_date_from']) . '"></label>
+          <label><span>Date fin</span><input type="date" name="log_date_to" value="' . h((string) $filters['log_date_to']) . '"></label>
+          <label><span>Limite</span><select name="log_limit">' . $limitOptions . '</select></label>
+          <button type="submit">Appliquer</button>
+          </div>
+          <details class="log-filter-details"' . ($advancedFiltersOpen ? ' open' : '') . '>
+            <summary>Filtres avances pour ' . h(strtolower(admin_log_scope_label($scope))) . '</summary>
+            <div class="admin-directory-form admin-log-filters advanced">
+          <label><span>Channel</span><select name="log_channel">' . $channelOptions . '</select></label>
+          <label><span>Event</span><input type="search" name="log_event" value="' . h((string) $filters['log_event']) . '" placeholder="login_failed"></label>
+          <label><span>User ID</span><input type="number" min="1" name="log_user_id" value="' . h((string) $filters['log_user_id']) . '" placeholder="8"></label>
+          <label><span>HTTP status</span><input type="number" min="100" max="599" name="log_http_status" value="' . h((string) $filters['log_http_status']) . '" placeholder="403"></label>
+          <label><span>Request ID</span><input type="search" name="log_request_id" value="' . h((string) $filters['log_request_id']) . '" placeholder="trace ou fragment"></label>
+          <label><span>Role audit</span><select name="log_actor_role">' . $actorRoleOptions . '</select></label>
+          <label><span>Action audit</span><input type="search" name="log_action" value="' . h((string) $filters['log_action']) . '" placeholder="admin_settings_changed"></label>
+          <label><span>Cible audit</span><select name="log_target_type">' . $targetTypeOptions . '</select></label>
+          <label><span>Issue audit</span><select name="log_outcome">' . $outcomeOptions . '</select></label>
+          <label><span>Statut Stripe</span><select name="log_stripe_status">' . $stripeStatusOptions . '</select></label>
+          <label><span>Type Stripe</span><input type="search" name="log_stripe_type" value="' . h((string) $filters['log_stripe_type']) . '" placeholder="invoice, checkout, customer"></label>
+            </div>
+          </details>
+          ' . admin_log_filter_summary($filters) . '
         </form>
-        <h3>Alertes</h3>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Channel</th><th>Event</th><th>Message</th><th>User</th><th>HTTP</th><th>Contexte</th></tr></thead><tbody>' . $securityRows . '</tbody></table></div>
+        ' . ($scope !== 'audit' && $scope !== 'stripe' ? $appSections : '') . '
       </section>
-      <section class="panel">
-        <h2>Application</h2>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Channel</th><th>Event</th><th>Message</th><th>User</th><th>HTTP</th><th>Contexte</th></tr></thead><tbody>' . $appRows . '</tbody></table></div>
-      </section>
-      <section class="panel">
-        <h2>Audit actions</h2>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Role</th><th>Acteur</th><th>Action</th><th>Cible</th><th>ID</th><th>Issue</th><th>Meta</th></tr></thead><tbody>' . $auditRows . '</tbody></table></div>
-      </section>
-      <section class="panel">
-        <h2>Stripe events</h2>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Event ID</th><th>Type</th><th>Objet</th><th>Statut</th><th>Essais</th><th>Erreur</th></tr></thead><tbody>' . $stripeRows . '</tbody></table></div>
-      </section>
+      ' . ($scope === 'all' || $scope === 'audit' ? $auditSection : '') . '
+      ' . ($scope === 'all' || $scope === 'stripe' ? $stripeSection : '') . '
     ';
 }
 
@@ -2359,8 +3216,6 @@ function render_admin_page(): void
     $selected = selected_admin_user($pdo);
     $notice = trim((string) ($_GET['notice'] ?? ''));
     $exports = $pdo->query('SELECT export_authorizations.id, users.id AS user_id, users.email, export_type, credit_cost, export_authorizations.status AS export_status, export_authorizations.created_at, consumed_at FROM export_authorizations JOIN users ON users.id = export_authorizations.user_id ORDER BY export_authorizations.id DESC LIMIT 20')->fetchAll();
-    $subscriptions = $pdo->query('SELECT subscriptions.id, users.id AS user_id, users.email, plan, subscriptions.status AS subscription_state, current_period_end, subscriptions.updated_at FROM subscriptions JOIN users ON users.id = subscriptions.user_id ORDER BY subscriptions.id DESC LIMIT 20')->fetchAll();
-    $payments = $pdo->query('SELECT payments.id, users.id AS user_id, users.email, amount_cents, currency, payments.status AS payment_state, description, invoice_url, invoice_pdf, payments.created_at FROM payments JOIN users ON users.id = payments.user_id ORDER BY payments.id DESC LIMIT 20')->fetchAll();
 
     $exportRows = '';
     foreach ($exports as $export) {
@@ -2369,26 +3224,6 @@ function render_admin_page(): void
     }
     if ($exportRows === '') {
         $exportRows = '<tr><td colspan="6">Aucune autorisation.</td></tr>';
-    }
-
-    $subscriptionRows = '';
-    foreach ($subscriptions as $subscription) {
-        $clientHref = admin_client_modal_url((int) $subscription['user_id'], 'admin-billing', 'billing');
-        $subscriptionRows .= '<tr><td>' . (int) $subscription['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $subscription['email']) . '</a></td><td>' . h((string) $subscription['plan']) . '</td><td>' . h((string) $subscription['subscription_state']) . '</td><td>' . h((string) ($subscription['current_period_end'] ?: '-')) . '</td><td>' . h((string) $subscription['updated_at']) . '</td></tr>';
-    }
-    if ($subscriptionRows === '') {
-        $subscriptionRows = '<tr><td colspan="6">Aucun abonnement.</td></tr>';
-    }
-
-    $paymentRows = '';
-    foreach ($payments as $payment) {
-        $clientHref = admin_client_modal_url((int) $payment['user_id'], 'admin-billing', 'billing');
-        $invoiceLinks = ((string) $payment['invoice_url'] !== '' ? '<a href="' . h((string) $payment['invoice_url']) . '" target="_blank" rel="noreferrer">Voir</a> ' : '')
-            . ((string) $payment['invoice_pdf'] !== '' ? '<a href="' . h((string) $payment['invoice_pdf']) . '" target="_blank" rel="noreferrer">PDF</a>' : '');
-        $paymentRows .= '<tr><td>' . (int) $payment['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $payment['email']) . '</a></td><td>' . h(money_cents((int) $payment['amount_cents'], (string) $payment['currency'])) . '</td><td>' . h((string) $payment['payment_state']) . '</td><td>' . h((string) $payment['description']) . '</td><td>' . ($invoiceLinks ?: '-') . '</td><td>' . h((string) $payment['created_at']) . '</td></tr>';
-    }
-    if ($paymentRows === '') {
-        $paymentRows = '<tr><td colspan="7">Aucun paiement.</td></tr>';
     }
 
     page_response('Admin', '
@@ -2422,8 +3257,7 @@ function render_admin_page(): void
         ' . render_user_directory($pdo) . '
       </section>
       <section class="tab-panel" id="admin-billing" data-tab-panel hidden>
-        <section class="panel"><h2>Abonnements recents</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Plan</th><th>Etat</th><th>Fin periode</th><th>MAJ</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div></section>
-        <section class="panel"><h2>Paiements recents</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Montant</th><th>Etat</th><th>Description</th><th>Facture</th><th>Date</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div></section>
+        ' . render_admin_billing_panel($pdo) . '
       </section>
       <section class="tab-panel" id="admin-exports" data-tab-panel hidden>
         ' . render_admin_database_export_panel() . '

@@ -717,6 +717,15 @@ function admin_billing_scope_value(string $value): string
     return in_array($value, $allowed, true) ? $value : 'all';
 }
 
+function admin_billing_view_value(string $value, string $scope = 'all'): string
+{
+    $allowed = $scope === 'payments'
+        ? ['payments']
+        : ($scope === 'subscriptions' ? ['subscriptions'] : ['subscriptions', 'payments']);
+    $fallback = $scope === 'payments' ? 'payments' : 'subscriptions';
+    return in_array($value, $allowed, true) ? $value : $fallback;
+}
+
 function admin_normalize_billing_filters(array $filters): array
 {
     $scope = (string) ($filters['billing_scope'] ?? 'all');
@@ -730,6 +739,7 @@ function admin_normalize_billing_filters(array $filters): array
         $filters['billing_amount_min'] = '';
         $filters['billing_amount_max'] = '';
     }
+    $filters['billing_view'] = admin_billing_view_value((string) ($filters['billing_view'] ?? ''), $scope);
     return $filters;
 }
 
@@ -743,8 +753,10 @@ function admin_billing_filters(): array
 {
     $amountMin = trim((string) ($_GET['billing_amount_min'] ?? ''));
     $amountMax = trim((string) ($_GET['billing_amount_max'] ?? ''));
+    $scope = admin_billing_scope_value((string) ($_GET['billing_scope'] ?? 'all'));
     return admin_normalize_billing_filters([
-        'billing_scope' => admin_billing_scope_value((string) ($_GET['billing_scope'] ?? 'all')),
+        'billing_scope' => $scope,
+        'billing_view' => admin_billing_view_value((string) ($_GET['billing_view'] ?? ''), $scope),
         'billing_q' => substr(trim((string) ($_GET['billing_q'] ?? '')), 0, 120),
         'billing_plan' => substr(trim((string) ($_GET['billing_plan'] ?? '')), 0, 80),
         'billing_provider' => substr(trim((string) ($_GET['billing_provider'] ?? '')), 0, 80),
@@ -768,6 +780,24 @@ function admin_billing_filter_url(array $overrides = []): string
         }
     }
     return admin_redirect_url($params) . '#admin-billing';
+}
+
+function admin_billing_content_nav(array $filters, int $subscriptionCount, int $paymentCount): string
+{
+    if ((string) ($filters['billing_scope'] ?? 'all') !== 'all') {
+        return '';
+    }
+    $current = (string) ($filters['billing_view'] ?? 'subscriptions');
+    $items = [
+        'subscriptions' => ['Abonnements', $subscriptionCount],
+        'payments' => ['Paiements', $paymentCount],
+    ];
+    $links = '';
+    foreach ($items as $view => [$label, $count]) {
+        $classAttr = $current === $view ? ' class="active"' : '';
+        $links .= '<a' . $classAttr . ' href="' . h(admin_billing_filter_url(['billing_view' => $view])) . '"><span>' . h($label) . '</span><strong>' . (int) $count . '</strong></a>';
+    }
+    return '<nav class="tab-nav billing-detail-nav" aria-label="Detail billing">' . $links . '</nav>';
 }
 
 function admin_select_options(array $values, string $selected, string $emptyLabel = 'Tous'): string
@@ -2857,6 +2887,7 @@ function render_admin_billing_panel(PDO $pdo): string
 {
     $filters = admin_billing_filters();
     $scope = (string) $filters['billing_scope'];
+    $billingView = (string) $filters['billing_view'];
     $query = (string) $filters['billing_q'];
     $plan = (string) $filters['billing_plan'];
     $provider = (string) $filters['billing_provider'];
@@ -3070,6 +3101,19 @@ function render_admin_billing_panel(PDO $pdo): string
         ',
     };
 
+    $contentNav = admin_billing_content_nav($filters, count($subscriptions), count($payments));
+    $detailTitle = $billingView === 'payments' ? 'Paiements filtres' : 'Abonnements filtres';
+    $detailDescription = $billingView === 'payments'
+        ? 'Montants encaisses, statut de traitement et presence de facture.'
+        : 'Etat courant du plan, provider et prochaine echeance.';
+    $detailCount = $billingView === 'payments' ? count($payments) : count($subscriptions);
+    $detailTable = $billingView === 'payments'
+        ? '<div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Montant</th><th>Etat</th><th>Description</th><th>Facture</th><th>Date</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div>'
+        : '<div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Plan</th><th>Etat</th><th>Provider</th><th>Fin periode</th><th>MAJ</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div>';
+    $detailHint = $scope === 'all'
+        ? '<p class="section-hint billing-detail-hint">Les deux vues partagent les memes filtres. Bascule entre abonnements et paiements sans rallonger la page.</p>'
+        : '';
+
     return '
       <section class="panel">
         <div class="section-heading">
@@ -3088,6 +3132,7 @@ function render_admin_billing_panel(PDO $pdo): string
         <form class="log-filter-stack" method="get" action="/admin#admin-billing">
           ' . admin_key_input() . '
           <input type="hidden" name="billing_scope" value="' . h($scope) . '">
+          <input type="hidden" name="billing_view" value="' . h($billingView) . '">
           <div class="admin-directory-form admin-billing-filters">
             <label class="span-2"><span>Client / recherche</span><input type="search" name="billing_q" value="' . h($query) . '" placeholder="email, id, description"></label>
             ' . ($scope !== 'payments' ? '<label><span>Etat abonnement</span><select name="billing_subscription_status">' . admin_select_options($subscriptionStatusMap, $subscriptionStatus, 'Tous') . '</select></label>' : '') . '
@@ -3110,18 +3155,26 @@ function render_admin_billing_panel(PDO $pdo): string
           ' . admin_billing_filter_summary($filters) . '
         </form>
       </section>
-      ' . ($scope !== 'payments' ? '
       <section class="panel">
-        <div class="section-heading log-section-heading"><div><h2>Abonnements filtres</h2><p>Etat courant du plan, provider et prochaine echeance.</p></div><div>' . admin_log_badge('neutral', (string) count($subscriptions)) . '</div></div>
-        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Plan</th><th>Etat</th><th>Provider</th><th>Fin periode</th><th>MAJ</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div>
+        <div class="section-heading log-section-heading">
+          <div>
+            <h2>Details billing</h2>
+            <p>La synthese reste visible en haut. Le detail se lit maintenant par sous-vue, pas en pile.</p>
+          </div>
+          <div class="section-heading-side">
+            <div>' . admin_log_badge('neutral', (string) $detailCount) . '</div>
+            ' . $detailHint . '
+          </div>
+        </div>
+        ' . $contentNav . '
+        <div class="billing-detail-panel">
+          <div class="section-heading log-section-heading">
+            <div><h3>' . h($detailTitle) . '</h3><p>' . h($detailDescription) . '</p></div>
+          </div>
+          ' . $detailTable . '
+        </div>
       </section>
-      ' : '') . '
-      ' . ($scope !== 'subscriptions' ? '
-      <section class="panel">
-        <div class="section-heading log-section-heading"><div><h2>Paiements filtres</h2><p>Montants encaisses, statut de traitement et presence de facture.</p></div><div>' . admin_log_badge('neutral', (string) count($payments)) . '</div></div>
-        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Montant</th><th>Etat</th><th>Description</th><th>Facture</th><th>Date</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div>
-      </section>
-      ' : '');
+      ';
 }
 
 function render_admin_export_links(string $scope): string
@@ -3242,18 +3295,18 @@ function admin_log_filter_summary(array $filters): string
     $chips = [];
     $map = [
         'log_level' => 'Niveau',
-        'log_channel' => 'Channel',
-        'log_event' => 'Event',
+        'log_channel' => 'Source',
+        'log_event' => 'Evenement',
         'log_q' => 'Recherche',
         'log_date_from' => 'Depuis',
         'log_date_to' => 'Jusqu a',
-        'log_user_id' => 'User',
+        'log_user_id' => 'Client',
         'log_http_status' => 'HTTP',
-        'log_request_id' => 'Request',
+        'log_request_id' => 'Trace',
         'log_actor_role' => 'Role',
         'log_action' => 'Action',
         'log_target_type' => 'Cible',
-        'log_outcome' => 'Issue',
+        'log_outcome' => 'Resultat',
         'log_stripe_status' => 'Stripe',
         'log_stripe_type' => 'Type Stripe',
     ];
@@ -3851,15 +3904,15 @@ function render_admin_logs_panel(PDO $pdo): string
           <details class="log-filter-details"' . ($advancedFiltersOpen ? ' open' : '') . '>
             <summary>Filtres avances pour ' . h(strtolower(admin_log_scope_label($scope))) . '</summary>
             <div class="admin-directory-form admin-log-filters advanced">
-          <label><span>Channel</span><select name="log_channel">' . $channelOptions . '</select></label>
-          <label><span>Event</span><input type="search" name="log_event" value="' . h((string) $filters['log_event']) . '" placeholder="Connexion, limite, ticket..."></label>
-          <label><span>User ID</span><input type="number" min="1" name="log_user_id" value="' . h((string) $filters['log_user_id']) . '" placeholder="8"></label>
-          <label><span>HTTP status</span><input type="number" min="100" max="599" name="log_http_status" value="' . h((string) $filters['log_http_status']) . '" placeholder="403"></label>
-          <label><span>Request ID</span><input type="search" name="log_request_id" value="' . h((string) $filters['log_request_id']) . '" placeholder="trace ou fragment"></label>
+          <label><span>Source</span><select name="log_channel">' . $channelOptions . '</select></label>
+          <label><span>Evenement</span><input type="search" name="log_event" value="' . h((string) $filters['log_event']) . '" placeholder="Connexion, limite, ticket..."></label>
+          <label><span>Client ID</span><input type="number" min="1" name="log_user_id" value="' . h((string) $filters['log_user_id']) . '" placeholder="8"></label>
+          <label><span>Statut HTTP</span><input type="number" min="100" max="599" name="log_http_status" value="' . h((string) $filters['log_http_status']) . '" placeholder="403"></label>
+          <label><span>Trace</span><input type="search" name="log_request_id" value="' . h((string) $filters['log_request_id']) . '" placeholder="trace ou fragment"></label>
           <label><span>Role audit</span><select name="log_actor_role">' . $actorRoleOptions . '</select></label>
           <label><span>Action audit</span><input type="search" name="log_action" value="' . h((string) $filters['log_action']) . '" placeholder="profil, export, reglages..."></label>
           <label><span>Cible audit</span><select name="log_target_type">' . $targetTypeOptions . '</select></label>
-          <label><span>Issue audit</span><select name="log_outcome">' . $outcomeOptions . '</select></label>
+          <label><span>Resultat audit</span><select name="log_outcome">' . $outcomeOptions . '</select></label>
           <label><span>Statut Stripe</span><select name="log_stripe_status">' . $stripeStatusOptions . '</select></label>
           <label><span>Type Stripe</span><input type="search" name="log_stripe_type" value="' . h((string) $filters['log_stripe_type']) . '" placeholder="invoice, checkout, subscription"></label>
             </div>

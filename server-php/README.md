@@ -32,8 +32,9 @@ Etat actuel:
 - `/admin` permet de repondre aux tickets, changer open/closed, definir priorite et assignation, configurer SMTP cPanel et tester l'envoi email.
 - `/admin` > `Reglages` permet aussi de configurer/tester les coordonnees DB cPanel/MySQL. Enregistrer cree le schema MySQL si la base est vide.
 - `/admin` > `Exports` permet d'exporter la base en CSV, Excel compatible `.xls` ou JSON par portee: base complete, clients, billing, support, credits ou autorisations.
-- `/admin` > `Logs` affiche alertes, logs applicatifs, audit actions et evenements Stripe avec portee par domaine, filtres rapides/avances, badges d'etat, exports CSV/Excel compatible `.xls`/JSON/SQL et tables "metier d abord, code ensuite".
+- `/admin` > `Logs` affiche alertes, logs applicatifs, audit actions et evenements Stripe avec portee par domaine, filtres rapides/avances, badges d'etat, exports CSV/Excel compatible `.xls`/JSON/SQL et tables "metier d'abord, code ensuite".
 - Le back-office suit maintenant les conventions `docs/admin-hig.md`: separation par domaine, detail en modal, filtres structures et contexte preserve.
+- `/admin` > `Billing` evite maintenant la longue pile verticale: la synthese et les filtres restent en tete, puis le detail bascule via sous-onglets `Abonnements` / `Paiements` quand la portee est `Tout`.
 - `app_logs`, `audit_logs` et `stripe_event_logs` tracent erreurs, securite, actions importantes, emails, tickets, exports, auth et webhooks sans stocker mots de passe, tokens ou secrets.
 - Les notifications tickets sont journalisees dans `ticket_notifications`, puis envoyees immediatement via SMTP si l'envoi est active.
 - `GET /api/credits/ledger` retourne l'historique credits du client connecte.
@@ -153,7 +154,7 @@ Comptes utiles:
 
 ## A ajouter
 
-- Revue responsive/mobile complete du back-office (`Support`, `Clients`, `Billing`, `Exports`, `Logs`, `Reglages`).
+- Finir la revue responsive/mobile complete du back-office (`Support`, `Clients`, `Billing`, `Exports`, `Logs`, `Reglages`).
 - Rate limiting tickets/webhooks. L'auth client et `/api/client-log` sont deja limites.
 - CSRF et authentification admin production; eviter le `key` admin en query string.
 - CSP, retention/rotation des logs, sanitizer SVG complet et plafonds Rust/WASM pour fichiers/meshes/exports.

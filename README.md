@@ -257,7 +257,8 @@ Etat actuel:
 - PHP sert deja `/`, `/pricing`, `/account`, `/admin` et `/api/...`.
 - `/account` gere login/register/logout, activation compte par code email, edition profil, credits, historique, abonnement, portail Stripe, paiements/factures, creation de tickets, fil de messages, reponses client et statut open/closed.
 - `/admin` gere repertoire utilisateurs, creation, edition profil, reset mot de passe, archivage, credits, suspension/reactivation, abonnement manuel, tickets avec fil/reponse/statut/priorite/assignation, logs applicatifs/audit/Stripe, configuration DB cPanel/MySQL, configuration Stripe, configuration SMTP cPanel, paiements/factures et exports DB CSV/Excel/JSON.
-- `/admin` suit maintenant une grille HIG documentee dans `docs/admin-hig.md`: domaines separes, detail en modal, clic direct sur l element principal des listes, filtres rapides puis avances, badges metier, preservation du contexte et lecture "metier d abord, code ensuite" dans `Logs` et `Exports`.
+- `/admin` suit maintenant une grille HIG documentee dans `docs/admin-hig.md`: domaines separes, detail en modal, clic direct sur l element principal des listes, filtres rapides puis avances, badges metier, preservation du contexte et lecture "metier d'abord, code ensuite" dans `Logs` et `Exports`.
+- Dans `/admin` > `Billing`, la vue `Tout` garde la synthese et les filtres en tete puis passe le detail par sous-onglets `Abonnements` / `Paiements`, pour eviter une page-fleuve.
 - `/api/client-log` recoit les erreurs client/WASM limitees a 10/minute par user/IP, sans geometrie ni contenu de formulaire.
 - `/stripe/webhook` verifie `Stripe-Signature` quand le secret est configure, journalise `stripe_events` et `stripe_event_logs`, puis applique `checkout.session.completed`, `invoice.*` ou `customer.subscription.*`.
 - L'app WASM garde seulement un resume compte et des liens vers le site; le serveur PHP reste la source de verite. Le shell WASM expose maintenant une navigation FR/EN avec icones sur les zones denses, un modal compte plus lisible et une sortie persistante `Site` dans l'en-tete pour revenir au site PHP. Hors localhost, le login demo rapide est desactive sauf config explicite `window.NICHOIR_DEMO_ACCOUNT`.
@@ -293,6 +294,7 @@ Risques securite encore ouverts avant production:
 - Etudier une union booleenne/CSG pour produire une maison complete fusionnee.
 - Completer le contenu produit de la landing page et de `/pricing`.
 - Continuer le lissage admin: `Logs` mobile/details longs, puis `Reglages`, `Clients` et `Support`.
+- Finir la revue responsive/mobile du back-office et decider quelles tables restent scrollables vs quelles vues meritent un mode carte.
 - Tester Stripe live avec les vrais price IDs et le portail active dans Stripe.
 - Ajouter un script `package_cpanel` et un `install_check.php` pour preparer la copie vers cPanel.
 

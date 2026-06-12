@@ -536,6 +536,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "calcs") => "Calcs",
         ("en", "cut_plan") => "Cut plan",
         ("en", "account") => "Account",
+        ("en", "back_to_site") => "Site",
         ("en", "exports") => "Exports",
         ("en", "view_mode") => "View mode",
         ("en", "explode") => "Explode",
@@ -760,6 +761,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "calcs") => "Calculs",
         (_, "cut_plan") => "Plan",
         (_, "account") => "Compte",
+        (_, "back_to_site") => "Site",
         (_, "exports") => "Exports",
         (_, "view_mode") => "Mode de vue",
         (_, "explode") => "Eclate",
@@ -1126,6 +1128,16 @@ fn choice_button(label: &str, key: &str, value: &str, current: &str) -> String {
         active_str(current, value),
         html_escape(key),
         html_escape(value),
+        html_escape(label),
+    )
+}
+
+fn icon_text(icon: &str, glyph_class: &str, label_class: &str, label: &str) -> String {
+    format!(
+        r#"<span class="{}" aria-hidden="true">{}</span><span class="{}">{}</span>"#,
+        html_escape(glyph_class),
+        html_escape(icon),
+        html_escape(label_class),
         html_escape(label),
     )
 }
@@ -5185,13 +5197,13 @@ pub fn render_app_html(input: &str) -> String {
           <h3>{auth}</h3>
           <p class="control-note" data-account-guest data-demo-account>{demo_quick_login}</p>
           <p class="control-note" data-account-authed hidden>{session_active}</p>
-          <div class="buttons compact-buttons" data-account-guest data-demo-account>
-            <button data-action="account-login" type="button"><span>{demo}</span><strong>{login}</strong></button>
-            <button data-action="account-refresh" type="button"><span>{refresh}</span><strong>{state}</strong></button>
+          <div class="buttons compact-buttons action-buttons" data-account-guest data-demo-account>
+            <button class="action-tile" data-action="account-login" type="button"><span class="button-glyph" aria-hidden="true">◎</span><span class="button-label">{demo}</span></button>
+            <button class="action-tile" data-action="account-refresh" type="button"><span class="button-glyph" aria-hidden="true">↻</span><span class="button-label">{refresh}</span></button>
           </div>
-          <div class="buttons compact-buttons" data-account-authed hidden>
-            <button data-action="account-refresh" type="button"><span>{refresh}</span><strong>{state}</strong></button>
-            <button data-action="account-logout" type="button"><span>{logout}</span><strong>{logout_short}</strong></button>
+          <div class="buttons compact-buttons action-buttons" data-account-authed hidden>
+            <button class="action-tile" data-action="account-refresh" type="button"><span class="button-glyph" aria-hidden="true">↻</span><span class="button-label">{refresh}</span></button>
+            <button class="action-tile" data-action="account-logout" type="button"><span class="button-glyph" aria-hidden="true">⏻</span><span class="button-label">{logout}</span></button>
           </div>
         </div>
         <div class="download-group">
@@ -5199,17 +5211,17 @@ pub fn render_app_html(input: &str) -> String {
           <div class="stat-row"><span>{available_credits}</span><strong data-account-balance>0</strong></div>
           <div class="stat-row"><span>{current_export_hold}</span><strong>{short_authorization}</strong></div>
           <div class="stat-row"><span>{costs}</span><strong>STL 3 / PDF 2 / ZIP 5 / SVG-PNG 1</strong></div>
-          <div class="buttons compact-buttons">
-            <a class="button-like" data-site-link="/pricing" href="/pricing"><span>{offers}</span><strong>{site}</strong></a>
-            <button data-action="token-pricing" type="button"><span>{costs}</span><strong>{info}</strong></button>
+          <div class="buttons compact-buttons action-buttons">
+            <a class="button-like action-tile" data-site-link="/pricing" href="/pricing"><span class="button-glyph" aria-hidden="true">↗</span><span class="button-label">{offers}</span></a>
+            <button class="action-tile" data-action="token-pricing" type="button"><span class="button-glyph" aria-hidden="true">¤</span><span class="button-label">{costs}</span></button>
           </div>
         </div>
         <div class="download-group">
           <h3>{account_management}</h3>
           <p class="control-note">{account_backend_note}</p>
-          <div class="buttons compact-buttons">
-            <a class="button-like" data-site-link="/account" href="/account"><span>{account}</span><strong>{site}</strong></a>
-            <a class="button-like" data-site-link="/pricing" href="/pricing"><span>{pricing}</span><strong>{site}</strong></a>
+          <div class="buttons compact-buttons action-buttons">
+            <a class="button-like action-tile" data-site-link="/account" href="/account"><span class="button-glyph" aria-hidden="true">↗</span><span class="button-label">{account}</span></a>
+            <a class="button-like action-tile" data-site-link="/pricing" href="/pricing"><span class="button-glyph" aria-hidden="true">↗</span><span class="button-label">{pricing}</span></a>
           </div>
         </div>
         <div class="download-group ticket-widget" data-account-authed hidden>
@@ -5257,15 +5269,12 @@ pub fn render_app_html(input: &str) -> String {
         demo_quick_login = html_escape(t(lang, "demo_quick_login")),
         session_active = html_escape(t(lang, "session_active")),
         refresh = html_escape(t(lang, "refresh")),
-        state = html_escape(t(lang, "state")),
         logout = html_escape(t(lang, "logout")),
         available_credits = html_escape(t(lang, "available_credits")),
         current_export_hold = html_escape(t(lang, "current_export_hold")),
         short_authorization = html_escape(t(lang, "short_authorization")),
         costs = html_escape(t(lang, "costs")),
         offers = html_escape(t(lang, "offers")),
-        site = html_escape(t(lang, "site")),
-        info = html_escape(t(lang, "info")),
         account_management = html_escape(t(lang, "account_management")),
         account_backend_note = html_escape(t(lang, "account_backend_note")),
         account = html_escape(t(lang, "account")),
@@ -5282,8 +5291,6 @@ pub fn render_app_html(input: &str) -> String {
         reply = html_escape(t(lang, "reply")),
         reply_label = html_escape(t(lang, "reply_label")),
         demo = html_escape(t(lang, "demo")),
-        login = html_escape(t(lang, "login")),
-        logout_short = html_escape(t(lang, "logout_short")),
         plan_none = html_escape(t(lang, "plan_none")),
         credits_three = html_escape(t(lang, "credits_three")),
         credits_two = html_escape(t(lang, "credits_two")),
@@ -5305,6 +5312,55 @@ pub fn render_app_html(input: &str) -> String {
         choice_button(t(lang, "edges"), "mode", "edges", &p.mode),
         range_control(t(lang, "explode"), "explode", 0.0, 100.0, 1.0, p.explode, "%"),
     );
+    let theme_toggle_content = format!(
+        r#"<span class="theme-glyph" data-theme-icon aria-hidden="true">☼</span><span class="theme-label" data-theme-label>{}</span>"#,
+        html_escape(t(lang, "theme_light"))
+    );
+    let site_exit = icon_text("↗", "header-link-glyph", "header-link-label", t(lang, "back_to_site"));
+    let tab_dim = icon_text("◫", "tab-glyph", "tab-label", t(lang, "dim_tab"));
+    let tab_decor = icon_text("✦", "tab-glyph", "tab-label", t(lang, "decor"));
+    let tab_calcs = icon_text("∑", "tab-glyph", "tab-label", t(lang, "calcs"));
+    let tab_plan = icon_text("✂", "tab-glyph", "tab-label", t(lang, "cut_plan"));
+    let tab_account = icon_text("◎", "tab-glyph", "tab-label", t(lang, "account"));
+    let heading_body = icon_text("◫", "section-glyph", "section-label", t(lang, "body"));
+    let heading_roof = icon_text("▲", "section-glyph", "section-label", t(lang, "roof"));
+    let heading_door = icon_text("▣", "section-glyph", "section-label", t(lang, "door"));
+    let heading_decor = icon_text("✦", "section-glyph", "section-label", t(lang, "decor"));
+    let heading_calcs = icon_text("∑", "section-glyph", "section-label", t(lang, "calcs"));
+    let heading_pieces = icon_text("▤", "section-glyph", "section-label", t(lang, "pieces"));
+    let heading_cut_plan = icon_text("✂", "section-glyph", "section-label", t(lang, "cut_plan"));
+    let heading_models = icon_text("◼", "group-glyph", "group-label", t(lang, "models_3d"));
+    let heading_plans = icon_text("▧", "group-glyph", "group-label", t(lang, "plans"));
+    let heading_diagnostic = icon_text("◌", "group-glyph", "group-label", t(lang, "diagnostic"));
+    let calc_pdf_label = icon_text("∑", "button-glyph", "button-label", t(lang, "download_calcs_pdf"));
+    let export_house_label = icon_text("⌂", "button-glyph", "button-label", t(lang, "house"));
+    let export_door_label = icon_text("▣", "button-glyph", "button-label", t(lang, "door"));
+    let export_panel_label = icon_text("▤", "button-glyph", "button-label", t(lang, "panel"));
+    let export_plan_label = icon_text("▧", "button-glyph", "button-label", t(lang, "plan"));
+    let export_explosion_label = icon_text("✣", "button-glyph", "button-label", t(lang, "explosion"));
+    let export_debug_label = icon_text("◈", "button-glyph", "button-label", t(lang, "debug"));
+    let export_report_label = icon_text("≡", "button-glyph", "button-label", t(lang, "report"));
+    let overlay_mode = icon_text("◩", "chip-glyph", "chip-label", &p.mode.to_uppercase());
+    let overlay_floor = icon_text(
+        "▤",
+        "chip-glyph",
+        "chip-label",
+        if matches!(p.floor, FloorMode::Pose) {
+            t(lang, "floor_pose_short")
+        } else {
+            t(lang, "floor_enclave_short")
+        },
+    );
+    let overlay_ridge = icon_text(
+        "⌃",
+        "chip-glyph",
+        "chip-label",
+        match ridge {
+            RidgeMode::Left => "G>D",
+            RidgeMode::Right => "D>G",
+            RidgeMode::Miter => "ONGLET",
+        },
+    );
 
     format!(
         r##"
@@ -5320,7 +5376,8 @@ pub fn render_app_html(input: &str) -> String {
           <button class="choice {lang_fr_active}" data-action="lang-switch" data-lang="fr" type="button">FR</button>
           <button class="choice {lang_en_active}" data-action="lang-switch" data-lang="en" type="button">EN</button>
         </div>
-        <button class="theme-toggle" data-action="theme-toggle" type="button" aria-pressed="false">{theme_light}</button>
+        <a class="header-site-link" data-site-link="/" href="/">{site_exit}</a>
+        <button class="theme-toggle" data-action="theme-toggle" type="button" aria-pressed="false">{theme_toggle_content}</button>
       </div>
     </div>
   </header>
@@ -5332,26 +5389,26 @@ pub fn render_app_html(input: &str) -> String {
   </div>
 
   <nav class="tabs">
-    <button data-tab="dim">{dim_tab}</button>
-    <button data-tab="decor">{decor}</button>
-    <button data-tab="calcs">{calcs}</button>
-    <button data-tab="plan">{cut_plan}</button>
-    <button data-action="account-modal-open" type="button">{account}</button>
+    <button data-tab="dim">{tab_dim}</button>
+    <button data-tab="decor">{tab_decor}</button>
+    <button data-tab="calcs">{tab_calcs}</button>
+    <button data-tab="plan">{tab_plan}</button>
+    <button data-action="account-modal-open" type="button">{tab_account}</button>
   </nav>
 
   <div class="tab-scroll">
     <section data-panel="dim" class="control-section">
-      <h2>{body}</h2>{body_controls}
-      <h2>{roof_label}</h2>{roof_controls}
-      <h2>{door_label}</h2>{door_controls}
+      <h2>{heading_body}</h2>{body_controls}
+      <h2>{heading_roof}</h2>{roof_controls}
+      <h2>{heading_door}</h2>{door_controls}
     </section>
 
     <section data-panel="decor" class="control-section">
-      <h2>{decor}</h2>{deco_controls}
+      <h2>{heading_decor}</h2>{deco_controls}
     </section>
 
     <section data-panel="calcs" class="control-section">
-      <h2>{calcs}</h2>
+      <h2>{heading_calcs}</h2>
       <div class="stat-row"><span>{volume_ext}</span><strong>{ext} {volume_unit}</strong></div>
       <div class="stat-row"><span>{volume_int}</span><strong>{int} {volume_unit}</strong></div>
       <div class="stat-row"><span>{material_volume}</span><strong>{mat} {volume_unit}</strong></div>
@@ -5366,39 +5423,39 @@ pub fn render_app_html(input: &str) -> String {
       <div class="stat-row"><span>{floor_side_cut}</span><strong>{floor_side_cut_value} {unit_label}</strong></div>
       <div class="stat-row"><span>{kerf_label}</span><strong>{kerf_value} {unit_label}</strong></div>
       <div class="buttons calc-actions">
-        <button data-action="download-calcs-pdf" type="button">{download_calcs_pdf}</button>
+        <button data-action="download-calcs-pdf" type="button">{calc_pdf_label}</button>
       </div>
-      <h2>{pieces}</h2>
+      <h2>{heading_pieces}</h2>
       <div class="cut-list">{cut_rows}</div>
     </section>
 
     <section data-panel="plan" class="control-section">
-      <h2>{cut_plan}</h2>{panel_controls}
+      <h2>{heading_cut_plan}</h2>{panel_controls}
       {plan_stats}
       <div id="plan-preview" class="plan-preview"></div>
       <div class="download-groups">
         <div class="download-group">
-          <h3>{models_3d}</h3>
-          <div class="buttons compact-buttons">
-            <button data-action="export-house"><span>{house}</span><strong>.STL</strong></button>
-            <button data-action="export-door"><span>{door_label}</span><strong>.STL</strong></button>
-            <button data-action="export-panels"><span>{panel}</span><strong>.ZIP</strong></button>
+          <h3>{heading_models}</h3>
+          <div class="buttons compact-buttons action-buttons">
+            <button data-action="export-house">{export_house_label}<strong>.STL</strong></button>
+            <button data-action="export-door">{export_door_label}<strong>.STL</strong></button>
+            <button data-action="export-panels">{export_panel_label}<strong>.ZIP</strong></button>
           </div>
         </div>
         <div class="download-group">
-          <h3>{plans}</h3>
-          <div class="buttons compact-buttons">
-            <button data-action="export-plan"><span>{plan}</span><strong>.SVG</strong></button>
-            <button data-action="download-plan-png" type="button"><span>{plan}</span><strong>.PNG</strong></button>
-            <button data-action="download-explosion-png" type="button"><span>{explosion}</span><strong>.PNG</strong></button>
-            <button data-action="download-plan-pdf" type="button"><span>{plan}</span><strong>.PDF</strong></button>
+          <h3>{heading_plans}</h3>
+          <div class="buttons compact-buttons action-buttons">
+            <button data-action="export-plan">{export_plan_label}<strong>.SVG</strong></button>
+            <button data-action="download-plan-png" type="button">{export_plan_label}<strong>.PNG</strong></button>
+            <button data-action="download-explosion-png" type="button">{export_explosion_label}<strong>.PNG</strong></button>
+            <button data-action="download-plan-pdf" type="button">{export_plan_label}<strong>.PDF</strong></button>
           </div>
         </div>
         <div class="download-group">
-          <h3>{diagnostic}</h3>
-          <div class="buttons compact-buttons">
-            <button data-action="export-obj"><span>{debug}</span><strong>.OBJ</strong></button>
-            <button data-action="mesh-report"><span>{report}</span><strong>.JSON</strong></button>
+          <h3>{heading_diagnostic}</h3>
+          <div class="buttons compact-buttons action-buttons">
+            <button data-action="export-obj">{export_debug_label}<strong>.OBJ</strong></button>
+            <button data-action="mesh-report">{export_report_label}<strong>.JSON</strong></button>
           </div>
         </div>
       </div>
@@ -5408,7 +5465,7 @@ pub fn render_app_html(input: &str) -> String {
 </aside>
 
 <main class="workspace">
-  <div class="overlay"><span>{mode_label}</span><span>{floor_label}</span><span>{ridge_label}</span><button data-action="reset-view" type="button">{reset_view}</button></div>
+  <div class="overlay"><span class="overlay-badge">{overlay_mode}</span><span class="overlay-badge">{overlay_floor}</span><span class="overlay-badge">{overlay_ridge}</span><button data-action="reset-view" type="button"><span class="button-glyph" aria-hidden="true">⟲</span><span>{reset_view}</span></button></div>
   {view_controls}
   <div id="viewer" class="viewer" aria-label="{viewer_preview_aria}"></div>
   <div class="axis-hint"><span class="x">X</span> {axis_width} <span class="y">Y</span> {axis_height} <span class="z">Z</span> {axis_depth}</div>
@@ -5423,7 +5480,7 @@ pub fn render_app_html(input: &str) -> String {
         <h2 id="account-title">{account}</h2>
         <p>{account_backend_source}</p>
       </div>
-      <button class="modal-close" data-account-modal-close type="button" aria-label="{close_account_aria}">{close_account}</button>
+      <button class="modal-close" data-account-modal-close type="button" aria-label="{close_account_aria}"><span class="button-glyph" aria-hidden="true">×</span><span>{close_account}</span></button>
     </header>
     <div class="account-sheet-body">
       {account_controls}
@@ -5431,20 +5488,41 @@ pub fn render_app_html(input: &str) -> String {
   </section>
 </div>
 "##,
-        body = t(lang, "body"),
         app_subtitle = t(lang, "app_subtitle"),
-        theme_light = t(lang, "theme_light"),
-        calcs = t(lang, "calcs"),
+        theme_toggle_content = theme_toggle_content,
+        site_exit = site_exit,
         language = t(lang, "language"),
         lang_fr_active = if lang == "fr" { "active" } else { "" },
         lang_en_active = if lang == "en" { "active" } else { "" },
-        dim_tab = t(lang, "dim_tab"),
+        tab_dim = tab_dim,
+        tab_decor = tab_decor,
+        tab_calcs = tab_calcs,
+        tab_plan = tab_plan,
+        tab_account = tab_account,
+        heading_body = heading_body,
+        heading_roof = heading_roof,
+        heading_door = heading_door,
+        heading_decor = heading_decor,
+        heading_calcs = heading_calcs,
+        heading_pieces = heading_pieces,
+        heading_cut_plan = heading_cut_plan,
+        heading_models = heading_models,
+        heading_plans = heading_plans,
+        heading_diagnostic = heading_diagnostic,
+        calc_pdf_label = calc_pdf_label,
+        export_house_label = export_house_label,
+        export_door_label = export_door_label,
+        export_panel_label = export_panel_label,
+        export_plan_label = export_plan_label,
+        export_explosion_label = export_explosion_label,
+        export_debug_label = export_debug_label,
+        export_report_label = export_report_label,
+        overlay_mode = overlay_mode,
+        overlay_floor = overlay_floor,
+        overlay_ridge = overlay_ridge,
         roof_label = t(lang, "roof"),
-        door_label = t(lang, "door"),
-        cut_plan = t(lang, "cut_plan"),
         account = t(lang, "account"),
         account_controls = account_controls,
-        decor = t(lang, "decor"),
         deco_controls = deco_controls,
         unit_mm = choice_button("mm", "unit", "mm", &p.unit),
         unit_cm = choice_button("cm", "unit", "cm", &p.unit),
@@ -5468,7 +5546,6 @@ pub fn render_app_html(input: &str) -> String {
         floor_bevel = t(lang, "floor_bevel"),
         floor_side_cut = t(lang, "floor_side_cut"),
         kerf_label = t(lang, "kerf"),
-        pieces = t(lang, "pieces"),
         ext = format_volume(g.ext_volume, &p.unit),
         int = format_volume(g.int_volume, &p.unit),
         mat = format_volume(g.material_volume, &p.unit),
@@ -5483,15 +5560,6 @@ pub fn render_app_html(input: &str) -> String {
         floor_side_cut_value = format_len(g.floor_side_cut, &p.unit),
         kerf_value = format_len(p.kerf, &p.unit),
         unit_label = unit.label,
-        panel = t(lang, "panel"),
-        plans = t(lang, "plans"),
-        plan = t(lang, "plan"),
-        explosion = t(lang, "explosion"),
-        diagnostic = t(lang, "diagnostic"),
-        debug = t(lang, "debug"),
-        report = t(lang, "report"),
-        models_3d = t(lang, "models_3d"),
-        house = t(lang, "house"),
         viewer_preview_aria = t(lang, "viewer_preview_aria"),
         axis_width = t(lang, "axis_width"),
         axis_height = t(lang, "axis_height"),
@@ -5500,17 +5568,9 @@ pub fn render_app_html(input: &str) -> String {
         account_backend_source = t(lang, "account_backend_source"),
         close_account = t(lang, "close_account"),
         close_account_aria = t(lang, "close_account_aria"),
-        download_calcs_pdf = t(lang, "download_calcs_pdf"),
         area_unit = unit_area_label(&p.unit),
         volume_unit = unit_volume_label(&p.unit),
         cut_rows = cut_rows,
-        mode_label = html_escape(&p.mode.to_uppercase()),
-        floor_label = if matches!(p.floor, FloorMode::Pose) { t(lang, "floor_pose_short") } else { t(lang, "floor_enclave_short") },
-        ridge_label = match ridge {
-            RidgeMode::Left => "G>D",
-            RidgeMode::Right => "D>G",
-            RidgeMode::Miter => "ONGLET",
-        },
     )
 }
 

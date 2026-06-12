@@ -12,9 +12,11 @@ Regles d'architecture:
 
 - Le serveur PHP est la source de verite pour comptes, credits, abonnements, tickets et autorisations.
 - L'app ne doit garder qu'un resume de compte et des liens vers le site PHP.
+- Le shell garde une porte de sortie persistante vers le site via le lien `Site` dans l'en-tete; la navigation compte ne doit pas enfermer l'utilisateur dans le WASM.
 - Le WASM genere localement geometrie, plans, STL, OBJ, ZIP, PDF et PNG.
 - Ne pas mettre de secret Stripe, admin, licence ou cle serveur dans ce dossier.
 - Le modal compte peut afficher et repondre aux tickets, mais le serveur PHP reste la source de verite.
+- Les zones a forte densite de lecture du shell utilisent des icones de support pour reduire le scan texte, sans remplacer les libelles.
 
 Points de vigilance:
 

@@ -353,7 +353,18 @@ function applyTheme() {
   document.body.classList.toggle('dark', isDark);
   document.body.dataset.theme = theme;
   document.querySelectorAll('[data-action="theme-toggle"]').forEach((button) => {
-    button.textContent = isDark ? tr('theme_dark') : tr('theme_light');
+    const label = isDark ? tr('theme_dark') : tr('theme_light');
+    const icon = isDark ? '☾' : '☼';
+    const labelNode = button.querySelector('[data-theme-label]');
+    const iconNode = button.querySelector('[data-theme-icon]');
+    if (labelNode) {
+      labelNode.textContent = label;
+    } else {
+      button.textContent = label;
+    }
+    if (iconNode) {
+      iconNode.textContent = icon;
+    }
     button.setAttribute('aria-pressed', String(isDark));
     button.setAttribute('aria-label', isDark ? tr('theme_to_light') : tr('theme_to_dark'));
   });

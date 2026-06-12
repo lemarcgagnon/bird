@@ -8,13 +8,14 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260611-account-auth-v1';
+} from '../wasm/pkg/wasm.js?v=20260611-account-summary-v1';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js';
 
-const APP_BUILD_ID = '20260611-account-auth-v1';
+const APP_BUILD_ID = '20260611-account-summary-v1';
 const root = document.getElementById('app');
 const THEME_KEY = 'nichoir-theme';
 const API_BASE = 'http://127.0.0.1:8021';
+const SITE_BASE = 'http://127.0.0.1:8021';
 const AUTH_TOKEN_KEY = 'nichoir-auth-token';
 const DEV_EMAIL = 'demo@nichoir.local';
 const DEV_PASSWORD = 'password123';
@@ -186,10 +187,6 @@ async function apiRequest(path, options = {}) {
   return payload;
 }
 
-function accountInputValue(name, fallback = '') {
-  return root.querySelector(`[data-account-${name}]`)?.value?.trim() || fallback;
-}
-
 function setAccountText(selector, value) {
   root.querySelectorAll(selector).forEach((el) => {
     el.textContent = value;
@@ -275,25 +272,18 @@ async function ensureDevSession() {
   }
 }
 
-async function loginAccount({ register = false, demo = false } = {}) {
-  const email = demo ? DEV_EMAIL : accountInputValue('email', DEV_EMAIL);
-  const password = demo ? DEV_PASSWORD : accountInputValue('password', DEV_PASSWORD);
-  const displayName = accountInputValue('name', 'Demo');
-  const endpoint = register ? '/api/auth/register' : '/api/auth/login';
+async function loginAccount() {
   accountState = { user: accountState.user, loading: true, error: '' };
   updateAccountDom();
   try {
-    const body = register
-      ? { email, password, display_name: displayName }
-      : { email, password };
-    const payload = await apiRequest(endpoint, {
+    const payload = await apiRequest('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: JSON.stringify({ email: DEV_EMAIL, password: DEV_PASSWORD }),
     });
     if (payload.token) localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
     accountState = { user: payload.user || null, loading: false, error: '' };
     updateAccountDom();
-    setExportStatus(register ? 'Compte cree et connecte.' : 'Compte connecte.', 'ok');
+    setExportStatus('Compte demo connecte.', 'ok');
   } catch (err) {
     accountState = { user: null, loading: false, error: err?.message || String(err) };
     updateAccountDom();
@@ -393,15 +383,6 @@ async function exportTextAuthorized(filename, type, exportType, producer, emptyM
     setExportStatus(exportDeniedMessage(err), 'error');
     return false;
   }
-}
-
-async function requestBogusStripeLink() {
-  if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
-    throw new Error('connexion_requise');
-  }
-  setExportStatus('Demande du lien Stripe placeholder au backend...', 'info');
-  const payload = await apiRequest('/api/checkout/stripe-link', { method: 'POST' });
-  setExportStatus(`Stripe placeholder recu: ${payload.checkout_url}`, 'ok');
 }
 
 function exportBinary(filename, type, producer, emptyMessage) {
@@ -1465,12 +1446,6 @@ function render() {
   root.querySelector('[data-action="account-login"]')?.addEventListener('click', () => {
     loginAccount();
   });
-  root.querySelector('[data-action="account-register"]')?.addEventListener('click', () => {
-    loginAccount({ register: true });
-  });
-  root.querySelector('[data-action="account-demo"]')?.addEventListener('click', () => {
-    loginAccount({ demo: true });
-  });
   root.querySelectorAll('[data-action="account-refresh"]').forEach((button) => {
     button.addEventListener('click', () => {
       refreshAccountState();
@@ -1479,24 +1454,16 @@ function render() {
   root.querySelector('[data-action="account-logout"]')?.addEventListener('click', () => {
     logoutAccount();
   });
+  root.querySelectorAll('[data-site-link]').forEach((link) => {
+    const path = link.dataset.siteLink || '/';
+    link.href = `${SITE_BASE}${path}`;
+  });
   [
-    ['buy-credits', 'Credits: Stripe Checkout reste placeholder pour cette phase.'],
-    ['token-pricing', 'Credits: STL 3, PDF 2, ZIP 5, SVG/PNG 1.'],
-    ['choose-subscription', 'Abonnement: choix de formule placeholder.'],
-    ['manage-renewal', 'Abonnement: gestion du renouvellement placeholder.'],
+    ['token-pricing', 'Credits: STL 3, PDF 2, ZIP 5, SVG/PNG 1. Le site PHP reste la source de verite.'],
   ].forEach(([action, message]) => {
     root.querySelector(`[data-action="${action}"]`)?.addEventListener('click', () => {
       setExportStatus(message, 'info');
     });
-  });
-
-  root.querySelector('[data-action="stripe-link"]')?.addEventListener('click', async () => {
-    try {
-      await requestBogusStripeLink();
-    } catch (err) {
-      console.error(err);
-      setExportStatus(`Erreur Stripe placeholder: ${err?.message || err}. Verifie que le backend PHP tourne sur ${API_BASE}.`, 'error');
-    }
   });
 
   root.querySelectorAll('[data-param]').forEach((input) => {

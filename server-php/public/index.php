@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/auth.php';
+require_once __DIR__ . '/../src/pages.php';
 require_once __DIR__ . '/../src/response.php';
 
 run_migrations();
@@ -17,6 +18,31 @@ header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 
 if ($method === 'OPTIONS') {
     http_response_code(204);
+    exit;
+}
+
+if ($method === 'GET' && $path === '/') {
+    render_landing_page();
+    exit;
+}
+
+if ($method === 'GET' && $path === '/pricing') {
+    render_pricing_page();
+    exit;
+}
+
+if ($method === 'GET' && $path === '/account') {
+    render_account_page();
+    exit;
+}
+
+if ($method === 'GET' && $path === '/admin') {
+    render_admin_page();
+    exit;
+}
+
+if ($method === 'POST' && $path === '/admin') {
+    handle_admin_post();
     exit;
 }
 
@@ -98,12 +124,45 @@ if ($method === 'GET' && $path === '/api/me') {
     exit;
 }
 
+if ($method === 'GET' && $path === '/api/credits/ledger') {
+    $user = require_user();
+    $stmt = db()->prepare('SELECT delta, reason, reference, created_at FROM credit_ledger WHERE user_id = ? ORDER BY id DESC LIMIT 50');
+    $stmt->execute([(int) $user['id']]);
+    json_response(['ok' => true, 'ledger' => $stmt->fetchAll()]);
+    exit;
+}
+
+if ($method === 'GET' && $path === '/api/billing/summary') {
+    $user = require_user();
+    $pdo = db();
+    $subscription = $pdo->prepare('SELECT provider, plan, status, current_period_end, cancel_at_period_end, updated_at FROM subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT 1');
+    $subscription->execute([(int) $user['id']]);
+    $payments = $pdo->prepare('SELECT id, amount_cents, currency, status, description, created_at FROM payments WHERE user_id = ? ORDER BY id DESC LIMIT 20');
+    $payments->execute([(int) $user['id']]);
+    json_response([
+        'ok' => true,
+        'subscription' => $subscription->fetch() ?: [
+            'provider' => 'stripe',
+            'plan' => 'none',
+            'status' => (string) ($user['subscription_status'] ?? 'none'),
+            'current_period_end' => null,
+            'cancel_at_period_end' => 0,
+            'updated_at' => null,
+        ],
+        'payments' => $payments->fetchAll(),
+    ]);
+    exit;
+}
+
 if ($method === 'POST' && $path === '/api/checkout/stripe-link') {
     $user = require_user();
+    $data = read_json_body();
+    $offer = strtolower(trim((string) ($data['offer'] ?? 'credits')));
     json_response([
         'ok' => true,
         'checkout_url' => 'https://checkout.stripe.com/c/pay/cs_test_placeholder',
         'mode' => 'placeholder',
+        'offer' => $offer,
         'user' => public_user($user),
     ]);
     exit;
@@ -111,6 +170,10 @@ if ($method === 'POST' && $path === '/api/checkout/stripe-link') {
 
 if ($method === 'POST' && $path === '/api/exports/authorize') {
     $user = require_user();
+    if (($user['status'] ?? 'active') !== 'active') {
+        json_response(['ok' => false, 'error' => 'account_suspended'], 403);
+        exit;
+    }
     $data = read_json_body();
     $type = strtolower(trim((string) ($data['export_type'] ?? 'stl')));
     $cost = export_cost($type);

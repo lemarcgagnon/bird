@@ -4675,25 +4675,17 @@ pub fn render_app_html(input: &str) -> String {
       </div>
       <div class="dev-credentials">
         <span>Dev seulement</span>
-        <strong>Identifiants locaux</strong>
-        <code>username: demo@nichoir.local</code>
-        <code>password: password123</code>
-      </div>
-      <div class="account-form" data-account-guest>
-        <label><span>Courriel</span><input data-account-email type="email" value="demo@nichoir.local" autocomplete="username"></label>
-        <label><span>Mot de passe</span><input data-account-password type="password" value="password123" autocomplete="current-password"></label>
-        <label><span>Nom</span><input data-account-name type="text" value="Demo" autocomplete="name"></label>
+        <strong>Resume dans l'app seulement</strong>
+        <code>Le serveur PHP reste maitre du compte, des credits, abonnements, tickets et paiements.</code>
       </div>
       <p class="account-error" data-account-error></p>
       <div class="download-groups account-actions">
         <div class="download-group">
           <h3>Identification</h3>
-          <p class="control-note" data-account-guest>Connexion reelle au backend PHP/SQLite local. Le bouton demo utilise les identifiants ci-dessus.</p>
+          <p class="control-note" data-account-guest>Connexion demo rapide pour tester les exports. Le compte complet se gere sur le site.</p>
           <p class="control-note" data-account-authed hidden>Session active. Le serveur decide les autorisations de telechargement.</p>
           <div class="buttons compact-buttons" data-account-guest>
-            <button data-action="account-login" type="button"><span>Connexion</span><strong>PHP</strong></button>
-            <button data-action="account-register" type="button"><span>Creer compte</span><strong>PHP</strong></button>
-            <button data-action="account-demo" type="button"><span>Demo</span><strong>login</strong></button>
+            <button data-action="account-login" type="button"><span>Demo</span><strong>login</strong></button>
             <button data-action="account-refresh" type="button"><span>Rafraichir</span><strong>etat</strong></button>
           </div>
           <div class="buttons compact-buttons" data-account-authed hidden>
@@ -4707,33 +4699,20 @@ pub fn render_app_html(input: &str) -> String {
           <div class="stat-row"><span>Reserve export courant</span><strong>autorisation courte</strong></div>
           <div class="stat-row"><span>Couts</span><strong>STL 3 / PDF 2 / ZIP 5 / SVG-PNG 1</strong></div>
           <div class="buttons compact-buttons">
-            <button data-action="buy-credits" type="button"><span>Acheter</span><strong>credits</strong></button>
-            <button data-action="token-pricing" type="button"><span>Tarifs</span><strong>info</strong></button>
+            <a class="button-like" data-site-link="/pricing" href="/pricing"><span>Offres</span><strong>site</strong></a>
+            <button data-action="token-pricing" type="button"><span>Couts</span><strong>info</strong></button>
           </div>
         </div>
         <div class="download-group">
-          <h3>Abonnement</h3>
-          <div class="stat-row"><span>Formule active</span><strong>Aucune</strong></div>
-          <div class="stat-row"><span>Renouvellement</span><strong>non configure</strong></div>
+          <h3>Gestion compte</h3>
+          <p class="control-note">Profil, credits, abonnement, factures et tickets restent sur le site PHP.</p>
           <div class="buttons compact-buttons">
-            <button data-action="choose-subscription" type="button"><span>Choisir</span><strong>plan</strong></button>
-            <button data-action="manage-renewal" type="button"><span>Renouvellement</span><strong>gerer</strong></button>
+            <a class="button-like" data-site-link="/account" href="/account"><span>Compte</span><strong>site</strong></a>
+            <a class="button-like" data-site-link="/pricing" href="/pricing"><span>Tarifs</span><strong>site</strong></a>
           </div>
         </div>
         <div class="download-group">
-          <h3>Paiement</h3>
-          <p class="control-note">Un seul mecanisme sera implemente: lien Stripe genere par le backend. Aucune cle secrete ne doit entrer dans le WASM.</p>
-          <div class="stripe-link-card">
-            <div>
-              <span>Paiement externe securise</span>
-              <strong>Stripe Checkout Link</strong>
-              <em>placeholder: le backend PHP generera le lien</em>
-            </div>
-            <button data-action="stripe-link" type="button">Ouvrir le lien Stripe</button>
-          </div>
-        </div>
-        <div class="download-group">
-          <h3>Consommation</h3>
+          <h3>Consommation exports</h3>
           <div class="ledger-list">
             <div class="ledger-row"><span>Maison ou porte STL</span><strong>3 credits</strong></div>
             <div class="ledger-row"><span>Plan PDF / calculs PDF</span><strong>2 credits</strong></div>

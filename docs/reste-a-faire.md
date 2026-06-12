@@ -320,17 +320,27 @@ Architecture web cible:
 - Etat actuel au 2026-06-11:
   - Backend local PHP/SQLite cree dans `server-php/`.
   - Migration SQLite initiale creee.
-  - Endpoints `health`, `register`, `login`, `logout`, `me`, `stripe-link`, `exports/authorize`, `exports/consume`, `tickets` ajoutes.
+  - Endpoints `health`, `register`, `login`, `logout`, `me`, `credits/ledger`, `billing/summary`, `stripe-link`, `exports/authorize`, `exports/consume`, `tickets` ajoutes.
   - Utilisateur demo cree pour developpement: `demo@nichoir.local` / `password123`.
   - Credits serveur fonctionnels: autorisation STL testee, debit de 3 credits confirme.
   - Modal `Compte` ajoute dans l'app, avec login/register/logout/demo et affichage de `GET /api/me`.
   - Exports premium branches sur `exports/authorize` avant generation locale, puis `exports/consume` apres succes.
   - Identifiants demo encore visibles temporairement en dev.
   - Bouton Stripe placeholder branche sur `POST /api/checkout/stripe-link`.
+  - Squelette site PHP ajoute: `/`, `/pricing`, `/account`, `/admin`.
+  - Admin dev minimal branche sur SQLite: clients recents, credits totaux, autorisations recentes, tickets ouverts.
+  - Fiche client admin ajoutee: recherche courriel, historique credits, exports, tickets, audit admin.
+  - Actions admin ajoutees: ajustement manuel des credits, suspension/reactivation de compte.
+  - Action admin abonnement ajoutee: mise a jour manuelle du plan/statut serveur en attendant le webhook Stripe.
+  - Schema ajoute: `users.status`, `subscriptions`, `payments` et `admin_audit_log`.
+  - Espace client `/account` branche sur API: login/register/logout, credits, historique credits, abonnement, paiements, tickets.
+  - Endpoints `GET /api/credits/ledger` et `GET /api/billing/summary` ajoutes.
+  - `/admin` reste ouvert en local; en production, il doit utiliser `NICHOIR_ADMIN_KEY`.
 
 - Le backend local PHP + SQLite teste maintenant le flux compte/credits/autorisation.
 - Les tables utilisateurs, sessions, credits, abonnements, paiements, consommations, tickets et messages sont initialisees.
 - `GET /api/me` retourne l'etat du compte, le solde credits et le statut abonnement.
+- `GET /api/billing/summary` retourne l'abonnement courant et les paiements que Stripe aura synchronises.
 - `POST /api/checkout/stripe-link` retourne un lien Stripe placeholder genere cote serveur.
 - `POST /api/exports/authorize` recoit seulement le type d'export demande (`stl`, `pdf`, `zip`, `png`, `svg`) et retourne une autorisation courte si le compte est valide.
 - `POST /api/exports/consume` confirme/debite les credits apres export local reussi.
@@ -339,10 +349,10 @@ Architecture web cible:
 
 Travail restant dans cette phase:
 
-- Creer la landing page PHP publique (`/`) avec lien vers `/app/`.
-- Creer page prix/offres (`/pricing`) pour credits et abonnements.
-- Creer espace client (`/account`) pour profil, credits, abonnement, factures et tickets.
-- Creer admin prive (`/admin`) pour chercher clients, ajuster credits, suspendre/reactiver comptes, voir abonnements, paiements, consommations et tickets.
+- Completer la landing page PHP publique (`/`) avec contenu produit reel.
+- Completer page prix/offres (`/pricing`) pour credits et abonnements.
+- Completer espace client (`/account`) pour portail Stripe, factures reelles et edition profil.
+- Completer admin prive (`/admin`) pour pagination, filtres billing, reponses tickets et audit lisible.
 - Retirer les identifiants demo visibles du build de production.
 - Ajouter une configuration dev/prod pour URL API, CORS, demo user et affichage debug.
 - Ajouter l'interface tickets/messages dans le modal.
@@ -356,6 +366,8 @@ Controle anti-drift:
 - Le backend ne doit pas generer les STL/PDF/ZIP ni recevoir la geometrie complete.
 - Le front-end orchestre seulement: demander autorisation, lancer export local, confirmer consommation.
 - L'admin et les webhooks Stripe restent toujours cote PHP, jamais dans le WASM.
+- Le serveur PHP nourrit l'API et reste le maitre. L'app WASM est un client esclave qui calcule et exporte seulement apres autorisation.
+- Le modal `Compte` dans l'app doit rester un resume rapide avec liens vers `/account` et `/pricing`; la gestion complete reste sur le site.
 
 ## 5. Definition de termine
 

@@ -353,7 +353,8 @@ input[type="range"] {
   margin-top: 14px;
 }
 
-.buttons button {
+.buttons button,
+.buttons .button-like {
   padding: 8px 10px;
   border: 1px solid var(--button-border);
   border-radius: 4px;
@@ -376,6 +377,7 @@ input[type="range"] {
 }
 
 .buttons button:hover,
+.buttons .button-like:hover,
 .tool-button:hover {
   border-color: var(--accent);
   color: var(--accent);
@@ -409,7 +411,8 @@ input[type="range"] {
   margin-top: 0;
 }
 
-.compact-buttons button {
+.compact-buttons button,
+.compact-buttons .button-like {
   min-height: 38px;
   display: flex;
   align-items: center;
@@ -417,16 +420,19 @@ input[type="range"] {
   gap: 8px;
   padding: 8px;
   text-align: left;
+  text-decoration: none;
 }
 
-.compact-buttons button span {
+.compact-buttons button span,
+.compact-buttons .button-like span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.compact-buttons button strong {
+.compact-buttons button strong,
+.compact-buttons .button-like strong {
   color: var(--accent);
   font-size: 10px;
   letter-spacing: 0.6px;
@@ -493,41 +499,6 @@ input[type="range"] {
   color: var(--text);
   font-size: 11px;
   word-break: break-all;
-}
-
-.account-form {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 0 14px;
-}
-
-.account-form label {
-  display: grid;
-  gap: 5px;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-}
-
-.account-form input {
-  min-width: 0;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--panel-2);
-  color: var(--text);
-  font: inherit;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.account-form input:focus {
-  border-color: var(--accent);
-  outline: none;
 }
 
 .account-error {
@@ -657,41 +628,6 @@ input[type="range"] {
   grid-column: 1 / -1;
 }
 
-.stripe-link-card {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 14px;
-  align-items: center;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--accent) 10%, var(--panel-2));
-}
-
-.stripe-link-card span,
-.stripe-link-card em {
-  display: block;
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.stripe-link-card strong {
-  display: block;
-  margin: 3px 0;
-  color: var(--text);
-  font-size: 14px;
-}
-
-.stripe-link-card button {
-  min-height: 38px;
-  padding: 0 14px;
-  border: 1px solid var(--accent);
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--accent-contrast, #111);
-  cursor: pointer;
-}
-
 @media (max-width: 720px) {
   .account-modal {
     place-items: end center;
@@ -708,9 +644,7 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 
-  .account-sheet-body .download-groups,
-  .account-form,
-  .stripe-link-card {
+  .account-sheet-body .download-groups {
     grid-template-columns: 1fr;
   }
 }

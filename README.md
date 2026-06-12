@@ -104,7 +104,7 @@ server/
   Ancienne API FastAPI/SQLite de prototype, gardee comme reference historique
 
 server-php/
-  Backend PHP/SQLite local: compte, credits, autorisations, tickets, Stripe placeholder
+  Backend PHP/SQLite local: site public, compte, admin, credits, billing placeholder, autorisations, tickets
 
 scripts/
   mesh-smoke.mjs  Smoke test mesh/STL
@@ -230,7 +230,7 @@ Points importants:
 
 ## Backend PHP local
 
-Le dossier `server-php/` contient le backend local cible pour tester compte, credits, autorisation d'export et tickets.
+Le dossier `server-php/` contient le backend local cible pour tester le site PHP, les comptes, les credits, le billing placeholder, l'autorisation d'export et les tickets.
 
 Demarrage:
 
@@ -239,9 +239,15 @@ cd /home/marc/Documents/nichoir16
 php -S 127.0.0.1:8021 -t server-php/public
 ```
 
-Cette API ne fait pas la geometrie. Elle valide la session, retourne l'etat du compte, autorise les exports, debite les credits apres generation locale reussie et servira plus tard a integrer Stripe.
+Cette API ne fait pas la geometrie. Elle valide la session, retourne l'etat du compte, expose l'historique credits et billing, autorise les exports, debite les credits apres generation locale reussie et servira plus tard a integrer Stripe.
 
-Stripe est actuellement un placeholder. La version finale devra utiliser Stripe Checkout et un webhook PHP pour mettre a jour les paiements, credits et abonnements.
+Etat actuel:
+
+- PHP sert deja `/`, `/pricing`, `/account`, `/admin` et `/api/...`.
+- `/account` gere login/register/logout, credits, historique, abonnement, paiements synchronises et tickets.
+- `/admin` gere recherche client, credits, suspension/reactivation, abonnement manuel, exports, tickets, paiements et audit.
+- L'app WASM garde seulement un resume compte et des liens vers le site; le serveur PHP reste la source de verite.
+- Stripe est actuellement un placeholder. La version finale devra utiliser Stripe Checkout et un webhook PHP pour mettre a jour les paiements, credits et abonnements.
 
 ## Roadmap courte
 
@@ -252,10 +258,10 @@ Stripe est actuellement un placeholder. La version finale devra utiliser Stripe 
 - Ajouter une suite de tests de parite entre presets.
 - Renforcer la validation securite des fichiers et inputs.
 - Etudier une union booleenne/CSG pour produire une maison complete fusionnee.
-- Ajouter landing page PHP publique et navigation vers `/app/`.
-- Ajouter espace client `/account`.
-- Ajouter admin prive `/admin` pour gerer clients, credits, abonnements, paiements et tickets.
-- Remplacer le placeholder Stripe par Checkout + webhook PHP.
+- Completer le contenu produit de la landing page et de `/pricing`.
+- Ajouter edition profil, portail Stripe et factures reelles dans `/account`.
+- Ajouter pagination, filtres billing, reponses tickets et audit lisible dans `/admin`.
+- Remplacer le placeholder Stripe par Checkout + webhook PHP qui remplit `payments`, `subscriptions` et les credits achetes.
 
 ## Branche de sauvegarde
 

@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   display_name TEXT NOT NULL DEFAULT '',
   credits INTEGER NOT NULL DEFAULT 10,
   subscription_status TEXT NOT NULL DEFAULT 'none',
+  status TEXT NOT NULL DEFAULT 'active',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -42,6 +43,35 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  provider TEXT NOT NULL DEFAULT 'stripe',
+  plan TEXT NOT NULL DEFAULT 'none',
+  status TEXT NOT NULL DEFAULT 'none',
+  stripe_customer_id TEXT NOT NULL DEFAULT '',
+  stripe_subscription_id TEXT NOT NULL DEFAULT '',
+  current_period_end TEXT,
+  cancel_at_period_end INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  provider TEXT NOT NULL DEFAULT 'stripe',
+  amount_cents INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'cad',
+  status TEXT NOT NULL DEFAULT 'pending',
+  description TEXT NOT NULL DEFAULT '',
+  stripe_checkout_session_id TEXT NOT NULL DEFAULT '',
+  stripe_payment_intent_id TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS tickets (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
@@ -60,4 +90,15 @@ CREATE TABLE IF NOT EXISTS ticket_messages (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  admin_key_hash TEXT NOT NULL DEFAULT '',
+  user_id INTEGER,
+  action TEXT NOT NULL,
+  delta INTEGER,
+  note TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );

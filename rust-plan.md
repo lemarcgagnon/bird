@@ -114,6 +114,8 @@ Règle d'architecture :
 - L'API ne reçoit pas la géométrie et ne génère pas les STL/PDF/ZIP.
 - L'API répond seulement aux questions commerciales : qui est l'utilisateur, combien de credits reste-t-il, ce téléchargement est-il autorisé, combien faut-il débiter.
 - Les pages publiques, l'espace client, l'admin, les webhooks Stripe et les secrets restent hors WASM.
+- Le serveur PHP est le maitre de la relation client; l'app WASM est un client esclave qui affiche un resume et appelle l'API.
+- Toute gestion complete du compte, des tickets, des factures ou abonnements doit pointer vers `/account` ou `/pricing`, pas etre dupliquee dans l'app.
 
 ### 2.2 Option “full Rust rendering” (phase 2)
 
@@ -435,7 +437,7 @@ Puis itérer vers:
 2. Version WASM métier :
    Rust devient la source de vérité pour `Params`, calculs, plans, STL, ZIP, géométrie.
 3. Version compte/API :
-   le modal Compte se branche sur une API externe pour session, credits, abonnement, Stripe link, messages et tickets. Statut: login/register/logout, `GET /api/me`, autorisation et consommation d'exports sont branches en dev.
+   le modal Compte se branche sur une API externe pour session, credits, abonnement, Stripe link, messages et tickets. Statut: login/logout, resume `GET /api/me`, autorisation et consommation d'exports sont branches en dev; la gestion complete compte/billing/tickets reste sur `/account`.
 4. Version protégée :
    les exports premium appellent `POST /api/exports/authorize` avant téléchargement. En dev, validation PHP/SQLite. En production, validation serveur + MySQL + Stripe.
 5. Version site produit :
@@ -469,11 +471,11 @@ Priorité haute :
 
 Priorité moyenne :
 
-1. Remplacer Stripe placeholder par Checkout + webhook PHP.
-2. Recréer les coupes X/Y/Z.
-3. Porter décorations SVG/image (`vector`, `heightmap`) après la géométrie coeur.
-4. Ajouter export PNG du plan depuis le preview SVG/canvas.
-5. Ajouter ZIP panneaux avec formes exactes pour toit onglet et murs évasés.
+1. Remplacer Stripe placeholder par Checkout + webhook PHP, puis remplir `payments` et `subscriptions` cote serveur.
+2. Ajouter edition profil, portail Stripe et reponses tickets cote PHP.
+3. Recréer les coupes X/Y/Z.
+4. Porter décorations SVG/image (`vector`, `heightmap`) après la géométrie coeur.
+5. Ajouter export PNG du plan depuis le preview SVG/canvas.
 
 Priorité i18n :
 

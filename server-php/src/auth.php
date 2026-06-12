@@ -34,6 +34,7 @@ function public_user(array $user): array
         'display_name' => $user['display_name'],
         'credits' => (int) $user['credits'],
         'subscription_status' => $user['subscription_status'],
+        'status' => $user['status'] ?? 'active',
     ];
 }
 

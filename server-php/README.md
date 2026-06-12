@@ -17,7 +17,8 @@ Etat actuel:
 
 - `/`, `/pricing`, `/account` et `/admin` sont routes par PHP.
 - `/admin` affiche deja les clients et autorisations recents depuis SQLite.
-- `/admin` permet maintenant de chercher un client, ouvrir sa fiche, ajuster ses credits et suspendre/reactiver son compte.
+- `/admin` contient maintenant un repertoire utilisateurs avec recherche, filtres et pagination.
+- `/admin` permet de creer un utilisateur, modifier profil/courriel/statut/credits, reset le mot de passe et supprimer un compte avec confirmation.
 - `/admin` permet aussi de modifier manuellement le statut d'abonnement serveur en attendant le webhook Stripe.
 - La fiche client affiche historique credits, abonnements, paiements, exports, tickets et audit admin.
 - `/account` permet maintenant login/register/logout, affichage credits, historique credits, abonnement, paiements et creation/liste de tickets.
@@ -25,6 +26,9 @@ Etat actuel:
 - `GET /api/billing/summary` retourne l'abonnement courant et les paiements synchronises du client connecte.
 - `/stripe/webhook` accepte des evenements Stripe locaux/non signes en dev, journalise `stripe_events`, traite `checkout.session.completed` et les evenements `customer.subscription.*`.
 - En local, `/admin` est accessible pour le dev. En production, definir `NICHOIR_ADMIN_KEY`.
+- CORS est limite par `NICHOIR_CORS_ORIGINS` (`http://127.0.0.1:8016` par defaut en dev).
+- Les payloads JSON sont limites a `256 KiB`; offres checkout, types d'export, tickets, profil et mots de passe sont valides cote serveur.
+- `POST /api/exports/consume` reverifie le statut du compte et le solde avant debit.
 - La verification reelle `Stripe-Signature` reste a implementer avant exposition production.
 
 ## Demarrer
@@ -72,7 +76,10 @@ curl http://127.0.0.1:8021/api/me \
 ## A ajouter
 
 - Espace client complet: edition profil, portail Stripe et factures reelles.
-- Admin complet: reponses tickets, pagination, filtres billing et journal d'audit plus lisible.
+- Admin complet: reponses tickets, filtres billing avances et journal d'audit plus lisible.
+- Rate limiting login/register/tickets/webhooks.
+- CSRF et authentification admin production; eviter le `key` admin en query string.
+- CSP, sanitizer SVG complet et plafonds Rust/WASM pour fichiers/meshes/exports.
 - Stripe Checkout reel.
 - Verification `Stripe-Signature` du webhook.
 - Configuration dev/prod pour CORS, URL app, secrets Stripe et base de donnees.

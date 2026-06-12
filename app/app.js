@@ -8,17 +8,20 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260611-account-summary-v1';
+} from '../wasm/pkg/wasm.js?v=20260612-app-cleanup-v1';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js';
 
-const APP_BUILD_ID = '20260611-account-summary-v1';
+const APP_BUILD_ID = '20260612-app-cleanup-v1';
 const root = document.getElementById('app');
 const THEME_KEY = 'nichoir-theme';
-const API_BASE = 'http://127.0.0.1:8021';
-const SITE_BASE = 'http://127.0.0.1:8021';
+const DEV_PHP_ORIGIN = 'http://127.0.0.1:8021';
+const IS_LOCAL_DEV = ['127.0.0.1', 'localhost'].includes(window.location.hostname);
+const PHP_BASE = window.NICHOIR_PHP_BASE
+  || (window.location.port === '8016' ? DEV_PHP_ORIGIN : window.location.origin);
 const AUTH_TOKEN_KEY = 'nichoir-auth-token';
-const DEV_EMAIL = 'demo@nichoir.local';
-const DEV_PASSWORD = 'password123';
+const MAX_DECO_FILE_BYTES = 2 * 1024 * 1024;
+const DEMO_ACCOUNT = window.NICHOIR_DEMO_ACCOUNT
+  || (IS_LOCAL_DEV ? { email: 'demo@nichoir.local', password: 'password123' } : null);
 const EXPORT_COSTS = {
   svg: 1,
   png: 1,
@@ -114,6 +117,10 @@ function dataUrlBytes(dataUrl) {
   return comma >= 0 ? dataUrl.slice(comma + 1) : '';
 }
 
+function phpUrl(path = '/') {
+  return new URL(path, PHP_BASE).toString();
+}
+
 function rasterizeSvgToPngBase64(svgText, size = 256) {
   return new Promise((resolve, reject) => {
     const blob = new Blob([svgText], { type: 'image/svg+xml' });
@@ -176,7 +183,7 @@ async function apiRequest(path, options = {}) {
   const token = localStorage.getItem(AUTH_TOKEN_KEY);
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetch(phpUrl(path), {
     ...options,
     headers,
   });
@@ -213,6 +220,9 @@ function updateAccountDom() {
   root.querySelectorAll('[data-account-guest]').forEach((el) => {
     el.hidden = Boolean(user);
   });
+  root.querySelectorAll('[data-demo-account]').forEach((el) => {
+    el.hidden = !DEMO_ACCOUNT || Boolean(user);
+  });
 }
 
 async function refreshAccountState({ silent = false } = {}) {
@@ -243,42 +253,22 @@ async function refreshAccountState({ silent = false } = {}) {
   }
 }
 
-async function ensureDevSession() {
-  if (localStorage.getItem(AUTH_TOKEN_KEY)) return;
-
-  let payload;
-  try {
-    payload = await apiRequest('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email: DEV_EMAIL, password: DEV_PASSWORD }),
-    });
-  } catch (err) {
-    payload = await apiRequest('/api/auth/register', {
-      method: 'POST',
-      body: JSON.stringify({
-        email: DEV_EMAIL,
-        password: DEV_PASSWORD,
-        display_name: 'Demo',
-      }),
-    });
-  }
-
-  if (payload.token) {
-    localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
-  }
-  if (payload.user) {
-    accountState = { user: payload.user, loading: false, error: '' };
-    updateAccountDom();
-  }
-}
-
 async function loginAccount() {
+  if (!DEMO_ACCOUNT) {
+    accountState = {
+      user: null,
+      loading: false,
+      error: 'Connexion demo desactivee hors environnement local.',
+    };
+    updateAccountDom();
+    return;
+  }
   accountState = { user: accountState.user, loading: true, error: '' };
   updateAccountDom();
   try {
     const payload = await apiRequest('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email: DEV_EMAIL, password: DEV_PASSWORD }),
+      body: JSON.stringify(DEMO_ACCOUNT),
     });
     if (payload.token) localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
     accountState = { user: payload.user || null, loading: false, error: '' };
@@ -382,6 +372,17 @@ async function exportTextAuthorized(filename, type, exportType, producer, emptyM
     console.error(err);
     setExportStatus(exportDeniedMessage(err), 'error');
     return false;
+  }
+}
+
+async function runAuthorizedExport(exportType, filename, producer) {
+  try {
+    const auth = await authorizeExport(exportType, filename);
+    const ok = await producer();
+    if (ok) await consumeExport(auth.authorization);
+  } catch (err) {
+    console.error(err);
+    setExportStatus(exportDeniedMessage(err), 'error');
   }
 }
 
@@ -1456,7 +1457,7 @@ function render() {
   });
   root.querySelectorAll('[data-site-link]').forEach((link) => {
     const path = link.dataset.siteLink || '/';
-    link.href = `${SITE_BASE}${path}`;
+    link.href = phpUrl(path);
   });
   [
     ['token-pricing', 'Credits: STL 3, PDF 2, ZIP 5, SVG/PNG 1. Le site PHP reste la source de verite.'],
@@ -1595,6 +1596,10 @@ function render() {
       setExportStatus('Decor: charge un SVG, PNG, JPG, GIF ou WEBP.', 'warn');
       return;
     }
+    if (file.size > MAX_DECO_FILE_BYTES) {
+      setExportStatus('Decor: fichier trop lourd. Limite actuelle: 2 Mo.', 'warn');
+      return;
+    }
     const reader = new FileReader();
     reader.onload = async () => {
       const deco = activeDeco();
@@ -1630,7 +1635,7 @@ function render() {
         setExportStatus(`Decor: conversion heightmap impossible (${err?.message || err}).`, 'error');
       }
     };
-    reader.onerror = () => setExportStatus('Decor: impossible de lire le SVG.', 'error');
+    reader.onerror = () => setExportStatus('Decor: impossible de lire le fichier.', 'error');
     if (isSvg) reader.readAsText(file);
     else reader.readAsArrayBuffer(file);
   });
@@ -1721,7 +1726,7 @@ function render() {
       'image/svg+xml',
       'svg',
       () => {
-      const payload = parseResponse(plan_preview_svg(JSON.stringify(params)));
+        const payload = parseResponse(plan_preview_svg(JSON.stringify(params)));
         return payload?.svg || '';
       },
       'Export plan impossible: aucun SVG genere.'
@@ -1729,36 +1734,15 @@ function render() {
   });
 
   root.querySelector('[data-action="download-plan-png"]')?.addEventListener('click', async () => {
-    try {
-      const auth = await authorizeExport('png', 'nichoir_plan_de_coupe.png');
-      const ok = await downloadPlanPng();
-      if (ok) await consumeExport(auth.authorization);
-    } catch (err) {
-      console.error(err);
-      setExportStatus(exportDeniedMessage(err), 'error');
-    }
+    await runAuthorizedExport('png', 'nichoir_plan_de_coupe.png', downloadPlanPng);
   });
 
   root.querySelector('[data-action="download-explosion-png"]')?.addEventListener('click', async () => {
-    try {
-      const auth = await authorizeExport('png', 'nichoir_assemblage_eclate.png');
-      const ok = downloadExplosionPng();
-      if (ok) await consumeExport(auth.authorization);
-    } catch (err) {
-      console.error(err);
-      setExportStatus(exportDeniedMessage(err), 'error');
-    }
+    await runAuthorizedExport('png', 'nichoir_assemblage_eclate.png', downloadExplosionPng);
   });
 
   root.querySelector('[data-action="download-plan-pdf"]')?.addEventListener('click', async () => {
-    try {
-      const auth = await authorizeExport('pdf', 'nichoir_plan_de_coupe.pdf');
-      const ok = await downloadPlanPdf();
-      if (ok) await consumeExport(auth.authorization);
-    } catch (err) {
-      console.error(err);
-      setExportStatus(exportDeniedMessage(err), 'error');
-    }
+    await runAuthorizedExport('pdf', 'nichoir_plan_de_coupe.pdf', downloadPlanPdf);
   });
 
   root.querySelector('[data-action="export-obj"]')?.addEventListener('click', () => {
@@ -1771,14 +1755,7 @@ function render() {
   });
 
   root.querySelector('[data-action="download-calcs-pdf"]')?.addEventListener('click', async () => {
-    try {
-      const auth = await authorizeExport('pdf', 'nichoir_calculs.pdf');
-      const ok = downloadCalculationsPdf();
-      if (ok) await consumeExport(auth.authorization);
-    } catch (err) {
-      console.error(err);
-      setExportStatus(exportDeniedMessage(err), 'error');
-    }
+    await runAuthorizedExport('pdf', 'nichoir_calculs.pdf', downloadCalculationsPdf);
   });
 
   root.querySelector('[data-action="mesh-report"]')?.addEventListener('click', () => {

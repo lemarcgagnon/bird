@@ -4682,9 +4682,9 @@ pub fn render_app_html(input: &str) -> String {
       <div class="download-groups account-actions">
         <div class="download-group">
           <h3>Identification</h3>
-          <p class="control-note" data-account-guest>Connexion demo rapide pour tester les exports. Le compte complet se gere sur le site.</p>
+          <p class="control-note" data-account-guest data-demo-account>Connexion demo rapide pour tester les exports. Le compte complet se gere sur le site.</p>
           <p class="control-note" data-account-authed hidden>Session active. Le serveur decide les autorisations de telechargement.</p>
-          <div class="buttons compact-buttons" data-account-guest>
+          <div class="buttons compact-buttons" data-account-guest data-demo-account>
             <button data-action="account-login" type="button"><span>Demo</span><strong>login</strong></button>
             <button data-action="account-refresh" type="button"><span>Rafraichir</span><strong>etat</strong></button>
           </div>

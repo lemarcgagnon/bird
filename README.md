@@ -245,10 +245,19 @@ Etat actuel:
 
 - PHP sert deja `/`, `/pricing`, `/account`, `/admin` et `/api/...`.
 - `/account` gere login/register/logout, credits, historique, abonnement, paiements synchronises et tickets.
-- `/admin` gere recherche client, credits, suspension/reactivation, abonnement manuel, exports, tickets, paiements et audit.
+- `/admin` gere repertoire utilisateurs, creation, edition profil, reset mot de passe, suppression confirmee, credits, suspension/reactivation, abonnement manuel, exports, tickets, paiements et audit.
 - `/stripe/webhook` journalise les evenements locaux de dev et peut appliquer `checkout.session.completed` ou `customer.subscription.*`.
-- L'app WASM garde seulement un resume compte et des liens vers le site; le serveur PHP reste la source de verite.
+- L'app WASM garde seulement un resume compte et des liens vers le site; le serveur PHP reste la source de verite. Hors localhost, le login demo rapide est desactive sauf config explicite `window.NICHOIR_DEMO_ACCOUNT`.
+- Garde-fous API ajoutes: CORS configurable par `NICHOIR_CORS_ORIGINS`, payload JSON limite, validation stricte des offres/types d'export, revalidation du compte au debit, limites serveur sur tickets/profil et headers HTTP de base.
+- Garde-fous app ajoutes: limite `2 Mo` sur les fichiers decor importes et configuration PHP/demo hors build local.
 - Stripe Checkout reste actuellement un placeholder. Avant production, il faut ajouter Checkout reel et verifier `Stripe-Signature` sur le webhook.
+
+Risques securite encore ouverts avant production:
+
+- Ajouter rate limiting sur login, inscription, tickets et webhooks.
+- Ajouter CSRF et authentification admin propre; ne pas utiliser un `key` en query string en production.
+- Activer la verification officielle `Stripe-Signature`.
+- Ajouter sanitizer SVG complet, CSP, clamps Rust/WASM et plafonds mesh/export.
 
 ## Roadmap courte
 
@@ -261,7 +270,7 @@ Etat actuel:
 - Etudier une union booleenne/CSG pour produire une maison complete fusionnee.
 - Completer le contenu produit de la landing page et de `/pricing`.
 - Ajouter edition profil, portail Stripe et factures reelles dans `/account`.
-- Ajouter pagination, filtres billing, reponses tickets et audit lisible dans `/admin`.
+- Ajouter filtres billing avances, reponses tickets et audit lisible dans `/admin`.
 - Remplacer le placeholder Stripe par Checkout reel et verification `Stripe-Signature`.
 
 ## Branche de sauvegarde

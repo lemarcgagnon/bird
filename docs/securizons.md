@@ -1,6 +1,6 @@
 # Securisons Nichoir WASM
 
-Date: 2026-06-11
+Date: 2026-06-12
 
 Objectif: reduire les risques d'attaque dans l'app Nichoir WASM tout en gardant le calcul, la geometrie et les exports cote client. Le serveur futur servira surtout a l'autorisation/licence/facturation, pas au calcul lourd.
 
@@ -15,7 +15,7 @@ Surfaces a proteger:
 - JSON envoye au WASM.
 - Decodeurs image Rust/WASM.
 - Generation mesh/STL/ZIP.
-- Future couche d'autorisation/facturation.
+- Couche PHP d'autorisation/facturation/admin/webhook.
 
 ## 2. Risques principaux
 
@@ -64,7 +64,7 @@ Les champs utilisateur peuvent causer:
 
 Cote JS, avant de lire un fichier:
 
-- taille max fichier: `10 MB` par defaut;
+- taille max fichier: `2 MB` par defaut dans l'app actuelle;
 - extensions acceptees: `.svg`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`;
 - MIME accepte si disponible: `image/svg+xml`, `image/png`, `image/jpeg`, `image/gif`, `image/webp`;
 - refuser tout autre type.
@@ -169,7 +169,7 @@ Plafonds proposes:
 
 Le client/WASM ne doit pas etre considere comme une protection forte.
 
-Pour la future facturation/licence/gestion client:
+Pour la facturation/licence/gestion client:
 
 - le serveur valide session/licence;
 - le serveur gere comptes, credits, abonnements, paiements, messages et tickets;
@@ -210,12 +210,35 @@ Objectif realiste:
 - Le WASM protege mieux que HTML/JS clair contre la copie directe.
 - Mais il ne remplace pas une vraie autorisation serveur.
 
+## 6.1 Surface API/admin actuelle
+
+Mesures deja en place:
+
+- CORS configurable via `NICHOIR_CORS_ORIGINS`; par defaut seul `http://127.0.0.1:8016` est autorise pour le dev.
+- Headers PHP de base: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`.
+- Payload JSON limite a `256 KiB`.
+- Offres checkout limitees a `credits`, `atelier`, `pro`.
+- Types d'export limites a `svg`, `png`, `pdf`, `stl`, `zip`; type inconnu refuse.
+- `consume` reverifie le statut du compte et le solde au moment du debit.
+- Champs compte/tickets limites cote serveur.
+- Admin CRUD centralise cote PHP; le WASM ne gere pas les clients.
+
+Risques restants avant production:
+
+- Ajouter rate limiting sur login, inscription, tickets et webhooks.
+- Ajouter CSRF robuste si l'admin passe a une session/cookie.
+- Remplacer le `key` admin en query string par une authentification admin propre.
+- Brancher la vraie signature Stripe (`Stripe-Signature`) et desactiver tout webhook non signe hors local.
+- Ajouter une politique CSP adaptee aux pages PHP et a l'app.
+- Remplacer ou completer le hard delete admin par une politique de retention/soft delete.
+- Revoir le stockage du bearer token dans `localStorage` si l'app devient exposee a du contenu tiers.
+
 ## 7. Plan d'implementation recommande
 
 ### Phase 1: securite fichiers
 
 - Ajouter `sanitizeSvgText` dans `app/app.js`.
-- Ajouter limite taille fichier.
+- Ajouter limite taille fichier. Fait: `2 MB`.
 - Ajouter messages d'erreur utilisateur.
 - Rejeter SVG dangereux avant rasterisation.
 
@@ -240,16 +263,16 @@ Objectif realiste:
 
 ### Phase 4: autorisation/facturation/compte
 
-- Ajouter mini serveur PHP/SQLite d'autorisation et compte.
-- Tester SQLite local.
-- Ajouter API pour compte, credits, abonnement, tickets et messages.
-- Ajouter landing page, espace client et admin PHP.
-- Ajouter Stripe Checkout link puis webhook PHP.
-- Garder calcul client-side.
+- Ajouter mini serveur PHP/SQLite d'autorisation et compte. Fait.
+- Tester SQLite local. Fait.
+- Ajouter API pour compte, credits, abonnement, tickets et messages. Fait, avec limites de base.
+- Ajouter landing page, espace client et admin PHP. Fait.
+- Ajouter Stripe Checkout link puis webhook PHP. En place en placeholder/dev; signature reelle reste a brancher.
+- Garder calcul client-side. Fait.
 
 ## 8. Checklist rapide
 
-- [ ] Refuser fichier > 10 MB.
+- [x] Refuser fichier > 2 MB dans l'app.
 - [ ] Refuser SVG avec scripts/events/foreignObject/liens externes.
 - [ ] Refuser raster > 4096 x 4096.
 - [ ] Clamper tous les inputs en Rust.
@@ -258,4 +281,10 @@ Objectif realiste:
 - [ ] Garder GIF comme image fixe.
 - [ ] Ne jamais injecter SVG brut dans `innerHTML`.
 - [ ] Ne jamais stocker secrets dans WASM.
+- [x] Limiter payload JSON API.
+- [x] Valider offres checkout et types d'export.
+- [x] Revalider statut/credits au debit d'export.
+- [ ] Ajouter rate limiting serveur.
+- [ ] Ajouter CSRF/admin auth production.
+- [ ] Activer signature Stripe reelle.
 - [ ] Ajouter tests avec fichiers invalides.

@@ -325,10 +325,11 @@ Architecture web cible:
   - Credits serveur fonctionnels: autorisation STL testee, debit de 3 credits confirme.
   - Modal `Compte` ajoute dans l'app, avec login/register/logout/demo et affichage de `GET /api/me`.
   - Exports premium branches sur `exports/authorize` avant generation locale, puis `exports/consume` apres succes.
-  - Identifiants demo encore visibles temporairement en dev.
+  - Identifiants demo limites au localhost/config explicite; hors localhost, le login demo rapide est desactive.
   - Bouton Stripe placeholder branche sur `POST /api/checkout/stripe-link`.
   - Squelette site PHP ajoute: `/`, `/pricing`, `/account`, `/admin`.
-  - Admin dev minimal branche sur SQLite: clients recents, credits totaux, autorisations recentes, tickets ouverts.
+  - Admin dev branche sur SQLite: repertoire utilisateurs, recherche, filtres, pagination, credits totaux, autorisations recentes, tickets ouverts.
+  - CRUD utilisateur admin ajoute: creation, edition courriel/nom/statut/credits, reset mot de passe, suppression avec confirmation.
   - Fiche client admin ajoutee: recherche courriel, historique credits, exports, tickets, audit admin.
   - Actions admin ajoutees: ajustement manuel des credits, suspension/reactivation de compte.
   - Action admin abonnement ajoutee: mise a jour manuelle du plan/statut serveur en attendant le webhook Stripe.
@@ -354,7 +355,7 @@ Travail restant dans cette phase:
 - Completer la landing page PHP publique (`/`) avec contenu produit reel.
 - Completer page prix/offres (`/pricing`) pour credits et abonnements.
 - Completer espace client (`/account`) pour portail Stripe, factures reelles et edition profil.
-- Completer admin prive (`/admin`) pour pagination, filtres billing, reponses tickets et audit lisible.
+- Completer admin prive (`/admin`) pour filtres billing avances, reponses tickets et audit lisible.
 - Retirer les identifiants demo visibles du build de production.
 - Ajouter une configuration dev/prod pour URL API, CORS, demo user et affichage debug.
 - Ajouter l'interface tickets/messages dans le modal.

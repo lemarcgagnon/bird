@@ -13,7 +13,17 @@ run_migrations();
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
-header('Access-Control-Allow-Origin: http://127.0.0.1:8016');
+emit_security_headers();
+
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowedOrigins = array_values(array_filter(array_map(
+    static fn (string $value): string => trim($value),
+    explode(',', (string) (getenv('NICHOIR_CORS_ORIGINS') ?: 'http://127.0.0.1:8016'))
+)));
+if ($origin !== '' && in_array($origin, $allowedOrigins, true)) {
+    header('Access-Control-Allow-Origin: ' . $origin);
+    header('Vary: Origin');
+}
 header('Access-Control-Allow-Headers: Authorization, Content-Type');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 
@@ -52,14 +62,14 @@ if ($method === 'POST' && $path === '/stripe/webhook') {
     exit;
 }
 
-function export_cost(string $type): int
+function export_cost(string $type): ?int
 {
     return match ($type) {
         'svg', 'png' => 1,
         'pdf' => 2,
         'stl' => 3,
         'zip' => 5,
-        default => 1,
+        default => null,
     };
 }
 
@@ -75,12 +85,16 @@ if ($method === 'POST' && $path === '/api/auth/register') {
     $password = (string) $data['password'];
     $name = trim((string) ($data['display_name'] ?? ''));
 
-    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 254) {
         json_response(['ok' => false, 'error' => 'invalid_email'], 400);
         exit;
     }
-    if (strlen($password) < 8) {
+    if (!string_length_between($password, 8, 200)) {
         json_response(['ok' => false, 'error' => 'weak_password'], 400);
+        exit;
+    }
+    if (strlen($name) > 120) {
+        json_response(['ok' => false, 'error' => 'invalid_display_name'], 400);
         exit;
     }
 
@@ -164,6 +178,10 @@ if ($method === 'POST' && $path === '/api/checkout/stripe-link') {
     $user = require_user();
     $data = read_json_body();
     $offer = strtolower(trim((string) ($data['offer'] ?? 'credits')));
+    if (!in_array($offer, ['credits', 'atelier', 'pro'], true)) {
+        json_response(['ok' => false, 'error' => 'invalid_offer'], 400);
+        exit;
+    }
     json_response([
         'ok' => true,
         'checkout_url' => 'https://checkout.stripe.com/c/pay/cs_test_placeholder',
@@ -183,6 +201,10 @@ if ($method === 'POST' && $path === '/api/exports/authorize') {
     $data = read_json_body();
     $type = strtolower(trim((string) ($data['export_type'] ?? 'stl')));
     $cost = export_cost($type);
+    if ($cost === null) {
+        json_response(['ok' => false, 'error' => 'invalid_export_type'], 400);
+        exit;
+    }
     if ((int) $user['credits'] < $cost) {
         json_response(['ok' => false, 'error' => 'insufficient_credits', 'credits' => (int) $user['credits'], 'cost' => $cost], 402);
         exit;
@@ -211,13 +233,27 @@ if ($method === 'POST' && $path === '/api/exports/consume') {
             json_response(['ok' => false, 'error' => 'invalid_authorization'], 400);
             exit;
         }
+        $freshUserStmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+        $freshUserStmt->execute([(int) $user['id']]);
+        $freshUser = $freshUserStmt->fetch();
+        if (!is_array($freshUser) || ($freshUser['status'] ?? 'active') !== 'active') {
+            $pdo->rollBack();
+            json_response(['ok' => false, 'error' => 'account_suspended'], 403);
+            exit;
+        }
         $cost = (int) $auth['credit_cost'];
-        if ((int) $user['credits'] < $cost) {
+        if ((int) $freshUser['credits'] < $cost) {
             $pdo->rollBack();
             json_response(['ok' => false, 'error' => 'insufficient_credits'], 402);
             exit;
         }
-        $pdo->prepare('UPDATE users SET credits = credits - ? WHERE id = ?')->execute([$cost, (int) $user['id']]);
+        $debit = $pdo->prepare('UPDATE users SET credits = credits - ? WHERE id = ? AND credits >= ?');
+        $debit->execute([$cost, (int) $user['id'], $cost]);
+        if ($debit->rowCount() !== 1) {
+            $pdo->rollBack();
+            json_response(['ok' => false, 'error' => 'insufficient_credits'], 402);
+            exit;
+        }
         $pdo->prepare('UPDATE export_authorizations SET status = ?, consumed_at = CURRENT_TIMESTAMP WHERE id = ?')->execute(['consumed', (int) $auth['id']]);
         $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')->execute([(int) $user['id'], -$cost, 'export_' . $auth['export_type'], (string) $auth['id']]);
         $pdo->commit();
@@ -242,11 +278,17 @@ if ($method === 'POST' && $path === '/api/tickets') {
     $user = require_user();
     $data = read_json_body();
     require_fields($data, ['subject', 'body']);
+    $subject = trim((string) $data['subject']);
+    $body = trim((string) $data['body']);
+    if (!string_length_between($subject, 1, 140) || !string_length_between($body, 1, 5000)) {
+        json_response(['ok' => false, 'error' => 'invalid_ticket'], 400);
+        exit;
+    }
     $stmt = db()->prepare('INSERT INTO tickets (user_id, subject) VALUES (?, ?)');
-    $stmt->execute([(int) $user['id'], trim((string) $data['subject'])]);
+    $stmt->execute([(int) $user['id'], $subject]);
     $ticketId = (int) db()->lastInsertId();
     db()->prepare('INSERT INTO ticket_messages (ticket_id, user_id, body) VALUES (?, ?, ?)')
-        ->execute([$ticketId, (int) $user['id'], trim((string) $data['body'])]);
+        ->execute([$ticketId, (int) $user['id'], $body]);
     json_response(['ok' => true, 'ticket_id' => $ticketId], 201);
     exit;
 }

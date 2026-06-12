@@ -2,6 +2,15 @@
 
 declare(strict_types=1);
 
+const MAX_JSON_BODY_BYTES = 262144;
+
+function emit_security_headers(): void
+{
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: DENY');
+    header('Referrer-Policy: same-origin');
+}
+
 function json_response(array $payload, int $status = 200): void
 {
     http_response_code($status);
@@ -15,6 +24,10 @@ function read_json_body(): array
     if ($raw === false || trim($raw) === '') {
         return [];
     }
+    if (strlen($raw) > MAX_JSON_BODY_BYTES) {
+        json_response(['ok' => false, 'error' => 'payload_too_large'], 413);
+        exit;
+    }
 
     $data = json_decode($raw, true);
     if (!is_array($data)) {
@@ -23,6 +36,12 @@ function read_json_body(): array
     }
 
     return $data;
+}
+
+function string_length_between(string $value, int $min, int $max): bool
+{
+    $length = strlen($value);
+    return $length >= $min && $length <= $max;
 }
 
 function require_fields(array $data, array $fields): void

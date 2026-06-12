@@ -215,14 +215,21 @@ article strong,
   color: var(--accent-strong);
 }
 
-.admin-search form,
+.admin-create-form,
+.admin-directory-form,
 .admin-actions form {
   display: grid;
   gap: 10px;
 }
 
-.admin-search form {
-  grid-template-columns: minmax(0, 1fr) auto;
+.admin-create-form {
+  grid-template-columns: repeat(5, minmax(0, 1fr)) auto;
+  align-items: end;
+}
+
+.admin-directory-form {
+  grid-template-columns: minmax(180px, 1fr) minmax(130px, 180px) minmax(150px, 190px) auto;
+  align-items: end;
 }
 
 .admin-actions {
@@ -232,15 +239,43 @@ article strong,
   margin-top: 16px;
 }
 
-.admin-actions form:first-child {
-  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr) auto;
+.admin-actions .span-all {
+  grid-column: 1 / -1;
+}
+
+.admin-actions form {
   align-items: end;
 }
 
-.admin-actions form:last-child {
-  grid-column: 1 / -1;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.admin-actions form:first-child,
+.admin-actions .admin-profile-form {
+  grid-template-columns: minmax(210px, 1.3fr) minmax(150px, 1fr) minmax(130px, 180px) minmax(120px, 160px) auto;
   align-items: end;
+}
+
+.admin-actions .subscription-form {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.admin-actions .danger-form {
+  grid-template-columns: minmax(220px, 1fr) auto;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.danger-form button {
+  border-color: #9f2f2f;
+  background: #9f2f2f;
+}
+
+.directory-count {
+  margin: 14px 0 8px;
+}
+
+.pagination {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 label {
@@ -355,10 +390,13 @@ footer {
   .account-grid,
   .metrics,
   .account-panel,
-  .admin-search form,
+  .admin-create-form,
+  .admin-directory-form,
   .admin-actions,
   .admin-actions form:first-child,
-  .admin-actions form:last-child,
+  .admin-actions .admin-profile-form,
+  .admin-actions .subscription-form,
+  .admin-actions .danger-form,
   .client-summary {
     grid-template-columns: 1fr;
   }

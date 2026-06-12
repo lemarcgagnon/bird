@@ -22,6 +22,14 @@ function money_cents(int $amountCents, string $currency): string
     return $amount . ' ' . strtoupper($currency);
 }
 
+const ADMIN_USER_STATUSES = [
+    'active' => 'Actif',
+    'suspended' => 'Suspendu',
+    'closed' => 'Ferme',
+];
+const ADMIN_PLANS = ['none', 'credits', 'atelier', 'pro'];
+const ADMIN_SUBSCRIPTION_STATUSES = ['none', 'active', 'past_due', 'canceled'];
+
 function page_response(string $title, string $body, string $active = '', int $status = 200): void
 {
     http_response_code($status);
@@ -121,9 +129,9 @@ function render_account_page(): void
         <div class="panel">
           <h2>Inscription dev</h2>
           <form class="client-form" data-register-form>
-            <label><span>Nom</span><input name="display_name" type="text" value="Demo"></label>
+            <label><span>Nom</span><input name="display_name" type="text" value="Demo" maxlength="120"></label>
             <label><span>Courriel</span><input name="email" type="email" placeholder="client@example.com" required></label>
-            <label><span>Mot de passe</span><input name="password" type="password" minlength="8" required></label>
+            <label><span>Mot de passe</span><input name="password" type="password" minlength="8" maxlength="200" required></label>
             <button type="submit">Creer le compte</button>
           </form>
         </div>
@@ -162,8 +170,8 @@ function render_account_page(): void
       <section class="panel">
         <h2>Tickets</h2>
         <form class="client-form ticket-form" data-ticket-form>
-          <label><span>Sujet</span><input name="subject" type="text" placeholder="Question sur un export" required></label>
-          <label><span>Message</span><textarea name="body" rows="4" placeholder="Decris le probleme ou la demande" required></textarea></label>
+          <label><span>Sujet</span><input name="subject" type="text" placeholder="Question sur un export" maxlength="140" required></label>
+          <label><span>Message</span><textarea name="body" rows="4" placeholder="Decris le probleme ou la demande" maxlength="5000" required></textarea></label>
           <button type="submit">Envoyer ticket</button>
         </form>
         <div class="table-wrap"><table><thead><tr><th>ID</th><th>Sujet</th><th>Etat</th><th>Date</th></tr></thead><tbody data-ticket-rows><tr><td colspan="4">Non connecte.</td></tr></tbody></table></div>
@@ -180,7 +188,7 @@ function render_account_page(): void
       const demo = { email: "demo@nichoir.local", password: "password123" };
       const token = () => localStorage.getItem(TOKEN_KEY);
       const setText = (selector, value) => document.querySelector(selector).textContent = value;
-      const row = (cells) => `<tr>${cells.map((cell) => `<td>${String(cell).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]))}</td>`).join("")}</tr>`;
+      const row = (cells) => `<tr>${cells.map((cell) => `<td>${String(cell).replace(/[&<>"\x27]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\x27": "&#39;" }[c]))}</td>`).join("")}</tr>`;
 
       async function api(path, options = {}) {
         const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
@@ -346,12 +354,6 @@ function admin_allowed(): bool
     return $provided !== '' && hash_equals($expected, $provided);
 }
 
-function admin_key_query(): string
-{
-    $key = trim((string) ($_GET['key'] ?? ''));
-    return $key === '' ? '' : '&key=' . rawurlencode($key);
-}
-
 function admin_key_input(): string
 {
     $key = trim((string) ($_GET['key'] ?? ($_POST['key'] ?? '')));
@@ -374,12 +376,241 @@ function redirect_admin(int $userId = 0, string $notice = ''): void
     header('Location: /admin' . ($parts ? '?' . implode('&', $parts) : ''));
 }
 
+function admin_redirect_url(array $params = []): string
+{
+    $key = trim((string) ($_POST['key'] ?? ($_GET['key'] ?? '')));
+    if ($key !== '' && !isset($params['key'])) {
+        $params['key'] = $key;
+    }
+    $query = http_build_query($params);
+    return '/admin' . ($query === '' ? '' : '?' . $query);
+}
+
+function admin_status_options(string $current): string
+{
+    $html = '';
+    foreach (ADMIN_USER_STATUSES as $value => $label) {
+        $selected = $current === $value ? ' selected' : '';
+        $html .= '<option value="' . h($value) . '"' . $selected . '>' . h($label) . '</option>';
+    }
+    return $html;
+}
+
+function admin_plan_options(string $current): string
+{
+    $html = '';
+    foreach (ADMIN_PLANS as $option) {
+        $selected = $current === $option ? ' selected' : '';
+        $html .= '<option value="' . h($option) . '"' . $selected . '>' . h($option) . '</option>';
+    }
+    return $html;
+}
+
+function admin_subscription_status_options(string $current): string
+{
+    $html = '';
+    foreach (ADMIN_SUBSCRIPTION_STATUSES as $option) {
+        $selected = $current === $option ? ' selected' : '';
+        $html .= '<option value="' . h($option) . '"' . $selected . '>' . h($option) . '</option>';
+    }
+    return $html;
+}
+
 function audit_admin_action(PDO $pdo, ?int $userId, string $action, ?int $delta, string $note): void
 {
     $key = (string) ($_POST['key'] ?? ($_GET['key'] ?? 'local-dev'));
     $hash = $key === '' ? '' : hash('sha256', $key);
     $stmt = $pdo->prepare('INSERT INTO admin_audit_log (admin_key_hash, user_id, action, delta, note) VALUES (?, ?, ?, ?, ?)');
     $stmt->execute([$hash, $userId, $action, $delta, $note]);
+}
+
+function admin_load_user(PDO $pdo, int $userId): ?array
+{
+    $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+    $stmt->execute([$userId]);
+    $user = $stmt->fetch();
+    return is_array($user) ? $user : null;
+}
+
+function admin_valid_user_status(string $status): bool
+{
+    return array_key_exists($status, ADMIN_USER_STATUSES);
+}
+
+function admin_valid_email(string $email): bool
+{
+    return filter_var($email, FILTER_VALIDATE_EMAIL) !== false && strlen($email) <= 254;
+}
+
+function admin_valid_display_name(string $name): bool
+{
+    return strlen($name) <= 120;
+}
+
+function admin_valid_password(string $password): bool
+{
+    return string_length_between($password, 8, 200);
+}
+
+function admin_create_user(PDO $pdo): void
+{
+    $email = strtolower(trim((string) ($_POST['email'] ?? '')));
+    $name = trim((string) ($_POST['display_name'] ?? ''));
+    $password = (string) ($_POST['password'] ?? '');
+    $credits = max(0, (int) ($_POST['credits'] ?? 0));
+    $status = (string) ($_POST['status'] ?? 'active');
+    if (!admin_valid_email($email) || !admin_valid_display_name($name) || !admin_valid_password($password) || !admin_valid_user_status($status)) {
+        header('Location: ' . admin_redirect_url(['notice' => 'creation_invalide']));
+        return;
+    }
+    $pdo->beginTransaction();
+    try {
+        $stmt = $pdo->prepare('INSERT INTO users (email, password_hash, display_name, credits, status) VALUES (?, ?, ?, ?, ?)');
+        $stmt->execute([$email, password_hash($password, PASSWORD_DEFAULT), $name, $credits, $status]);
+        $newUserId = (int) $pdo->lastInsertId();
+        if ($credits > 0) {
+            $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
+                ->execute([$newUserId, $credits, 'admin_create_user', 'initial']);
+        }
+        audit_admin_action($pdo, $newUserId, 'create_user', $credits, $email);
+        $pdo->commit();
+        redirect_admin($newUserId, 'client_cree');
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        header('Location: ' . admin_redirect_url(['notice' => 'creation_erreur']));
+    }
+}
+
+function admin_update_user(PDO $pdo, array $currentUser): void
+{
+    $userId = (int) $currentUser['id'];
+    $email = strtolower(trim((string) ($_POST['email'] ?? '')));
+    $name = trim((string) ($_POST['display_name'] ?? ''));
+    $status = (string) ($_POST['status'] ?? 'active');
+    $credits = max(0, (int) ($_POST['credits'] ?? 0));
+    if (!admin_valid_email($email) || !admin_valid_display_name($name) || !admin_valid_user_status($status)) {
+        redirect_admin($userId, 'profil_invalide');
+        return;
+    }
+    $delta = $credits - (int) $currentUser['credits'];
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('UPDATE users SET email = ?, display_name = ?, status = ?, credits = ? WHERE id = ?')
+            ->execute([$email, $name, $status, $credits, $userId]);
+        if ($delta !== 0) {
+            $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
+                ->execute([$userId, $delta, 'admin_set_balance', 'profile']);
+        }
+        audit_admin_action($pdo, $userId, 'update_user', $delta, $email);
+        $pdo->commit();
+        redirect_admin($userId, 'profil_modifie');
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        redirect_admin($userId, 'profil_erreur');
+    }
+}
+
+function admin_reset_password(PDO $pdo, array $currentUser): void
+{
+    $userId = (int) $currentUser['id'];
+    $password = (string) ($_POST['password'] ?? '');
+    if (!admin_valid_password($password)) {
+        redirect_admin($userId, 'mot_de_passe_invalide');
+        return;
+    }
+    $pdo->prepare('UPDATE users SET password_hash = ? WHERE id = ?')->execute([password_hash($password, PASSWORD_DEFAULT), $userId]);
+    audit_admin_action($pdo, $userId, 'reset_password', null, 'admin_reset');
+    redirect_admin($userId, 'mot_de_passe_modifie');
+}
+
+function admin_delete_user(PDO $pdo, array $currentUser): void
+{
+    $userId = (int) $currentUser['id'];
+    $confirm = trim((string) ($_POST['confirm'] ?? ''));
+    if ($confirm !== 'DELETE') {
+        redirect_admin($userId, 'confirmation_requise');
+        return;
+    }
+    $email = (string) $currentUser['email'];
+    $pdo->beginTransaction();
+    try {
+        audit_admin_action($pdo, $userId, 'delete_user', null, $email);
+        $pdo->prepare('DELETE FROM users WHERE id = ?')->execute([$userId]);
+        $pdo->commit();
+        header('Location: ' . admin_redirect_url(['notice' => 'client_supprime']));
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        redirect_admin($userId, 'suppression_erreur');
+    }
+}
+
+function admin_adjust_credits(PDO $pdo, array $currentUser): void
+{
+    $userId = (int) $currentUser['id'];
+    $delta = (int) ($_POST['delta'] ?? 0);
+    $note = trim((string) ($_POST['note'] ?? ''));
+    if ($delta === 0) {
+        redirect_admin($userId, 'delta_zero');
+        return;
+    }
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('UPDATE users SET credits = credits + ? WHERE id = ?')->execute([$delta, $userId]);
+        $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
+            ->execute([$userId, $delta, 'admin_adjustment', $note]);
+        audit_admin_action($pdo, $userId, 'adjust_credits', $delta, $note);
+        $pdo->commit();
+        redirect_admin($userId, 'credits_ajustes');
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        redirect_admin($userId, 'erreur_credits');
+    }
+}
+
+function admin_set_status(PDO $pdo, array $currentUser): void
+{
+    $userId = (int) $currentUser['id'];
+    $status = (string) ($_POST['status'] ?? 'active');
+    if (!in_array($status, ['active', 'suspended'], true)) {
+        redirect_admin($userId, 'statut_invalide');
+        return;
+    }
+    $pdo->prepare('UPDATE users SET status = ? WHERE id = ?')->execute([$status, $userId]);
+    audit_admin_action($pdo, $userId, 'set_status', null, $status);
+    redirect_admin($userId, 'statut_modifie');
+}
+
+function admin_set_subscription(PDO $pdo, array $currentUser): void
+{
+    $userId = (int) $currentUser['id'];
+    $plan = (string) ($_POST['plan'] ?? 'none');
+    $status = (string) ($_POST['subscription_status'] ?? 'none');
+    if (!in_array($plan, ADMIN_PLANS, true) || !in_array($status, ADMIN_SUBSCRIPTION_STATUSES, true)) {
+        redirect_admin($userId, 'abonnement_invalide');
+        return;
+    }
+    $periodEnd = trim((string) ($_POST['current_period_end'] ?? ''));
+    $periodEnd = $periodEnd === '' ? null : $periodEnd;
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('UPDATE users SET subscription_status = ? WHERE id = ?')->execute([$status, $userId]);
+        $existing = $pdo->prepare('SELECT id FROM subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT 1');
+        $existing->execute([$userId]);
+        $subscriptionId = $existing->fetchColumn();
+        if ($subscriptionId) {
+            $pdo->prepare('UPDATE subscriptions SET plan = ?, status = ?, current_period_end = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                ->execute([$plan, $status, $periodEnd, (int) $subscriptionId]);
+        } else {
+            $pdo->prepare('INSERT INTO subscriptions (user_id, plan, status, current_period_end) VALUES (?, ?, ?, ?)')
+                ->execute([$userId, $plan, $status, $periodEnd]);
+        }
+        audit_admin_action($pdo, $userId, 'set_subscription', null, $plan . ':' . $status);
+        $pdo->commit();
+        redirect_admin($userId, 'abonnement_modifie');
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        redirect_admin($userId, 'erreur_abonnement');
+    }
 }
 
 function handle_admin_post(): void
@@ -390,106 +621,155 @@ function handle_admin_post(): void
     }
 
     $action = (string) ($_POST['action'] ?? '');
+    $pdo = db();
+
+    if ($action === 'create_user') {
+        admin_create_user($pdo);
+        return;
+    }
+
     $userId = (int) ($_POST['user_id'] ?? 0);
     if ($userId <= 0) {
         redirect_admin(0, 'client_invalide');
         return;
     }
-
-    $pdo = db();
-    $stmt = $pdo->prepare('SELECT id FROM users WHERE id = ?');
-    $stmt->execute([$userId]);
-    if (!$stmt->fetch()) {
+    $currentUser = admin_load_user($pdo, $userId);
+    if ($currentUser === null) {
         redirect_admin(0, 'client_introuvable');
         return;
     }
 
-    if ($action === 'adjust_credits') {
-        $delta = (int) ($_POST['delta'] ?? 0);
-        $note = trim((string) ($_POST['note'] ?? ''));
-        if ($delta === 0) {
-            redirect_admin($userId, 'delta_zero');
-            return;
-        }
-        $pdo->beginTransaction();
-        try {
-            $pdo->prepare('UPDATE users SET credits = credits + ? WHERE id = ?')->execute([$delta, $userId]);
-            $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
-                ->execute([$userId, $delta, 'admin_adjustment', $note]);
-            audit_admin_action($pdo, $userId, 'adjust_credits', $delta, $note);
-            $pdo->commit();
-            redirect_admin($userId, 'credits_ajustes');
-        } catch (Throwable $e) {
-            $pdo->rollBack();
-            redirect_admin($userId, 'erreur_credits');
-        }
-        return;
-    }
-
-    if ($action === 'set_status') {
-        $status = (string) ($_POST['status'] ?? 'active');
-        if (!in_array($status, ['active', 'suspended'], true)) {
-            redirect_admin($userId, 'statut_invalide');
-            return;
-        }
-        $pdo->prepare('UPDATE users SET status = ? WHERE id = ?')->execute([$status, $userId]);
-        audit_admin_action($pdo, $userId, 'set_status', null, $status);
-        redirect_admin($userId, 'statut_modifie');
-        return;
-    }
-
-    if ($action === 'set_subscription') {
-        $plan = (string) ($_POST['plan'] ?? 'none');
-        $status = (string) ($_POST['subscription_status'] ?? 'none');
-        if (!in_array($plan, ['none', 'credits', 'atelier', 'pro'], true) || !in_array($status, ['none', 'active', 'past_due', 'canceled'], true)) {
-            redirect_admin($userId, 'abonnement_invalide');
-            return;
-        }
-        $periodEnd = trim((string) ($_POST['current_period_end'] ?? ''));
-        $periodEnd = $periodEnd === '' ? null : $periodEnd;
-        $pdo->beginTransaction();
-        try {
-            $pdo->prepare('UPDATE users SET subscription_status = ? WHERE id = ?')->execute([$status, $userId]);
-            $existing = $pdo->prepare('SELECT id FROM subscriptions WHERE user_id = ? ORDER BY id DESC LIMIT 1');
-            $existing->execute([$userId]);
-            $subscriptionId = $existing->fetchColumn();
-            if ($subscriptionId) {
-                $pdo->prepare('UPDATE subscriptions SET plan = ?, status = ?, current_period_end = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
-                    ->execute([$plan, $status, $periodEnd, (int) $subscriptionId]);
-            } else {
-                $pdo->prepare('INSERT INTO subscriptions (user_id, plan, status, current_period_end) VALUES (?, ?, ?, ?)')
-                    ->execute([$userId, $plan, $status, $periodEnd]);
-            }
-            audit_admin_action($pdo, $userId, 'set_subscription', null, $plan . ':' . $status);
-            $pdo->commit();
-            redirect_admin($userId, 'abonnement_modifie');
-        } catch (Throwable $e) {
-            $pdo->rollBack();
-            redirect_admin($userId, 'erreur_abonnement');
-        }
-        return;
-    }
-
-    redirect_admin($userId, 'action_inconnue');
+    match ($action) {
+        'update_user' => admin_update_user($pdo, $currentUser),
+        'reset_password' => admin_reset_password($pdo, $currentUser),
+        'delete_user' => admin_delete_user($pdo, $currentUser),
+        'adjust_credits' => admin_adjust_credits($pdo, $currentUser),
+        'set_status' => admin_set_status($pdo, $currentUser),
+        'set_subscription' => admin_set_subscription($pdo, $currentUser),
+        default => redirect_admin($userId, 'action_inconnue'),
+    };
 }
 
 function selected_admin_user(PDO $pdo): ?array
 {
     $userId = (int) ($_GET['user_id'] ?? 0);
-    $query = strtolower(trim((string) ($_GET['q'] ?? '')));
     if ($userId > 0) {
         $stmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
         $stmt->execute([$userId]);
         $user = $stmt->fetch();
         return is_array($user) ? $user : null;
     }
-    if ($query !== '') {
-        $stmt = $pdo->prepare('SELECT * FROM users WHERE lower(email) LIKE ? ORDER BY id DESC LIMIT 1');
-        $stmt->execute(['%' . $query . '%']);
-        $user = $stmt->fetch();
-        return is_array($user) ? $user : null;
-    }
     return null;
+}
+
+function render_create_user_panel(): string
+{
+    return '
+      <section class="panel">
+        <h2>Creer utilisateur</h2>
+        <form class="admin-create-form" method="post" action="/admin">
+          ' . admin_key_input() . '
+          <input type="hidden" name="action" value="create_user">
+          <label><span>Courriel</span><input type="email" name="email" required></label>
+          <label><span>Nom</span><input type="text" name="display_name"></label>
+          <label><span>Mot de passe initial</span><input type="password" name="password" minlength="8" required></label>
+          <label><span>Credits initiaux</span><input type="number" name="credits" min="0" step="1" value="0"></label>
+          <label><span>Statut</span><select name="status">' . admin_status_options('active') . '</select></label>
+          <button type="submit">Creer</button>
+        </form>
+      </section>
+    ';
+}
+
+function admin_directory_link(array $overrides): string
+{
+    $params = [
+        'q' => trim((string) ($_GET['q'] ?? '')),
+        'status' => trim((string) ($_GET['status'] ?? '')),
+        'subscription_status' => trim((string) ($_GET['subscription_status'] ?? '')),
+        'page' => (string) max(1, (int) ($_GET['page'] ?? 1)),
+    ];
+    foreach ($overrides as $key => $value) {
+        $params[$key] = (string) $value;
+    }
+    foreach ($params as $key => $value) {
+        if ($value === '') {
+            unset($params[$key]);
+        }
+    }
+    return admin_redirect_url($params);
+}
+
+function render_user_directory(PDO $pdo): string
+{
+    $query = strtolower(trim((string) ($_GET['q'] ?? '')));
+    $status = trim((string) ($_GET['status'] ?? ''));
+    $subscriptionStatus = trim((string) ($_GET['subscription_status'] ?? ''));
+    $page = max(1, (int) ($_GET['page'] ?? 1));
+    $perPage = 25;
+    $offset = ($page - 1) * $perPage;
+    $where = [];
+    $params = [];
+
+    if ($query !== '') {
+        if (ctype_digit($query)) {
+            $where[] = '(id = ? OR lower(email) LIKE ? OR lower(display_name) LIKE ?)';
+            $params[] = (int) $query;
+            $params[] = '%' . $query . '%';
+            $params[] = '%' . $query . '%';
+        } else {
+            $where[] = '(lower(email) LIKE ? OR lower(display_name) LIKE ?)';
+            $params[] = '%' . $query . '%';
+            $params[] = '%' . $query . '%';
+        }
+    }
+    if (admin_valid_user_status($status)) {
+        $where[] = 'status = ?';
+        $params[] = $status;
+    }
+    if (in_array($subscriptionStatus, ADMIN_SUBSCRIPTION_STATUSES, true)) {
+        $where[] = 'subscription_status = ?';
+        $params[] = $subscriptionStatus;
+    }
+
+    $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+    $countStmt = $pdo->prepare('SELECT COUNT(*) FROM users ' . $whereSql);
+    $countStmt->execute($params);
+    $total = (int) $countStmt->fetchColumn();
+
+    $stmt = $pdo->prepare('SELECT id, email, display_name, credits, subscription_status, status, created_at FROM users ' . $whereSql . ' ORDER BY id DESC LIMIT ? OFFSET ?');
+    $stmtParams = $params;
+    $stmtParams[] = $perPage;
+    $stmtParams[] = $offset;
+    $stmt->execute($stmtParams);
+
+    $rows = '';
+    foreach ($stmt->fetchAll() as $user) {
+        $href = admin_redirect_url(['user_id' => (int) $user['id']]);
+        $rows .= '<tr><td><a href="' . h($href) . '">' . (int) $user['id'] . '</a></td><td>' . h((string) $user['email']) . '</td><td>' . h((string) $user['display_name']) . '</td><td>' . (int) $user['credits'] . '</td><td>' . h((string) $user['subscription_status']) . '</td><td>' . h((string) ($user['status'] ?? 'active')) . '</td><td>' . h((string) $user['created_at']) . '</td><td><a href="' . h($href) . '">Ouvrir</a></td></tr>';
+    }
+    $rows = $rows ?: '<tr><td colspan="8">Aucun utilisateur trouve.</td></tr>';
+
+    $start = $total === 0 ? 0 : $offset + 1;
+    $end = min($offset + $perPage, $total);
+    $prev = $page > 1 ? '<a class="secondary" href="' . h(admin_directory_link(['page' => $page - 1])) . '">Precedent</a>' : '';
+    $next = $end < $total ? '<a class="secondary" href="' . h(admin_directory_link(['page' => $page + 1])) . '">Suivant</a>' : '';
+
+    return '
+      <section class="panel">
+        <h2>Repertoire utilisateurs</h2>
+        <form class="admin-directory-form" method="get" action="/admin">
+          ' . admin_key_input() . '
+          <label><span>Recherche</span><input type="search" name="q" value="' . h((string) ($_GET['q'] ?? '')) . '" placeholder="id, courriel ou nom"></label>
+          <label><span>Statut</span><select name="status"><option value="">Tous</option>' . admin_status_options($status) . '</select></label>
+          <label><span>Abonnement</span><select name="subscription_status"><option value="">Tous</option>' . admin_subscription_status_options($subscriptionStatus) . '</select></label>
+          <button type="submit">Filtrer</button>
+        </form>
+        <p class="directory-count">' . $start . '-' . $end . ' sur ' . $total . ' utilisateur(s)</p>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Courriel</th><th>Nom</th><th>Credits</th><th>Abonnement</th><th>Statut</th><th>Cree</th><th></th></tr></thead><tbody>' . $rows . '</tbody></table></div>
+        <div class="pagination">' . $prev . $next . '</div>
+      </section>
+    ';
 }
 
 function render_client_detail(PDO $pdo, ?array $user): string
@@ -557,16 +837,9 @@ function render_client_detail(PDO $pdo, ?array $user): string
     $status = (string) ($user['status'] ?? 'active');
     $nextStatus = $status === 'active' ? 'suspended' : 'active';
     $nextLabel = $nextStatus === 'active' ? 'Reactiver' : 'Suspendre';
-    $planOptions = '';
-    foreach (['none', 'credits', 'atelier', 'pro'] as $option) {
-        $selected = (string) $latestSubscription['plan'] === $option ? ' selected' : '';
-        $planOptions .= '<option value="' . h($option) . '"' . $selected . '>' . h($option) . '</option>';
-    }
-    $subscriptionStatusOptions = '';
-    foreach (['none', 'active', 'past_due', 'canceled'] as $option) {
-        $selected = (string) $latestSubscription['status'] === $option ? ' selected' : '';
-        $subscriptionStatusOptions .= '<option value="' . h($option) . '"' . $selected . '>' . h($option) . '</option>';
-    }
+    $userStatusOptions = admin_status_options($status);
+    $planOptions = admin_plan_options((string) $latestSubscription['plan']);
+    $subscriptionStatusOptions = admin_subscription_status_options((string) $latestSubscription['status']);
     $periodValue = h(substr((string) ($latestSubscription['current_period_end'] ?? ''), 0, 10));
 
     return '
@@ -579,6 +852,23 @@ function render_client_detail(PDO $pdo, ?array $user): string
           <div class="stat"><span>Statut</span><strong>' . h($status) . '</strong></div>
         </div>
         <div class="admin-actions">
+          <form class="span-all admin-profile-form" method="post" action="/admin">
+            ' . admin_key_input() . '
+            <input type="hidden" name="action" value="update_user">
+            <input type="hidden" name="user_id" value="' . $userId . '">
+            <label><span>Courriel</span><input type="email" name="email" value="' . h((string) $user['email']) . '" required></label>
+            <label><span>Nom</span><input type="text" name="display_name" value="' . h((string) $user['display_name']) . '"></label>
+            <label><span>Statut</span><select name="status">' . $userStatusOptions . '</select></label>
+            <label><span>Solde credits</span><input type="number" name="credits" min="0" step="1" value="' . (int) $user['credits'] . '" required></label>
+            <button type="submit">Enregistrer profil</button>
+          </form>
+          <form method="post" action="/admin">
+            ' . admin_key_input() . '
+            <input type="hidden" name="action" value="reset_password">
+            <input type="hidden" name="user_id" value="' . $userId . '">
+            <label><span>Nouveau mot de passe</span><input type="password" name="password" minlength="8" required></label>
+            <button type="submit">Reset mot de passe</button>
+          </form>
           <form method="post" action="/admin">
             ' . admin_key_input() . '
             <input type="hidden" name="action" value="adjust_credits">
@@ -594,7 +884,7 @@ function render_client_detail(PDO $pdo, ?array $user): string
             <input type="hidden" name="status" value="' . h($nextStatus) . '">
             <button type="submit">' . h($nextLabel) . '</button>
           </form>
-          <form method="post" action="/admin">
+          <form class="span-all subscription-form" method="post" action="/admin">
             ' . admin_key_input() . '
             <input type="hidden" name="action" value="set_subscription">
             <input type="hidden" name="user_id" value="' . $userId . '">
@@ -602,6 +892,13 @@ function render_client_detail(PDO $pdo, ?array $user): string
             <label><span>Etat abonnement</span><select name="subscription_status">' . $subscriptionStatusOptions . '</select></label>
             <label><span>Fin periode</span><input type="date" name="current_period_end" value="' . $periodValue . '"></label>
             <button type="submit">Mettre a jour abonnement</button>
+          </form>
+          <form class="span-all danger-form" method="post" action="/admin">
+            ' . admin_key_input() . '
+            <input type="hidden" name="action" value="delete_user">
+            <input type="hidden" name="user_id" value="' . $userId . '">
+            <label><span>Suppression definitive</span><input type="text" name="confirm" placeholder="taper DELETE pour confirmer"></label>
+            <button type="submit">Supprimer utilisateur</button>
           </form>
         </div>
       </section>
@@ -632,19 +929,9 @@ function render_admin_page(): void
     $summary = admin_summary();
     $selected = selected_admin_user($pdo);
     $notice = trim((string) ($_GET['notice'] ?? ''));
-    $users = $pdo->query('SELECT id, email, display_name, credits, subscription_status, status, created_at FROM users ORDER BY id DESC LIMIT 20')->fetchAll();
     $exports = $pdo->query('SELECT export_authorizations.id, users.email, export_type, credit_cost, export_authorizations.status AS export_status, export_authorizations.created_at, consumed_at FROM export_authorizations JOIN users ON users.id = export_authorizations.user_id ORDER BY export_authorizations.id DESC LIMIT 20')->fetchAll();
     $subscriptions = $pdo->query('SELECT subscriptions.id, users.email, plan, subscriptions.status AS subscription_state, current_period_end, subscriptions.updated_at FROM subscriptions JOIN users ON users.id = subscriptions.user_id ORDER BY subscriptions.id DESC LIMIT 20')->fetchAll();
     $payments = $pdo->query('SELECT payments.id, users.email, amount_cents, currency, payments.status AS payment_state, description, payments.created_at FROM payments JOIN users ON users.id = payments.user_id ORDER BY payments.id DESC LIMIT 20')->fetchAll();
-
-    $userRows = '';
-    foreach ($users as $user) {
-        $href = '/admin?user_id=' . (int) $user['id'] . admin_key_query();
-        $userRows .= '<tr><td><a href="' . h($href) . '">' . (int) $user['id'] . '</a></td><td>' . h((string) $user['email']) . '</td><td>' . h((string) $user['display_name']) . '</td><td>' . (int) $user['credits'] . '</td><td>' . h((string) $user['subscription_status']) . '</td><td>' . h((string) ($user['status'] ?? 'active')) . '</td><td>' . h((string) $user['created_at']) . '</td></tr>';
-    }
-    if ($userRows === '') {
-        $userRows = '<tr><td colspan="7">Aucun client.</td></tr>';
-    }
 
     $exportRows = '';
     foreach ($exports as $export) {
@@ -685,9 +972,9 @@ function render_admin_page(): void
         <div><span>Abonnements actifs</span><strong>' . $summary['subscriptions'] . '</strong></div>
         <div><span>Paiements recus</span><strong>' . h(money_cents((int) $summary['payments'], 'cad')) . '</strong></div>
       </section>
-      <section class="panel admin-search"><h2>Recherche client</h2><form method="get" action="/admin">' . admin_key_input() . '<input type="search" name="q" value="' . h((string) ($_GET['q'] ?? '')) . '" placeholder="courriel client"><button type="submit">Chercher</button></form></section>
+      ' . render_create_user_panel() . '
+      ' . render_user_directory($pdo) . '
       ' . render_client_detail($pdo, $selected) . '
-      <section class="panel"><h2>Clients recents</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Courriel</th><th>Nom</th><th>Credits</th><th>Plan</th><th>Statut</th><th>Cree</th></tr></thead><tbody>' . $userRows . '</tbody></table></div></section>
       <section class="panel"><h2>Abonnements recents</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Plan</th><th>Etat</th><th>Fin periode</th><th>MAJ</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div></section>
       <section class="panel"><h2>Paiements recents</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Montant</th><th>Etat</th><th>Description</th><th>Date</th></tr></thead><tbody>' . $paymentRows . '</tbody></table></div></section>
       <section class="panel"><h2>Autorisations recentes</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Type</th><th>Cout</th><th>Etat</th><th>Consomme</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div></section>

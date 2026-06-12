@@ -242,7 +242,13 @@ function handle_stripe_webhook(): void
     try {
         $pdo->prepare('INSERT INTO stripe_events (event_id, type, payload) VALUES (?, ?, ?)')->execute([$eventId, $type, $raw]);
     } catch (PDOException $e) {
-        json_response(['ok' => true, 'status' => 'duplicate', 'event_id' => $eventId]);
+        $stmt = $pdo->prepare('SELECT id FROM stripe_events WHERE event_id = ?');
+        $stmt->execute([$eventId]);
+        if ($stmt->fetchColumn()) {
+            json_response(['ok' => true, 'status' => 'duplicate', 'event_id' => $eventId]);
+            return;
+        }
+        json_response(['ok' => false, 'error' => 'event_store_failed', 'event_id' => $eventId], 500);
         return;
     }
 

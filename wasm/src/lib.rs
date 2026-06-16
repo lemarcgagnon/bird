@@ -622,7 +622,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "deco_smooth") => "Auto smooth",
         ("en", "deco_bevel") => "Bevel / chamfer intensity",
         ("en", "deco_threshold") => "Noise threshold",
-        ("en", "deco_clip") => "Clip to panel shape (coming later)",
+        ("en", "deco_clip") => "Clip relief to panel shape",
         ("en", "language") => "Language",
         ("en", "app_subtitle") => "BIRDHOUSE CALCULATOR",
         ("en", "dim_tab") => "DIM.",
@@ -684,6 +684,8 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "current_export_hold") => "Current export hold",
         ("en", "short_authorization") => "short authorization",
         ("en", "costs") => "Costs",
+        ("en", "server_validated") => "Server validated",
+        ("en", "server_cost_policy") => "Cost confirmed by PHP before each download",
         ("en", "offers") => "Offers",
         ("en", "site") => "site",
         ("en", "info") => "info",
@@ -844,7 +846,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "deco_smooth") => "Auto smooth",
         (_, "deco_bevel") => "Intensite biseau / chanfrein",
         (_, "deco_threshold") => "Seuil anti-bruit",
-        (_, "deco_clip") => "Clipper au panneau (bientot)",
+        (_, "deco_clip") => "Clipper le relief au panneau",
         (_, "language") => "Langue",
         (_, "app_subtitle") => "CALCULATEUR MAISON D'OISEAU",
         (_, "dim_tab") => "DIM.",
@@ -906,6 +908,8 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "current_export_hold") => "Reserve export courant",
         (_, "short_authorization") => "autorisation courte",
         (_, "costs") => "Couts",
+        (_, "server_validated") => "Valide serveur",
+        (_, "server_cost_policy") => "Cout confirme par PHP avant chaque telechargement",
         (_, "offers") => "Offres",
         (_, "site") => "site",
         (_, "info") => "info",
@@ -5200,7 +5204,7 @@ pub fn render_app_html(input: &str) -> String {
           <h3>{account_balance}</h3>
           <div class="stat-row"><span>{available_credits}</span><strong data-account-balance>0</strong></div>
           <div class="stat-row"><span>{current_export_hold}</span><strong>{short_authorization}</strong></div>
-          <div class="stat-row"><span>{costs}</span><strong>3 credits / export</strong></div>
+          <div class="stat-row"><span>{costs}</span><strong>{server_cost_policy}</strong></div>
           <div class="buttons compact-buttons action-buttons">
             <a class="button-like action-tile" data-site-link="/pricing" href="/pricing"><span class="button-glyph" aria-hidden="true">↗</span><span class="button-label">{offers}</span></a>
             <button class="action-tile" data-action="token-pricing" type="button"><span class="button-glyph" aria-hidden="true">¤</span><span class="button-label">{costs}</span></button>
@@ -5239,10 +5243,10 @@ pub fn render_app_html(input: &str) -> String {
         <div class="download-group">
           <h3>{export_consumption}</h3>
           <div class="ledger-list">
-            <div class="ledger-row"><span>{house_or_door_stl}</span><strong>{credits_three}</strong></div>
-            <div class="ledger-row"><span>{plan_pdf_or_calcs_pdf}</span><strong>{credits_two}</strong></div>
-            <div class="ledger-row"><span>{panels_zip}</span><strong>{credits_five}</strong></div>
-            <div class="ledger-row"><span>{plan_svg_or_png}</span><strong>{credit_one}</strong></div>
+            <div class="ledger-row"><span>{house_or_door_stl}</span><strong>{server_validated}</strong></div>
+            <div class="ledger-row"><span>{plan_pdf_or_calcs_pdf}</span><strong>{server_validated}</strong></div>
+            <div class="ledger-row"><span>{panels_zip}</span><strong>{server_validated}</strong></div>
+            <div class="ledger-row"><span>{plan_svg_or_png}</span><strong>{server_validated}</strong></div>
           </div>
         </div>
       </div>
@@ -5264,6 +5268,8 @@ pub fn render_app_html(input: &str) -> String {
         current_export_hold = html_escape(t(lang, "current_export_hold")),
         short_authorization = html_escape(t(lang, "short_authorization")),
         costs = html_escape(t(lang, "costs")),
+        server_validated = html_escape(t(lang, "server_validated")),
+        server_cost_policy = html_escape(t(lang, "server_cost_policy")),
         offers = html_escape(t(lang, "offers")),
         account_management = html_escape(t(lang, "account_management")),
         account = html_escape(t(lang, "account")),
@@ -5280,10 +5286,6 @@ pub fn render_app_html(input: &str) -> String {
         reply = html_escape(t(lang, "reply")),
         reply_label = html_escape(t(lang, "reply_label")),
         plan_none = html_escape(t(lang, "plan_none")),
-        credits_three = html_escape(t(lang, "credits_three")),
-        credits_two = html_escape(t(lang, "credits_two")),
-        credits_five = html_escape(t(lang, "credits_five")),
-        credit_one = html_escape(t(lang, "credit_one")),
         export_consumption = html_escape(t(lang, "export_consumption")),
         house_or_door_stl = html_escape(t(lang, "house_or_door_stl")),
         plan_pdf_or_calcs_pdf = html_escape(t(lang, "plan_pdf_or_calcs_pdf")),

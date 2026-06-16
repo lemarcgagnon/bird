@@ -38,7 +38,7 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 
 ## Current drift
 
-- Local `EXPORT_COSTS` values are UI estimates only. Backend credit cost is configurable in `server-php/src/credits.php`; the authorize response returns the real `cost`.
+- Local `EXPORT_COSTS` values are fallback UI estimates for post-authorization status messages only. Backend credit cost is configurable in `server-php/src/credits.php`; the authorize response returns the real `cost`.
 - Account login is handled by the PHP account page. The app modal only summarizes account state and links users to the server-owned account workflow.
 
 ## Validation after changes

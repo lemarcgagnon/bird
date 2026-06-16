@@ -47,7 +47,6 @@ Current public bindings include:
 
 ## Current drift
 
-- The clip-to-panel decoration path is implemented, but the `deco_clip` label still says "coming later/bientot". The label should be corrected or the UI should expose the state more intentionally.
 - Export-size ceilings for very large meshes/STL/ZIP are still an open hardening item.
 
 ## Validation after changes

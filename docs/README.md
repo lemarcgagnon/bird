@@ -1,24 +1,45 @@
-# Documentation projet
+# Nichoir documentation index
 
-Role: notes de travail, roadmap et securite. Ce dossier doit aider a reprendre rapidement l'etat du projet sans relire tout le code.
+This folder is the handoff layer for installation, security, contact email, and refactoring work. It should explain current state and known gaps, not aspirational architecture only.
 
-Fichiers importants:
+## Documents
 
-- `reste-a-faire.md`: backlog detaille, etat des phases et prochaines etapes.
-- `reprise-installation.md`: etat livre pour l'installateur, ce qui a ete verifie, et ce qu'il restera a finir.
-- `securizons.md`: analyse des surfaces d'attaque WASM/PHP et checklist securite.
+- `reprise-installation.md`: restart notes for the installer/server continuation, including how the temporary installer and local servers were expected to be used.
+- `contact-email-plan.md`: contact email implementation plan, attack-surface reasoning, protections, and validation steps.
+- `refactoring-plan.md`: current phased DRY/KISS/i18n/HIG/security refactoring plan.
+- `reste-a-faire.md`: older feature/roadmap backlog. Treat as historical unless reconciled with current code.
+- `securizons.md`: older security notes for files, SVG/input handling, WASM, and server boundaries. Treat as security backlog/reference.
 
-Regles d'usage:
+## Current implementation facts
 
-- Mettre a jour ces fichiers quand l'architecture change.
-- Garder les statuts concrets: fait, restant, risque connu.
-- Ne pas documenter une promesse comme livree tant que le code et les tests ne suivent pas.
+- PHP currently renders the public site, pricing, about, contact, account, admin, API, and Stripe webhook through `server-php/public/index.php` plus `server-php/src/pages.php`.
+- Contact form email is implemented with CSRF, honeypot, IP rate limiting, SMTP handoff through `src/mail.php`, app logging, and session flash messages.
+- Credit policy is implemented in `server-php/src/credits.php` and configurable from admin settings.
+- Export consume now claims an authorization before debit to reduce duplicate-consume risk.
+- PHP, JS, and Rust/WASM each still have their own i18n tables; key parity currently passes, but ownership is not centralized.
+- PHP page scripts are still inline in `pages.php`; CSP hardening depends on moving them into `server-php/public/site.js`.
 
-Points de vigilance:
+## Last validation pass
 
-- Stripe Checkout/portail/factures sont maintenant branches cote PHP, avec signature webhook quand le secret Stripe est configure.
-- La config DB cPanel/MySQL est branchee dans `/admin` > `Reglages`; SQLite reste le mode local par defaut.
-- Les exports admin de base sont disponibles en CSV, Excel compatible `.xls` et JSON depuis `/admin` > `Exports`.
-- Le rate limiting, le CSRF admin, la CSP et le sanitizer SVG complet restent a faire avant production.
-- L'installation serveur passe maintenant par `installation/` et par les `.htaccess` versionnes; le dossier d'installation doit etre supprime apres setup.
-- Le serveur PHP est maintenant le maitre pour compte/credits/admin/API; l'app/WASM est le client calcul.
+Completed checks:
+
+- PHP lint for main backend files.
+- JS syntax check for `app/app.js`.
+- Rust/WASM compile check for `wasm32-unknown-unknown`.
+- i18n key parity for PHP, JS, and Rust/WASM French/English tables.
+- Public route smoke checks for home, pricing, about, contact, and account.
+- Contact invalid POST flash behavior.
+
+Pending checks:
+
+- Live duplicate export consume test with an authenticated account and real authorization.
+- Admin route smoke test with configured admin access.
+- Stripe test-mode checkout/portal/webhook path.
+- Browser keyboard traversal for account/admin tabs and modals.
+
+## Known drift to fix
+
+- `app/app.js` hardcodes the current 3-credit policy in `pricing_info` copy.
+- `wasm/src/lib.rs` has a stale `a venir` label for `deco_clip`.
+- English public pages still use French ARIA labels for navigation/language.
+- `server-php/src/pages.php` contains an apparently unused `coming_soon` translation key.

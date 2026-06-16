@@ -7,6 +7,11 @@
   --line: #ded4c5;
   --accent: #b56f18;
   --accent-strong: #8d5412;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --title-tight: -0.045em;
+  --title-hero: clamp(56px, 8vw, 92px);
+  --title-page: clamp(44px, 5.4vw, 74px);
+  --title-section: clamp(26px, 3vw, 36px);
 }
 
 * {
@@ -17,21 +22,35 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 15px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font: 15px/1.5 var(--font-sans);
 }
 
 a {
   color: inherit;
 }
 
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="tab"]:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 72%, white);
+  outline-offset: 3px;
+}
+
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   justify-content: space-between;
   gap: 24px;
   align-items: center;
   padding: 18px clamp(18px, 4vw, 54px);
   border-bottom: 1px solid var(--line);
-  background: rgba(255, 250, 241, 0.92);
+  background: rgba(255, 250, 241, 0.95);
+  backdrop-filter: blur(14px);
 }
 
 .brand {
@@ -42,23 +61,45 @@ a {
   text-transform: uppercase;
 }
 
-nav {
+.site-nav,
+footer nav {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
 }
 
-nav a {
+.site-nav a {
   padding: 8px 10px;
   border-radius: 6px;
   color: var(--muted);
   text-decoration: none;
 }
 
-nav a.active {
+.site-nav a.active,
+.site-nav a[aria-current="true"] {
   background: var(--line);
   color: var(--text);
+}
+
+.lang-pair {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.lang-pair a {
+  min-width: 34px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  text-align: center;
+}
+
+.lang-pair a[aria-current="true"] {
+  background: var(--accent);
+  color: #fffaf1;
 }
 
 .button-link,
@@ -98,11 +139,34 @@ main {
   gap: 18px;
 }
 
+.marketing-hero {
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: clamp(24px, 5vw, 70px);
+  align-items: center;
+}
+
 .hero h1,
 .page-title h1 {
   margin: 0;
-  font-size: clamp(42px, 8vw, 92px);
-  line-height: 0.95;
+  font-weight: 850;
+  letter-spacing: var(--title-tight);
+  line-height: 0.98;
+}
+
+.hero h1 {
+  font-size: var(--title-hero);
+}
+
+.page-title h1 {
+  font-size: var(--title-page);
+  max-width: 780px;
+}
+
+.panel h2,
+article h2 {
+  font-size: var(--title-section);
+  letter-spacing: -0.025em;
+  line-height: 1.05;
 }
 
 .hero p,
@@ -134,6 +198,30 @@ main {
   grid-template-columns: repeat(2, max-content);
 }
 
+.hero-card {
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent) 16%, transparent), transparent 42%),
+    var(--panel);
+  box-shadow: 0 18px 60px rgba(36, 33, 29, 0.08);
+}
+
+.hero-card span {
+  display: flex;
+  align-items: center;
+  min-height: 54px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 250, 241, 0.72);
+  color: var(--accent-strong);
+  font-weight: 800;
+}
+
 .grid,
 .pricing-grid,
 .account-grid,
@@ -160,6 +248,69 @@ article,
   background: var(--panel);
 }
 
+.feature-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(280px, 1fr);
+  gap: 22px;
+  margin-top: 20px;
+}
+
+.step-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step-list li {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffdf8;
+}
+
+.step-list strong {
+  color: var(--text);
+}
+
+.step-list span,
+.card-action {
+  color: var(--muted);
+}
+
+.card-action {
+  margin-top: 14px;
+}
+
+.contact-form-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 0.65fr) minmax(320px, 1fr);
+  gap: 22px;
+  margin-top: 20px;
+}
+
+.honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.closing-cta {
+  min-height: auto;
+  margin-top: 20px;
+  padding: clamp(24px, 5vw, 48px);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent), transparent 60%),
+    var(--panel);
+}
+
 .metrics a {
   color: inherit;
   text-decoration: none;
@@ -184,10 +335,105 @@ article strong,
   font-size: 28px;
 }
 
+.pricing-grid {
+  align-items: stretch;
+}
+
+.pricing-card {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-height: 100%;
+  border-radius: 18px;
+}
+
+.pricing-card.featured {
+  border-color: color-mix(in srgb, var(--accent) 72%, var(--line));
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent) 16%, transparent), transparent 44%),
+    var(--panel);
+  box-shadow: 0 22px 70px rgba(36, 33, 29, 0.12);
+  transform: translateY(-8px);
+}
+
+.plan-badge {
+  width: max-content;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, var(--line));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.pricing-card h2 {
+  margin-bottom: -8px;
+}
+
+.pricing-card strong {
+  font-size: clamp(34px, 5vw, 48px);
+  line-height: 1;
+}
+
+.pricing-card ul,
+.pricing-rules ul {
+  display: grid;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pricing-card li,
+.pricing-rules li {
+  position: relative;
+  padding-left: 24px;
+  color: var(--muted);
+}
+
+.pricing-card li::before,
+.pricing-rules li::before {
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  content: "✓";
+  font-weight: 900;
+}
+
+.pricing-card .primary,
+.pricing-card .secondary {
+  width: 100%;
+  margin-top: 6px;
+}
+
+.pricing-rules {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(280px, 1fr);
+  gap: 22px;
+  margin-top: 20px;
+  border-radius: 18px;
+}
+
 .page-title {
   display: grid;
   gap: 10px;
   margin-bottom: 22px;
+}
+
+.about-hero {
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: end;
+  gap: 22px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.about-grid article {
+  border-radius: 18px;
 }
 
 .account-panel {
@@ -496,7 +742,8 @@ button {
 
 .admin-db-form,
 .admin-email-form,
-.admin-stripe-form {
+.admin-stripe-form,
+.admin-credit-policy-form {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
@@ -677,14 +924,49 @@ footer {
   color: var(--muted);
 }
 
+.site-footer {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.4fr) repeat(3, minmax(140px, 0.7fr));
+  gap: 22px;
+  align-items: start;
+}
+
+.site-footer p {
+  max-width: 460px;
+  margin: 10px 0 0;
+}
+
+.site-footer nav {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.site-footer strong {
+  color: var(--text);
+}
+
+.site-footer a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.site-footer a:hover,
+.site-nav a:hover {
+  color: var(--accent-strong);
+}
+
 @media (max-width: 820px) {
   .site-header,
-  nav {
+  .site-nav {
     align-items: stretch;
     flex-direction: column;
   }
 
   .hero-actions,
+  .marketing-hero,
+  .feature-panel,
+  .pricing-rules,
+  .contact-form-panel,
   .grid,
   .pricing-grid,
   .account-grid,
@@ -699,6 +981,7 @@ footer {
   .admin-actions .danger-form,
   .admin-email-form,
   .admin-stripe-form,
+  .admin-credit-policy-form,
   .admin-email-test,
   .section-heading,
   .support-layout,
@@ -707,6 +990,23 @@ footer {
   .ticket-detail-header,
   .client-summary {
     grid-template-columns: 1fr;
+  }
+
+  .about-hero {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .hero-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .site-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .pricing-card.featured {
+    transform: none;
   }
 
   .ticket-detail-header {

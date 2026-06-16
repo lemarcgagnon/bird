@@ -1,33 +1,38 @@
-# App navigateur
+# Nichoir browser app
 
-Role: front-end principal charge par `/app/index.html`. Il monte l'interface generee par le module Rust/WASM, affiche le viewer Three.js, gere les controles, les exports et les appels au serveur PHP.
+This folder contains the static browser shell and JavaScript glue for the Rust/WASM birdhouse designer.
 
-Fichiers importants:
+## Files
 
-- `index.html`: shell minimal de l'app et versions cache-busting CSS/JS.
-- `app.js`: orchestration navigateur, viewer 3D, compte client, appels API PHP, imports decor, exports autorises.
-- `style.css`: styles de l'app WASM.
+- `index.html`: minimal HTML shell. It reads `?lang=fr|en`, persists `nichoir-lang`, adjusts the boot/loading text, and loads `app.js` as a module.
+- `app.js`: browser integration layer for the WASM app.
+- `style.css`: styling for the WASM app UI, viewer layout, account modal, controls, light/dark theme, and responsive app shell.
 
-Regles d'architecture:
+## What `app.js` currently owns
 
-- Le serveur PHP est la source de verite pour comptes, credits, abonnements, tickets et autorisations.
-- L'app ne doit garder qu'un resume de compte et des liens vers le site PHP.
-- Le shell garde une porte de sortie persistante vers le site via le lien `Site` dans l'en-tete; la navigation compte ne doit pas enfermer l'utilisateur dans le WASM.
-- Le WASM genere localement geometrie, plans, STL, OBJ, ZIP, PDF et PNG.
-- Ne pas mettre de secret Stripe, admin, licence ou cle serveur dans ce dossier.
-- Le modal compte peut afficher et repondre aux tickets, mais le serveur PHP reste la source de verite.
-- Les zones a forte densite de lecture du shell utilisent des icones de support pour reduire le scan texte, sans remplacer les libelles.
+- Loading the WASM package from `wasm/pkg`.
+- Three.js viewer setup and interaction glue around Rust-generated geometry/output.
+- Frontend i18n table for dynamic/browser-owned messages.
+- Language detection and propagation to PHP links via `?lang=fr|en`.
+- Theme persistence with `nichoir-theme` and light/dark toggle behavior.
+- Account modal open/close/focus trap behavior.
+- API calls to PHP for login, logout, profile, credits ledger, billing summary, Stripe checkout/portal, export authorization/consume, support tickets, and client logs.
+- Download flow: ask PHP for authorization, generate file locally, then call PHP consume after successful local generation.
+- User-readable mapping of API errors to localized messages.
 
-Points de vigilance:
+## Boundaries
 
-- `window.NICHOIR_PHP_BASE` peut forcer l'origine PHP hors dev.
-- `window.NICHOIR_DEMO_ACCOUNT` peut activer un compte demo explicite hors localhost.
-- Les fichiers decor importes sont limites cote JS et les SVG passent par `assertSafeSvgText` avant stockage/rasterisation.
-- Le SVG du plan insere dans `innerHTML` vient du WASM local, pas d'un fichier utilisateur importe.
-- Les exports premium doivent passer par `/api/exports/authorize` puis `/api/exports/consume`.
+- PHP is the source of truth for users, sessions, credits, Stripe billing, support tickets, credit policy, and configured package settings.
+- Rust/WASM is the source of truth for geometry, calculation, and export generation.
+- JavaScript should coordinate browser behavior but should not duplicate backend business policy.
 
-Validation utile:
+## Known current drift
 
-```bash
-node --check app/app.js
-```
+- `pricing_info` still says each premium download costs 3 credits in both languages. Backend credit cost is now configurable through `server-php/src/credits.php` and admin settings, so this copy should become dynamic.
+
+## Validation after changes
+
+1. Run `node --check app/app.js`.
+2. Open `app/index.html?lang=fr` and `app/index.html?lang=en`.
+3. Confirm language switch, theme switch, account modal, PHP page links, and download authorization messaging still work.
+4. If download code changes, test a successful generate/consume flow and a failed authorization flow.

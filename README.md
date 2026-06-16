@@ -308,3 +308,71 @@ avant-le-wsam
 ```
 
 La branche `main` contient maintenant la version Rust/WASM.
+
+
+## Current codebase map and refactoring status
+
+This section reflects the current repository layout, not the final target architecture.
+
+### Runtime surfaces
+
+- `app/index.html`: static browser shell for the WASM app. It reads `?lang=fr|en`, stores language preference, and loads `app/app.js`.
+- `app/app.js`: browser integration layer. It owns Three.js viewer behavior, API calls to PHP, account modal behavior, localized dynamic messages, theme state, download authorization/consume flow, and links back to PHP pages.
+- `app/style.css`: visual styling for the WASM app shell.
+- `wasm/src/lib.rs`: Rust/WASM core. It owns geometry, UI markup rendered from Rust, calculations, STL/OBJ/ZIP/SVG/PDF-related export generation, and Rust-side i18n labels.
+- `wasm/pkg/`: generated `wasm-pack` output consumed by the browser app.
+- `server-php/public/index.php`: PHP front controller for public pages, account/admin pages, JSON API, Stripe webhook, and contact POST route.
+- `server-php/public/site.css`: centralized CSS for PHP-rendered public pages, account page, and admin UI.
+- `server-php/src/pages.php`: compatibility include that wires focused PHP modules together for the front controller.
+- `server-php/src/credits.php`: source of truth for premium export types, configured credit cost, and partial-balance bonus behavior.
+- `server-php/src/mail.php`: SMTP settings, SMTP send implementation, ticket notification delivery, and mail header sanitization.
+- `server-php/src/stripe.php` and `server-php/src/stripe_webhook.php`: Stripe settings, Checkout, customer portal, signature validation, event logging, subscriptions, invoices, and payment sync.
+- `server-php/src/db.php`: SQLite/MySQL config, PDO connections, migrations/schema creation, settings persistence, and install-lock related helpers.
+- `server-php/src/auth.php`: bearer sessions, user projection, auth rate limits, activation codes, and email quotas.
+- `server-php/src/logger.php`: request IDs, app logs, audit logs, Stripe event logs, slow/fatal shutdown logging, and hashed identifiers.
+- `server-php/src/response.php`: JSON response helpers, JSON body size limit, and base HTTP security headers.
+- `installation/index.php`: one-time setup UI for DB config, migrations, basic SMTP/support email settings, and install lock. Remove from production after setup.
+- `scripts/mesh-smoke.mjs`: local diagnostic for generated mesh/export regressions.
+
+### Current truth boundaries
+
+- PHP is the source of truth for accounts, sessions, credits, billing, support tickets, admin actions, Stripe, SMTP, and public landing/account/admin pages.
+- Rust/WASM is the source of truth for birdhouse geometry, calculations, viewer-side generated UI, and local fabrication exports.
+- JavaScript is glue between browser, WASM, PHP API, downloads, and dynamic UI state. It must not become the source of truth for credit policy or billing.
+- `server-php/src/credits.php` owns export cost policy. Hardcoded frontend copy about credit cost is known drift until pricing/config unification is implemented.
+- `server-php/public/site.css` is the shared CSS for PHP pages. Avoid page-local CSS except temporary installer CSS in `installation/index.php`.
+
+### Current validation status
+
+Last validation pass completed:
+
+- `php -l` passed for the main PHP backend files.
+- `node --check app/app.js` passed.
+- `cargo check --target wasm32-unknown-unknown` passed in `wasm/`.
+- i18n key parity passed for PHP, JS, and Rust/WASM French/English tables.
+- Public route smoke checks passed for home, pricing, about, contact, and account.
+- Contact invalid POST redirects and renders flash errors correctly.
+
+Not fully validated yet:
+
+- Live duplicate export consume path with a real authenticated authorization, because it mutates credits.
+- Full admin UI keyboard traversal.
+- Strict CSP, because inline scripts still exist in PHP-rendered pages.
+- Stripe live checkout/webhook/portal behavior with production price IDs and webhook secret.
+
+### Known code/documentation drift to fix
+
+- `app/app.js` still hardcodes the current 3-credit policy in `pricing_info` copy. It should use backend-provided policy data.
+- `wasm/src/lib.rs` still has a stale French `a venir` label for `deco_clip`.
+- English public pages still render French ARIA labels for navigation/language in `page_response()`.
+- PHP still has a `coming_soon` translation key that should be removed if unused or tied to a real disabled-state UI.
+- PHP concerns are now split into focused modules. Remaining structural cleanup is to move inline JavaScript from PHP renderers into `server-php/public/site.js` and then add/test CSP.
+
+### Refactoring references
+
+- `docs/refactoring-plan.md`: phased plan and validation checklist.
+- `docs/contact-email-plan.md`: contact email implementation and validation plan.
+- `docs/reprise-installation.md`: original restart/install context.
+- `server-php/README.md`: backend-specific ownership, routes, invariants, and deployment notes.
+- `app/README.md`: browser app ownership and frontend drift.
+- `wasm/README.md`: Rust/WASM ownership and validation notes.

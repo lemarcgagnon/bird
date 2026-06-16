@@ -339,10 +339,11 @@ $csrf = install_csrf_token();
       text-transform: uppercase;
       color: var(--muted);
     }
-    .stat strong { font-size: 20px; }
-    .notice {
-      margin-bottom: 16px;
-      padding: 14px 16px;
+	    .stat strong { font-size: 20px; }
+	    .stat strong, .check small, code { overflow-wrap: anywhere; }
+	    .notice {
+	      margin-bottom: 16px;
+	      padding: 14px 16px;
       border-radius: 8px;
       border: 1px solid transparent;
       font-size: 15px;
@@ -410,19 +411,25 @@ $csrf = install_csrf_token();
       text-transform: uppercase;
       color: var(--muted);
     }
-    input, select {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 8px;
+	    input, select {
+	      width: 100%;
+	      border: 1px solid var(--line);
+	      border-radius: 8px;
       padding: 12px 13px;
       font: inherit;
-      color: var(--text);
-      background: #fff;
-    }
-    input[disabled], select[disabled] {
-      background: #f1ebe1;
-      color: #8b8278;
-    }
+	      color: var(--text);
+	      background: #fff;
+	    }
+	    input:focus-visible, select:focus-visible, button:focus-visible, .link-button:focus-visible {
+	      outline: 3px solid rgba(200, 130, 26, 0.35);
+	      outline-offset: 2px;
+	      border-color: var(--brand);
+	    }
+	    input[disabled], select[disabled] {
+	      background: #f1ebe1;
+	      color: #8b8278;
+	    }
+	    [hidden] { display: none !important; }
     .choice-group {
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -502,19 +509,19 @@ $csrf = install_csrf_token();
     </header>
 
     <?php if ($success): ?>
-      <div class="notice ok">
-        Installation terminee. Supprime maintenant le dossier <code>installation/</code>, puis definis <code>NICHOIR_ADMIN_KEY</code> cote serveur avant d ouvrir <code>/admin</code>.
-      </div>
-    <?php elseif ($lockData !== []): ?>
-      <div class="notice warn">
-        L application est deja verrouillee depuis <?php echo install_h((string) ($lockData['installed_at'] ?? '')); ?>. Supprime le dossier <code>installation/</code> du serveur si le setup est termine.
-      </div>
-    <?php endif; ?>
+	      <div class="notice ok" role="status" aria-live="polite">
+	        Installation terminee. Supprime maintenant le dossier <code>installation/</code>, puis definis <code>NICHOIR_ADMIN_KEY</code> cote serveur avant d ouvrir <code>/admin</code>.
+	      </div>
+	    <?php elseif ($lockData !== []): ?>
+	      <div class="notice warn" role="status" aria-live="polite">
+	        L application est deja verrouillee depuis <?php echo install_h((string) ($lockData['installed_at'] ?? '')); ?>. Supprime le dossier <code>installation/</code> du serveur si le setup est termine.
+	      </div>
+	    <?php endif; ?>
 
-    <?php if ($errors !== []): ?>
-      <div class="notice bad">
-        Installation bloquee.
-        <ul>
+	    <?php if ($errors !== []): ?>
+	      <div class="notice bad" role="alert" aria-live="assertive">
+	        Installation bloquee.
+	        <ul>
           <?php foreach ($errors as $error): ?>
             <li><?php echo install_h($error); ?></li>
           <?php endforeach; ?>
@@ -554,27 +561,33 @@ $csrf = install_csrf_token();
             <div class="section-block">
               <fieldset class="choice-group">
                 <legend>Driver base de donnees</legend>
-                <div class="choice-row">
-                  <label><input type="radio" name="db_driver" value="mysql"<?php echo $form['db_driver'] === 'mysql' ? ' checked' : ''; ?><?php echo $envActive ? ' disabled' : ''; ?>> MySQL cPanel</label>
-                  <label><input type="radio" name="db_driver" value="sqlite"<?php echo $form['db_driver'] === 'sqlite' ? ' checked' : ''; ?><?php echo $envActive ? ' disabled' : ''; ?>> SQLite local</label>
-                </div>
+	                <div class="choice-row" data-db-driver>
+	                  <label><input type="radio" name="db_driver" value="mysql"<?php echo $form['db_driver'] === 'mysql' ? ' checked' : ''; ?><?php echo $envActive ? ' disabled' : ''; ?>> MySQL cPanel</label>
+	                  <label><input type="radio" name="db_driver" value="sqlite"<?php echo $form['db_driver'] === 'sqlite' ? ' checked' : ''; ?><?php echo $envActive ? ' disabled' : ''; ?>> SQLite local</label>
+	                </div>
               </fieldset>
 
               <?php if ($envActive): ?>
                 <div class="notice warn">Les variables serveur <code>NICHOIR_DB_*</code> sont actives. Le formulaire affiche la config effective, mais le fichier local <code>server-php/data/db-config.php</code> ne pilotera pas la connexion tant que ces variables existeront.</div>
               <?php endif; ?>
 
-              <div class="field-grid">
-                <label><span>Chemin SQLite</span><input type="text" name="sqlite_path" value="<?php echo install_h($form['sqlite_path']); ?>"<?php echo $envActive ? ' disabled' : ''; ?>></label>
-                <label><span>Host MySQL</span><input type="text" name="mysql_host" value="<?php echo install_h($form['mysql_host']); ?>" placeholder="localhost"<?php echo $envActive ? ' disabled' : ''; ?>></label>
-                <label><span>Port MySQL</span><input type="number" name="mysql_port" min="1" max="65535" value="<?php echo install_h($form['mysql_port']); ?>"<?php echo $envActive ? ' disabled' : ''; ?>></label>
-                <label><span>Nom base</span><input type="text" name="mysql_database" value="<?php echo install_h($form['mysql_database']); ?>" placeholder="cpaneluser_nichoir"<?php echo $envActive ? ' disabled' : ''; ?>></label>
-                <label><span>Utilisateur MySQL</span><input type="text" name="mysql_username" value="<?php echo install_h($form['mysql_username']); ?>" autocomplete="username"<?php echo $envActive ? ' disabled' : ''; ?>></label>
-                <label><span>Mot de passe MySQL</span><input type="password" name="mysql_password" value="" autocomplete="new-password" placeholder="<?php echo install_h($envActive ? 'Pilote par les variables serveur' : 'Laisser vide pour conserver le mot de passe local'); ?>"<?php echo $envActive ? ' disabled' : ''; ?>></label>
-                <label><span>Charset</span><input type="text" name="mysql_charset" value="<?php echo install_h($form['mysql_charset']); ?>"<?php echo $envActive ? ' disabled' : ''; ?>></label>
-                <label><span>Email support</span><input type="email" name="support_email" value="<?php echo install_h($form['support_email']); ?>" placeholder="support@domaine.com"></label>
-              </div>
-            </div>
+	              <div class="field-grid" data-db-panel="sqlite"<?php echo $form['db_driver'] === 'sqlite' ? '' : ' hidden'; ?>>
+	                <label><span>Chemin SQLite</span><input type="text" name="sqlite_path" value="<?php echo install_h($form['sqlite_path']); ?>"<?php echo $envActive ? ' disabled' : ''; ?>></label>
+	              </div>
+
+	              <div class="field-grid" data-db-panel="mysql"<?php echo $form['db_driver'] === 'mysql' ? '' : ' hidden'; ?>>
+	                <label><span>Host MySQL</span><input type="text" name="mysql_host" value="<?php echo install_h($form['mysql_host']); ?>" placeholder="localhost"<?php echo $envActive ? ' disabled' : ''; ?>></label>
+	                <label><span>Port MySQL</span><input type="number" name="mysql_port" min="1" max="65535" value="<?php echo install_h($form['mysql_port']); ?>"<?php echo $envActive ? ' disabled' : ''; ?>></label>
+	                <label><span>Nom base</span><input type="text" name="mysql_database" value="<?php echo install_h($form['mysql_database']); ?>" placeholder="cpaneluser_nichoir"<?php echo $envActive ? ' disabled' : ''; ?>></label>
+	                <label><span>Utilisateur MySQL</span><input type="text" name="mysql_username" value="<?php echo install_h($form['mysql_username']); ?>" autocomplete="username"<?php echo $envActive ? ' disabled' : ''; ?>></label>
+	                <label><span>Mot de passe MySQL</span><input type="password" name="mysql_password" value="" autocomplete="new-password" placeholder="<?php echo install_h($envActive ? 'Pilote par les variables serveur' : 'Laisser vide pour conserver le mot de passe local'); ?>"<?php echo $envActive ? ' disabled' : ''; ?>></label>
+	                <label><span>Charset</span><input type="text" name="mysql_charset" value="<?php echo install_h($form['mysql_charset']); ?>"<?php echo $envActive ? ' disabled' : ''; ?>></label>
+	              </div>
+
+	              <div class="field-grid">
+	                <label><span>Email support</span><input type="email" name="support_email" value="<?php echo install_h($form['support_email']); ?>" placeholder="support@domaine.com"></label>
+	              </div>
+	            </div>
 
             <div class="section-block">
               <div class="section-heading">
@@ -582,11 +595,11 @@ $csrf = install_csrf_token();
                 <p>Optionnel. Tu peux aussi finaliser ces champs plus tard dans <code>/admin</code> &gt; <code>Reglages</code>.</p>
               </div>
 
-              <label class="toggle"><input type="checkbox" name="smtp_enabled" value="1"<?php echo $form['smtp_enabled'] === '1' ? ' checked' : ''; ?>> Activer l envoi SMTP</label>
+	              <label class="toggle"><input type="checkbox" name="smtp_enabled" value="1"<?php echo $form['smtp_enabled'] === '1' ? ' checked' : ''; ?> data-smtp-toggle> Activer l envoi SMTP</label>
 
-              <div class="field-grid">
-                <label><span>Serveur SMTP</span><input type="text" name="smtp_host" value="<?php echo install_h($form['smtp_host']); ?>" placeholder="mail.domaine.com"></label>
-                <label><span>Port SMTP</span><input type="number" name="smtp_port" min="1" max="65535" value="<?php echo install_h($form['smtp_port']); ?>"></label>
+	              <div class="field-grid" data-smtp-panel<?php echo $form['smtp_enabled'] === '1' ? '' : ' hidden'; ?>>
+	                <label><span>Serveur SMTP</span><input type="text" name="smtp_host" value="<?php echo install_h($form['smtp_host']); ?>" placeholder="mail.domaine.com"></label>
+	                <label><span>Port SMTP</span><input type="number" name="smtp_port" min="1" max="65535" value="<?php echo install_h($form['smtp_port']); ?>"></label>
                 <label><span>Chiffrement</span>
                   <select name="smtp_encryption">
                     <?php foreach (SMTP_ENCRYPTIONS as $encryption): ?>
@@ -615,9 +628,9 @@ $csrf = install_csrf_token();
           <div class="stats">
             <div class="stat"><span>Driver</span><strong><?php echo install_h($successDetails['driver'] ?? ($lockData['driver'] ?? $form['db_driver'])); ?></strong></div>
             <div class="stat"><span>Config DB</span><strong><?php echo install_h($successDetails['config_source'] ?? ($envActive ? 'Variables serveur' : 'Fichier local')); ?></strong></div>
-            <div class="stat"><span>Lock</span><strong><?php echo install_h($successDetails['lock_path'] ?? installation_lock_path()); ?></strong></div>
-          </div>
-        </section>
+	            <div class="stat"><span>Fichier verrou</span><strong><?php echo install_h(($success || $lockData !== []) ? ($successDetails['lock_path'] ?? installation_lock_path()) : 'Sera cree ici: ' . installation_lock_path()); ?></strong></div>
+	          </div>
+	        </section>
 
         <section class="panel">
           <h2>Ne pas oublier</h2>
@@ -629,7 +642,29 @@ $csrf = install_csrf_token();
           </ul>
         </section>
       </aside>
-    </div>
-  </main>
-</body>
-</html>
+	    </div>
+	  </main>
+	  <script>
+	    const dbInputs = document.querySelectorAll('[name="db_driver"]');
+	    const dbPanels = document.querySelectorAll('[data-db-panel]');
+	    const updateDbPanels = () => {
+	      const selected = document.querySelector('[name="db_driver"]:checked')?.value || 'mysql';
+	      dbPanels.forEach((panel) => {
+	        panel.hidden = panel.dataset.dbPanel !== selected;
+	      });
+	    };
+	    dbInputs.forEach((input) => input.addEventListener('change', updateDbPanels));
+	    updateDbPanels();
+
+	    const smtpToggle = document.querySelector('[data-smtp-toggle]');
+	    const smtpPanel = document.querySelector('[data-smtp-panel]');
+	    const updateSmtpPanel = () => {
+	      if (smtpPanel && smtpToggle) {
+	        smtpPanel.hidden = !smtpToggle.checked;
+	      }
+	    };
+	    smtpToggle?.addEventListener('change', updateSmtpPanel);
+	    updateSmtpPanel();
+	  </script>
+	</body>
+	</html>

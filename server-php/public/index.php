@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/logger.php';
 require_once __DIR__ . '/../src/auth.php';
+require_once __DIR__ . '/../src/credits.php';
 require_once __DIR__ . '/../src/mail.php';
 require_once __DIR__ . '/../src/stripe.php';
 require_once __DIR__ . '/../src/pages.php';
@@ -47,6 +48,26 @@ if ($method === 'GET' && $path === '/pricing') {
     exit;
 }
 
+if ($method === 'GET' && $path === '/about') {
+    render_about_page();
+    exit;
+}
+
+if ($method === 'GET' && $path === '/contact') {
+    render_contact_page();
+    exit;
+}
+
+if ($method === 'GET' && $path === '/terms') {
+    render_terms_page();
+    exit;
+}
+
+if ($method === 'GET' && $path === '/legal') {
+    render_legal_page();
+    exit;
+}
+
 if ($method === 'GET' && $path === '/account') {
     render_account_page();
     exit;
@@ -67,20 +88,14 @@ if ($method === 'POST' && $path === '/admin') {
     exit;
 }
 
-if ($method === 'POST' && $path === '/stripe/webhook') {
-    handle_stripe_webhook();
+if ($method === 'POST' && $path === '/contact') {
+    handle_contact_post();
     exit;
 }
 
-function export_cost(string $type): ?int
-{
-    return match ($type) {
-        'svg', 'png' => 1,
-        'pdf' => 2,
-        'stl' => 3,
-        'zip' => 5,
-        default => null,
-    };
+if ($method === 'POST' && $path === '/stripe/webhook') {
+    handle_stripe_webhook();
+    exit;
 }
 
 function valid_ticket_status(string $status): bool
@@ -537,12 +552,13 @@ if ($method === 'POST' && $path === '/api/exports/authorize') {
     }
     $data = read_json_body();
     $type = strtolower(trim((string) ($data['export_type'] ?? 'stl')));
-    $cost = export_cost($type);
+    $cost = export_credit_cost(db(), $type);
     if ($cost === null) {
         json_response(['ok' => false, 'error' => 'invalid_export_type'], 400);
         exit;
     }
-    if ((int) $user['credits'] < $cost) {
+    $bonusCredits = export_partial_bonus_amount(db(), (int) $user['credits'], $cost);
+    if ((int) $user['credits'] + $bonusCredits < $cost) {
         json_response(['ok' => false, 'error' => 'insufficient_credits', 'credits' => (int) $user['credits'], 'cost' => $cost], 402);
         exit;
     }
@@ -551,8 +567,8 @@ if ($method === 'POST' && $path === '/api/exports/authorize') {
     $expires = (new DateTimeImmutable('+10 minutes'))->format(DATE_ATOM);
     $stmt = db()->prepare('INSERT INTO export_authorizations (user_id, export_type, credit_cost, auth_token_hash, expires_at) VALUES (?, ?, ?, ?, ?)');
     $stmt->execute([(int) $user['id'], $type, $cost, token_hash($authToken), $expires]);
-    app_log(db(), 'info', 'api', 'export_authorized', 'Export autorise', ['export_type' => $type, 'cost' => $cost], (int) $user['id']);
-    json_response(['ok' => true, 'authorization' => $authToken, 'export_type' => $type, 'cost' => $cost, 'expires_at' => $expires]);
+    app_log(db(), 'info', 'api', 'export_authorized', 'Export autorise', ['export_type' => $type, 'cost' => $cost, 'bonus_credits' => $bonusCredits], (int) $user['id']);
+    json_response(['ok' => true, 'authorization' => $authToken, 'export_type' => $type, 'cost' => $cost, 'bonus_credits' => $bonusCredits, 'expires_at' => $expires]);
     exit;
 }
 
@@ -571,6 +587,13 @@ if ($method === 'POST' && $path === '/api/exports/consume') {
             json_response(['ok' => false, 'error' => 'invalid_authorization'], 400);
             exit;
         }
+        $claim = $pdo->prepare('UPDATE export_authorizations SET status = ? WHERE id = ? AND status = ?');
+        $claim->execute(['processing', (int) $auth['id'], 'authorized']);
+        if ($claim->rowCount() !== 1) {
+            $pdo->rollBack();
+            json_response(['ok' => false, 'error' => 'invalid_authorization'], 409);
+            exit;
+        }
         $freshUserStmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
         $freshUserStmt->execute([(int) $user['id']]);
         $freshUser = $freshUserStmt->fetch();
@@ -580,10 +603,19 @@ if ($method === 'POST' && $path === '/api/exports/consume') {
             exit;
         }
         $cost = (int) $auth['credit_cost'];
-        if ((int) $freshUser['credits'] < $cost) {
+        $currentCredits = (int) $freshUser['credits'];
+        $bonusCredits = export_partial_bonus_amount($pdo, $currentCredits, $cost);
+        if ($currentCredits + $bonusCredits < $cost) {
             $pdo->rollBack();
             json_response(['ok' => false, 'error' => 'insufficient_credits'], 402);
             exit;
+        }
+        if ($bonusCredits > 0) {
+            $pdo->prepare('UPDATE users SET credits = credits + ? WHERE id = ?')->execute([$bonusCredits, (int) $user['id']]);
+            $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
+                ->execute([(int) $user['id'], $bonusCredits, 'bonus_export_topup', (string) $auth['id']]);
+            app_log($pdo, 'info', 'api', 'bonus_credits_granted', 'Bonus credits accordes pour solde partiel', ['bonus_credits' => $bonusCredits, 'authorization_id' => (int) $auth['id']], (int) $user['id']);
+            audit_log($pdo, (int) $user['id'], 'client', 'bonus_export_topup', 'export_authorization', (string) $auth['id'], 'success', '', ['bonus_credits' => $bonusCredits]);
         }
         $debit = $pdo->prepare('UPDATE users SET credits = credits - ? WHERE id = ? AND credits >= ?');
         $debit->execute([$cost, (int) $user['id'], $cost]);
@@ -592,13 +624,13 @@ if ($method === 'POST' && $path === '/api/exports/consume') {
             json_response(['ok' => false, 'error' => 'insufficient_credits'], 402);
             exit;
         }
-        $pdo->prepare('UPDATE export_authorizations SET status = ?, consumed_at = CURRENT_TIMESTAMP WHERE id = ?')->execute(['consumed', (int) $auth['id']]);
+        $pdo->prepare('UPDATE export_authorizations SET status = ?, consumed_at = CURRENT_TIMESTAMP WHERE id = ? AND status = ?')->execute(['consumed', (int) $auth['id'], 'processing']);
         $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')->execute([(int) $user['id'], -$cost, 'export_' . $auth['export_type'], (string) $auth['id']]);
-        app_log($pdo, 'info', 'api', 'export_consumed', 'Export consomme', ['export_type' => (string) $auth['export_type'], 'cost' => $cost, 'authorization_id' => (int) $auth['id']], (int) $user['id']);
-        audit_log($pdo, (int) $user['id'], 'client', 'export_consumed', 'export_authorization', (string) $auth['id'], 'success', '', ['export_type' => (string) $auth['export_type'], 'cost' => $cost]);
+        app_log($pdo, 'info', 'api', 'export_consumed', 'Export consomme', ['export_type' => (string) $auth['export_type'], 'cost' => $cost, 'bonus_credits' => $bonusCredits, 'authorization_id' => (int) $auth['id']], (int) $user['id']);
+        audit_log($pdo, (int) $user['id'], 'client', 'export_consumed', 'export_authorization', (string) $auth['id'], 'success', '', ['export_type' => (string) $auth['export_type'], 'cost' => $cost, 'bonus_credits' => $bonusCredits]);
         $pdo->commit();
         $fresh = $pdo->query('SELECT * FROM users WHERE id = ' . (int) $user['id'])->fetch();
-        json_response(['ok' => true, 'user' => public_user($fresh), 'cost' => $cost]);
+        json_response(['ok' => true, 'user' => public_user($fresh), 'cost' => $cost, 'bonus_credits' => $bonusCredits]);
     } catch (Throwable $e) {
         $pdo->rollBack();
         json_response(['ok' => false, 'error' => 'consume_failed'], 500);

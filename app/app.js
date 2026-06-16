@@ -124,7 +124,7 @@ const I18N = {
     ticket_reopened: 'Ticket rouvert.',
     ticket_closed: 'Ticket ferme.',
     ticket_status_denied: 'Statut ticket refuse: {error}',
-    pricing_info: 'Credits: STL 3, PDF 2, ZIP 5, SVG/PNG 1. Le site PHP reste la source de verite.',
+    pricing_info: 'Credits: chaque telechargement premium consomme actuellement 3 credits. Le site PHP reste la source de verite.',
     decor_load_supported: 'Decor: charge un SVG, PNG, JPG, GIF ou WEBP.',
     decor_too_large: 'Decor: fichier trop lourd. Limite actuelle: 2 Mo.',
     decor_svg_heightmap: 'Decor: SVG rasterise en heightmap et envoye au WASM.',
@@ -244,7 +244,7 @@ const I18N = {
     ticket_reopened: 'Ticket reopened.',
     ticket_closed: 'Ticket closed.',
     ticket_status_denied: 'Ticket status denied: {error}',
-    pricing_info: 'Credits: STL 3, PDF 2, ZIP 5, SVG/PNG 1. The PHP site remains the source of truth.',
+    pricing_info: 'Credits: each premium download currently consumes 3 credits. The PHP site remains the source of truth.',
     decor_load_supported: 'Decor: load an SVG, PNG, JPG, GIF, or WEBP.',
     decor_too_large: 'Decor: file too large. Current limit: 2 MB.',
     decor_svg_heightmap: 'Decor: SVG rasterized to a heightmap and sent to WASM.',
@@ -283,6 +283,19 @@ const I18N = {
     file_mesh_report_json: 'nichoir_mesh_report.json',
   },
 };
+
+function warnI18nParity() {
+  const baseKeys = Object.keys(I18N.fr || {});
+  Object.entries(I18N).forEach(([lang, table]) => {
+    const missing = baseKeys.filter((key) => !Object.prototype.hasOwnProperty.call(table, key));
+    if (missing.length) {
+      console.warn(`Missing ${lang} i18n keys: ${missing.join(', ')}`);
+    }
+  });
+}
+
+warnI18nParity();
+
 let params = null;
 let frameId = null;
 let activeTab = 'dim';
@@ -306,6 +319,8 @@ function normalizeLang(lang) {
 }
 
 function detectInitialLanguage() {
+  const urlLang = new URLSearchParams(window.location.search).get('lang');
+  if (urlLang === 'fr' || urlLang === 'en') return urlLang;
   const stored = localStorage.getItem(LANG_KEY);
   if (stored === 'fr' || stored === 'en') return stored;
   return navigator.language?.toLowerCase().startsWith('en') ? 'en' : 'fr';
@@ -333,6 +348,13 @@ function formatNumber(value, options = {}) {
 function formatDateTime(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   return date.toLocaleString(locale());
+}
+
+function formatDisplayDate(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return formatDateTime(date);
 }
 
 function formatCountText(value) {
@@ -435,7 +457,11 @@ function dataUrlBytes(dataUrl) {
 }
 
 function phpUrl(path = '/') {
-  return new URL(path, PHP_BASE).toString();
+  const url = new URL(path, PHP_BASE);
+  if (!url.pathname.startsWith('/api/')) {
+    url.searchParams.set('lang', currentLang());
+  }
+  return url.toString();
 }
 
 function clientLogAllowed() {
@@ -635,6 +661,9 @@ function readableApiError(error) {
     activation_failed: tr('activation_failed'),
     too_many_requests: tr('too_many_requests'),
     invalid_credentials: tr('invalid_credentials'),
+    unauthorized: tr('login_required_download'),
+    insufficient_credits: tr('insufficient_credits'),
+    account_suspended: tr('subscription_suspended'),
   }[code] || code;
 }
 
@@ -697,7 +726,7 @@ function renderAccountTickets() {
     <div class="ticket-mini-row">
       <div class="ticket-mini-title">
         <strong>#${escapeHtml(ticket.id)} ${escapeHtml(ticket.subject)}</strong>
-        <span>${escapeHtml(ticketStatusLabel(ticket.status))} · ${escapeHtml(ticketPriorityLabel(ticket.priority || 'normal'))} · ${escapeHtml(ticket.updated_at || ticket.created_at)}</span>
+        <span>${escapeHtml(ticketStatusLabel(ticket.status))} · ${escapeHtml(ticketPriorityLabel(ticket.priority || 'normal'))} · ${escapeHtml(formatDisplayDate(ticket.updated_at || ticket.created_at))}</span>
       </div>
       <button type="button" data-account-ticket-open="${escapeHtml(ticket.id)}">${escapeHtml(tr('open'))}</button>
     </div>
@@ -726,7 +755,7 @@ function renderAccountTicketDetail(payload) {
   thread.innerHTML = (payload.messages || []).length
     ? payload.messages.map((message) => `
       <article class="ticket-mini-message ${escapeHtml(message.author_role || 'client')}">
-        <header><strong>${escapeHtml(authorRoleLabel(message.author_role))}</strong><span>${escapeHtml(message.created_at)}</span></header>
+        <header><strong>${escapeHtml(authorRoleLabel(message.author_role))}</strong><span>${escapeHtml(formatDisplayDate(message.created_at))}</span></header>
         <p>${escapeHtml(message.body).replace(/\n/g, '<br>')}</p>
       </article>
     `).join('')
@@ -2423,7 +2452,7 @@ function render() {
 try {
   await init(new URL(`../wasm/pkg/wasm_bg.wasm?v=${APP_BUILD_ID}`, import.meta.url));
   params = JSON.parse(default_params_json());
-  params.lang = normalizeLang(params.lang || detectInitialLanguage());
+  params.lang = detectInitialLanguage();
   localStorage.setItem(LANG_KEY, params.lang);
   setDocumentLanguage();
   cameraState = initialCameraState();

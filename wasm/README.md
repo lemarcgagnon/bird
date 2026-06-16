@@ -1,32 +1,34 @@
-# Module Rust/WASM
+# Nichoir Rust/WASM core
 
-Role: coeur de calcul local. Ce dossier contient la logique Rust compilee en WebAssembly pour les parametres, la geometrie, les previews, les diagnostics mesh et les exports.
+This folder contains the Rust crate compiled to WebAssembly for the birdhouse designer.
 
-Fichiers importants:
+## Files
 
-- `src/lib.rs`: API exposee au navigateur via `wasm-bindgen`, generation HTML, scene meshes, STL/OBJ/ZIP/PDF helpers et traitement decor.
-- `Cargo.toml`: dependances Rust et configuration du crate `cdylib`.
-- `pkg/`: sortie generee par `wasm-pack build --target web`; ce dossier est consomme par `app/app.js`.
+- `Cargo.toml`: Rust crate configuration and WASM dependencies.
+- `src/lib.rs`: Rust/WASM implementation. This file currently contains UI rendering strings, i18n lookup, geometry calculations, mesh/export generation, SVG/image decoration handling, and WASM exports called by `app/app.js`.
+- `pkg/`: generated `wasm-pack build --target web` output used by the browser app.
 
-Regles d'architecture:
+## Current ownership
 
-- Le WASM est le slave calcul: il ne decide pas des droits, credits ou abonnements.
-- Le serveur PHP autorise et debite; le WASM produit les fichiers localement.
-- Les inputs doivent etre consideres non fiables meme s'ils viennent de l'UI.
-- Ne pas ajouter d'appel reseau ni de secret dans Rust/WASM.
+- Birdhouse dimensions, unit conversion, derived measures, panel geometry, roof/floor/door/perch behavior, and mesh generation.
+- Rust-rendered control markup and labels for dense app UI sections.
+- Rust-side French/English translation table for labels rendered from Rust.
+- Export helpers for fabrication outputs used by the JavaScript download flow.
+- Client-side validation/clamping for geometry-heavy inputs.
 
-Points de vigilance:
+## Boundaries
 
-- `sanitize_params` normalise les entrees JSON principales avant calcul: dimensions, modes, unites, panneaux, porte, perchoir, trous, decor et sources.
-- Les images decor decodees sont refusees si elles depassent `4096 x 4096` ou `16_777_216` pixels.
-- Ajouter des plafonds mesh/export pour eviter des STL/ZIP trop lourds.
-- Garder `mesh_report_json` comme outil de diagnostic rapide.
-- Apres changement Rust, reconstruire `wasm/pkg`.
+- Do not put Stripe, account, session, SMTP, admin, or credit-policy truth in Rust/WASM.
+- Do not assume a fixed credit cost in Rust labels. Credit policy belongs to PHP.
+- Keep browser/API/network orchestration in `app/app.js`.
 
-Validation utile:
+## Known current drift
 
-```bash
-cd wasm
-cargo test
-wasm-pack build --target web
-```
+- The French `deco_clip` label currently says `Clipper au panneau (a venir)`. Replace it with intentional disabled-state copy or finish the feature.
+
+## Validation after changes
+
+1. Run `cargo check --target wasm32-unknown-unknown` from `wasm/`.
+2. When exports or public WASM bindings change, run the project WASM build command: `wasm-pack build --target web`.
+3. Run `node scripts/mesh-smoke.mjs` after rebuilding `wasm/pkg` when geometry/export behavior changes.
+4. Open the app in French and English and confirm Rust-rendered labels do not fall back to raw keys.

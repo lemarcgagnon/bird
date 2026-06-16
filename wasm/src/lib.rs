@@ -660,9 +660,9 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "logout_short") => "Logout",
         ("en", "plan_none") => "None",
         ("en", "credits_three") => "3 credits",
-        ("en", "credits_two") => "2 credits",
-        ("en", "credits_five") => "5 credits",
-        ("en", "credit_one") => "1 credit",
+        ("en", "credits_two") => "3 credits",
+        ("en", "credits_five") => "3 credits",
+        ("en", "credit_one") => "3 credits",
         ("en", "facade_piece") => "Facade",
         ("en", "side_piece") => "Side",
         ("en", "floor_piece") => "Floor",
@@ -705,10 +705,10 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "reply") => "Reply",
         ("en", "reply_label") => "Reply",
         ("en", "export_consumption") => "Export consumption",
-        ("en", "house_or_door_stl") => "House or door STL",
-        ("en", "plan_pdf_or_calcs_pdf") => "Plan PDF / calculations PDF",
-        ("en", "panels_zip") => "Panel ZIP",
-        ("en", "plan_svg_or_png") => "Plan SVG / PNG",
+        ("en", "house_or_door_stl") => "STL exports",
+        ("en", "plan_pdf_or_calcs_pdf") => "PDF exports",
+        ("en", "panels_zip") => "Panel ZIP exports",
+        ("en", "plan_svg_or_png") => "SVG / PNG exports",
         ("en", "user_management") => "User management",
         ("en", "account_backend_source") => "Account, credits, subscription, tickets, and payments come from the PHP backend.",
         ("en", "close_account") => "Close",
@@ -885,9 +885,9 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "logout_short") => "Sortie",
         (_, "plan_none") => "Aucun",
         (_, "credits_three") => "3 credits",
-        (_, "credits_two") => "2 credits",
-        (_, "credits_five") => "5 credits",
-        (_, "credit_one") => "1 credit",
+        (_, "credits_two") => "3 credits",
+        (_, "credits_five") => "3 credits",
+        (_, "credit_one") => "3 credits",
         (_, "facade_piece") => "Facade",
         (_, "side_piece") => "Cote",
         (_, "floor_piece") => "Plancher",
@@ -930,10 +930,10 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "reply") => "Repondre",
         (_, "reply_label") => "Reponse",
         (_, "export_consumption") => "Consommation exports",
-        (_, "house_or_door_stl") => "Maison ou porte STL",
-        (_, "plan_pdf_or_calcs_pdf") => "Plan PDF / calculs PDF",
-        (_, "panels_zip") => "Panneaux ZIP",
-        (_, "plan_svg_or_png") => "Plan SVG / PNG",
+        (_, "house_or_door_stl") => "Exports STL",
+        (_, "plan_pdf_or_calcs_pdf") => "Exports PDF",
+        (_, "panels_zip") => "Exports ZIP panneaux",
+        (_, "plan_svg_or_png") => "Exports SVG / PNG",
         (_, "user_management") => "Gestion usager",
         (_, "account_backend_source") => "Compte, credits, abonnement, tickets et paiements viennent du backend PHP.",
         (_, "close_account") => "Fermer",
@@ -5210,7 +5210,7 @@ pub fn render_app_html(input: &str) -> String {
           <h3>{account_balance}</h3>
           <div class="stat-row"><span>{available_credits}</span><strong data-account-balance>0</strong></div>
           <div class="stat-row"><span>{current_export_hold}</span><strong>{short_authorization}</strong></div>
-          <div class="stat-row"><span>{costs}</span><strong>STL 3 / PDF 2 / ZIP 5 / SVG-PNG 1</strong></div>
+          <div class="stat-row"><span>{costs}</span><strong>3 credits / export</strong></div>
           <div class="buttons compact-buttons action-buttons">
             <a class="button-like action-tile" data-site-link="/pricing" href="/pricing"><span class="button-glyph" aria-hidden="true">↗</span><span class="button-label">{offers}</span></a>
             <button class="action-tile" data-action="token-pricing" type="button"><span class="button-glyph" aria-hidden="true">¤</span><span class="button-label">{costs}</span></button>
@@ -5373,8 +5373,8 @@ pub fn render_app_html(input: &str) -> String {
       </div>
       <div class="header-actions">
         <div class="choices lang-switch" role="group" aria-label="{language}">
-          <button class="choice {lang_fr_active}" data-action="lang-switch" data-lang="fr" type="button">FR</button>
-          <button class="choice {lang_en_active}" data-action="lang-switch" data-lang="en" type="button">EN</button>
+          <button class="choice {lang_fr_active}" data-action="lang-switch" data-lang="fr" type="button" aria-pressed="{lang_fr_pressed}">FR</button>
+          <button class="choice {lang_en_active}" data-action="lang-switch" data-lang="en" type="button" aria-pressed="{lang_en_pressed}">EN</button>
         </div>
         <a class="header-site-link" data-site-link="/" href="/">{site_exit}</a>
         <button class="theme-toggle" data-action="theme-toggle" type="button" aria-pressed="false">{theme_toggle_content}</button>
@@ -5494,6 +5494,8 @@ pub fn render_app_html(input: &str) -> String {
         language = t(lang, "language"),
         lang_fr_active = if lang == "fr" { "active" } else { "" },
         lang_en_active = if lang == "en" { "active" } else { "" },
+        lang_fr_pressed = if lang == "fr" { "true" } else { "false" },
+        lang_en_pressed = if lang == "en" { "true" } else { "false" },
         tab_dim = tab_dim,
         tab_decor = tab_decor,
         tab_calcs = tab_calcs,

@@ -1,34 +1,41 @@
-# Source PHP
+# PHP source modules
 
-Role: logique serveur PHP partagee par le routeur public. C'est la source de verite pour comptes, sessions, credits, admin, billing Stripe et webhooks.
+This folder contains the backend code used by `server-php/public/index.php`. PHP is the current source of truth for accounts, sessions, credits, billing, tickets, admin actions, contact email, logs, and Stripe integration.
 
-Fichiers importants:
+## Files
 
-- `db.php`: config SQLite/MySQL, connexion PDO, migrations SQLite et schema MySQL cPanel.
-- `db.php`: config SQLite/MySQL, connexion PDO, migrations partagees, schema MySQL cPanel et verrou d'installation.
-- `auth.php`: tokens bearer, sessions, activation email, rate limit auth, quotas email et projection publique.
-- `response.php`: reponses JSON, limites payload et headers de securite.
-- `pages.php`: pages HTML PHP, espace client, admin, repertoire utilisateurs et actions admin.
-- `mail.php`: reglages SMTP, envoi email tickets/activation et journal `ticket_notifications`.
-- `logger.php`: request_id, hash IP/courriel, logs applicatifs, audit actions, logs Stripe et shutdown slow/fatal.
-- `stripe.php`: configuration Stripe, client API minimal, Checkout, portail client et verification de signature webhook.
-- `stripe_webhook.php`: traitement des evenements Stripe, factures, abonnements et idempotence `stripe_events`/`stripe_event_logs`.
+- `auth.php`: bearer tokens, session creation/deletion, current-user lookup, public user projection, password/auth checks, activation codes, auth rate limits, email quotas, and client IP helper.
+- `credits.php`: valid premium export types, configured export credit cost, and positive-partial-balance bonus calculation.
+- `db.php`: SQLite/MySQL config resolution, PDO connections, migration/schema creation, settings persistence, local DB config file helpers, and install-lock helpers.
+- `logger.php`: request ID, app logs, audit logs, Stripe event logs, hashed IP/email values, slow request logging, and fatal shutdown logging.
+- `mail.php`: SMTP settings, header sanitization, raw SMTP send, ticket notification queue/send helpers, activation email, and contact/support email delivery support.
+- `pages.php`: current monolithic HTML/admin/contact module. It contains public translation tables, public page rendering, account page rendering, account inline JS, contact CSRF/POST handling, admin authorization, admin actions, admin dashboard, admin modals, settings panels, data exports, and inline tab/modal scripts.
+- `response.php`: JSON response helper, JSON payload size limit, required-field helper, and base HTTP security headers.
+- `stripe.php`: Stripe settings, API request helper, Checkout session creation, billing portal creation, and webhook signature verification.
+- `stripe_webhook.php`: Stripe event idempotence, event logs, checkout completion handling, invoice/payment sync, and subscription sync.
 
-Regles d'architecture:
+## Important current coupling
 
-- Garder les decisions compte/credits/abonnement cote PHP.
-- Ne pas dupliquer l'admin ou le billing dans l'app WASM.
-- Toute action qui debite ou modifie un compte doit etre validee serveur.
-- Les secrets Stripe restent cote PHP; l'app WASM ne recoit jamais de cle.
+- `pages.php` now only wires extracted modules together. The remaining coupling is that modules are still procedural functions loaded into one namespace.
+- `public/index.php` currently includes all source modules directly and dispatches routes procedurally.
+- DB settings can come from environment variables, `server-php/data/db-config.php`, or SQLite defaults.
+- Settings such as Stripe, SMTP, credit policy, and support email are stored through `setting_get()` / `setting_set()` unless environment variables override them.
 
-Points de vigilance:
+## Invariants
 
-- `NICHOIR_ADMIN_KEY` protege l'admin hors local; l'auth admin production reste a ameliorer.
-- `NICHOIR_CORS_ORIGINS` controle les origines autorisees pour l'app.
-- Configurer `NICHOIR_STRIPE_WEBHOOK_SECRET` en production pour imposer `Stripe-Signature`.
-- Configurer `NICHOIR_LOG_HASH_SALT` en production pour stabiliser les hash IP/courriel sans exposer les valeurs brutes.
-- Ajouter rate limiting tickets/webhooks, CSRF admin et CSP avant prod. L'auth client a deja un rate limit IP/email.
-- Preferer `NICHOIR_SMTP_PASSWORD` pour le mot de passe SMTP en production si possible; sinon il est stocke dans SQLite via `/admin`.
-- Preferer `NICHOIR_STRIPE_SECRET_KEY` et `NICHOIR_STRIPE_WEBHOOK_SECRET` pour Stripe en production; sinon `/admin` peut stocker les valeurs dans SQLite.
-- Preferer les variables `NICHOIR_DB_*` pour la DB en production si disponibles; sinon `/admin` ecrit `server-php/data/db-config.php`, ignore par Git.
-- L'installateur temporaire reutilise `db.php` pour tester/ecrire la config DB et poser `server-php/data/installed.lock.php`; garder cette logique centralisee ici.
+- Credit policy belongs in `credits.php`; do not reintroduce per-export hardcoded costs in routes or UI copy.
+- Debit flows must write `credit_ledger` rows and audit/app logs.
+- `/api/exports/consume` must atomically claim an authorization before debit.
+- Contact form handling must keep CSRF, honeypot, rate limiting, input limits, SMTP error handling, and flash messages.
+- Stripe secrets and SMTP passwords should prefer environment variables in production.
+- Admin write actions should be auditable and protected by stronger auth/CSRF before production.
+
+## Planned split
+
+See `../../docs/refactoring-plan.md`.
+
+Target split:
+
+- `public/site.js` for current inline page scripts.
+
+Already extracted: `helpers.php`, `i18n.php`, `layout.php`, `contact.php`, `public_pages.php`, `account_pages.php`, `admin_core.php`, `admin_exports.php`, `admin_helpers.php`, `admin_actions.php`, and `admin_pages.php`.

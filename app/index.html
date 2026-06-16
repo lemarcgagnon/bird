@@ -10,13 +10,15 @@
   <div id="app" class="app-shell">
     <div class="loading" data-loading-message>Chargement du module WebAssembly...</div>
   </div>
-  <script>
-    (function () {
-      var lang = localStorage.getItem('nichoir-lang');
-      if (lang !== 'fr' && lang !== 'en') {
-        lang = (navigator.language || '').toLowerCase().indexOf('en') === 0 ? 'en' : 'fr';
-      }
-      document.documentElement.lang = lang;
+	  <script>
+	    (function () {
+	      var queryLang = new URLSearchParams(window.location.search).get('lang');
+	      var lang = queryLang === 'fr' || queryLang === 'en' ? queryLang : localStorage.getItem('nichoir-lang');
+	      if (lang !== 'fr' && lang !== 'en') {
+		lang = (navigator.language || '').toLowerCase().indexOf('en') === 0 ? 'en' : 'fr';
+	      }
+	      localStorage.setItem('nichoir-lang', lang);
+	      document.documentElement.lang = lang;
       document.title = 'Nichoir WASM';
       var node = document.querySelector('[data-loading-message]');
       if (node) {

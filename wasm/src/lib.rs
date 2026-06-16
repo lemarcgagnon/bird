@@ -5140,7 +5140,7 @@ pub fn render_app_html(input: &str) -> String {
         String::new()
     };
     let hang_controls = format!(
-        r#"<div class="field-group disclosure-group"><p>{}</p><label class="check"><input data-bool="hangHoles" type="checkbox" {}>{}</label>{}</div>"#,
+        r#"<div class="field-group disclosure-group advanced-group suspension-group"><p>{}</p><label class="check"><input data-bool="hangHoles" type="checkbox" {}>{}</label>{}</div>"#,
         t(lang, "hang_holes"),
         checked(p.hang_holes),
         t(lang, "hang_enable"),
@@ -5161,7 +5161,7 @@ pub fn render_app_html(input: &str) -> String {
         String::new()
     };
     let wall_mount_controls = format!(
-        r#"<div class="field-group disclosure-group"><p>{}</p><label class="check"><input data-bool="wallMount" type="checkbox" {}>{}</label>{}</div>"#,
+        r#"<div class="field-group disclosure-group advanced-group wall-mount-group"><p>{}</p><label class="check"><input data-bool="wallMount" type="checkbox" {}>{}</label>{}</div>"#,
         t(lang, "wall_mount"),
         checked(p.wall_mount),
         t(lang, "wall_mount_enable"),
@@ -5169,7 +5169,7 @@ pub fn render_app_html(input: &str) -> String {
     );
 
     let material_controls = format!(
-        r#"<div class="field-group disclosure-group"><p>{}</p>{}{}<p class="control-note">{}</p></div>"#,
+        r#"<div class="field-group disclosure-group advanced-group material-group"><p>{}</p>{}{}<p class="control-note">{}</p></div>"#,
         t(lang, "material"),
         thickness_preset_select(&p, lang),
         length_control(t(lang, "thickness"), "T", 3.0, 25.0, 0.5, p.t, &p.unit),
@@ -5634,7 +5634,7 @@ pub fn render_app_html(input: &str) -> String {
     <button data-tab="decor">{tab_decor}</button>
     <button data-tab="calcs">{tab_calcs}</button>
     <button data-tab="plan">{tab_plan}</button>
-    <button data-action="account-modal-open" type="button">{tab_account}</button>
+    <button class="account-tab-button" data-action="account-modal-open" type="button" aria-haspopup="dialog" aria-controls="account-modal">{tab_account}</button>
   </nav>
 
   <div class="tab-scroll">
@@ -5675,24 +5675,24 @@ pub fn render_app_html(input: &str) -> String {
       {plan_stats}
       <div id="plan-preview" class="plan-preview"></div>
       <div class="download-groups">
-        <div class="download-group">
+        <div class="download-group primary-downloads">
           <h3>{heading_models}</h3>
           <div class="buttons compact-buttons action-buttons">
             <button data-action="export-house">{export_house_label}<strong>.STL</strong></button>
             <button data-action="export-door">{export_door_label}<strong>.STL</strong></button>
-            <button data-action="export-panels">{export_panel_label}<strong>.ZIP</strong></button>
+            <button class="action-tile primary-action" data-action="export-panels">{export_panel_label}<strong>.ZIP</strong></button>
           </div>
         </div>
-        <div class="download-group">
+        <div class="download-group primary-downloads">
           <h3>{heading_plans}</h3>
           <div class="buttons compact-buttons action-buttons">
             <button data-action="export-plan">{export_plan_label}<strong>.SVG</strong></button>
             <button data-action="download-plan-png" type="button">{export_plan_label}<strong>.PNG</strong></button>
             <button data-action="download-explosion-png" type="button">{export_explosion_label}<strong>.PNG</strong></button>
-            <button data-action="download-plan-pdf" type="button">{export_plan_label}<strong>.PDF</strong></button>
+            <button class="action-tile primary-action" data-action="download-plan-pdf" type="button">{export_plan_label}<strong>.PDF</strong></button>
           </div>
         </div>
-        <div class="download-group">
+        <div class="download-group diagnostic-downloads">
           <h3>{heading_diagnostic}</h3>
           <div class="buttons compact-buttons action-buttons">
             <button data-action="export-obj">{export_debug_label}<strong>.OBJ</strong></button>
@@ -5712,7 +5712,7 @@ pub fn render_app_html(input: &str) -> String {
   <div class="axis-hint"><span class="x">X</span> {axis_width} <span class="y">Y</span> {axis_height} <span class="z">Z</span> {axis_depth}</div>
 </main>
 
-<div class="account-modal" data-account-modal hidden>
+<div class="account-modal" id="account-modal" data-account-modal hidden>
   <div class="account-modal-backdrop" data-account-modal-close></div>
   <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="account-title" tabindex="-1">
     <header class="account-sheet-header">

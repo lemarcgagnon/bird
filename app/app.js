@@ -8,10 +8,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260616-wall-mount-shed-v1';
+} from '../wasm/pkg/wasm.js?v=20260616-hig-v1';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260616-wall-mount-shed-v1';
+const APP_BUILD_ID = '20260616-hig-v1';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -620,9 +620,13 @@ function setExportStatus(message, tone = 'info') {
   if (!status && buttons) {
     status = document.createElement('div');
     status.id = 'export-status';
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
     buttons.after(status);
   }
   if (!status) return;
+  status.setAttribute('role', tone === 'error' ? 'alert' : 'status');
+  status.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
   status.className = `export-status ${tone}`;
   status.textContent = message;
 }
@@ -2003,7 +2007,7 @@ function render() {
     accountModal.classList.add('is-open');
     modalWasOpen = true;
     refreshAccountState({ silent: true });
-    accountModal.querySelector('[data-account-modal-close]')?.focus();
+    accountModal.querySelector('.account-sheet')?.focus({ preventScroll: true });
   };
   accountOpenButton?.addEventListener('click', openAccountModal);
   accountModal?.querySelectorAll('[data-account-modal-close]').forEach((button) => {

@@ -298,3 +298,43 @@ Commit recommande:
 ```bash
 git commit -m "Improve Nichoir app HIG usability"
 ```
+
+## Resultat passe HIG 2026-06-16
+
+Changements appliques:
+
+- Cibles interactives augmentees pour tabs, choix segmentes, boutons header, champs numeriques, checkboxes, select, fichiers decor et boutons d'export.
+- Focus visible renforce sur les controles principaux.
+- `Compte` reste une modale, mais le bouton n'est plus traite comme un onglet standard: style distinct, `aria-haspopup="dialog"` et `aria-controls="account-modal"`.
+- Ouverture compte: focus initial sur la feuille de dialogue pour annoncer le contexte.
+- `Material`, `Trous de suspension` et `Fixation murale` sont marques comme groupes avances avec un repere visuel commun.
+- `Decor` rend le statut fichier plus visible et garde la sequence cible -> statut -> activation -> chargement/reglages.
+- `Calculs` met les valeurs resumees principales en blocs plus scannables, sans changer les calculs.
+- `Plan` met en avant les actions principales `ZIP panneaux` et `PDF plan`; les exports diagnostic restent disponibles mais moins dominants.
+- Statut export cree avec `role="status"` / `aria-live="polite"` et passe en `role="alert"` / `aria-live="assertive"` pour les erreurs.
+- Cache-buster app/WASM mis a jour en `20260616-hig-v1`.
+
+Captures apres:
+
+- `/tmp/nichoir-hig-after-dim.png`
+- `/tmp/nichoir-hig-after-decor.png`
+- `/tmp/nichoir-hig-after-calcs.png`
+- `/tmp/nichoir-hig-after-plan.png`
+- `/tmp/nichoir-hig-after-account.png`
+
+Validations executees:
+
+- `node --check app/app.js`
+- `cargo check`
+- `cargo test`
+- `wasm-pack build --target web`
+- `node scripts/mesh-smoke.mjs`
+- `find server-php deployment -name '*.php' -print0 | xargs -0 -n1 php -l`
+- `scripts/build-cpanel-artifact.sh /tmp/nichoir-hig-review-20260616`
+- Scan artifact docs/dev/secrets/CDN sans sortie problematique.
+- `/api/health` artifact production sans config: `500 configuration_error`.
+
+Notes:
+
+- Aucun endpoint, calcul, export, credit, PHP, Stripe, SMTP, DB ou packaging n'a ete modifie.
+- La capture headless affiche parfois `Apercu 3D indisponible sur ce navigateur` parce que WebGL n'est pas disponible dans ce Chromium headless; les assets JS/WASM chargent bien.

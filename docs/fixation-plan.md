@@ -10,6 +10,7 @@ Objectif: ajouter une option de fixation murale au nichoir sans refonte et sans 
 - L'utilisateur passe par la porte pour visser le bloc de fixation depuis l'interieur.
 - Le bloc de fixation est place a l'exterieur, derriere la facade arriere.
 - L'epaisseur/profondeur du bloc suit par defaut la valeur `overhang` / `Debordement pluie`.
+- Le dessus du bloc doit former une pente de 30 degres qui descend vers l'exterieur, pour evacuer la pluie loin de la paroi arriere et des trous.
 - Aucun changement PHP, admin, Stripe, SMTP ou base de donnees n'est necessaire pour cette passe.
 
 ## Garde-fous anti-derive
@@ -59,6 +60,7 @@ Objectif: ajouter une option de fixation murale au nichoir sans refonte et sans 
    - Position: derriere la facade arriere.
    - Profondeur: `wallMountBlockDepth`; la valeur `0` garde le bloc synchronise avec `overhang`.
    - Les deux trous doivent traverser le bloc et correspondre aux trous arriere.
+   - Le dessus expose du bloc doit recevoir un capot/pan incline a 30 degres, plus haut cote paroi et plus bas cote exterieur.
 
 7. Integrer aux exports.
    - `export_house_stl`: inclure le bloc seulement si `wallMount=true`.
@@ -104,6 +106,7 @@ Objectif: ajouter une option de fixation murale au nichoir sans refonte et sans 
   - Le bloc apparait derriere la facade arriere.
   - Les trous du bloc correspondent aux trous arriere.
   - Le bloc a une profondeur egale au debordement pluie par defaut.
+  - Le dessus du bloc descend vers l'exterieur pour que l'eau ne soit pas dirigee vers les trous de la paroi.
   - Le ZIP contient `bloc_fixation_mur.stl`.
 
 - Cas 3: valeurs extremes.

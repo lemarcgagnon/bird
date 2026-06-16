@@ -602,7 +602,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "wall_mount_block_w") => "Mount block width",
         ("en", "wall_mount_block_h") => "Mount block height",
         ("en", "wall_mount_block_depth") => "Mount block depth",
-        ("en", "wall_mount_note") => "Two rear holes align with the external block. Fasten it from inside through the entrance door.",
+        ("en", "wall_mount_note") => "Two rear holes align with the external block. Fasten it from inside through the entrance door. The block top sheds rain outward at 30 degrees.",
         ("en", "wall_mount_piece") => "Wall mount block",
         ("en", "wall_mount_note_cut") => "rear holes aligned to block",
         ("en", "material") => "Material",
@@ -837,7 +837,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "wall_mount_block_w") => "Largeur bloc",
         (_, "wall_mount_block_h") => "Hauteur bloc",
         (_, "wall_mount_block_depth") => "Profondeur bloc",
-        (_, "wall_mount_note") => "Deux trous arriere s'alignent avec le bloc externe. Vissage depuis l'interieur par la porte.",
+        (_, "wall_mount_note") => "Deux trous arriere s'alignent avec le bloc externe. Vissage depuis l'interieur par la porte. Le dessus du bloc evacue l'eau vers l'exterieur a 30 degres.",
         (_, "wall_mount_piece") => "Bloc fixation murale",
         (_, "wall_mount_note_cut") => "trous arriere alignes au bloc",
         (_, "material") => "Materiau",
@@ -3193,6 +3193,10 @@ struct WallMountGeometry {
     block_depth: f64,
 }
 
+const WALL_MOUNT_SHED_ANGLE_DEG: f64 = 30.0;
+const WALL_MOUNT_SHED_EDGE_THICKNESS: f64 = 1.5;
+const WALL_MOUNT_SHED_INSET: f64 = 0.05;
+
 fn wall_mount_depth(p: &NichoirParams) -> f64 {
     if p.wall_mount_block_depth.is_finite() && p.wall_mount_block_depth > 0.0 {
         p.wall_mount_block_depth
@@ -3227,6 +3231,11 @@ fn wall_mount_geometry(p: &NichoirParams, g: &GeometryPayload) -> WallMountGeome
         block_h,
         block_depth: wall_mount_depth(p),
     }
+}
+
+fn wall_mount_shed_rise(m: &WallMountGeometry) -> f64 {
+    let desired = m.block_depth * (WALL_MOUNT_SHED_ANGLE_DEG * PI / 180.0).tan();
+    desired.clamp(2.0, (m.block_h * 0.45).max(2.0))
 }
 
 fn wall_mount_holes(p: &NichoirParams, g: &GeometryPayload) -> Vec<Vec<(f64, f64)>> {
@@ -4310,6 +4319,35 @@ fn back_panel_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
     clean_tris(tris)
 }
 
+fn add_wall_mount_shed_cap(mesh: &mut Vec<Tri>, m: &WallMountGeometry, cy: f64, z_start: f64) {
+    let inset = WALL_MOUNT_SHED_INSET
+        .min(m.block_w * 0.1)
+        .min(m.block_depth * 0.1);
+    let x0 = -m.block_w / 2.0 + inset;
+    let x1 = m.block_w / 2.0 - inset;
+    let z0 = z_start + inset;
+    let z1 = z_start + m.block_depth - inset;
+    let y_base = cy + m.block_h / 2.0;
+    let y_exterior = y_base + WALL_MOUNT_SHED_EDGE_THICKNESS;
+    let y_wall = y_exterior + wall_mount_shed_rise(m);
+
+    let p00 = Vec3 { x: x0 as f32, y: y_base as f32, z: z0 as f32 };
+    let p10 = Vec3 { x: x1 as f32, y: y_base as f32, z: z0 as f32 };
+    let p11 = Vec3 { x: x1 as f32, y: y_base as f32, z: z1 as f32 };
+    let p01 = Vec3 { x: x0 as f32, y: y_base as f32, z: z1 as f32 };
+    let q00 = Vec3 { x: x0 as f32, y: y_exterior as f32, z: z0 as f32 };
+    let q10 = Vec3 { x: x1 as f32, y: y_exterior as f32, z: z0 as f32 };
+    let q11 = Vec3 { x: x1 as f32, y: y_wall as f32, z: z1 as f32 };
+    let q01 = Vec3 { x: x0 as f32, y: y_wall as f32, z: z1 as f32 };
+
+    quad(mesh, p00, p01, p11, p10);
+    quad(mesh, q00, q10, q11, q01);
+    quad(mesh, p00, p10, q10, q00);
+    quad(mesh, p01, q01, q11, p11);
+    quad(mesh, p00, q00, q01, p01);
+    quad(mesh, p10, p11, q11, q10);
+}
+
 fn add_wall_mount_block(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload, base_y: f64, z_start: f64, placed: bool) {
     if !p.wall_mount {
         return;
@@ -4331,6 +4369,7 @@ fn add_wall_mount_block(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayl
     if !add_extruded_shape_with_holes_z(mesh, &outer, &holes, m.block_depth, 0.0, 0.0, z_start) {
         add_extruded_polygon_z(mesh, &outer, m.block_depth, 0.0, 0.0, z_start, 0.0);
     }
+    add_wall_mount_shed_cap(mesh, &m, cy, z_start);
 }
 
 fn wall_mount_block_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
@@ -5865,5 +5904,38 @@ mod tests {
         assert_eq!(wall_mount_depth(&p), 36.0);
         assert_eq!(wall_mount_holes(&p, &g).len(), 2);
         assert!(parts.iter().any(|(name, tris)| name == "bloc_fixation_mur" && !tris.is_empty()));
+    }
+
+    #[test]
+    fn wall_mount_block_top_sheds_water_outward() {
+        let input = r#"{
+            "wallMount": true,
+            "overhang": 36,
+            "wallMountBlockDepth": 0,
+            "wallMountBlockH": 70,
+            "wallMountHoleDiam": 8,
+            "wallMountHoleSpacing": 70,
+            "wallMountY": 120
+        }"#;
+
+        let p = parse_input(input).expect("wall mount params should parse");
+        let g = GeometryPayload::from_p(&p);
+        let m = wall_mount_geometry(&p, &g);
+        let tris = wall_mount_block_tris(&p, &g);
+
+        let max_y_at_z = |z: f64| -> f32 {
+            tris.iter()
+                .flat_map(|tri| [tri.a, tri.b, tri.c])
+                .filter(|v| ((v.z as f64) - z).abs() < 0.01)
+                .map(|v| v.y)
+                .fold(f32::NEG_INFINITY, f32::max)
+        };
+
+        let exterior_y = max_y_at_z(WALL_MOUNT_SHED_INSET);
+        let wall_y = max_y_at_z(m.block_depth - WALL_MOUNT_SHED_INSET);
+
+        assert!(wall_y.is_finite());
+        assert!(exterior_y.is_finite());
+        assert!(wall_y > exterior_y + 10.0);
     }
 }

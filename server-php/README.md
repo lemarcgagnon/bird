@@ -40,7 +40,7 @@ Etat actuel:
 - `POST /api/checkout/stripe-link` cree une session Checkout Stripe reelle si Stripe est configure.
 - `POST /api/billing/portal` cree une session portail client Stripe.
 - `/stripe/webhook` verifie `Stripe-Signature` quand un webhook secret est configure, journalise `stripe_events` et `stripe_event_logs`, traite `checkout.session.completed`, `invoice.*` et les evenements `customer.subscription.*`.
-- En local, `/admin` est accessible pour le dev. En production, definir `NICHOIR_ADMIN_KEY`.
+- `/admin` utilise une connexion par session PHP. En production, definir `NICHOIR_ADMIN_PASSWORD_HASH`.
 - CORS est limite par `NICHOIR_CORS_ORIGINS` (`http://127.0.0.1:8016` par defaut en dev).
 - Les payloads JSON sont limites a `256 KiB`; offres checkout, types d'export, tickets, profil et mots de passe sont valides cote serveur.
 - `POST /api/exports/consume` reverifie le statut du compte et le solde avant debit.
@@ -74,7 +74,7 @@ Deploiement cPanel:
 - utiliser `Enregistrer DB` seulement quand le test passe; le schema MySQL est cree automatiquement si la base est vide;
 - si le document root reste sur la racine du projet, garder le `.htaccess` versionne pour router vers `server-php/public` et bloquer les dossiers sensibles;
 - l'installateur temporaire est `installation/index.php`: il initialise la DB, ecrit `server-php/data/db-config.php` si besoin, peut enregistrer le SMTP de base et pose `server-php/data/installed.lock.php`;
-- apres installation, supprimer le dossier `installation/` du serveur et definir `NICHOIR_ADMIN_KEY`;
+- apres installation, supprimer le dossier `installation/` du serveur et definir `NICHOIR_ADMIN_PASSWORD_HASH`;
 - ne jamais committer `server-php/data/db-config.php`.
 
 ## Demarrer
@@ -153,10 +153,10 @@ Comptes utiles:
 
 - Admin complet: filtres billing avances, surveillance des echecs email et journal d'audit plus lisible.
 - Rate limiting tickets/webhooks. L'auth client et `/api/client-log` sont deja limites.
-- CSRF et authentification admin production; eviter le `key` admin en query string.
+- Admin actuel: `/admin/login`, session PHP, `password_verify()`, `session_regenerate_id(true)` et actions POST protegees par CSRF. L'ancien acces admin par cle en URL est historique et ne doit pas etre utilise en production.
 - CSP, retention/rotation des logs, sanitizer SVG complet et plafonds Rust/WASM pour fichiers/meshes/exports.
 - Tests live Stripe avec les vrais price IDs, portail active dans le dashboard Stripe et webhook de production.
-- Configuration dev/prod pour CORS, URL publique, secrets Stripe/SMTP et base de donnees.
+- Configuration dev/prod pour CORS, `NICHOIR_PUBLIC_BASE_URL`, secrets Stripe/SMTP et base de donnees.
 - Durcir encore le flux d'installation cPanel et documenter la suppression post-setup.
 
 ## Notes
@@ -214,7 +214,7 @@ This backend is not only an API. It currently serves the public marketing pages,
 
 - Public pricing card display values are translation strings, while Stripe price IDs and credit package quantities are admin settings. These need one package config source before public launch.
 - `pages.php` still contains inline scripts, blocking a strict no-inline CSP.
-- Admin access still relies on local/dev trust or `NICHOIR_ADMIN_KEY`; production-grade admin auth/CSRF is still planned.
+- Admin access uses a PHP session login with `NICHOIR_ADMIN_PASSWORD_HASH`; admin POST actions require CSRF.
 - Some public ARIA labels are still hardcoded in French.
 - Ticket/webhook rate limiting is still weaker than auth/client-log rate limiting.
 

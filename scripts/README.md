@@ -5,6 +5,7 @@ Role: scripts de validation et diagnostic local. Ils ne sont pas dans le chemin 
 Fichiers importants:
 
 - `mesh-smoke.mjs`: charge `wasm/pkg`, genere plusieurs presets, valide STL/ZIP/mesh report et detecte des regressions grossieres.
+- `build-cpanel-artifact.sh`: cree un artifact local `public_html/` + `nichoir_private/` pour Namecheap/cPanel sans exposer sources, docs, installation, SQLite, logs ou fichiers dev.
 
 Regles d'usage:
 

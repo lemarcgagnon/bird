@@ -11,14 +11,24 @@ import init, {
 } from '../wasm/pkg/wasm.js?v=20260612-app-cleanup-v1';
 import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js';
 
-const APP_BUILD_ID = '20260612-app-cleanup-v1';
+const APP_BUILD_ID = '20260616-site-link-v1';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
-const DEV_PHP_ORIGIN = 'http://127.0.0.1:8021';
-const IS_LOCAL_DEV = ['127.0.0.1', 'localhost'].includes(window.location.hostname);
-const PHP_BASE = window.NICHOIR_PHP_BASE
-  || (window.location.port === '8016' ? DEV_PHP_ORIGIN : window.location.origin);
+function detectPhpBase() {
+  if (window.NICHOIR_PHP_BASE) return window.NICHOIR_PHP_BASE;
+  const queryBase = new URLSearchParams(window.location.search).get('php_base');
+  if (queryBase && window.location.protocol !== 'https:') {
+    try {
+      return new URL(queryBase).origin;
+    } catch (_) {
+      // Fall through to same-origin links when the dev base is malformed.
+    }
+  }
+  return window.location.origin;
+}
+
+const PHP_BASE = detectPhpBase();
 const AUTH_TOKEN_KEY = 'nichoir-auth-token';
 const MAX_DECO_FILE_BYTES = 2 * 1024 * 1024;
 const CLIENT_LOG_LIMIT = 10;
@@ -33,7 +43,7 @@ const FORBIDDEN_SVG_TAGS = [
   'video',
 ];
 const DEMO_ACCOUNT = window.NICHOIR_DEMO_ACCOUNT
-  || (IS_LOCAL_DEV ? { email: 'demo@nichoir.local', password: 'password123' } : null);
+  || null;
 const EXPORT_COSTS = {
   svg: 1,
   png: 1,

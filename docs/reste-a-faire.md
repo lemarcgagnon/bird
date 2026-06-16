@@ -338,7 +338,7 @@ Architecture web cible:
   - Espace client `/account` branche sur API: login/register/logout, activation par code email, credits, historique credits, abonnement, paiements, tickets.
   - Endpoints `GET /api/credits/ledger` et `GET /api/billing/summary` ajoutes.
   - Endpoint local `/stripe/webhook` ajoute: journalisation idempotente des events, traitement dev de `checkout.session.completed` et `customer.subscription.*`.
-  - `/admin` reste ouvert en local; en production, il doit utiliser `NICHOIR_ADMIN_KEY`.
+  - Historique: `/admin` utilisait une cle en URL pendant le dev. L'acces courant doit rester `/admin/login` avec session PHP, `password_verify()`, `session_regenerate_id(true)` et actions POST protegees par CSRF.
   - Tickets completes en premiere version produit: fil de messages client/admin, reponses support, reponses client, statut open/closed, priorite, assignation, outbox notification email SQLite et envoi SMTP configurable depuis `/admin`.
   - Espace client complete pour edition profil, Checkout Stripe, portail client et liens de factures.
   - Admin complete pour configuration Stripe et affichage des factures dans les paiements.

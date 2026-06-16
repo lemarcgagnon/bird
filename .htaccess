@@ -1,5 +1,9 @@
 Options -Indexes
 
+AddType application/wasm .wasm
+AddType application/json .json
+AddType application/javascript .js
+
 <IfModule mod_rewrite.c>
 RewriteEngine On
 

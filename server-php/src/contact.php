@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/mail.php';
 
 function contact_csrf_token(): string
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
+        app_secure_session_start();
     }
     if (!isset($_SESSION['contact_csrf']) || !is_string($_SESSION['contact_csrf']) || $_SESSION['contact_csrf'] === '') {
         $_SESSION['contact_csrf'] = bin2hex(random_bytes(16));
@@ -21,7 +22,7 @@ function contact_csrf_token(): string
 function contact_csrf_valid(string $token): bool
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
+        app_secure_session_start();
     }
     $expected = (string) ($_SESSION['contact_csrf'] ?? '');
     return $token !== '' && $expected !== '' && hash_equals($expected, $token);
@@ -30,7 +31,7 @@ function contact_csrf_valid(string $token): bool
 function handle_contact_post(): void
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
+        app_secure_session_start();
     }
     $lang = page_lang();
     $pdo = db();

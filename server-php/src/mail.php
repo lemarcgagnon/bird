@@ -6,7 +6,7 @@ const SMTP_ENCRYPTIONS = ['none', 'tls', 'ssl'];
 
 function mail_settings(PDO $pdo): array
 {
-    $envPassword = (string) getenv('NICHOIR_SMTP_PASSWORD');
+    $envPassword = app_config_value('NICHOIR_SMTP_PASSWORD');
     $password = setting_get($pdo, 'smtp_password', '');
     return [
         'enabled' => setting_get($pdo, 'smtp_enabled', '0') === '1',
@@ -17,7 +17,7 @@ function mail_settings(PDO $pdo): array
         'password' => $envPassword !== '' ? $envPassword : $password,
         'from_email' => setting_get($pdo, 'smtp_from_email', ''),
         'from_name' => setting_get($pdo, 'smtp_from_name', 'Nichoir support'),
-        'support_email' => setting_get($pdo, 'support_email', (string) (getenv('NICHOIR_SUPPORT_EMAIL') ?: 'support@nichoir.local')),
+        'support_email' => setting_get($pdo, 'support_email', app_config_value('NICHOIR_SUPPORT_EMAIL', 'support@nichoir.local')),
     ];
 }
 

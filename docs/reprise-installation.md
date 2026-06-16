@@ -45,7 +45,7 @@ Ce qu'il reste a faire a la reprise:
   - copie des fichiers;
   - choix du `DocumentRoot`;
   - lancement de `/installation/`;
-  - definition de `NICHOIR_ADMIN_KEY`;
+  - definition de `NICHOIR_ADMIN_PASSWORD_HASH` pour `/admin/login`;
   - suppression de `installation/`.
 
 5. Nettoyage possible

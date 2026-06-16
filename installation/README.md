@@ -18,7 +18,7 @@ Ce que fait l'installateur:
 Regles d'usage:
 
 - supprimer le dossier `installation/` des que le setup est termine;
-- definir `NICHOIR_ADMIN_KEY` cote serveur avant d'ouvrir `/admin`;
+- definir `NICHOIR_ADMIN_PASSWORD_HASH` cote serveur avant d'ouvrir `/admin`;
 - preferer un `DocumentRoot` sur `server-php/public`; si le `DocumentRoot` reste a la racine du projet, garder le `.htaccess` versionne;
 - ne pas reafficher ni committer `db-config.php` ou `installed.lock.php`.
 
@@ -26,4 +26,4 @@ Limites actuelles:
 
 - pas de test SMTP actif dans l'installateur; il enregistre seulement la config initiale;
 - pas de gestion multi-etapes ni reprise de formulaire complexe;
-- pas de creation de compte admin: l'acces admin reste base sur `NICHOIR_ADMIN_KEY`.
+- pas de creation de compte admin par l'installateur: l'acces admin utilise `NICHOIR_ADMIN_PASSWORD_HASH` et une session PHP.

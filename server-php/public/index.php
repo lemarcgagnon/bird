@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/../src/helpers.php';
+
+app_apply_runtime_security();
+
 require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/logger.php';
 require_once __DIR__ . '/../src/auth.php';
@@ -24,7 +28,7 @@ emit_security_headers();
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 $allowedOrigins = array_values(array_filter(array_map(
     static fn (string $value): string => trim($value),
-    explode(',', (string) (getenv('NICHOIR_CORS_ORIGINS') ?: 'http://127.0.0.1:8016'))
+    explode(',', app_config_value('NICHOIR_CORS_ORIGINS', 'http://127.0.0.1:8016'))
 )));
 if ($origin !== '' && in_array($origin, $allowedOrigins, true)) {
     header('Access-Control-Allow-Origin: ' . $origin);
@@ -73,12 +77,35 @@ if ($method === 'GET' && $path === '/account') {
     exit;
 }
 
+if ($method === 'GET' && $path === '/admin/login') {
+    render_admin_login_page();
+    exit;
+}
+
+if ($method === 'POST' && $path === '/admin/login') {
+    handle_admin_login();
+    exit;
+}
+
+if ($method === 'POST' && $path === '/admin/logout') {
+    handle_admin_logout();
+    exit;
+}
+
 if ($method === 'GET' && $path === '/admin') {
+    if (!admin_allowed()) {
+        header('Location: /admin/login');
+        exit;
+    }
     render_admin_page();
     exit;
 }
 
 if ($method === 'GET' && $path === '/admin/exports/download') {
+    if (!admin_allowed()) {
+        header('Location: /admin/login');
+        exit;
+    }
     handle_admin_exports_download();
     exit;
 }
@@ -524,7 +551,11 @@ if ($method === 'POST' && $path === '/api/checkout/stripe-link') {
             'offer' => $offer,
         ]);
     } catch (Throwable $e) {
-        json_response(['ok' => false, 'error' => 'stripe_checkout_failed', 'detail' => $e->getMessage()], 502);
+        app_log(db(), 'error', 'stripe', 'checkout_session_failed', 'Session Checkout refusee', [
+            'offer' => $offer,
+            'error' => $e->getMessage(),
+        ], (int) $user['id'], 502);
+        json_response(['ok' => false, 'error' => 'stripe_checkout_failed'], 502);
     }
     exit;
 }
@@ -539,7 +570,10 @@ if ($method === 'POST' && $path === '/api/billing/portal') {
             'session_id' => (string) ($session['id'] ?? ''),
         ]);
     } catch (Throwable $e) {
-        json_response(['ok' => false, 'error' => 'stripe_portal_failed', 'detail' => $e->getMessage()], 502);
+        app_log(db(), 'error', 'stripe', 'portal_session_failed', 'Session portail Stripe refusee', [
+            'error' => $e->getMessage(),
+        ], (int) $user['id'], 502);
+        json_response(['ok' => false, 'error' => 'stripe_portal_failed'], 502);
     }
     exit;
 }
@@ -629,7 +663,9 @@ if ($method === 'POST' && $path === '/api/exports/consume') {
         app_log($pdo, 'info', 'api', 'export_consumed', 'Export consomme', ['export_type' => (string) $auth['export_type'], 'cost' => $cost, 'bonus_credits' => $bonusCredits, 'authorization_id' => (int) $auth['id']], (int) $user['id']);
         audit_log($pdo, (int) $user['id'], 'client', 'export_consumed', 'export_authorization', (string) $auth['id'], 'success', '', ['export_type' => (string) $auth['export_type'], 'cost' => $cost, 'bonus_credits' => $bonusCredits]);
         $pdo->commit();
-        $fresh = $pdo->query('SELECT * FROM users WHERE id = ' . (int) $user['id'])->fetch();
+        $freshStmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+        $freshStmt->execute([(int) $user['id']]);
+        $fresh = $freshStmt->fetch();
         json_response(['ok' => true, 'user' => public_user($fresh), 'cost' => $cost, 'bonus_credits' => $bonusCredits]);
     } catch (Throwable $e) {
         $pdo->rollBack();
@@ -763,7 +799,8 @@ if ($method === 'POST' && preg_match('#^/api/tickets/(\d+)/status$#', $path, $ma
     $notificationId = 0;
     $pdo->beginTransaction();
     try {
-        $pdo->exec('UPDATE tickets SET status = ' . $pdo->quote($status) . ', updated_at = CURRENT_TIMESTAMP, closed_at = ' . $closedAt . ' WHERE id = ' . (int) $ticket['id']);
+        $updateTicket = $pdo->prepare('UPDATE tickets SET status = ?, updated_at = CURRENT_TIMESTAMP, closed_at = ' . $closedAt . ' WHERE id = ?');
+        $updateTicket->execute([$status, (int) $ticket['id']]);
         $notificationId = ticket_notification_create(
             $pdo,
             (int) $ticket['id'],

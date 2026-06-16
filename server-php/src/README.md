@@ -9,7 +9,7 @@ This folder contains the backend code used by `server-php/public/index.php`. PHP
 - `db.php`: SQLite/MySQL config resolution, PDO connections, migration/schema creation, settings persistence, local DB config file helpers, and install-lock helpers.
 - `logger.php`: request ID, app logs, audit logs, Stripe event logs, hashed IP/email values, slow request logging, and fatal shutdown logging.
 - `mail.php`: SMTP settings, header sanitization, raw SMTP send, ticket notification queue/send helpers, activation email, and contact/support email delivery support.
-- `pages.php`: current monolithic HTML/admin/contact module. It contains public translation tables, public page rendering, account page rendering, account inline JS, contact CSRF/POST handling, admin authorization, admin actions, admin dashboard, admin modals, settings panels, data exports, and inline tab/modal scripts.
+- `pages.php`: compatibility include that loads the extracted page, account, admin, contact, layout, helper, credit, mail, and Stripe modules.
 - `response.php`: JSON response helper, JSON payload size limit, required-field helper, and base HTTP security headers.
 - `stripe.php`: Stripe settings, API request helper, Checkout session creation, billing portal creation, and webhook signature verification.
 - `stripe_webhook.php`: Stripe event idempotence, event logs, checkout completion handling, invoice/payment sync, and subscription sync.
@@ -18,7 +18,8 @@ This folder contains the backend code used by `server-php/public/index.php`. PHP
 
 - `pages.php` now only wires extracted modules together. The remaining coupling is that modules are still procedural functions loaded into one namespace.
 - `public/index.php` currently includes all source modules directly and dispatches routes procedurally.
-- DB settings can come from environment variables, `server-php/data/db-config.php`, or SQLite defaults.
+- DB settings can come from environment variables, private `config/production.php`, `server-php/data/db-config.php` for local/admin setup, or SQLite defaults for local/dev.
+- Production target is MySQL; SQLite remains local/dev unless explicitly selected later.
 - Settings such as Stripe, SMTP, credit policy, and support email are stored through `setting_get()` / `setting_set()` unless environment variables override them.
 
 ## Invariants
@@ -27,8 +28,8 @@ This folder contains the backend code used by `server-php/public/index.php`. PHP
 - Debit flows must write `credit_ledger` rows and audit/app logs.
 - `/api/exports/consume` must atomically claim an authorization before debit.
 - Contact form handling must keep CSRF, honeypot, rate limiting, input limits, SMTP error handling, and flash messages.
-- Stripe secrets and SMTP passwords should prefer environment variables in production.
-- Admin write actions should be auditable and protected by stronger auth/CSRF before production.
+- Stripe secrets and SMTP passwords should prefer environment variables or private config in production.
+- Admin write actions are protected by session login and CSRF; keep them auditable.
 
 ## Planned split
 

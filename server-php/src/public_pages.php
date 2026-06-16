@@ -164,7 +164,7 @@ function render_about_page(): void
 function render_contact_page(): void
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
-        session_start();
+        app_secure_session_start();
     }
     $lang = page_lang();
     $supportEmail = mail_settings(db())['support_email'];

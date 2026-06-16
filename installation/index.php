@@ -2,6 +2,16 @@
 
 declare(strict_types=1);
 
+error_reporting(E_ALL);
+ini_set('log_errors', '1');
+ini_set('display_errors', getenv('NICHOIR_DEBUG') === '1' ? '1' : '0');
+session_set_cookie_params([
+    'lifetime' => 0,
+    'path' => '/',
+    'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
 session_start();
 
 require_once __DIR__ . '/../server-php/src/db.php';
@@ -510,7 +520,7 @@ $csrf = install_csrf_token();
 
     <?php if ($success): ?>
 	      <div class="notice ok" role="status" aria-live="polite">
-	        Installation terminee. Supprime maintenant le dossier <code>installation/</code>, puis definis <code>NICHOIR_ADMIN_KEY</code> cote serveur avant d ouvrir <code>/admin</code>.
+	        Installation terminee. Supprime maintenant le dossier <code>installation/</code>, puis definis <code>NICHOIR_ADMIN_PASSWORD_HASH</code> cote serveur avant d ouvrir <code>/admin</code>.
 	      </div>
 	    <?php elseif ($lockData !== []): ?>
 	      <div class="notice warn" role="status" aria-live="polite">
@@ -635,7 +645,7 @@ $csrf = install_csrf_token();
         <section class="panel">
           <h2>Ne pas oublier</h2>
           <ul class="aside-list">
-            <li>Definir <code>NICHOIR_ADMIN_KEY</code> cote serveur avant d ouvrir <code>/admin</code>.</li>
+            <li>Definir <code>NICHOIR_ADMIN_PASSWORD_HASH</code> cote serveur avant d ouvrir <code>/admin</code>.</li>
             <li>Supprimer le dossier <code>installation/</code> des que l installation est terminee.</li>
             <li>Pointer idealement le document root vers <code>server-php/public</code>.</li>
             <li>Si le document root reste sur la racine du projet, garder le fichier <code>.htaccess</code> deploye avec l app.</li>

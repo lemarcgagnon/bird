@@ -39,7 +39,7 @@ function stripe_webhook_allowed(): bool
     if (function_exists('is_local_request') && is_local_request()) {
         return true;
     }
-    return (string) getenv('NICHOIR_ALLOW_UNSIGNED_STRIPE_WEBHOOKS') === '1';
+    return app_config_value('NICHOIR_ALLOW_UNSIGNED_STRIPE_WEBHOOKS') === '1';
 }
 
 function stripe_webhook_object_id(array $object): string

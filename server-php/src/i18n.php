@@ -487,7 +487,10 @@ function dev_app_url(?string $lang = null): string
     $lang ??= page_lang();
     $host = $_SERVER['HTTP_HOST'] ?? '';
     if (str_starts_with($host, '127.0.0.1:8021') || str_starts_with($host, 'localhost:8021')) {
-        return 'http://127.0.0.1:8016/app/index.html?lang=' . rawurlencode($lang);
+        return 'http://127.0.0.1:8016/app/index.html?lang='
+            . rawurlencode($lang)
+            . '&php_base='
+            . rawurlencode('http://127.0.0.1:8021');
     }
     return '/app/index.html?lang=' . rawurlencode($lang);
 }

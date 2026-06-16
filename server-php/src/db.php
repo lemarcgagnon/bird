@@ -48,8 +48,22 @@ function db_local_config(): array
 
 function db_env_value(string $name): ?string
 {
-    $value = getenv($name);
-    return is_string($value) && $value !== '' ? $value : null;
+    $aliases = [
+        'NICHOIR_DB_HOST' => ['NICHOIR_MYSQL_HOST'],
+        'NICHOIR_DB_PORT' => ['NICHOIR_MYSQL_PORT'],
+        'NICHOIR_DB_NAME' => ['NICHOIR_MYSQL_DATABASE'],
+        'NICHOIR_DB_USER' => ['NICHOIR_MYSQL_USERNAME'],
+        'NICHOIR_DB_PASSWORD' => ['NICHOIR_MYSQL_PASSWORD'],
+        'NICHOIR_DB_CHARSET' => ['NICHOIR_MYSQL_CHARSET'],
+    ];
+    $names = array_merge([$name], $aliases[$name] ?? []);
+    foreach ($names as $candidate) {
+        $value = function_exists('app_config_value') ? app_config_value($candidate) : getenv($candidate);
+        if (is_string($value) && $value !== '') {
+            return $value;
+        }
+    }
+    return null;
 }
 
 function db_env_config(): array
@@ -197,6 +211,9 @@ function run_migrations(): void
 
 function table_has_column(PDO $pdo, string $table, string $column): bool
 {
+    if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table) || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $column)) {
+        throw new InvalidArgumentException('Invalid database identifier.');
+    }
     if (db_driver_name($pdo) === 'mysql') {
         $stmt = $pdo->prepare(
             'SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?'
@@ -462,6 +479,9 @@ function ensure_runtime_schema(PDO $pdo): void
 
 function mysql_add_column_if_missing(PDO $pdo, string $table, string $column, string $definition): void
 {
+    if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table) || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $column)) {
+        throw new InvalidArgumentException('Invalid database identifier.');
+    }
     if (!table_has_column($pdo, $table, $column)) {
         $pdo->exec('ALTER TABLE `' . $table . '` ADD COLUMN ' . $definition);
     }

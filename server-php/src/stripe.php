@@ -6,8 +6,8 @@ const STRIPE_OFFERS = ['credits', 'atelier', 'pro'];
 
 function stripe_settings(PDO $pdo): array
 {
-    $envSecret = (string) getenv('NICHOIR_STRIPE_SECRET_KEY');
-    $envWebhookSecret = (string) getenv('NICHOIR_STRIPE_WEBHOOK_SECRET');
+    $envSecret = app_config_value('NICHOIR_STRIPE_SECRET_KEY');
+    $envWebhookSecret = app_config_value('NICHOIR_STRIPE_WEBHOOK_SECRET');
     return [
         'enabled' => setting_get($pdo, 'stripe_enabled', '0') === '1',
         'secret_key' => $envSecret !== '' ? $envSecret : setting_get($pdo, 'stripe_secret_key', ''),
@@ -22,14 +22,49 @@ function stripe_settings(PDO $pdo): array
 
 function stripe_setting_secret_is_env(string $name): bool
 {
-    return (string) getenv($name) !== '';
+    return app_config_value($name) !== '';
+}
+
+function app_normalize_public_base_url(string $value): string
+{
+    $value = rtrim(trim($value), '/');
+    if ($value === '') {
+        return '';
+    }
+    $parts = parse_url($value);
+    $scheme = strtolower((string) ($parts['scheme'] ?? ''));
+    $host = (string) ($parts['host'] ?? '');
+    if (!in_array($scheme, ['http', 'https'], true)
+        || $host === ''
+        || isset($parts['user'], $parts['pass'], $parts['query'], $parts['fragment'])) {
+        throw new RuntimeException('public_base_url_invalid');
+    }
+    $port = isset($parts['port']) ? ':' . (int) $parts['port'] : '';
+    $path = rtrim((string) ($parts['path'] ?? ''), '/');
+    return $scheme . '://' . $host . $port . $path;
+}
+
+function app_public_base_url(): string
+{
+    $configured = app_normalize_public_base_url(app_config_value('NICHOIR_PUBLIC_BASE_URL'));
+    if ($configured !== '') {
+        return $configured;
+    }
+
+    $remoteAddr = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    if (in_array($remoteAddr, ['127.0.0.1', '::1'], true)) {
+        return 'http://127.0.0.1:8021';
+    }
+
+    throw new RuntimeException('public_base_url_missing');
 }
 
 function app_absolute_url(string $path): string
 {
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? '127.0.0.1:8021';
-    return $scheme . '://' . $host . $path;
+    if (!str_starts_with($path, '/')) {
+        throw new RuntimeException('public_url_path_invalid');
+    }
+    return app_public_base_url() . $path;
 }
 
 function stripe_form_value(array $params, string $prefix = ''): array

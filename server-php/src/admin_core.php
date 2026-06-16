@@ -30,18 +30,72 @@ function is_local_request(): bool
 
 function admin_allowed(): bool
 {
-    $expected = (string) getenv('NICHOIR_ADMIN_KEY');
-    if ($expected === '') {
-        return is_local_request();
-    }
-    $provided = trim((string) ($_GET['key'] ?? ($_SERVER['HTTP_X_ADMIN_KEY'] ?? '')));
-    return $provided !== '' && hash_equals($expected, $provided);
+    return admin_logged_in();
 }
 
-function admin_key_input(): string
+function admin_logged_in(): bool
 {
-    $key = trim((string) ($_GET['key'] ?? ($_POST['key'] ?? '')));
-    return $key === '' ? '' : '<input type="hidden" name="key" value="' . h($key) . '">';
+    app_secure_session_start();
+    return !empty($_SESSION['nichoir_admin_authenticated']);
+}
+
+function admin_password_hash_value(): string
+{
+    return trim(app_config_value('NICHOIR_ADMIN_PASSWORD_HASH'));
+}
+
+function admin_password_configured(): bool
+{
+    return admin_password_hash_value() !== '';
+}
+
+function admin_verify_password(string $password): bool
+{
+    $hash = admin_password_hash_value();
+    return $hash !== '' && password_verify($password, $hash);
+}
+
+function admin_mark_logged_in(): void
+{
+    app_secure_session_start();
+    session_regenerate_id(true);
+    $_SESSION['nichoir_admin_authenticated'] = true;
+    $_SESSION['nichoir_admin_login_at'] = time();
+}
+
+function admin_mark_logged_out(): void
+{
+    app_secure_session_start();
+    unset($_SESSION['nichoir_admin_authenticated'], $_SESSION['nichoir_admin_login_at'], $_SESSION['admin_csrf']);
+    session_regenerate_id(true);
+}
+
+function admin_require_login_redirect(): void
+{
+    if (!admin_allowed()) {
+        header('Location: /admin/login');
+    }
+}
+
+function admin_csrf_input(): string
+{
+    return '<input type="hidden" name="csrf_token" value="' . h(admin_csrf_token()) . '">';
+}
+
+function admin_csrf_token(): string
+{
+    app_secure_session_start();
+    if (!isset($_SESSION['admin_csrf']) || !is_string($_SESSION['admin_csrf']) || $_SESSION['admin_csrf'] === '') {
+        $_SESSION['admin_csrf'] = bin2hex(random_bytes(16));
+    }
+    return $_SESSION['admin_csrf'];
+}
+
+function admin_csrf_valid(string $token): bool
+{
+    app_secure_session_start();
+    $expected = (string) ($_SESSION['admin_csrf'] ?? '');
+    return $token !== '' && $expected !== '' && hash_equals($expected, $token);
 }
 
 function redirect_admin(int $userId = 0, string $notice = '', int $ticketId = 0): void
@@ -53,10 +107,6 @@ function redirect_admin(int $userId = 0, string $notice = '', int $ticketId = 0)
     if ($ticketId > 0) {
         $parts[] = 'ticket_id=' . $ticketId;
     }
-    $key = trim((string) ($_POST['key'] ?? ($_GET['key'] ?? '')));
-    if ($key !== '') {
-        $parts[] = 'key=' . rawurlencode($key);
-    }
     if ($notice !== '') {
         $parts[] = 'notice=' . rawurlencode($notice);
     }
@@ -65,10 +115,6 @@ function redirect_admin(int $userId = 0, string $notice = '', int $ticketId = 0)
 
 function admin_redirect_url(array $params = []): string
 {
-    $key = trim((string) ($_POST['key'] ?? ($_GET['key'] ?? '')));
-    if ($key !== '' && !isset($params['key'])) {
-        $params['key'] = $key;
-    }
     $query = http_build_query($params);
     return '/admin' . ($query === '' ? '' : '?' . $query);
 }

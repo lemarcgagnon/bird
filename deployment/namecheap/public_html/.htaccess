@@ -1,0 +1,29 @@
+Options -Indexes
+DirectoryIndex index.php index.html
+
+AddType application/wasm .wasm
+AddType application/json .json
+AddType application/javascript .js
+
+<IfModule mod_headers.c>
+Header always set X-Content-Type-Options "nosniff"
+Header always set Referrer-Policy "same-origin"
+Header always set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>
+
+<IfModule mod_rewrite.c>
+RewriteEngine On
+
+RewriteRule (^|/)\.(?!well-known/) - [F,L]
+RewriteRule ^installation(/|$) - [F,L,NC]
+RewriteRule ^(docs|server|server-php|config|logs|scripts)(/|$) - [F,L,NC]
+RewriteRule ^wasm/(src|target)(/|$) - [F,L,NC]
+RewriteRule ^(Cargo\.toml|Cargo\.lock|package-lock\.json|composer\.json|composer\.lock)$ - [F,L,NC]
+RewriteRule \.(sqlite|sqlite3|db|db-journal|log|bak|backup|env|zip|tar|gz|sql)$ - [F,L,NC]
+
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+RewriteRule ^ index.php [L,QSA]
+</IfModule>

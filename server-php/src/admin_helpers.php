@@ -71,7 +71,8 @@ function admin_valid_ticket_priority(string $priority): bool
 
 function audit_admin_action(PDO $pdo, ?int $userId, string $action, ?int $delta, string $note): void
 {
-    $key = (string) ($_POST['key'] ?? ($_GET['key'] ?? 'local-dev'));
+    app_secure_session_start();
+    $key = session_id() ?: 'admin-session';
     $hash = $key === '' ? '' : hash('sha256', $key);
     $stmt = $pdo->prepare('INSERT INTO admin_audit_log (admin_key_hash, user_id, action, delta, note) VALUES (?, ?, ?, ?, ?)');
     $stmt->execute([$hash, $userId, $action, $delta, $note]);

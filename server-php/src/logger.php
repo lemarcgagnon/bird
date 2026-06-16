@@ -43,12 +43,12 @@ function log_request_id(): string
 
 function log_hash_salt(): string
 {
-    $salt = (string) getenv('NICHOIR_LOG_HASH_SALT');
+    $salt = app_config_value('NICHOIR_LOG_HASH_SALT');
     if ($salt !== '') {
         return $salt;
     }
-    $adminKey = (string) getenv('NICHOIR_ADMIN_KEY');
-    return $adminKey !== '' ? $adminKey : 'nichoir-local-log-salt';
+    $adminPasswordHash = app_config_value('NICHOIR_ADMIN_PASSWORD_HASH');
+    return $adminPasswordHash !== '' ? $adminPasswordHash : 'nichoir-local-log-salt';
 }
 
 function log_hash_value(?string $value): ?string
@@ -215,7 +215,7 @@ function log_register_shutdown(PDO $pdo, float $startedAt): void
             ], null, 500);
         }
 
-        $slowMs = (int) (getenv('NICHOIR_SLOW_REQUEST_MS') ?: 1500);
+        $slowMs = (int) (app_config_value('NICHOIR_SLOW_REQUEST_MS', '1500'));
         $elapsedMs = (int) round((microtime(true) - $startedAt) * 1000);
         if ($slowMs > 0 && $elapsedMs >= $slowMs) {
             app_log($pdo, 'warning', 'api', 'slow_request', 'Requete lente', ['elapsed_ms' => $elapsedMs]);

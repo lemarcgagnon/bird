@@ -31,7 +31,7 @@ function render_create_user_panel(): string
       <section class="panel">
         <h2>Creer utilisateur</h2>
         <form class="admin-create-form" method="post" action="/admin">
-          ' . admin_key_input() . '
+          ' . admin_csrf_input() . '
           <input type="hidden" name="action" value="create_user">
           <label><span>Courriel</span><input type="email" name="email" required></label>
           <label><span>Nom</span><input type="text" name="display_name"></label>
@@ -122,7 +122,6 @@ function render_user_directory(PDO $pdo): string
       <section class="panel">
         <h2>Repertoire utilisateurs</h2>
         <form class="admin-directory-form" method="get" action="/admin">
-          ' . admin_key_input() . '
           <label><span>Recherche</span><input type="search" name="q" value="' . h((string) ($_GET['q'] ?? '')) . '" placeholder="id, courriel ou nom"></label>
           <label><span>Statut</span><select name="status"><option value="">Tous</option>' . admin_status_options($status) . '</select></label>
           <label><span>Abonnement</span><select name="subscription_status"><option value="">Tous</option>' . admin_subscription_status_options($subscriptionStatus) . '</select></label>
@@ -194,7 +193,7 @@ function render_client_profile_panel(?array $user): string
         </div>
         <div class="admin-actions">
           <form class="span-all admin-profile-form" method="post" action="/admin">
-            ' . admin_key_input() . '
+            ' . admin_csrf_input() . '
             <input type="hidden" name="action" value="update_user">
             <input type="hidden" name="user_id" value="' . $userId . '">
             <input type="hidden" name="credits" value="' . (int) $user['credits'] . '">
@@ -204,21 +203,21 @@ function render_client_profile_panel(?array $user): string
             <button type="submit">Enregistrer profil</button>
           </form>
           <form method="post" action="/admin">
-            ' . admin_key_input() . '
+            ' . admin_csrf_input() . '
             <input type="hidden" name="action" value="reset_password">
             <input type="hidden" name="user_id" value="' . $userId . '">
             <label><span>Nouveau mot de passe</span><input type="password" name="password" minlength="8" required></label>
             <button type="submit">Reset mot de passe</button>
           </form>
           <form method="post" action="/admin">
-            ' . admin_key_input() . '
+            ' . admin_csrf_input() . '
             <input type="hidden" name="action" value="set_status">
             <input type="hidden" name="user_id" value="' . $userId . '">
             <input type="hidden" name="status" value="' . h($nextStatus) . '">
             <button type="submit">' . h($nextLabel) . '</button>
           </form>
           <form class="span-all danger-form" method="post" action="/admin">
-            ' . admin_key_input() . '
+            ' . admin_csrf_input() . '
             <input type="hidden" name="action" value="delete_user">
             <input type="hidden" name="user_id" value="' . $userId . '">
             <label><span>Suppression definitive</span><input type="text" name="confirm" placeholder="taper DELETE pour confirmer"></label>
@@ -252,7 +251,7 @@ function render_client_credits_panel(PDO $pdo, ?array $user): string
           <div class="stat"><span>Statut</span><strong>' . h((string) ($user['status'] ?? 'active')) . '</strong></div>
         </div>
         <form class="admin-directory-form" method="post" action="/admin">
-          ' . admin_key_input() . '
+          ' . admin_csrf_input() . '
           <input type="hidden" name="action" value="adjust_credits">
           <input type="hidden" name="user_id" value="' . $userId . '">
           <label><span>Ajustement credits</span><input type="number" name="delta" step="1" required></label>
@@ -311,7 +310,7 @@ function render_client_billing_detail_panel(PDO $pdo, array $user): string
       <section class="modal-section">
         <h3>Abonnement</h3>
         <form class="admin-directory-form" method="post" action="/admin">
-          ' . admin_key_input() . '
+          ' . admin_csrf_input() . '
           <input type="hidden" name="action" value="set_subscription">
           <input type="hidden" name="user_id" value="' . $userId . '">
           <label><span>Plan</span><select name="plan">' . admin_plan_options((string) $latestSubscription['plan']) . '</select></label>
@@ -411,7 +410,7 @@ function render_ticket_modal(PDO $pdo, int $ticketId): string
       <section class="modal-section">
         <div class="ticket-admin-forms">
           <form method="post" action="/admin">
-            ' . admin_key_input() . '
+            ' . admin_csrf_input() . '
             <input type="hidden" name="action" value="reply_ticket">
             <input type="hidden" name="user_id" value="' . (int) $ticket['user_id'] . '">
             <input type="hidden" name="ticket_id" value="' . (int) $ticket['id'] . '">
@@ -419,7 +418,7 @@ function render_ticket_modal(PDO $pdo, int $ticketId): string
             <button type="submit"' . $disabledReply . '>Envoyer reponse client</button>
           </form>
           <form method="post" action="/admin">
-            ' . admin_key_input() . '
+            ' . admin_csrf_input() . '
             <input type="hidden" name="action" value="set_ticket_status">
             <input type="hidden" name="user_id" value="' . (int) $ticket['user_id'] . '">
             <input type="hidden" name="ticket_id" value="' . (int) $ticket['id'] . '">
@@ -427,7 +426,7 @@ function render_ticket_modal(PDO $pdo, int $ticketId): string
             <button type="submit">Fermer / reouvrir</button>
           </form>
           <form method="post" action="/admin">
-            ' . admin_key_input() . '
+            ' . admin_csrf_input() . '
             <input type="hidden" name="action" value="update_ticket_meta">
             <input type="hidden" name="user_id" value="' . (int) $ticket['user_id'] . '">
             <input type="hidden" name="ticket_id" value="' . (int) $ticket['id'] . '">
@@ -468,14 +467,14 @@ function render_email_settings_panel(PDO $pdo): string
         $rows .= '<tr><td>' . (int) $row['id'] . '</td><td>#' . (int) $row['ticket_id'] . '</td><td>' . h((string) $row['recipient']) . '</td><td>' . h((string) $row['subject']) . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) ($row['error'] ?: '-')) . '</td><td>' . h((string) ($row['sent_at'] ?: $row['created_at'])) . '</td></tr>';
     }
     $rows = $rows ?: '<tr><td colspan="7">Aucun email ticket.</td></tr>';
-    $passwordNote = getenv('NICHOIR_SMTP_PASSWORD') ? 'Mot de passe fourni par variable serveur NICHOIR_SMTP_PASSWORD.' : 'Laisser vide pour conserver le mot de passe actuel.';
+    $passwordNote = app_config_value('NICHOIR_SMTP_PASSWORD') !== '' ? 'Mot de passe fourni par configuration privee NICHOIR_SMTP_PASSWORD.' : 'Laisser vide pour conserver le mot de passe actuel.';
 
     return '
       <section class="panel">
         <h2>Email tickets</h2>
         <p>Configure ici le serveur email cPanel/SMTP utilise pour envoyer les notifications tickets. Les envois sont aussi journalises dans SQLite.</p>
         <form class="admin-email-form" method="post" action="/admin">
-          ' . admin_key_input() . '
+          ' . admin_csrf_input() . '
           <input type="hidden" name="action" value="update_email_settings">
           <label class="checkbox-label"><input type="checkbox" name="smtp_enabled" value="1"' . ($settings['enabled'] ? ' checked' : '') . '> Activer envoi SMTP</label>
           <label><span>Serveur SMTP</span><input type="text" name="smtp_host" value="' . h((string) $settings['host']) . '" placeholder="mail.domaine.com"></label>
@@ -489,7 +488,7 @@ function render_email_settings_panel(PDO $pdo): string
           <button type="submit">Enregistrer email</button>
         </form>
         <form class="admin-email-test" method="post" action="/admin">
-          ' . admin_key_input() . '
+          ' . admin_csrf_input() . '
           <input type="hidden" name="action" value="send_test_email">
           <label><span>Email test</span><input type="email" name="test_recipient" value="' . h((string) $settings['support_email']) . '" required></label>
           <button type="submit">Envoyer test</button>
@@ -510,7 +509,7 @@ function render_stripe_settings_panel(PDO $pdo): string
         <h2>Stripe billing</h2>
         <p>Configure Checkout, portail client et verification webhook. Les secrets peuvent venir des variables serveur en production.</p>
         <form class="admin-stripe-form" method="post" action="/admin">
-          ' . admin_key_input() . '
+          ' . admin_csrf_input() . '
           <input type="hidden" name="action" value="update_stripe_settings">
           <label class="checkbox-label"><input type="checkbox" name="stripe_enabled" value="1"' . ($settings['enabled'] ? ' checked' : '') . '> Activer Stripe reel</label>
           <label><span>Cle secrete Stripe</span><input type="password" name="stripe_secret_key" autocomplete="new-password" placeholder="' . h($secretNote) . '"></label>
@@ -535,7 +534,7 @@ function render_credit_policy_settings_panel(PDO $pdo): string
         <h2>Politique credits</h2>
         <p>Controle le cout d un telechargement premium et le bonus automatique pour les soldes partiels.</p>
         <form class="admin-credit-policy-form" method="post" action="/admin">
-          ' . admin_key_input() . '
+          ' . admin_csrf_input() . '
           <input type="hidden" name="action" value="update_credit_policy_settings">
           <label><span>Credits consommes par telechargement</span><input type="number" name="export_credit_cost" min="1" step="1" value="' . (int) $settings['export_cost'] . '"></label>
           <label class="checkbox-label"><input type="checkbox" name="partial_credit_bonus_enabled" value="1"' . ($settings['partial_bonus_enabled'] ? ' checked' : '') . '> Bonus automatique si le client a un solde partiel positif inferieur au cout</label>
@@ -569,7 +568,7 @@ function render_database_settings_panel(): string
           <div class="stat"><span>Config locale</span><strong>' . h(db_config_path()) . '</strong></div>
         </div>
         <form class="admin-db-form" method="post" action="/admin">
-          ' . admin_key_input() . '
+          ' . admin_csrf_input() . '
           <fieldset class="db-driver-choice">
             <legend>Driver</legend>
             <label class="checkbox-label"><input type="radio" name="db_driver" value="sqlite"' . $sqliteChecked . '> SQLite local</label>
@@ -739,7 +738,6 @@ function render_admin_logs_panel(PDO $pdo): string
           <a class="secondary compact-link" href="' . h(admin_log_filter_link()) . '">Reinitialiser filtres</a>
         </div>
         <form class="admin-directory-form" method="get" action="/admin#admin-logs">
-          ' . admin_key_input() . '
           <label><span>Niveau</span><select name="log_level">' . $levelOptions . '</select></label>
           <label><span>Channel</span><input type="search" name="log_channel" value="' . h($channel) . '" placeholder="auth, api, stripe"></label>
           <label><span>Event</span><input type="search" name="log_event" value="' . h($event) . '" placeholder="login_failed"></label>
@@ -764,20 +762,45 @@ function render_admin_logs_panel(PDO $pdo): string
     ';
 }
 
+function render_admin_login_page(): void
+{
+    if (admin_allowed()) {
+        header('Location: /admin');
+        return;
+    }
+    $configured = admin_password_configured();
+    $message = '';
+    if (isset($_GET['error'])) {
+        $message = '<p class="notice danger">Mot de passe admin invalide.</p>';
+    } elseif (isset($_GET['logout'])) {
+        $message = '<p class="notice">Session admin fermee.</p>';
+    }
+    $form = $configured
+        ? '<form class="client-form" method="post" action="/admin/login">
+            ' . admin_csrf_input() . '
+            <label><span>Mot de passe admin</span><input type="password" name="password" autocomplete="current-password" required autofocus></label>
+            <button type="submit">Se connecter</button>
+          </form>'
+        : '<p>Configure `NICHOIR_ADMIN_PASSWORD_HASH` cote serveur avant d ouvrir le back-office.</p>';
+    page_response('Admin', '
+      <section class="page-title">
+        <p class="eyebrow">Back-office</p>
+        <h1>Connexion admin</h1>
+        <p>Acces reserve aux administrateurs.</p>
+      </section>
+      <section class="panel account-panel">
+        ' . $message . $form . '
+      </section>
+    ', '/admin/login', $configured ? 200 : 503);
+}
+
 function render_admin_page(): void
 {
     if (!admin_allowed()) {
         if (function_exists('app_log')) {
             app_log(db(), 'security', 'admin', 'admin_access_denied', 'GET admin refuse', [], null, 403);
         }
-        http_response_code(403);
-        page_response('Admin', '
-          <section class="page-title">
-            <p class="eyebrow">Back-office</p>
-            <h1>Admin protege</h1>
-            <p>Configure `NICHOIR_ADMIN_KEY` cote serveur et ouvre `/admin?key=...` pour acceder au back-office.</p>
-          </section>
-        ', '/admin', 403);
+        header('Location: /admin/login');
         return;
     }
 
@@ -819,11 +842,15 @@ function render_admin_page(): void
     }
 
     page_response('Admin', '
-      <section class="page-title">
-        <p class="eyebrow">Back-office</p>
-        <h1>Admin</h1>
-        <p>Vue dev minimale. En local, l admin est ouvert; en production, definir `NICHOIR_ADMIN_KEY`.</p>
-      </section>
+	      <section class="page-title">
+	        <p class="eyebrow">Back-office</p>
+	        <h1>Admin</h1>
+	        <p>Session admin active. Les actions sensibles exigent un jeton CSRF.</p>
+	        <form class="inline-form" method="post" action="/admin/logout">
+	          ' . admin_csrf_input() . '
+	          <button type="submit">Se deconnecter</button>
+	        </form>
+	      </section>
       ' . ($notice !== '' ? '<p class="notice">' . h($notice) . '</p>' : '') . '
       <section class="metrics">
         <div><span>Clients</span><strong>' . $summary['users'] . '</strong></div>

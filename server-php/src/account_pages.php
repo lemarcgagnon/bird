@@ -86,8 +86,8 @@ function render_account_page(): void
         <div class="panel">
 	          <h2>' . h(page_t('login', $lang)) . '</h2>
 	          <form class="client-form" data-login-form>
-	            <label><span>' . h(page_t('email', $lang)) . '</span><input name="email" type="email" value="demo@nichoir.local" autocomplete="username" required></label>
-	            <label><span>' . h(page_t('password', $lang)) . '</span><input name="password" type="password" value="password123" autocomplete="current-password" required></label>
+		            <label><span>' . h(page_t('email', $lang)) . '</span><input name="email" type="email" autocomplete="username" required></label>
+		            <label><span>' . h(page_t('password', $lang)) . '</span><input name="password" type="password" autocomplete="current-password" required></label>
 	            <div class="form-actions">
 	              <button type="submit">' . h(page_t('login', $lang)) . '</button>
 	              <button type="button" data-demo-login>' . h(page_t('demo', $lang)) . '</button>
@@ -199,7 +199,7 @@ function render_account_page(): void
 	      const LANG = "' . h($lang) . '";
 	      const t = (key) => I18N[key] || key;
 	      const TOKEN_KEY = "nichoir-auth-token";
-      const demo = { email: "demo@nichoir.local", password: "password123" };
+      const demo = window.NICHOIR_DEMO_ACCOUNT || null;
 	      let selectedTicketId = null;
 	      let selectedTicket = null;
 	      const token = () => localStorage.getItem(TOKEN_KEY);
@@ -415,7 +415,12 @@ function render_account_page(): void
 	        }
       });
 
-      document.querySelector("[data-demo-login]").addEventListener("click", () => login(demo.email, demo.password));
+      const demoButton = document.querySelector("[data-demo-login]");
+      if (demoButton && demo) {
+        demoButton.addEventListener("click", () => login(demo.email, demo.password));
+      } else if (demoButton) {
+        demoButton.hidden = true;
+      }
       document.querySelectorAll("[data-billing-offer]").forEach((button) => {
         button.addEventListener("click", async () => {
           try {

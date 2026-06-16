@@ -1,6 +1,6 @@
-# Migrations SQLite PHP
+# Migrations PHP
 
-Role: schema versionne de la base SQLite utilisee par le serveur PHP.
+Role: schema versionne de la base utilisee par le serveur PHP. Le runtime supporte SQLite pour le local/dev et MySQL pour la production.
 
 Fichiers importants:
 
@@ -15,5 +15,6 @@ Regles d'usage:
 
 Point de vigilance:
 
-- La base dev `server-php/data/nichoir.sqlite` peut etre versionnee pour demo locale, mais le schema doit rester reproductible par migrations.
-- Ne jamais committer une base SQLite contenant un vrai mot de passe SMTP; preferer `NICHOIR_SMTP_PASSWORD` en production.
+- Ne jamais versionner `server-php/data/nichoir.sqlite`; la base SQLite est locale/dev seulement.
+- La cible production approuvee est MySQL avec configuration privee hors `public_html`.
+- Ne jamais committer une base, un dump ou une config contenant un vrai mot de passe SMTP; preferer `NICHOIR_SMTP_PASSWORD` ou `config/production.php` prive en production.

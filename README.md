@@ -281,9 +281,9 @@ Deploiement cPanel:
 Risques securite encore ouverts avant production:
 
 - Ajouter rate limiting sur tickets et webhooks; login, inscription, activation, renvoi de code et logs client sont deja limites.
-- Ajouter CSRF et authentification admin propre; ne pas utiliser un `key` en query string en production.
+- Admin actuel: `/admin/login`, session PHP, `password_verify()`, `session_regenerate_id(true)` et actions POST protegees par CSRF. L'ancien acces admin par cle en URL est historique et ne doit pas etre utilise en production.
 - Configurer `NICHOIR_STRIPE_WEBHOOK_SECRET` et tester les webhooks Stripe live.
-- Ajouter CSP, retention/rotation des logs, CSRF admin et plafonds triangles/STL/ZIP. Sanitizer SVG et clamps Rust/WASM ont maintenant une premiere passe.
+- Ajouter CSP, retention/rotation des logs et plafonds triangles/STL/ZIP. Sanitizer SVG et clamps Rust/WASM ont maintenant une premiere passe.
 
 ## Roadmap courte
 

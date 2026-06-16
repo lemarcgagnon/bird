@@ -5596,7 +5596,7 @@ pub fn render_app_html(input: &str) -> String {
     let export_house_label = icon_text("⌂", "button-glyph", "button-label", t(lang, "house"));
     let export_door_label = icon_text("▣", "button-glyph", "button-label", t(lang, "door"));
     let export_wall_mount_label =
-        icon_text("▥", "button-glyph", "button-label", t(lang, "wall_mount_piece"));
+        icon_text("▥", "button-glyph", "button-label", t(lang, "wall_mount"));
     let export_panel_label = icon_text("▤", "button-glyph", "button-label", t(lang, "panel"));
     let export_plan_label = icon_text("▧", "button-glyph", "button-label", t(lang, "plan"));
     let export_explosion_label = icon_text("✣", "button-glyph", "button-label", t(lang, "explosion"));

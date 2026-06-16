@@ -8,10 +8,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260616-prod-hardening-v1';
+} from '../wasm/pkg/wasm.js?v=20260616-wall-mount-v1';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260616-prod-hardening-v1';
+const APP_BUILD_ID = '20260616-wall-mount-v1';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';

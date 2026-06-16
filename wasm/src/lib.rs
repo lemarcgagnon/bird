@@ -216,6 +216,20 @@ struct NichoirParams {
     hang_side_offset: f64,
     #[serde(rename = "hangEndOffset", alias = "hang_end_offset")]
     hang_end_offset: f64,
+    #[serde(rename = "wallMount", alias = "wall_mount")]
+    wall_mount: bool,
+    #[serde(rename = "wallMountHoleDiam", alias = "wall_mount_hole_diam")]
+    wall_mount_hole_diam: f64,
+    #[serde(rename = "wallMountHoleSpacing", alias = "wall_mount_hole_spacing")]
+    wall_mount_hole_spacing: f64,
+    #[serde(rename = "wallMountY", alias = "wall_mount_y")]
+    wall_mount_y: f64,
+    #[serde(rename = "wallMountBlockW", alias = "wall_mount_block_w")]
+    wall_mount_block_w: f64,
+    #[serde(rename = "wallMountBlockH", alias = "wall_mount_block_h")]
+    wall_mount_block_h: f64,
+    #[serde(rename = "wallMountBlockDepth", alias = "wall_mount_block_depth")]
+    wall_mount_block_depth: f64,
     #[serde(rename = "decorActive", alias = "decor_active")]
     decor_active: String,
     decos: HashMap<String, DecorSettings>,
@@ -262,6 +276,13 @@ impl Default for NichoirParams {
             hang_diam: 6.0,
             hang_side_offset: 16.0,
             hang_end_offset: 16.0,
+            wall_mount: false,
+            wall_mount_hole_diam: 6.0,
+            wall_mount_hole_spacing: 60.0,
+            wall_mount_y: 110.0,
+            wall_mount_block_w: 100.0,
+            wall_mount_block_h: 70.0,
+            wall_mount_block_depth: 0.0,
             decor_active: "front".to_string(),
             decos: default_decos(),
         }
@@ -393,6 +414,16 @@ fn sanitize_params(mut p: NichoirParams) -> NichoirParams {
     p.hang_diam = clamp_finite(p.hang_diam, 2.0, 30.0, defaults.hang_diam);
     p.hang_side_offset = clamp_finite(p.hang_side_offset, 2.0, 120.0, defaults.hang_side_offset);
     p.hang_end_offset = clamp_finite(p.hang_end_offset, 2.0, 120.0, defaults.hang_end_offset);
+    p.wall_mount_hole_diam = clamp_finite(p.wall_mount_hole_diam, 3.0, 20.0, defaults.wall_mount_hole_diam);
+    p.wall_mount_hole_spacing = clamp_finite(p.wall_mount_hole_spacing, 20.0, 220.0, defaults.wall_mount_hole_spacing);
+    p.wall_mount_y = clamp_finite(p.wall_mount_y, 20.0, 440.0, defaults.wall_mount_y);
+    p.wall_mount_block_w = clamp_finite(p.wall_mount_block_w, 40.0, 260.0, defaults.wall_mount_block_w);
+    p.wall_mount_block_h = clamp_finite(p.wall_mount_block_h, 30.0, 220.0, defaults.wall_mount_block_h);
+    p.wall_mount_block_depth = if p.wall_mount_block_depth.is_finite() && p.wall_mount_block_depth > 0.0 {
+        clamp_finite(p.wall_mount_block_depth, 6.0, 80.0, p.overhang.max(6.0))
+    } else {
+        p.overhang.max(6.0).min(80.0)
+    };
     p.unit = allowed_string(p.unit.trim(), &["mm", "cm", "in"], "mm");
     p.lang = allowed_string(p.lang.trim(), &["fr", "en"], "fr");
     p.mode = allowed_string(p.mode.trim(), &["solid", "wireframe", "xray", "edges"], "solid");
@@ -563,6 +594,17 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "hang_diam") => "Hole diameter",
         ("en", "hang_side_offset") => "Offset from roof side edge",
         ("en", "hang_end_offset") => "Offset from front/back edge",
+        ("en", "wall_mount") => "Wall mount",
+        ("en", "wall_mount_enable") => "Enable rear wall mount",
+        ("en", "wall_mount_hole_diam") => "Rear hole diameter",
+        ("en", "wall_mount_hole_spacing") => "Hole spacing",
+        ("en", "wall_mount_y") => "Hole height",
+        ("en", "wall_mount_block_w") => "Mount block width",
+        ("en", "wall_mount_block_h") => "Mount block height",
+        ("en", "wall_mount_block_depth") => "Mount block depth",
+        ("en", "wall_mount_note") => "Two rear holes align with the external block. Fasten it from inside through the entrance door.",
+        ("en", "wall_mount_piece") => "Wall mount block",
+        ("en", "wall_mount_note_cut") => "rear holes aligned to block",
         ("en", "material") => "Material",
         ("en", "thickness") => "Wall thickness",
         ("en", "thickness_preset") => "Market board thickness",
@@ -787,6 +829,17 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "hang_diam") => "Diametre trou",
         (_, "hang_side_offset") => "Retrait depuis cote du toit",
         (_, "hang_end_offset") => "Retrait depuis avant/arriere",
+        (_, "wall_mount") => "Fixation murale",
+        (_, "wall_mount_enable") => "Activer le bloc arriere",
+        (_, "wall_mount_hole_diam") => "Diametre trous arriere",
+        (_, "wall_mount_hole_spacing") => "Espacement des trous",
+        (_, "wall_mount_y") => "Hauteur des trous",
+        (_, "wall_mount_block_w") => "Largeur bloc",
+        (_, "wall_mount_block_h") => "Hauteur bloc",
+        (_, "wall_mount_block_depth") => "Profondeur bloc",
+        (_, "wall_mount_note") => "Deux trous arriere s'alignent avec le bloc externe. Vissage depuis l'interieur par la porte.",
+        (_, "wall_mount_piece") => "Bloc fixation murale",
+        (_, "wall_mount_note_cut") => "trous arriere alignes au bloc",
         (_, "material") => "Materiau",
         (_, "thickness") => "Epaisseur parois",
         (_, "thickness_preset") => "Epaisseur panneau commercial",
@@ -1601,6 +1654,18 @@ name: &str, qty: u32, shape: &str, w: f64, h: f64, note: &str| BomLine {
         ));
     }
 
+    if p.wall_mount {
+        let m = wall_mount_geometry(p, g);
+        cuts.push(base_cut(
+            t(lang, "wall_mount_piece"),
+            1,
+            "rect",
+            m.block_w,
+            m.block_h,
+            t(lang, "wall_mount_note_cut"),
+        ));
+    }
+
     cuts
 }
 
@@ -1620,7 +1685,7 @@ pub fn compute_summary(input: &str) -> String {
                 unit: p.unit.clone(),
                 geometry: geom.clone(),
                 cuts,
-                piece_count: 7 + if !matches!(p.door, DoorMode::None) && p.door_panel { 1 } else { 0 } + if p.perch && !matches!(p.door, DoorMode::None) { 1 } else { 0 },
+                piece_count: 7 + if !matches!(p.door, DoorMode::None) && p.door_panel { 1 } else { 0 } + if p.perch && !matches!(p.door, DoorMode::None) { 1 } else { 0 } + if p.wall_mount { 1 } else { 0 },
                 unit_label: unit_def(&p.unit).label.to_string(),
                 unit_area_label: unit_area_label(&p.unit).to_string(),
                 unit_volume_label: unit_volume_label(&p.unit).to_string(),
@@ -1752,6 +1817,25 @@ fn build_layout_pieces(p: &NichoirParams, geom: &GeometryPayload) -> Vec<LayoutP
             w: p.door_w * v,
             h: p.door_h * v,
             color: "#e8c088".to_string(),
+            shape: "rect".to_string(),
+            rot: false,
+            px: 0.0,
+            py: 0.0,
+            overflow: false,
+            wall_h: None,
+            roof_h: None,
+            w_top: None,
+            w_bot: None,
+        });
+    }
+    if p.wall_mount {
+        let m = wall_mount_geometry(p, geom);
+        pieces.push(LayoutPiece {
+            name: t(lang, "wall_mount_piece").to_string(),
+            qty: 1,
+            w: m.block_w,
+            h: m.block_h,
+            color: "#7f6245".to_string(),
             shape: "rect".to_string(),
             rot: false,
             px: 0.0,
@@ -3100,6 +3184,63 @@ fn facade_holes(p: &NichoirParams, g: &GeometryPayload) -> Vec<Vec<(f64, f64)>> 
     holes
 }
 
+struct WallMountGeometry {
+    y: f64,
+    hole_radius: f64,
+    hole_spacing: f64,
+    block_w: f64,
+    block_h: f64,
+    block_depth: f64,
+}
+
+fn wall_mount_depth(p: &NichoirParams) -> f64 {
+    if p.wall_mount_block_depth.is_finite() && p.wall_mount_block_depth > 0.0 {
+        p.wall_mount_block_depth
+    } else {
+        p.overhang.max(6.0)
+    }
+    .clamp(6.0, 80.0)
+}
+
+fn wall_mount_geometry(p: &NichoirParams, g: &GeometryPayload) -> WallMountGeometry {
+    let hole_radius = (p.wall_mount_hole_diam / 2.0).clamp(1.5, 10.0);
+    let block_h = p.wall_mount_block_h.clamp(30.0, g.wall_h.max(30.0));
+    let y_margin = (block_h / 2.0 + 4.0).min((g.wall_h / 2.0).max(4.0));
+    let max_y = (g.wall_h - y_margin).max(y_margin);
+    let y = p.wall_mount_y.clamp(y_margin, max_y);
+    let wall_w = (wall_right_x(g, y) - wall_left_x(g, y)).max(40.0);
+    let max_block_w = (wall_w - 8.0).max(40.0);
+    let block_w = p.wall_mount_block_w.clamp(40.0, max_block_w);
+    let max_spacing = (wall_w.min(block_w) - p.wall_mount_hole_diam - 16.0).max(0.0);
+    let min_spacing = (p.wall_mount_hole_diam * 2.0).min(max_spacing.max(p.wall_mount_hole_diam));
+    let hole_spacing = if max_spacing <= min_spacing {
+        max_spacing.max(p.wall_mount_hole_diam)
+    } else {
+        p.wall_mount_hole_spacing.clamp(min_spacing, max_spacing)
+    };
+
+    WallMountGeometry {
+        y,
+        hole_radius,
+        hole_spacing,
+        block_w,
+        block_h,
+        block_depth: wall_mount_depth(p),
+    }
+}
+
+fn wall_mount_holes(p: &NichoirParams, g: &GeometryPayload) -> Vec<Vec<(f64, f64)>> {
+    if !p.wall_mount {
+        return Vec::new();
+    }
+    let m = wall_mount_geometry(p, g);
+    let half = m.hole_spacing / 2.0;
+    vec![
+        ellipse_points(-half, m.y, m.hole_radius, m.hole_radius, 32),
+        ellipse_points(half, m.y, m.hole_radius, m.hole_radius, 32),
+    ]
+}
+
 fn perch_center(p: &NichoirParams, g: &GeometryPayload) -> (f64, f64) {
     let door_y = p.door_py / 100.0 * g.wall_h;
     let y = door_y - p.door_h / 2.0 - p.perch_off;
@@ -3860,9 +4001,11 @@ fn build_house_tris(p: &NichoirParams) -> Vec<Tri> {
     let roof_len = g.roof_len.max(0.5);
     let mut tris = Vec::<Tri>::new();
 
-    let facade = facade_points(&g);
     add_facade_with_cutouts(&mut tris, p, &g, p.t, 0.0, base_y, p.d / 2.0 - p.t);
-    add_extruded_polygon_z(&mut tris, &facade, p.t, 0.0, base_y, -p.d / 2.0, 0.0);
+    add_back_panel_with_mount_holes(&mut tris, p, &g, p.t, 0.0, base_y, -p.d / 2.0);
+    if p.wall_mount {
+        add_wall_mount_block(&mut tris, p, &g, base_y, -p.d / 2.0 - wall_mount_depth(p), true);
+    }
 
     add_side_walls(&mut tris, p, &g, base_y);
     add_floor_panel(&mut tris, p, &g);
@@ -4146,15 +4289,53 @@ fn write_zip(entries: Vec<(String, Vec<u8>)>) -> Vec<u8> {
     out
 }
 
-fn polygon_panel_tris(points: &[(f64, f64)], t: f64) -> Vec<Tri> {
-    let mut tris = Vec::<Tri>::new();
-    add_extruded_polygon_z(&mut tris, points, t, 0.0, 0.0, 0.0, 0.0);
-    clean_tris(tris)
-}
-
 fn front_panel_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
     let mut tris = Vec::<Tri>::new();
     add_facade_with_cutouts(&mut tris, p, g, p.t, 0.0, 0.0, 0.0);
+    clean_tris(tris)
+}
+
+fn add_back_panel_with_mount_holes(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload, depth: f64, tx: f64, ty: f64, tz: f64) {
+    let facade = facade_points(g);
+    let holes = wall_mount_holes(p, g);
+    if !holes.is_empty() && add_extruded_shape_with_holes_z(mesh, &facade, &holes, depth, tx, ty, tz) {
+        return;
+    }
+    add_extruded_polygon_z(mesh, &facade, depth, tx, ty, tz, 0.0);
+}
+
+fn back_panel_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
+    let mut tris = Vec::<Tri>::new();
+    add_back_panel_with_mount_holes(&mut tris, p, g, p.t, 0.0, 0.0, 0.0);
+    clean_tris(tris)
+}
+
+fn add_wall_mount_block(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload, base_y: f64, z_start: f64, placed: bool) {
+    if !p.wall_mount {
+        return;
+    }
+    let m = wall_mount_geometry(p, g);
+    let cy = if placed { base_y + m.y } else { 0.0 };
+    let outer = vec![
+        (-m.block_w / 2.0, cy - m.block_h / 2.0),
+        (m.block_w / 2.0, cy - m.block_h / 2.0),
+        (m.block_w / 2.0, cy + m.block_h / 2.0),
+        (-m.block_w / 2.0, cy + m.block_h / 2.0),
+    ];
+    let hole_y = cy;
+    let half = m.hole_spacing / 2.0;
+    let holes = vec![
+        ellipse_points(-half, hole_y, m.hole_radius, m.hole_radius, 32),
+        ellipse_points(half, hole_y, m.hole_radius, m.hole_radius, 32),
+    ];
+    if !add_extruded_shape_with_holes_z(mesh, &outer, &holes, m.block_depth, 0.0, 0.0, z_start) {
+        add_extruded_polygon_z(mesh, &outer, m.block_depth, 0.0, 0.0, z_start, 0.0);
+    }
+}
+
+fn wall_mount_block_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
+    let mut tris = Vec::<Tri>::new();
+    add_wall_mount_block(&mut tris, p, g, 0.0, 0.0, false);
     clean_tris(tris)
 }
 
@@ -4477,13 +4658,17 @@ fn build_all_decor_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
 fn panel_export_parts(p: &NichoirParams, g: &GeometryPayload) -> Vec<(String, Vec<Tri>)> {
     let mut parts = vec![
         ("facade_avant".to_string(), front_panel_tris(p, g)),
-        ("facade_arriere".to_string(), polygon_panel_tris(&facade_points(g), p.t)),
+        ("facade_arriere".to_string(), back_panel_tris(p, g)),
         ("cote_gauche".to_string(), side_panel_tris(p, g, true)),
         ("cote_droit".to_string(), side_panel_tris(p, g, false)),
         ("plancher".to_string(), floor_panel_tris(p, g)),
         ("toit_gauche".to_string(), roof_panel_tris(p, g, true)),
         ("toit_droit".to_string(), roof_panel_tris(p, g, false)),
     ];
+
+    if p.wall_mount {
+        parts.push(("bloc_fixation_mur".to_string(), wall_mount_block_tris(p, g)));
+    }
 
     let door = door_panel_tris(p);
     if !door.is_empty() {
@@ -4529,14 +4714,19 @@ fn build_scene_meshes(p: &NichoirParams) -> Vec<RenderMesh> {
     let explode_dist = (p.explode / 100.0).max(0.0) as f32 * p.w.max(p.h).max(p.d) as f32 * 0.65;
     let mut out = Vec::new();
 
-    let facade = facade_points(&g);
     let mut front = Vec::<Tri>::new();
     add_facade_with_cutouts(&mut front, p, &g, p.t, 0.0, base_y, p.d / 2.0 - p.t);
     out.push(render_mesh_offset("front", "#d4a574", &front, 0.0, 0.0, explode_dist));
 
     let mut back = Vec::<Tri>::new();
-    add_extruded_polygon_z(&mut back, &facade, p.t, 0.0, base_y, -p.d / 2.0, 0.0);
+    add_back_panel_with_mount_holes(&mut back, p, &g, p.t, 0.0, base_y, -p.d / 2.0);
     out.push(render_mesh_offset("back", "#d4a574", &back, 0.0, 0.0, -explode_dist));
+
+    if p.wall_mount {
+        let mut block = Vec::<Tri>::new();
+        add_wall_mount_block(&mut block, p, &g, base_y, -p.d / 2.0 - wall_mount_depth(p), true);
+        out.push(render_mesh_offset("wallMount", "#7f6245", &clean_tris(block), 0.0, 0.0, -explode_dist * 1.25));
+    }
 
     let mut sides = Vec::<Tri>::new();
     add_side_walls(&mut sides, p, &g, base_y);
@@ -4917,6 +5107,27 @@ pub fn render_app_html(input: &str) -> String {
         t(lang, "hang_enable"),
         hang_details,
     );
+    let wall_mount_details = if p.wall_mount {
+        format!(
+            r#"<div class="subcontrols">{}{}{}{}{}{}<p class="control-note">{}</p></div>"#,
+            length_control(t(lang, "wall_mount_hole_diam"), "wallMountHoleDiam", 3.0, 20.0, 0.5, p.wall_mount_hole_diam, &p.unit),
+            length_control(t(lang, "wall_mount_hole_spacing"), "wallMountHoleSpacing", 20.0, 220.0, 1.0, p.wall_mount_hole_spacing, &p.unit),
+            length_control(t(lang, "wall_mount_y"), "wallMountY", 20.0, 440.0, 1.0, p.wall_mount_y, &p.unit),
+            length_control(t(lang, "wall_mount_block_w"), "wallMountBlockW", 40.0, 260.0, 1.0, p.wall_mount_block_w, &p.unit),
+            length_control(t(lang, "wall_mount_block_h"), "wallMountBlockH", 30.0, 220.0, 1.0, p.wall_mount_block_h, &p.unit),
+            length_control(t(lang, "wall_mount_block_depth"), "wallMountBlockDepth", 6.0, 80.0, 1.0, p.wall_mount_block_depth, &p.unit),
+            html_escape(t(lang, "wall_mount_note")),
+        )
+    } else {
+        String::new()
+    };
+    let wall_mount_controls = format!(
+        r#"<div class="field-group disclosure-group"><p>{}</p><label class="check"><input data-bool="wallMount" type="checkbox" {}>{}</label>{}</div>"#,
+        t(lang, "wall_mount"),
+        checked(p.wall_mount),
+        t(lang, "wall_mount_enable"),
+        wall_mount_details,
+    );
 
     let material_controls = format!(
         r#"<div class="field-group disclosure-group"><p>{}</p>{}{}<p class="control-note">{}</p></div>"#,
@@ -4927,7 +5138,7 @@ pub fn render_app_html(input: &str) -> String {
     );
 
     let roof_controls = format!(
-        "{}{}<div class=\"field-group\"><p>{}</p><div class=\"choices\">{}{}{}</div>{}</div>{}{}",
+        "{}{}<div class=\"field-group\"><p>{}</p><div class=\"choices\">{}{}{}</div>{}</div>{}{}{}",
         range_control(t(lang, "slope"), "slope", 10.0, 60.0, 1.0, p.slope, "deg"),
         length_control(t(lang, "overhang"), "overhang", 0.0, 80.0, 1.0, p.overhang, &p.unit),
         t(lang, "ridge"),
@@ -4941,6 +5152,7 @@ pub fn render_app_html(input: &str) -> String {
         },
         material_controls,
         hang_controls,
+        wall_mount_controls,
     );
 
     let door_current = door_value(p.door);
@@ -5621,5 +5833,37 @@ mod tests {
         assert!(deco.source_text.is_empty());
         assert!(deco.source_data.is_empty());
         assert_eq!(deco.mode, "vector");
+    }
+
+    #[test]
+    fn wall_mount_is_absent_by_default() {
+        let p = NichoirParams::default();
+        let g = GeometryPayload::from_p(&p);
+        let parts = panel_export_parts(&p, &g);
+
+        assert!(!p.wall_mount);
+        assert!(wall_mount_holes(&p, &g).is_empty());
+        assert!(!parts.iter().any(|(name, _)| name == "bloc_fixation_mur"));
+    }
+
+    #[test]
+    fn wall_mount_adds_rear_holes_and_export_block() {
+        let input = r#"{
+            "wallMount": true,
+            "overhang": 36,
+            "wallMountBlockDepth": 0,
+            "wallMountHoleDiam": 8,
+            "wallMountHoleSpacing": 70,
+            "wallMountY": 120
+        }"#;
+
+        let p = parse_input(input).expect("wall mount params should parse");
+        let g = GeometryPayload::from_p(&p);
+        let parts = panel_export_parts(&p, &g);
+
+        assert!(p.wall_mount);
+        assert_eq!(wall_mount_depth(&p), 36.0);
+        assert_eq!(wall_mount_holes(&p, &g).len(), 2);
+        assert!(parts.iter().any(|(name, tris)| name == "bloc_fixation_mur" && !tris.is_empty()));
     }
 }

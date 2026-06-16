@@ -1,17 +1,13 @@
 # Nichoir documentation index
 
-This folder is the handoff layer for installation, security, contact email, refactoring and prelaunch work. It should explain current state and known gaps; historical docs must not override current implementation facts from the README files next to the code.
+This folder is the handoff layer for current release status, security backlog and refactoring work. It should explain current state and known gaps; historical docs must not override current implementation facts from the README files next to the code.
 
 Current release baseline: commit `3dee4a1` is the stabilized Namecheap/cPanel production base. The validated artifact uses prebuilt browser assets, local Three.js, production fail-closed config, and MySQL-only production DB behavior.
 
 ## Documents
 
-- `prelaunch-quality-audit.md`: historical prelaunch audit plus post-`3dee4a1` status notes. Treat older FAIL sections as superseded where the document says fixed.
 - `refactoring-plan.md`: phased DRY/KISS/i18n/HIG/security refactoring plan.
-- `contact-email-plan.md`: contact email implementation plan, attack-surface reasoning, protections and validation steps.
-- `reprise-installation.md`: restart notes for installer/server continuation and older local server workflow.
-- `reste-a-faire.md`: older feature/roadmap backlog. Treat as historical unless reconciled with current code.
-- `securizons.md`: older security notes for files, SVG/input handling, WASM and server boundaries. Treat as security backlog/reference.
+- `securizons.md`: security backlog/reference for files, SVG/input handling, WASM and server boundaries. It is not a release certification.
 
 ## Current implementation facts
 
@@ -60,5 +56,5 @@ Use this checklist when changing code before updating audit docs:
 
 - `docs/README.md` is only the index and current status owner for this folder.
 - Code-near README files own their subsystem facts: `server-php/README.md`, `app/README.md`, `wasm/README.md`, `deployment/namecheap/README.md`.
-- `docs/prelaunch-quality-audit.md` is historical plus status tracking; current release-gate facts belong in this index and the code-near README files.
-- Historical documents can remain, but they must be labeled historical or reconciled when they conflict with current implementation.
+- Current release-gate facts belong in this index and the code-near README files.
+- Historical documents can remain only when clearly labeled and not likely to confuse the Namecheap release path.

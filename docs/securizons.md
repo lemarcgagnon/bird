@@ -2,6 +2,8 @@
 
 Date: 2026-06-12
 
+Status: security backlog/reference. Current release facts live in `docs/README.md` and the code-near README files. This document is useful for SVG/WASM/input hardening notes, but it is not a Namecheap/cPanel release checklist.
+
 Objectif: reduire les risques d'attaque dans l'app Nichoir WASM tout en gardant le calcul, la geometrie et les exports cote client. Le serveur futur servira surtout a l'autorisation/licence/facturation, pas au calcul lourd.
 
 ## 1. Principe general

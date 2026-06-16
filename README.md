@@ -45,7 +45,6 @@ Responsabilites actuelles:
 - `docs/`: index de plans, audit et notes historiques. Voir `docs/README.md`.
 - `server/`: ancienne API FastAPI/SQLite de licence, gardee comme reference. Voir `server/README.md`.
 - `nichoir_v16.html`: ancienne reference fonctionnelle monofichier.
-- `rust-plan.md`: plan historique de migration Rust/WASM.
 
 ## Lancer en local
 

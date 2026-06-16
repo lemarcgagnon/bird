@@ -418,10 +418,12 @@ function admin_database_config_from_post(): array
     $driver = strtolower(trim((string) ($_POST['db_driver'] ?? $active['driver'])));
     $password = (string) ($_POST['mysql_password'] ?? '');
     if ($password === '') {
-        $password = (string) ($local['mysql_password'] ?? '');
+        $password = (string) (($local['mysql_password'] ?? '') ?: ($active['mysql_password'] ?? ''));
     }
 
     return db_normalize_config([
+        'env' => (string) ($active['env'] ?? app_environment()),
+        'dev_mode' => (string) ($active['dev_mode'] ?? '0'),
         'driver' => $driver,
         'sqlite_path' => trim((string) ($_POST['sqlite_path'] ?? $active['sqlite_path'])),
         'mysql_host' => trim((string) ($_POST['mysql_host'] ?? $active['mysql_host'])),

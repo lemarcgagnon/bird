@@ -101,10 +101,12 @@ function render_user_directory(PDO $pdo): string
     $total = (int) $countStmt->fetchColumn();
 
     $stmt = $pdo->prepare('SELECT id, email, display_name, credits, subscription_status, status, created_at FROM users ' . $whereSql . ' ORDER BY id DESC LIMIT ? OFFSET ?');
-    $stmtParams = $params;
-    $stmtParams[] = $perPage;
-    $stmtParams[] = $offset;
-    $stmt->execute($stmtParams);
+    foreach ($params as $index => $value) {
+        $stmt->bindValue($index + 1, $value);
+    }
+    $stmt->bindValue(count($params) + 1, $perPage, PDO::PARAM_INT);
+    $stmt->bindValue(count($params) + 2, $offset, PDO::PARAM_INT);
+    $stmt->execute();
 
     $rows = '';
     foreach ($stmt->fetchAll() as $user) {
@@ -646,6 +648,26 @@ function admin_error_summary(string $value): string
     return trim($value) === '' ? '-' : 'Detail technique masque; voir logs serveur.';
 }
 
+function admin_app_log_message(array $log): string
+{
+    $channel = strtolower((string) ($log['channel'] ?? ''));
+    $eventCode = strtolower((string) ($log['event_code'] ?? ''));
+    $level = strtolower((string) ($log['level'] ?? ''));
+    $technicalChannels = ['php', 'stripe', 'mail', 'smtp', 'email'];
+    $technicalEvents = ['php_error', 'email_failed', 'stripe_webhook_failed', 'stripe_webhook_signature_failed'];
+    $isTechnical = in_array($channel, $technicalChannels, true)
+        || in_array($eventCode, $technicalEvents, true)
+        || str_starts_with($eventCode, 'stripe_')
+        || str_contains($eventCode, 'smtp')
+        || str_contains($eventCode, 'email');
+
+    if ($isTechnical && in_array($level, ['error', 'critical', 'warning'], true)) {
+        return admin_error_summary((string) ($log['message'] ?? ''));
+    }
+
+    return admin_log_text((string) ($log['message'] ?? ''));
+}
+
 function admin_log_filter_link(array $params = []): string
 {
     $base = [];
@@ -660,7 +682,7 @@ function render_app_log_rows(array $logs): string
 {
     $rows = '';
     foreach ($logs as $log) {
-        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['level']) . '</td><td>' . h((string) $log['channel']) . '</td><td>' . h((string) $log['event_code']) . '</td><td>' . h(admin_log_text((string) $log['message'])) . '</td><td>' . h((string) ($log['user_id'] ?? '')) . '</td><td>' . h((string) ($log['http_status'] ?? '')) . '</td><td><code>' . h((string) ($log['request_id'] ?? '')) . '</code></td></tr>';
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['level']) . '</td><td>' . h((string) $log['channel']) . '</td><td>' . h((string) $log['event_code']) . '</td><td>' . h(admin_app_log_message($log)) . '</td><td>' . h((string) ($log['user_id'] ?? '')) . '</td><td>' . h((string) ($log['http_status'] ?? '')) . '</td><td><code>' . h((string) ($log['request_id'] ?? '')) . '</code></td></tr>';
     }
     return $rows ?: '<tr><td colspan="8">Aucun log.</td></tr>';
 }

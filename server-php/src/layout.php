@@ -11,6 +11,7 @@ function page_response(string $title, string $body, string $active = '', int $st
     header('Content-Type: text/html; charset=utf-8');
     $adminPath = function_exists('admin_base_path') ? admin_base_path() : '';
     $isAdmin = $adminPath !== '' && function_exists('admin_path_is_admin') && admin_path_is_admin($active);
+    $adminPathForScript = $isAdmin ? $adminPath : '';
     $lang = $isAdmin ? 'fr' : page_lang();
     $appUrl = h(dev_app_url($lang));
     $nav = [
@@ -48,7 +49,7 @@ function page_response(string $title, string $body, string $active = '', int $st
     echo '</footer>';
     echo '<script>
       (() => {
-        const adminPath = ' . json_encode($adminPath, JSON_UNESCAPED_SLASHES) . ';
+        const adminPath = ' . json_encode($adminPathForScript, JSON_UNESCAPED_SLASHES) . ';
         const tabNavs = document.querySelectorAll("[data-tab-nav]");
         if (!tabNavs.length) return;
         function activateTabs() {

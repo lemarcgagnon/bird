@@ -322,11 +322,11 @@ Architecture web cible:
   - Backend local PHP SQLite/MySQL cree dans `server-php/`.
   - Migration SQLite initiale creee.
   - Endpoints `health`, `register`, `activate`, `resend-activation`, `login`, `logout`, `me`, `credits/ledger`, `billing/summary`, `stripe-link`, `exports/authorize`, `exports/consume`, `tickets` ajoutes.
-  - Utilisateur demo cree pour developpement: `demo@nichoir.local` / `password123`.
+  - Utilisateurs de seed local crees pour developpement. Les credentials ne doivent pas etre publies dans les docs de release ni dans les assets publics.
   - Credits serveur fonctionnels: autorisation STL testee, debit de 3 credits confirme.
-  - Modal `Compte` ajoute dans l'app, avec login/logout/demo, lien vers le site pour activation complete et affichage de `GET /api/me`.
+  - Modal `Compte` ajoute dans l'app, avec resume compte, lien vers le site pour activation complete et affichage de `GET /api/me`.
   - Exports premium branches sur `exports/authorize` avant generation locale, puis `exports/consume` apres succes.
-  - Identifiants demo limites au localhost/config explicite; hors localhost, le login demo rapide est desactive.
+  - Les anciens identifiants de test publics et le quick-login public ont ete retires avant la stabilisation production.
   - Boutons Stripe branches sur `POST /api/checkout/stripe-link` et `POST /api/billing/portal`.
   - Squelette site PHP ajoute: `/`, `/pricing`, `/account`, `/admin`.
   - Admin dev branche sur SQLite/MySQL: repertoire utilisateurs, recherche, filtres, pagination, credits totaux, autorisations recentes, tickets ouverts.
@@ -345,7 +345,8 @@ Architecture web cible:
   - Webhook Stripe complete avec verification `Stripe-Signature` quand un secret est configure, factures `invoice.*`, abonnements et idempotence credits/paiements.
   - Admin restructure par onglets metier avec details client/ticket en modales.
   - Exports admin de base ajoutes: CSV, Excel compatible `.xls` et JSON par portee (`all`, `clients`, `billing`, `support`, `credits`, `exports`).
-  - Configuration DB cPanel/MySQL ajoutee dans `/admin` > `Reglages`; SQLite reste le mode local par defaut.
+  - Configuration DB cPanel/MySQL ajoutee dans `/admin` > `Reglages`; SQLite reste le mode local/developpement par defaut.
+  - Stabilisation production `3dee4a1`: l'artifact cPanel demarre en `NICHOIR_ENV=production`, exige MySQL, refuse SQLite en production et echoue ferme sans config valide.
   - Durcissement auth ajoute: rate limit par IP/email sur register/login/activate/resend, quota journalier emails activation, blocage temporaire apres 5 codes invalides et nettoyage des comptes pending expires.
   - Systeme de logs ajoute: `app_logs`, `audit_logs`, `stripe_event_logs`, logger PHP central, endpoint `/api/client-log`, onglet admin `Logs`, shutdown fatal/slow request et traces Stripe idempotentes.
 
@@ -366,14 +367,14 @@ Travail restant dans cette phase:
 - Completer la landing page PHP publique (`/`) avec contenu produit reel.
 - Completer page prix/offres (`/pricing`) pour credits et abonnements.
 - Completer admin prive (`/admin`) pour filtres billing avances et vues d'alertes plus poussees.
-- Retirer les identifiants demo visibles du build de production.
-- Ajouter une configuration dev/prod pour URL API, CORS, demo user et affichage debug.
+- Garder les credentials de seed hors docs publiques, assets publics et artifacts production.
+- Garder la separation dev/prod: `php_base` seulement local, SQLite seulement local/developpement, MySQL obligatoire en production.
 - Durcir la configuration email production: secret SMTP via variable serveur si possible et retry manuel/automatique.
 - Ajouter rate limiting tickets/webhooks et supervision des compteurs auth.
 - Ajouter retention/rotation des logs et export cible des alertes si le volume augmente.
 - Tester Stripe en mode live/test avec les vrais price IDs, le portail active dans Stripe et `NICHOIR_STRIPE_WEBHOOK_SECRET`.
 - Tester la connexion MySQL avec les vraies coordonnees cPanel et verifier le schema cree sur le serveur.
-- Finaliser la procedure cPanel autour de `installation/`, verifier la suppression post-setup et documenter le cas `DocumentRoot` racine vs `server-php/public`.
+- Tester SMTP Namecheap reel, Stripe checkout/portal/webhook signe et HTTPS/cookies Secure sur le domaine final.
 
 Controle anti-drift:
 

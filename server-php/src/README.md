@@ -1,42 +1,53 @@
 # PHP source modules
 
-This folder contains the backend code used by `server-php/public/index.php`. PHP is the current source of truth for accounts, sessions, credits, billing, tickets, admin actions, contact email, logs, and Stripe integration.
+This folder contains the backend code included by `server-php/public/index.php`. The code is procedural PHP loaded into one namespace, but most page/admin concerns have been split out of the old large `pages.php`.
 
-## Files
+## Modules
 
-- `auth.php`: bearer tokens, session creation/deletion, current-user lookup, public user projection, password/auth checks, activation codes, auth rate limits, email quotas, and client IP helper.
-- `credits.php`: valid premium export types, configured export credit cost, and positive-partial-balance bonus calculation.
-- `db.php`: SQLite/MySQL config resolution, PDO connections, migration/schema creation, settings persistence, local DB config file helpers, and install-lock helpers.
-- `logger.php`: request ID, app logs, audit logs, Stripe event logs, hashed IP/email values, slow request logging, and fatal shutdown logging.
-- `mail.php`: SMTP settings, header sanitization, raw SMTP send, ticket notification queue/send helpers, activation email, and contact/support email delivery support.
-- `pages.php`: compatibility include that loads the extracted page, account, admin, contact, layout, helper, credit, mail, and Stripe modules.
-- `response.php`: JSON response helper, JSON payload size limit, required-field helper, and base HTTP security headers.
-- `stripe.php`: Stripe settings, API request helper, Checkout session creation, billing portal creation, and webhook signature verification.
-- `stripe_webhook.php`: Stripe event idempotence, event logs, checkout completion handling, invoice/payment sync, and subscription sync.
+- `helpers.php`: escaping, private config loading, runtime error display policy, secure session cookie setup and money formatting.
+- `db.php`: SQLite/MySQL config resolution, PDO creation, migration/schema creation, settings persistence, local DB config helpers and install lock helpers.
+- `logger.php`: request IDs, hashed IP/email values, app logs, audit logs, Stripe event logs, slow request logging and fatal shutdown logging.
+- `auth.php`: bearer tokens, session creation/deletion, current-user lookup, public user projection, activation codes, auth rate limits, email quotas and client IP helper.
+- `credits.php`: valid premium export types, configured export credit cost and positive-partial-balance bonus calculation.
+- `mail.php`: SMTP settings, header sanitization, raw SMTP sending, activation email support, contact email support and ticket notification queue/send helpers.
+- `stripe.php`: Stripe settings, API request helper, Checkout session creation, billing portal creation and webhook signature verification.
+- `stripe_webhook.php`: Stripe event idempotence, event logs, checkout completion handling, invoice/payment sync and subscription sync.
+- `response.php`: JSON response helper, JSON payload size limit, required-field helper and base HTTP security headers.
+- `i18n.php`: public/account translation tables, language detection, language-aware URLs and local dev app URL helper.
+- `layout.php`: shared PHP page shell, header/nav/footer, language switcher and shared tab/modal inline JavaScript.
+- `public_pages.php`: landing, pricing, about, contact, terms and legal page renderers.
+- `contact.php`: contact CSRF helpers and `handle_contact_post()`.
+- `account_pages.php`: account page renderer and account inline JavaScript.
+- `admin_core.php`: admin session auth, admin CSRF, redirect helpers and admin summary helpers.
+- `admin_helpers.php`: admin option rendering, validation helpers, entity loaders, ticket notification creation and audit helper.
+- `admin_actions.php`: admin POST handlers for login/logout, users, credits, subscriptions, tickets, SMTP, DB, Stripe and credit policy.
+- `admin_exports.php`: admin database export scopes and CSV/XLS/JSON download handling.
+- `admin_pages.php`: admin login page and back-office page rendering.
+- `pages.php`: compatibility include that requires the page/admin/contact/layout/helper modules and defines shared constants.
 
-## Important current coupling
+## Important coupling
 
-- `pages.php` now only wires extracted modules together. The remaining coupling is that modules are still procedural functions loaded into one namespace.
-- `public/index.php` currently includes all source modules directly and dispatches routes procedurally.
-- DB settings can come from environment variables, private `config/production.php`, `server-php/data/db-config.php` for local/admin setup, or SQLite defaults for local/dev.
-- Production target is MySQL; SQLite remains local/dev unless explicitly selected later.
-- Settings such as Stripe, SMTP, credit policy, and support email are stored through `setting_get()` / `setting_set()` unless environment variables override them.
+- `public/index.php` includes all modules directly and dispatches routes procedurally.
+- `pages.php` no longer owns rendering logic, but callers still include it for the extracted modules and constants.
+- DB settings can come from defaults, `server-php/data/db-config.php`, environment variables or private `config/production.php`.
+- SQLite is local/development only. When `NICHOIR_ENV=production`, `db.php` requires `NICHOIR_DB_DRIVER=mysql` and complete MySQL/MariaDB connection values.
+- Invalid DB drivers are rejected; they are not normalized back to SQLite.
+- Stripe, SMTP, credit policy and support email settings are stored through `setting_get()` / `setting_set()` unless env/private config overrides them.
 
 ## Invariants
 
 - Credit policy belongs in `credits.php`; do not reintroduce per-export hardcoded costs in routes or UI copy.
-- Debit flows must write `credit_ledger` rows and audit/app logs.
+- Debit flows must write `credit_ledger` rows and app/audit logs.
 - `/api/exports/consume` must atomically claim an authorization before debit.
-- Contact form handling must keep CSRF, honeypot, rate limiting, input limits, SMTP error handling, and flash messages.
+- Contact handling must keep CSRF, honeypot, rate limit, input limits, SMTP failure handling and flash messages.
 - Stripe secrets and SMTP passwords should prefer environment variables or private config in production.
-- Admin write actions are protected by session login and CSRF; keep them auditable.
+- Admin write actions require a logged-in PHP session and CSRF; keep them auditable.
+- Public page text should go through `i18n.php`; admin pages are currently French-only.
 
-## Planned split
+## Planned cleanup
 
 See `../../docs/refactoring-plan.md`.
 
-Target split:
+Current main cleanup target:
 
-- `public/site.js` for current inline page scripts.
-
-Already extracted: `helpers.php`, `i18n.php`, `layout.php`, `contact.php`, `public_pages.php`, `account_pages.php`, `admin_core.php`, `admin_exports.php`, `admin_helpers.php`, `admin_actions.php`, and `admin_pages.php`.
+- Move inline scripts from `layout.php`, `account_pages.php` and `admin_pages.php` into `server-php/public/site.js`, then add and test a stricter CSP.

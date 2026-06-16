@@ -1,24 +1,26 @@
-# App FastAPI historique
+# Historical FastAPI app
 
-Role: ancienne API de licence FastAPI/SQLite utilisee pour prototyper l'autorisation avant la plateforme PHP.
+Role: old FastAPI/SQLite license API used to prototype authorization before the PHP platform.
 
-Etat actuel:
+Current status:
 
-- Cette section est secondaire.
-- Le serveur PHP dans `server-php/` est maintenant la cible principale pour comptes, credits, admin, API et Stripe.
-- Ne pas ajouter de nouvelle logique produit ici sans decision explicite.
+- Secondary reference only.
+- The active backend is `server-php/`.
+- Do not add product behavior here without an explicit decision to revive this prototype.
 
-Fichiers importants:
+Files:
 
-- `main.py`: endpoints FastAPI de health, bootstrap dev, login et statut licence.
-- `models.py`: tables SQLAlchemy de l'ancienne API.
-- `database.py`: session SQLite SQLAlchemy.
-- `security.py`: hash mot de passe et tokens.
-- `settings.py`: configuration de cette API.
+- `main.py`: FastAPI app with health, optional dev bootstrap, login and license status endpoints.
+- `models.py`: SQLAlchemy tables for users, sessions and licenses.
+- `database.py`: SQLAlchemy engine/session setup using `DATABASE_URL`.
+- `security.py`: password hashing and token helpers.
+- `settings.py`: Pydantic settings loaded from environment or optional `.env`.
 
-Usage si necessaire:
+Useful command:
 
 ```bash
 cd server
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8018
+ALLOW_DEV_BOOTSTRAP=true uvicorn app.main:app --reload --host 127.0.0.1 --port 8018
 ```
+
+The current WASM/PHP app does not call this API.

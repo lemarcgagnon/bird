@@ -1,62 +1,50 @@
-# Nichoir16 License API historique
+# Nichoir16 historical FastAPI license API
 
-Mini backend FastAPI/SQLite cree pour tester l'autorisation avant la plateforme PHP.
+This folder is the old FastAPI/SQLite prototype used to test login and license authorization before the PHP platform existed.
 
-Etat actuel: cette section est secondaire. Le serveur cible actif est `server-php/`, qui gere maintenant comptes, credits, admin, API, billing placeholder et webhook Stripe. Ne pas ajouter de nouvelle logique produit ici sans decision explicite.
+Current status: secondary reference only. The active backend is `server-php/`, which now owns accounts, credits, admin, public pages, API, billing, Stripe, tickets, contact email and deployment.
 
 ## Structure
 
-- `app/`: code FastAPI historique. Voir `app/README.md`.
-- `requirements.txt`: dependances Python de ce prototype.
+- `app/`: FastAPI prototype code. See `app/README.md`.
+- `requirements.txt`: Python dependencies for this prototype.
 
-## Installer l'API
+## Local use if needed
 
-Depuis `/home/marc/Documents/nichoir16/server` :
+There is no `.env.example` in this folder. Create `.env` only when you need to override the defaults from `app/settings.py`.
 
 ```bash
+cd /home/marc/Documents/nichoir16/server
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env
+```
+
+Optional `.env` for dev bootstrap:
+
+```text
+ALLOW_DEV_BOOTSTRAP=true
+CORS_ORIGINS=http://127.0.0.1:8016
+DATABASE_URL=sqlite:///./nichoir16.db
+```
+
+Start the prototype:
+
+```bash
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8018
 ```
 
-SQLite creera automatiquement le fichier `nichoir16.db` dans ce dossier au premier demarrage.
+SQLite creates `nichoir16.db` in this folder on first startup.
 
-## Creer l'utilisateur demo
+## Endpoints
 
-```bash
-curl -X POST http://127.0.0.1:8018/dev/bootstrap
-```
+- `GET /health`
+- `POST /dev/bootstrap` when `ALLOW_DEV_BOOTSTRAP=true`
+- `POST /auth/login`
+- `GET /license/status` with a bearer token
 
-Compte demo :
+The prototype may define local bootstrap credentials in `settings.py`. Treat them as development-only and do not copy them into production docs, public assets or release artifacts.
 
-```text
-demo@nichoir.local
-demo1234
-```
+## Boundary
 
-## Tester login + licence
-
-```bash
-curl -X POST http://127.0.0.1:8018/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"demo@nichoir.local","password":"demo1234"}'
-```
-
-Ensuite utiliser le `access_token` retourne :
-
-```bash
-curl http://127.0.0.1:8018/license/status \
-  -H 'Authorization: Bearer TOKEN_ICI'
-```
-
-## Role dans la migration WASM
-
-Cette API ne remplace pas le WASM. Elle sert a autoriser l'utilisation :
-
-1. Le navigateur charge l'app.
-2. L'utilisateur se connecte.
-3. L'API confirme que la licence est active.
-4. L'app active les fonctions payantes.
-5. Stripe remplacera plus tard la creation manuelle de licence.
+Do not add new product logic here unless the project explicitly reactivates this FastAPI prototype. New account, billing, credit and export authorization work belongs in `server-php/`.

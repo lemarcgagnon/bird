@@ -226,28 +226,28 @@ Mesures deja en place:
 - Plafonds image decodee cote Rust/WASM.
 - CORS configurable via `NICHOIR_CORS_ORIGINS`; par defaut seul `http://127.0.0.1:8016` est autorise pour le dev.
 - Headers PHP de base: `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`.
+- CSP minimale activee avec scripts/styles inline acceptes pour compatibilite actuelle; CSP stricte attend extraction des scripts inline PHP.
 - Payload JSON limite a `256 KiB`.
 - Offres checkout limitees a `credits`, `atelier`, `pro`.
 - Types d'export limites a `svg`, `png`, `pdf`, `stl`, `zip`; type inconnu refuse.
 - `consume` reverifie le statut du compte et le solde au moment du debit.
 - Champs compte/tickets limites cote serveur.
 - Admin CRUD centralise cote PHP; le WASM ne gere pas les clients.
-- SMTP tickets configurable dans `/admin`; le mot de passe peut venir de `NICHOIR_SMTP_PASSWORD` pour eviter de stocker le secret dans SQLite en production.
-- DB cPanel/MySQL configurable dans `/admin`; les variables `NICHOIR_DB_*` restent preferees en production, sinon le fichier local `server-php/data/db-config.php` est ignore par Git.
+- SMTP tickets configurable dans `/admin`; le mot de passe peut venir de `NICHOIR_SMTP_PASSWORD` ou d'une config privee pour eviter de stocker le secret en base.
+- DB cPanel/MySQL configurable dans `/admin`; les variables/config privee `NICHOIR_DB_*` ou alias `NICHOIR_MYSQL_*` restent preferees en production. SQLite est local/developpement seulement.
+- Production `NICHOIR_ENV=production` exige `NICHOIR_DB_DRIVER=mysql`; config invalide ou SQLite echoue ferme.
 - Exports admin de base disponibles en CSV/Excel/JSON; ils doivent rester reserves a l'admin et ne jamais inclure les secrets ou password hashes.
 
-Risques restants avant production:
+Risques restants / durcissement apres stabilisation `3dee4a1`:
 
 - Ajouter plafonds triangles/STL/ZIP et refus explicite d'export trop lourd.
-- Ajouter rate limiting sur login, inscription, tickets et webhooks.
-- Ajouter CSRF robuste si l'admin passe a une session/cookie.
-- Remplacer le `key` admin en query string par une authentification admin propre.
-- Configurer `NICHOIR_STRIPE_WEBHOOK_SECRET` en production pour refuser les webhooks Stripe non signes.
-- Ajouter une politique CSP adaptee aux pages PHP et a l'app.
+- Renforcer rate limiting tickets et webhooks.
+- Tester `NICHOIR_STRIPE_WEBHOOK_SECRET` avec Stripe reel en production pour confirmer le rejet des webhooks non signes.
+- Extraire les scripts inline PHP et passer a une CSP plus stricte.
 - Remplacer ou completer le hard delete admin par une politique de retention/soft delete.
 - Revoir le stockage du bearer token dans `localStorage` si l'app devient exposee a du contenu tiers.
 - Proteger les secrets SMTP comme les secrets Stripe: acces admin strict, variables serveur preferees, pas de commit de base contenant un vrai mot de passe.
-- Proteger les credentials DB: ne pas exposer `server-php/data`, pointer le document root vers `server-php/public`, ne jamais committer `db-config.php`.
+- Proteger les credentials DB: ne pas exposer `server-php/data` ni `nichoir_private`, utiliser l'artifact `public_html/` + `nichoir_private/`, ne jamais committer `db-config.php` ou `production.php`.
 
 ## 7. Plan d'implementation recommande
 
@@ -284,6 +284,9 @@ Risques restants avant production:
 - Ajouter API pour compte, credits, abonnement, tickets et messages. Fait, avec limites de base.
 - Ajouter landing page, espace client et admin PHP. Fait.
 - Ajouter Stripe Checkout link puis webhook PHP. Fait: Checkout/portail/factures et signature webhook quand le secret Stripe est configure.
+- Ajouter admin session + CSRF. Fait.
+- Ajouter fail-closed production MySQL et health check production. Fait.
+- Vendoriser Three.js localement. Fait.
 - Garder calcul client-side. Fait.
 
 ## 8. Checklist rapide
@@ -300,7 +303,7 @@ Risques restants avant production:
 - [x] Limiter payload JSON API.
 - [x] Valider offres checkout et types d'export.
 - [x] Revalider statut/credits au debit d'export.
-- [ ] Ajouter rate limiting serveur.
-- [ ] Ajouter CSRF/admin auth production.
+- [x] Ajouter rate limiting serveur de base pour auth, activation et logs client.
+- [x] Ajouter CSRF/admin auth production.
 - [x] Activer signature Stripe reelle quand un webhook secret est configure.
 - [x] Ajouter tests avec entrees invalides pour clamps et SVG dangereux.

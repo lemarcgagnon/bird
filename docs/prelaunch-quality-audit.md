@@ -2,6 +2,8 @@
 
 Date: 2026-06-16
 
+Status update after commit `3dee4a1`: the app-level Namecheap/cPanel production blockers from this audit have been addressed in targeted passes. The validated artifact uses prebuilt browser assets, local Three.js, production fail-closed config, MySQL-only production behavior, generic admin-visible technical errors, and no public demo/quick-login UI. Remaining validation is real-hosting validation with production MySQL/MariaDB, SMTP, Stripe and HTTPS.
+
 ## Purpose
 
 This document is the fixed reference for the prelaunch quality pass before Nichoir goes online on regular Namecheap/cPanel shared hosting.
@@ -13,9 +15,9 @@ It has two jobs:
 
 ## Overall verdict
 
-FAIL for production launch until the remaining critical security and deployment-boundary items are fixed.
+PASS WITH FIXES for app-level production readiness, excluding final live Namecheap/cPanel validation.
 
-The code is structurally close, PHP syntax is clean, and the public language handoff is mostly aligned. The current launch blockers are admin security, installer exposure, deployment packaging, demo credential leakage, production runtime hardening, and tracked runtime data.
+The earlier FAIL verdict below is historical. Its app-level blockers were resolved or converted into explicit follow-up hardening items before the `3dee4a1` release baseline.
 
 ## Current deployment context
 
@@ -63,7 +65,7 @@ Important local state:
 
 Completed after this audit:
 
-1. Public account demo credentials were removed from server-rendered account markup.
+1. Public account test credentials were removed from server-rendered account markup.
 2. Production error display policy was added to the PHP front controller and installer.
 3. Secure session cookie setup was centralized for app sessions and added to the installer.
 4. Admin POST actions now require a CSRF token in addition to the session login check.
@@ -72,9 +74,12 @@ Completed after this audit:
 7. `.wasm`, `.json`, and `.js` MIME declarations were added to `.htaccess` files.
 8. WASM stale credit labels and the `deco_clip` fallback were corrected.
 
-Still open:
+Still open after `3dee4a1`:
 
-1. Re-run the full release gate after runtime DB cleanup.
+1. Run real Namecheap/cPanel validation with actual MySQL/MariaDB credentials.
+2. Test real SMTP delivery on the target account.
+3. Test Stripe checkout, portal and signed webhook delivery against the real HTTPS domain.
+4. Confirm HTTPS-only cookie behavior on the final domain.
 
 Completed in the admin login pass:
 
@@ -96,8 +101,21 @@ Completed in the Namecheap/cPanel packaging pass:
 6. Public artifact excludes installer, docs, PHP source, PHP data, migrations, scripts, Rust source, `.git`, package metadata, SQLite, config, logs, backups, and dev files.
 7. Private artifact contains `server-php/public/index.php`, `server-php/src/`, `server-php/data/README.md`, `server-php/migrations/`, `config/`, and `logs/`.
 8. Runtime config now reads environment variables first and private `config/production.php` second.
-9. Production config target is MySQL; SQLite remains local/dev unless explicitly selected later.
-10. Public app runtime no longer ships localhost/demo credential literals.
+9. Production config target is MySQL; SQLite is local/development only and is rejected when `NICHOIR_ENV=production`.
+10. Public app runtime no longer ships local test credential literals.
+
+Completed in the production runtime hardening pass:
+
+1. cPanel wrapper defaults to `NICHOIR_ENV=production`.
+2. Production requires `NICHOIR_DB_DRIVER=mysql` and complete MySQL/MariaDB config.
+3. Production fails closed without valid private config.
+4. `/api/health` returns `500 configuration_error` without config and `200` with `env=production`, `db=true`, `db_driver=mysql` when MySQL is valid.
+5. MySQL `DATETIME` writes use `Y-m-d H:i:s` UTC formatting through `sql_utc_datetime()`.
+6. Stripe webhook event retry/idempotency was fixed so failed events can be retried.
+7. `?php_base` is local-host-only and ignored for external hosts.
+8. Three.js is vendored locally in the artifact instead of loaded from CDN.
+9. Public demo/dev/quick-login UI was removed.
+10. SMTP/Stripe/server technical errors shown in admin are generic; details stay in server logs with request IDs.
 
 Packaging validation result:
 
@@ -116,7 +134,9 @@ Completed in the runtime DB/config cleanup pass:
 3. Updated `server-php/data/README.md` to document SQLite as local/dev only and production MySQL as the approved target.
 4. Confirmed the packaging artifact excludes runtime SQLite DB files, local config, install locks, logs, backups, `.env` files, and installer runtime state.
 
-## Critical launch blockers
+## Historical launch blockers from the original audit
+
+The items in this section are kept as an audit trail. For current release status, use the status update and release gate above.
 
 ### 1. Admin access and POST protection
 
@@ -157,10 +177,11 @@ Problem:
 - `/installation` is intentionally reachable in root `.htaccess`.
 - The installer can write database/config settings and should not exist online after setup.
 
-Required fix:
+Current status:
 
-1. Delete `installation/` from the production artifact, or block it explicitly in production `.htaccess`.
-2. Keep installer use limited to setup/dev.
+1. `installation/` is not copied into the Namecheap/cPanel production artifact.
+2. Production `.htaccess` blocks installer paths.
+3. Installer use remains setup/development only.
 
 Risk:
 
@@ -182,32 +203,33 @@ Problem:
 - If the whole repository is uploaded as `public_html`, source/dev folders can be exposed.
 - If only `server-php/public` is the document root, `/app/index.html` and `/wasm/pkg/...` will not be public unless copied or symlinked.
 
-Required fix:
+Current status:
 
-1. Define one production artifact layout.
-2. Public artifact should include only PHP public files, `app/`, `wasm/pkg/`, static assets, and production `.htaccess`.
-3. Private/runtime files should stay outside public web access: `server-php/src`, `server-php/data`, scripts, docs, installer, Rust source.
-4. Add explicit MIME rules for `.wasm`, `.json`, and `.js`.
+1. The production artifact layout is `public_html/` plus `nichoir_private/`.
+2. Public artifact contains only the public wrapper, `.htaccess`, `site.css`, `app/`, local Three.js and `wasm/pkg/` runtime files.
+3. Private/runtime files stay under `nichoir_private/`.
+4. `.wasm`, `.json`, and `.js` MIME rules are present.
 
 Risk:
 
 - Safe if done as packaging.
 - Medium if runtime paths are changed without browser smoke testing.
 
-### 4. Demo credentials in public account page
+### 4. Former public test credentials in account page
 
 File:
 
 - `server-php/src/account_pages.php`
 
-Problem:
+Former problem:
 
-- The public account page contains `demo@nichoir.local` and `password123`.
+- The public account page contained local test credentials.
 
-Required fix:
+Current status:
 
-1. Remove prefilled demo credentials from public PHP.
-2. Keep demo login gated to localhost/config only, like the WASM app already does.
+1. Prefilled public test credentials were removed from PHP account pages.
+2. Public WASM demo/quick-login UI was removed.
+3. Seed credentials remain local development data only and are not documented in production release docs.
 
 Risk:
 
@@ -250,7 +272,7 @@ Status:
 
 Rule:
 
-1. Keep SQLite local/dev only unless explicitly selected later.
+1. Keep SQLite local/development only.
 2. Use MySQL for production.
 3. Keep DB/config/secrets outside `public_html`.
 
@@ -333,7 +355,7 @@ Validation:
 
 1. Search docs for references to `pages.php` as a monolith.
 2. Search docs for stale claims about current i18n drift.
-3. Search docs for stale dev-only credentials and ports marked as production steps.
+3. Search docs for stale dev-only credential markers and ports marked as production steps.
 
 ### Phase 2 - Add repeatable drift checks
 
@@ -350,8 +372,8 @@ Checks:
    - `localhost`
    - `127.0.0.1`
    - `/home/marc`
-   - `demo@nichoir.local`
-   - `password123`
+   - known local seed account markers
+   - known local seed password markers
 6. Security scan:
    - `$_GET`, `$_POST`, `$_COOKIE`, `$_SERVER`, `$_FILES`
    - dangerous PHP functions
@@ -370,7 +392,7 @@ Output:
 
 Order:
 
-1. Remove public demo credentials.
+1. Remove public test credentials.
 2. Add production error/session helpers.
 3. Add admin session auth and CSRF.
 4. Convert remaining dynamic SQL to prepared statements.
@@ -405,7 +427,7 @@ The project is ready to upload only when all these are true:
 
 Safe small fixes:
 
-1. Remove demo credentials from public PHP account page.
+1. Remove test credentials from public PHP account page.
 2. Add `.wasm` and `.json` MIME types.
 3. Add production error display policy.
 4. Add shared secure session helper.
@@ -431,7 +453,7 @@ Before edits:
 Recommended next pass:
 
 1. Security-first small pass:
-   - Remove demo credentials.
+   - Remove public test credentials.
    - Add production error policy.
    - Add secure session helper.
    - Historical note: add admin CSRF while preserving the then-current admin key temporarily.

@@ -1,75 +1,81 @@
-# Nichoir WASM
+# Nichoir
 
-Application web pour concevoir un nichoir parametrable, visualiser le modele 3D et exporter des fichiers de fabrication. Cette version migre la logique principale vers Rust compile en WebAssembly afin que les calculs, la geometrie et les exports s'executent cote client.
+Application web pour concevoir un nichoir parametrable, le visualiser en 3D et telecharger des fichiers de fabrication. L'etat actuel du repo est une app Rust/WebAssembly cote navigateur, encadree par un site PHP qui gere comptes, credits, support, admin, Stripe et deploiement cPanel.
 
-## Objectif du projet
+Etat release: le commit `3dee4a1` est la base production stabilisee pour Namecheap/cPanel. L'artifact cPanel a ete valide localement avec PHP lint, smoke WASM/mesh, scans de secrets/fichiers interdits, Three.js local, `/api/health` fail-closed sans config et `/api/health` positif avec MySQL temporaire.
 
-Le but est de remplacer l'ancienne app HTML/JavaScript par une app WASM plus difficile a copier directement et plus robuste pour la generation de geometrie.
+`nichoir_v16.html` reste une reference historique monofichier. Le chemin actif est `app/` + `wasm/` + `server-php/`.
 
-Principes du projet:
+## Surfaces actives
 
-- Le navigateur calcule le modele, les pieces, le plan de coupe et les exports.
-- Le serveur PHP sert la landing page, l'espace client/admin, l'API, l'autorisation, les credits, les abonnements et Stripe.
-- Les fichiers STL/OBJ/ZIP sont generes localement pour eviter les couts CPU et transfert serveur.
-- Le serveur ne recoit pas la geometrie lourde et ne genere pas les STL/PDF/ZIP.
-- `nichoir_v16.html` reste une reference fonctionnelle historique, pas l'app finale.
-
-## Architecture cible du site
-
-En production, le site doit etre un site PHP unique qui sert les pages publiques, l'app WASM et l'API:
+Le repo vise un site PHP unique pour les surfaces publiques et applicatives:
 
 ```text
-/                 Landing page publique
-/pricing          Offres, credits et abonnements
-/app/             Application Rust/WASM de conception
-/account          Espace client: profil, credits, abonnement, factures, tickets
-/admin            Administration privee: clients, billing, exports, tickets, logs, reglages
-/api/...          API JSON utilisee par l'app et l'espace client
-/stripe/webhook   Webhook Stripe cote serveur
+/                         Landing publique
+/pricing                  Offres et regles de credits
+/about                    Page a propos
+/contact                  Formulaire contact et liens support
+/terms                    Conditions
+/legal                    Mentions legales
+/app/                     App statique Rust/WASM
+/account                  Espace client
+/admin/login              Connexion admin par session PHP
+/admin                    Back-office prive
+/admin/exports/download   Export admin CSV/XLS/JSON
+/api/...                  API JSON compte, billing, exports, tickets, logs client
+/stripe/webhook           Webhook Stripe
+/installation/            Installateur temporaire a supprimer apres setup
 ```
 
-Separation des responsabilites:
+Responsabilites actuelles:
 
-- Rust/WASM: geometrie, calculs, viewer, plans, STL, ZIP, decorations.
-- JavaScript front: glue navigateur, appels API, telechargements, Three.js.
-- PHP/API: comptes, sessions, credits, abonnements, tickets, paiements, webhooks Stripe, autorisations courtes.
-- Logs/audit: evenements applicatifs, securite, actions admin/client, erreurs client/WASM et webhooks Stripe.
-- Stripe: paiement externe; les secrets et webhooks restent toujours cote PHP.
+- PHP: pages publiques, comptes, sessions, activation courriel, credits, billing Stripe, tickets, contact, admin, logs, SMTP, CORS, migrations et configuration.
+- Rust/WASM: parametres, geometrie, calculs, maillages, decorations, plan SVG, exports STL/OBJ/ZIP et HTML dense de l'app.
+- JavaScript: chargement WASM, viewer Three.js local, theme/langue, modal compte, appels API PHP, logs client, captures PNG/PDF et flux autorisation/consommation des telechargements.
+- Le serveur ne recoit pas de geometrie lourde et ne genere pas les fichiers de fabrication.
 
-## Carte rapide du repo
+## Carte du repo
 
-- `app/`: interface navigateur, viewer Three.js, appels API PHP et exports. Voir `app/README.md`.
-- `installation/`: assistant d'installation serveur temporaire. Voir `installation/README.md`.
-- `wasm/`: coeur Rust compile en WebAssembly. Voir `wasm/README.md`.
-- `server-php/`: serveur cible PHP SQLite/MySQL pour site, API, admin, comptes, credits, tickets, Stripe et cPanel. Voir `server-php/README.md`.
-- `server/`: prototype FastAPI historique de licence, secondaire. Voir `server/README.md`.
-- `docs/`: roadmap et securite. Voir `docs/README.md`.
-- `scripts/`: validations locales, surtout smoke tests mesh. Voir `scripts/README.md`.
-- `nichoir_v16.html`: ancienne reference fonctionnelle monofichier, pas l'app finale.
+- `app/`: shell navigateur, glue JavaScript, Three.js vendorise localement, styles de l'app WASM. Voir `app/README.md`.
+- `wasm/`: crate Rust compile en WebAssembly. Voir `wasm/README.md`.
+- `server-php/`: backend et site PHP actifs, SQLite local/dev et MySQL obligatoire en production cPanel. Voir `server-php/README.md`.
+- `installation/`: assistant web one-shot pour config DB/SMTP et lock d'installation. Voir `installation/README.md`.
+- `deployment/namecheap/`: packaging public/private pour Namecheap/cPanel. Voir `deployment/namecheap/README.md`.
+- `scripts/`: smoke tests mesh et script d'artifact cPanel. Voir `scripts/README.md`.
+- `docs/`: index de plans, audit et notes historiques. Voir `docs/README.md`.
+- `server/`: ancienne API FastAPI/SQLite de licence, gardee comme reference. Voir `server/README.md`.
+- `nichoir_v16.html`: ancienne reference fonctionnelle monofichier.
+- `rust-plan.md`: plan historique de migration Rust/WASM.
 
-## Lancer l'app localement
+## Lancer en local
 
-En dev, utiliser deux serveurs pour eviter de melanger l'app statique et l'API:
+Serveur PHP site/API:
 
 ```bash
 cd /home/marc/Documents/nichoir16
-php -S 127.0.0.1:8016 -t /home/marc/Documents/nichoir16
+php -S 127.0.0.1:8021 -t server-php/public
 ```
 
-Dans un autre terminal:
+Serveur statique pour l'app:
 
 ```bash
 cd /home/marc/Documents/nichoir16
-php -S 127.0.0.1:8021 -t /home/marc/Documents/nichoir16/server-php/public
+php -S 127.0.0.1:8016 -t .
 ```
 
-Puis ouvrir l'app:
+Ouvrir le site:
 
 ```text
-http://127.0.0.1:8016/app/index.html
+http://127.0.0.1:8021/
 ```
 
-Si le navigateur garde une ancienne version, faire `Ctrl+F5`.
+Ouvrir l'app directement avec l'API PHP separee:
+
+```text
+http://127.0.0.1:8016/app/index.html?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021
+```
+
+Sans `php_base`, l'app utilise `window.location.origin` pour l'API. C'est le bon comportement dans l'artifact production, ou `public_html/app/` et le wrapper PHP sont sur la meme origine. L'override `php_base` est ignore hors hote local.
 
 ## Compiler le WASM
 
@@ -87,292 +93,108 @@ cd /home/marc/Documents/nichoir16/wasm
 wasm-pack build --target web
 ```
 
-Le package genere est dans:
+Le package genere est `wasm/pkg/`; `app/app.js` importe `wasm/pkg/wasm.js`.
 
-```text
-wasm/pkg/
-```
+## Fonctionnalites app
 
-Ce dossier est utilise par `app/app.js`.
-
-## Structure du projet
-
-```text
-app/
-  index.html      Coquille web minimale
-  app.js          Glue JS, viewer Three.js, telechargements
-  style.css       Interface, light/dark mode
-
-wasm/
-  Cargo.toml
-  src/lib.rs      Logique Rust/WASM: UI, geometrie, calculs, exports
-  pkg/            Sortie wasm-pack
-
-docs/
-  reste-a-faire.md  Etat fonctionnel et roadmap
-  securizons.md     Notes de securite fichiers/inputs/WASM
-
-server/
-  Ancienne API FastAPI/SQLite de prototype, gardee comme reference historique
-
-server-php/
-  Backend PHP local/cPanel: site public, compte, admin, credits, billing Stripe, autorisations, tickets, config DB
-
-installation/
-  index.php       Installateur web temporaire pour DB/migrations/SMTP/lock
-
-scripts/
-  mesh-smoke.mjs  Smoke test mesh/STL
-
-nichoir_v16.html  Ancienne reference fonctionnelle
-rust-plan.md      Plan de migration Rust/WASM
-```
-
-## Fonctionnalites principales
-
-- Dimensions en `mm`, `cm` et `in`.
-- Largeur, hauteur, profondeur, epaisseur et evasement.
-- Plancher `enclave` ou `pose`.
-- Toit avec pente, debordement pluie et jonction de crete.
-- Jonction de crete `gauche`, `droit` ou `onglet`.
-- Porte `aucune`, `ronde`, `carree` ou `pentagonale`.
-- Panneau de porte optionnel.
-- Perchoir cylindrique optionnel.
+- Unites `mm`, `cm` et `in`.
+- Dimensions, epaisseur, evasement, plancher `enclave` ou `pose`.
+- Toit avec pente, debordement pluie et crete `gauche`, `droit` ou `onglet`.
+- Porte `aucune`, `ronde`, `carree` ou `pentagonale`, panneau de porte optionnel et perchoir cylindrique optionnel.
 - Jusqu'a quatre trous de suspension dans le toit.
-- Viewer 3D avec modes plein, filaire, rayons X et aretes.
-- Mode eclate.
-- Recentrage de la vue.
-- Light mode et dark mode.
-- Interface avec divulgation progressive pour reduire les menus.
-
-## Decorations
-
-La section `Decor` permet d'importer des fichiers pour generer du relief sur les panneaux.
-
-Formats supportes:
-
-- SVG
-- PNG
-- JPG/JPEG
-- GIF comme image fixe
-- WEBP
-
-Modes:
-
-- `Vectoriel`: extrusion simple de formes SVG.
-- `Heightmap`: relief selon la luminance de l'image.
-
-Controles disponibles:
-
-- taille;
-- position;
-- rotation;
-- profondeur;
-- resolution;
-- suppression optionnelle du fond blanc/transparent;
-- inversion;
-- autosmooth;
-- bevel/chamfer;
-- seuil anti-bruit;
-- clipping au panneau.
-
-Sur la facade avant, le decor est coupe pour ne pas recouvrir la porte d'entree ou le trou du perchoir.
+- Viewer Three.js avec modes plein, filaire, rayons X, aretes et mode eclate.
+- Light/dark mode, langue FR/EN et liens de retour au site PHP.
+- Decorations SVG, PNG, JPG/JPEG, GIF fixe et WEBP en modes vectoriel ou heightmap.
+- Clipping decor au panneau et aux trous, limite fichier navigateur de 2 Mo et limites decodees cote WASM.
 
 ## Exports
 
-Exports actuellement disponibles:
+Telechargements premium autorises par PHP puis generes localement:
 
 - STL maison complete;
-- OBJ maison complete pour debug;
 - STL porte;
-- ZIP de panneaux separes;
-- plan de coupe SVG.
+- ZIP de panneaux STL separes;
+- plan SVG;
+- plan PNG;
+- PDF du plan de coupe avec image d'assemblage;
+- PDF des calculs;
+- PNG de l'assemblage eclate.
 
-Important pour l'impression 3D:
+Diagnostics gratuits/non debites dans l'app actuelle:
 
-- Les pieces separees du ZIP sont l'objectif principal pour fabrication par panneaux.
-- Le STL maison complete est un assemblage de panneaux en contact.
-- Pour une maison complete parfaitement fusionnee en un seul solide manifold, il faudra ajouter une vraie union booleenne/CSG.
+- OBJ maison complete pour debug;
+- rapport mesh JSON.
 
-## Plan de coupe
+Les pieces separees du ZIP sont l'objectif principal pour fabrication par panneaux. Le STL maison complete reste un assemblage de panneaux en contact; une union booleenne/CSG serait necessaire pour produire une maison complete parfaitement fusionnee en un seul solide manifold.
 
-Le plan de coupe utilise:
+## Backend PHP
 
-- formats de panneaux commerciaux;
-- dimensions custom;
-- trait de scie;
-- placement 2D des pieces;
-- statistiques d'utilisation.
-
-Les valeurs affichees respectent l'unite choisie par l'utilisateur.
-
-## Tests et diagnostics
-
-Build WASM:
-
-```bash
-cd wasm
-wasm-pack build --target web
-```
-
-Smoke test mesh:
-
-```bash
-node scripts/mesh-smoke.mjs
-```
-
-Diagnostic depuis l'interface:
-
-- bouton `Rapport mesh`;
-- export OBJ pour ouvrir dans Blender ou inspecter la geometrie.
-
-## Securite
-
-Le document detaille est ici:
-
-```text
-docs/securizons.md
-```
-
-Points importants:
-
-- Ne jamais faire confiance aux fichiers importes.
-- Sanitize les SVG avant rasterisation ou extrusion.
-- Limiter la taille des fichiers et images decodees.
-- Clamper les inputs numeriques cote Rust/WASM, pas seulement dans l'UI.
-- Refuser les meshes vides, non finis ou trop lourds avant export.
-- Ne jamais placer de secrets Stripe ou licence dans le WASM.
-
-## Backend PHP local
-
-Le dossier `server-php/` contient le backend cible pour tester le site PHP, les comptes, les credits, le billing Stripe, l'autorisation d'export et les tickets. SQLite est le mode local; MySQL/cPanel est supporte via `/admin` > `Reglages`.
-
-Demarrage:
-
-```bash
-cd /home/marc/Documents/nichoir16
-php -S 127.0.0.1:8021 -t server-php/public
-```
-
-Cette API ne fait pas la geometrie. Elle valide la session, retourne l'etat du compte, expose l'historique credits et billing, cree les sessions Stripe, autorise les exports et debite les credits apres generation locale reussie.
+`server-php/public/index.php` est le front controller actif. Il inclut les modules de `server-php/src/`, applique les migrations, emet les headers de base, route les pages publiques, l'espace client, l'admin, l'API JSON, le contact POST et Stripe.
 
 Etat actuel:
 
-- PHP sert deja `/`, `/pricing`, `/account`, `/admin` et `/api/...`.
-- `/account` gere login/register/logout, activation compte par code email, edition profil, credits, historique, abonnement, portail Stripe, paiements/factures, creation de tickets, fil de messages, reponses client et statut open/closed.
-- `/admin` gere repertoire utilisateurs, creation, edition profil, reset mot de passe, suppression confirmee, credits, suspension/reactivation, abonnement manuel, tickets avec fil/reponse/statut/priorite/assignation, logs applicatifs/audit/Stripe, configuration DB cPanel/MySQL, configuration Stripe, configuration SMTP cPanel, paiements/factures et exports DB CSV/Excel/JSON.
-- `/api/client-log` recoit les erreurs client/WASM limitees a 10/minute par user/IP, sans geometrie ni contenu de formulaire.
-- `/stripe/webhook` verifie `Stripe-Signature` quand le secret est configure, journalise `stripe_events` et `stripe_event_logs`, puis applique `checkout.session.completed`, `invoice.*` ou `customer.subscription.*`.
-- L'app WASM garde seulement un resume compte et des liens vers le site; le serveur PHP reste la source de verite. Le shell WASM expose maintenant une navigation FR/EN avec icones sur les zones denses, un modal compte plus lisible et une sortie persistante `Site` dans l'en-tete pour revenir au site PHP. Hors localhost, le login demo rapide est desactive sauf config explicite `window.NICHOIR_DEMO_ACCOUNT`.
-- Garde-fous API ajoutes: CORS configurable par `NICHOIR_CORS_ORIGINS`, payload JSON limite, validation stricte des offres/types d'export, revalidation du compte au debit, rate limit auth par IP/email, quotas email activation, limites serveur sur tickets/profil et headers HTTP de base.
-- Garde-fous app ajoutes: limite `2 Mo` sur les fichiers decor importes et configuration PHP/demo hors build local.
-- Stripe Checkout/portail/factures sont branches cote PHP. Avant production, il faut tester avec les vrais price IDs, activer le portail dans le dashboard Stripe et configurer `NICHOIR_STRIPE_WEBHOOK_SECRET`.
+- `/account` gere login/register/logout, activation par code email, profil, credits, historique, abonnement, paiements/factures Stripe, tickets, fils de messages et statut open/closed.
+- `/admin` utilise `/admin/login`, `NICHOIR_ADMIN_PASSWORD_HASH`, session PHP, `password_verify()`, `session_regenerate_id(true)` et CSRF sur les POST.
+- L'admin gere clients, credits, statuts, abonnements manuels, tickets, logs, exports DB, reglages DB/Stripe/SMTP et tests email.
+- `server-php/src/credits.php` est la source de verite pour les types d'export premium, le cout configure et le bonus de solde partiel.
+- `/api/exports/authorize` cree une autorisation courte; `/api/exports/consume` la reclame atomiquement avant debit.
+- `/api/client-log` accepte les erreurs navigateur/WASM avec rate limit de 10 logs/minute par utilisateur ou IP.
+- `/stripe/webhook` verifie `Stripe-Signature` quand un secret est configure, journalise les evenements et synchronise checkout, invoices, paiements et abonnements.
+- SQLite est le mode local/developpement uniquement.
+- En production cPanel, le wrapper force `NICHOIR_ENV=production`; `NICHOIR_DB_DRIVER=mysql` et une config MySQL complete sont obligatoires.
+- Sans config production valide, l'app echoue fermee et `/api/health` retourne `500 configuration_error`.
+- Avec config MySQL valide, `/api/health` doit retourner `env=production` et `db_driver=mysql`.
 
-Deploiement cPanel:
+## Deploiement cPanel
 
-- pointer le document root vers `server-php/public`;
-- garder `server-php/src`, `server-php/data` et `server-php/migrations` hors web public;
-- creer la base et l'utilisateur MySQL dans cPanel, puis tester/enregistrer dans `/admin` > `Reglages` > `Base de donnees`;
-- le fichier local `server-php/data/db-config.php` est ignore par Git;
-- sinon, deployer la racine du projet avec le `.htaccess` versionne, ouvrir `/installation/`, terminer le setup, puis supprimer ce dossier du serveur;
-- l'installateur pose `server-php/data/installed.lock.php` pour bloquer une seconde installation; ce fichier est local, non versionne, et doit rester hors Git;
-- definir `NICHOIR_LOG_HASH_SALT` en production pour hasher IP/courriels dans les logs sans exposer les valeurs brutes.
+La cible documentee est un artifact `public_html/` + `nichoir_private/`, pas une copie brute de tout le repo:
 
-Risques securite encore ouverts avant production:
+```bash
+scripts/build-cpanel-artifact.sh /tmp/nichoir-cpanel-artifact
+```
 
-- Ajouter rate limiting sur tickets et webhooks; login, inscription, activation, renvoi de code et logs client sont deja limites.
-- Admin actuel: `/admin/login`, session PHP, `password_verify()`, `session_regenerate_id(true)` et actions POST protegees par CSRF. L'ancien acces admin par cle en URL est historique et ne doit pas etre utilise en production.
-- Configurer `NICHOIR_STRIPE_WEBHOOK_SECRET` et tester les webhooks Stripe live.
-- Ajouter CSP, retention/rotation des logs et plafonds triangles/STL/ZIP. Sanitizer SVG et clamps Rust/WASM ont maintenant une premiere passe.
+Points critiques:
 
-## Roadmap courte
+- `public_html/` contient seulement le wrapper PHP public, `.htaccess`, `site.css`, `app/` avec Three.js local, et `wasm/pkg/wasm.js` + `wasm_bg.wasm`.
+- `nichoir_private/` contient `server-php/public/index.php`, `server-php/src/`, `server-php/migrations/`, `server-php/data/README.md`, config privee et logs.
+- Ne pas mettre `server-php/src`, `server-php/data`, `server-php/migrations`, `installation`, `docs`, `.git`, bases SQLite, dumps ou secrets dans `public_html`.
+- Remplir `nichoir_private/config/production.php` depuis `deployment/namecheap/config/production.example.php`.
+- Definir au minimum `NICHOIR_PUBLIC_BASE_URL`, `NICHOIR_ADMIN_PASSWORD_HASH`, la config MySQL, `NICHOIR_CORS_ORIGINS` et `NICHOIR_LOG_HASH_SALT`.
+- Configurer SMTP reel Namecheap avant emails production.
+- Configurer `NICHOIR_STRIPE_SECRET_KEY` et `NICHOIR_STRIPE_WEBHOOK_SECRET` avant Stripe live.
 
-- Finaliser la parite fonctionnelle avec `nichoir_v16.html`.
-- Continuer le nettoyage HIG de l'interface.
-- Ajouter les coupes X/Y/Z dans le viewer.
-- Completer la parite du plan de coupe.
-- Ajouter une suite de tests de parite entre presets.
-- Renforcer la validation securite des fichiers et inputs.
-- Etudier une union booleenne/CSG pour produire une maison complete fusionnee.
-- Completer le contenu produit de la landing page et de `/pricing`.
-- Ajouter filtres billing avances, surveillance des echecs email et audit lisible dans `/admin`.
-- Tester Stripe live avec les vrais price IDs et le portail active dans Stripe.
-- Documenter la procedure finale cPanel autour de `/installation/`, `.htaccess` et suppression post-setup.
+## Validation utile
 
-## Branche de sauvegarde
+```bash
+node --check app/app.js
+find server-php installation deployment/namecheap -name '*.php' -print -exec php -l {} \;
+cd wasm && cargo check --target wasm32-unknown-unknown
+cd wasm && wasm-pack build --target web
+node scripts/mesh-smoke.mjs
+```
 
-L'ancien `main` GitHub a ete sauvegarde dans:
+Checks manuels importants:
+
+- ouvrir `/`, `/pricing`, `/about`, `/contact`, `/terms`, `/legal`, `/account`, `/admin/login`;
+- tester contact invalide et flash d'erreur apres redirection;
+- tester autorisation puis consommation d'un export avec un compte connecte;
+- consommer deux fois la meme autorisation et verifier qu'un seul debit passe;
+- tester Checkout, portail et webhook Stripe en mode test avant production.
+
+## Points ouverts
+
+- Le texte `pricing_info` et certains libelles WASM indiquent encore 3 credits; le backend renvoie deja le cout reel au moment d'autoriser.
+- Les cartes prix publiques sont encore des traductions statiques, alors que Stripe price IDs et quantites sont des reglages admin.
+- Le label UI `deco_clip` dit encore "coming later/bientot" alors que le clipping decor est deja cable dans le WASM.
+- Les scripts inline PHP restent dans `layout.php`, `account_pages.php` et `admin_pages.php`; une CSP stricte attend leur extraction vers `server-php/public/site.js`.
+- Ajouter rate limiting plus fort sur tickets et webhooks.
+- Ajouter retention/rotation des logs et plafonds triangles/STL/ZIP plus explicites.
+- Finir les tests live Stripe et la traversee clavier complete admin/account.
+
+## Historique
+
+L'ancien `main` GitHub a ete sauvegarde dans la branche:
 
 ```text
 avant-le-wsam
 ```
-
-La branche `main` contient maintenant la version Rust/WASM.
-
-
-## Current codebase map and refactoring status
-
-This section reflects the current repository layout, not the final target architecture.
-
-### Runtime surfaces
-
-- `app/index.html`: static browser shell for the WASM app. It reads `?lang=fr|en`, stores language preference, and loads `app/app.js`.
-- `app/app.js`: browser integration layer. It owns Three.js viewer behavior, API calls to PHP, account modal behavior, localized dynamic messages, theme state, download authorization/consume flow, and links back to PHP pages.
-- `app/style.css`: visual styling for the WASM app shell.
-- `wasm/src/lib.rs`: Rust/WASM core. It owns geometry, UI markup rendered from Rust, calculations, STL/OBJ/ZIP/SVG/PDF-related export generation, and Rust-side i18n labels.
-- `wasm/pkg/`: generated `wasm-pack` output consumed by the browser app.
-- `server-php/public/index.php`: PHP front controller for public pages, account/admin pages, JSON API, Stripe webhook, and contact POST route.
-- `server-php/public/site.css`: centralized CSS for PHP-rendered public pages, account page, and admin UI.
-- `server-php/src/pages.php`: compatibility include that wires focused PHP modules together for the front controller.
-- `server-php/src/credits.php`: source of truth for premium export types, configured credit cost, and partial-balance bonus behavior.
-- `server-php/src/mail.php`: SMTP settings, SMTP send implementation, ticket notification delivery, and mail header sanitization.
-- `server-php/src/stripe.php` and `server-php/src/stripe_webhook.php`: Stripe settings, Checkout, customer portal, signature validation, event logging, subscriptions, invoices, and payment sync.
-- `server-php/src/db.php`: SQLite/MySQL config, PDO connections, migrations/schema creation, settings persistence, and install-lock related helpers.
-- `server-php/src/auth.php`: bearer sessions, user projection, auth rate limits, activation codes, and email quotas.
-- `server-php/src/logger.php`: request IDs, app logs, audit logs, Stripe event logs, slow/fatal shutdown logging, and hashed identifiers.
-- `server-php/src/response.php`: JSON response helpers, JSON body size limit, and base HTTP security headers.
-- `installation/index.php`: one-time setup UI for DB config, migrations, basic SMTP/support email settings, and install lock. Remove from production after setup.
-- `scripts/mesh-smoke.mjs`: local diagnostic for generated mesh/export regressions.
-
-### Current truth boundaries
-
-- PHP is the source of truth for accounts, sessions, credits, billing, support tickets, admin actions, Stripe, SMTP, and public landing/account/admin pages.
-- Rust/WASM is the source of truth for birdhouse geometry, calculations, viewer-side generated UI, and local fabrication exports.
-- JavaScript is glue between browser, WASM, PHP API, downloads, and dynamic UI state. It must not become the source of truth for credit policy or billing.
-- `server-php/src/credits.php` owns export cost policy. Hardcoded frontend copy about credit cost is known drift until pricing/config unification is implemented.
-- `server-php/public/site.css` is the shared CSS for PHP pages. Avoid page-local CSS except temporary installer CSS in `installation/index.php`.
-
-### Current validation status
-
-Last validation pass completed:
-
-- `php -l` passed for the main PHP backend files.
-- `node --check app/app.js` passed.
-- `cargo check --target wasm32-unknown-unknown` passed in `wasm/`.
-- i18n key parity passed for PHP, JS, and Rust/WASM French/English tables.
-- Public route smoke checks passed for home, pricing, about, contact, and account.
-- Contact invalid POST redirects and renders flash errors correctly.
-
-Not fully validated yet:
-
-- Live duplicate export consume path with a real authenticated authorization, because it mutates credits.
-- Full admin UI keyboard traversal.
-- Strict CSP, because inline scripts still exist in PHP-rendered pages.
-- Stripe live checkout/webhook/portal behavior with production price IDs and webhook secret.
-
-### Known code/documentation drift to fix
-
-- `app/app.js` still hardcodes the current 3-credit policy in `pricing_info` copy. It should use backend-provided policy data.
-- `wasm/src/lib.rs` still has a stale French `a venir` label for `deco_clip`.
-- English public pages still render French ARIA labels for navigation/language in `page_response()`.
-- PHP still has a `coming_soon` translation key that should be removed if unused or tied to a real disabled-state UI.
-- PHP concerns are now split into focused modules. Remaining structural cleanup is to move inline JavaScript from PHP renderers into `server-php/public/site.js` and then add/test CSP.
-
-### Refactoring references
-
-- `docs/refactoring-plan.md`: phased plan and validation checklist.
-- `docs/contact-email-plan.md`: contact email implementation and validation plan.
-- `docs/reprise-installation.md`: original restart/install context.
-- `server-php/README.md`: backend-specific ownership, routes, invariants, and deployment notes.
-- `app/README.md`: browser app ownership and frontend drift.
-- `wasm/README.md`: Rust/WASM ownership and validation notes.

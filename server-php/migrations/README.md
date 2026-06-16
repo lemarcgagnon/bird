@@ -1,20 +1,21 @@
-# Migrations PHP
+# PHP migrations
 
-Role: schema versionne de la base utilisee par le serveur PHP. Le runtime supporte SQLite pour le local/dev et MySQL pour la production.
+Role: versioned schema files for the PHP backend.
 
-Fichiers importants:
+## Files
 
-- `001_init.sql`: schema initial comptes, sessions, credits, exports, tickets, messages tickets, notifications tickets, reglages applicatifs, abonnements, paiements, Stripe events et audit admin.
+- `001_init.sql`: SQLite baseline schema for users, sessions, credits, export authorizations, tickets, ticket messages, ticket notifications, app settings, subscriptions, payments, Stripe events and admin audit data.
 
-Regles d'usage:
+## Runtime behavior
 
-- Ajouter une nouvelle migration numerotee pour tout changement de schema.
-- Ne pas modifier une migration deja appliquee sans raison explicite; preferer `002_...sql`.
-- Garder les contraintes et index proches du schema.
-- `run_migrations()` applique les fichiers `*.sql` par ordre alphabetique et journalise les fichiers deja appliques dans `schema_migrations`.
+- For SQLite, `run_migrations()` applies `*.sql` files alphabetically and records applied names in `schema_migrations`.
+- After SQLite migrations, `ensure_runtime_schema()` adds compatibility columns/tables that were introduced after the baseline.
+- For MySQL, `run_migrations_for_pdo()` calls `ensure_mysql_schema()` in `src/db.php`; it does not execute the SQLite SQL files directly.
 
-Point de vigilance:
+## Rules
 
-- Ne jamais versionner `server-php/data/nichoir.sqlite`; la base SQLite est locale/dev seulement.
-- La cible production approuvee est MySQL avec configuration privee hors `public_html`.
-- Ne jamais committer une base, un dump ou une config contenant un vrai mot de passe SMTP; preferer `NICHOIR_SMTP_PASSWORD` ou `config/production.php` prive en production.
+- Add a new numbered migration for schema changes that should be versioned.
+- Do not rewrite an already-applied migration unless there is an explicit reset/migration decision.
+- Keep constraints and indexes close to the schema definition.
+- Never version `server-php/data/nichoir.sqlite`, dumps or production DB configs.
+- Prefer `NICHOIR_SMTP_PASSWORD`, `NICHOIR_STRIPE_SECRET_KEY`, `NICHOIR_STRIPE_WEBHOOK_SECRET` or private `config/production.php` for secrets.

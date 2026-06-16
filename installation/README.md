@@ -1,29 +1,34 @@
-# Installateur temporaire
+# Temporary installer
 
-Role: interface d'installation serveur a utiliser une seule fois, puis a supprimer du disque.
+Role: one-time web installer for server setup. Use it during setup, then remove the entire `installation/` directory from the deployed server.
 
-Fichiers importants:
+## File
 
-- `index.php`: assistant d'installation web pour DB, migrations, SMTP optionnel et verrou d'installation.
+- `index.php`: installer UI for database config, schema initialization, optional support email/SMTP settings and install lock creation.
 
-Ce que fait l'installateur:
+## What it does
 
-- verifie PHP, PDO, drivers MySQL/SQLite, acces a `server-php/data` et lisibilite des migrations;
-- accepte une config MySQL cPanel ou SQLite local;
-- ecrit `server-php/data/db-config.php` si la DB n'est pas deja pilotee par `NICHOIR_DB_*`;
-- initialise le schema via la meme logique que l'app (`run_migrations_for_pdo()`);
-- peut enregistrer l'email support et les reglages SMTP de base;
-- pose `server-php/data/installed.lock.php` pour bloquer une seconde installation.
+- Starts a secure-ish PHP session with Lax, HTTP-only cookies.
+- Uses a CSRF token for installer POST.
+- Checks PHP version, PDO, PDO MySQL, PDO SQLite, `server-php/data` writability and migration readability.
+- Accepts MySQL/cPanel config or local SQLite config unless DB env/private config is already active. SQLite is for local/development setup only.
+- Writes `server-php/data/db-config.php` when the database is not controlled by env/private config.
+- Tests the DB config and initializes schema through the same app code path (`run_migrations_for_pdo()` / MySQL schema setup).
+- Can save support email and basic SMTP settings.
+- Writes `server-php/data/installed.lock.php` to block a second installation.
 
-Regles d'usage:
+## Rules
 
-- supprimer le dossier `installation/` des que le setup est termine;
-- definir `NICHOIR_ADMIN_PASSWORD_HASH` cote serveur avant d'ouvrir `/admin`;
-- preferer un `DocumentRoot` sur `server-php/public`; si le `DocumentRoot` reste a la racine du projet, garder le `.htaccess` versionne;
-- ne pas reafficher ni committer `db-config.php` ou `installed.lock.php`.
+- Delete `installation/` after setup.
+- Define `NICHOIR_ADMIN_PASSWORD_HASH` before opening `/admin`.
+- Prefer the cPanel artifact layout from `deployment/namecheap/README.md`, where `installation/` is never copied to `public_html`.
+- In the validated Namecheap artifact, production starts as `NICHOIR_ENV=production`, requires MySQL/MariaDB and fails closed without private config.
+- If a whole-repo/root deployment is used temporarily, keep the root `.htaccess` rules and remove/block `installation/` after setup.
+- Do not commit or expose `server-php/data/db-config.php` or `server-php/data/installed.lock.php`.
 
-Limites actuelles:
+## Current limits
 
-- pas de test SMTP actif dans l'installateur; il enregistre seulement la config initiale;
-- pas de gestion multi-etapes ni reprise de formulaire complexe;
-- pas de creation de compte admin par l'installateur: l'acces admin utilise `NICHOIR_ADMIN_PASSWORD_HASH` et une session PHP.
+- No active SMTP send test in the installer; it only records initial settings.
+- No multi-step wizard or complex form resume.
+- No admin account creation; admin login uses `NICHOIR_ADMIN_PASSWORD_HASH` and a PHP session.
+- No production hardening by itself. Production still needs private config, MySQL/MariaDB, CORS/public base URL, log hash salt, real SMTP settings if email is enabled, Stripe secrets if enabled, and disabled debug/unsigned webhooks.

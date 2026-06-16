@@ -4,35 +4,47 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 
 ## Files
 
-- `index.html`: minimal HTML shell. It reads `?lang=fr|en`, persists `nichoir-lang`, adjusts the boot/loading text, and loads `app.js` as a module.
-- `app.js`: browser integration layer for the WASM app.
-- `style.css`: styling for the WASM app UI, viewer layout, account modal, controls, light/dark theme, and responsive app shell.
+- `index.html`: static HTML shell. It resolves `?lang=fr|en`, persists `nichoir-lang`, updates the boot message, loads `style.css`, and imports `app.js` as a module.
+- `app.js`: browser integration layer for WASM, PHP API calls, downloads, account modal, client logs, i18n messages, and Three.js.
+- `vendor/three.module.min.js`: local vendored Three.js runtime used by production artifacts. Do not switch back to a CDN import for production.
+- `style.css`: app shell, controls, viewer, modal, download groups, light/dark theme, and responsive styling.
 
-## What `app.js` currently owns
+## Runtime inputs
 
-- Loading the WASM package from `wasm/pkg`.
-- Three.js viewer setup and interaction glue around Rust-generated geometry/output.
-- Frontend i18n table for dynamic/browser-owned messages.
-- Language detection and propagation to PHP links via `?lang=fr|en`.
-- Theme persistence with `nichoir-theme` and light/dark toggle behavior.
-- Account modal open/close/focus trap behavior.
-- API calls to PHP for login, logout, profile, credits ledger, billing summary, Stripe checkout/portal, export authorization/consume, support tickets, and client logs.
-- Download flow: ask PHP for authorization, generate file locally, then call PHP consume after successful local generation.
-- User-readable mapping of API errors to localized messages.
+- `window.NICHOIR_PHP_BASE`: optional explicit PHP API origin for controlled local/dev shells.
+- `?php_base=http://127.0.0.1:8021`: local-only override when the static app runs on `8016` and the PHP API runs on `8021`. The override is ignored unless both the page host and target API host are `localhost`, `127.0.0.1` or `::1`.
+- `?lang=fr|en` and local storage key `nichoir-lang`.
+- Local storage keys `nichoir-theme` and `nichoir-auth-token`.
+
+## What `app.js` owns
+
+- Loading `../wasm/pkg/wasm.js`.
+- Local Three.js viewer setup, camera interaction, mesh rebuilds, explode mode and image capture.
+- Browser-side FR/EN messages for dynamic UI not rendered by Rust/PHP.
+- Language propagation to PHP page links.
+- Theme persistence and light/dark toggle behavior.
+- Account modal behavior, focus handling, profile summary, credits, billing, support tickets and ticket replies.
+- API calls to PHP for auth, profile, ledger, billing, Stripe checkout/portal, export authorize/consume, tickets and client logs.
+- Download flow: request short authorization from PHP, generate the file locally, then consume the authorization after successful local generation.
+- Premium downloads: STL, ZIP, SVG, PNG and PDF flows.
+- Non-premium diagnostics in the current UI: debug OBJ and mesh report JSON.
+- Client-side decoration file intake with a 2 MiB limit before sending image/vector data to WASM.
 
 ## Boundaries
 
-- PHP is the source of truth for users, sessions, credits, Stripe billing, support tickets, credit policy, and configured package settings.
-- Rust/WASM is the source of truth for geometry, calculation, and export generation.
-- JavaScript should coordinate browser behavior but should not duplicate backend business policy.
+- PHP is the source of truth for users, sessions, credits, Stripe billing, support tickets, credit policy and configured package settings.
+- Rust/WASM is the source of truth for geometry, calculations, app control markup and export data generation.
+- JavaScript should coordinate browser behavior and display returned policy data, not define billing or credit policy.
 
-## Known current drift
+## Current drift
 
-- `pricing_info` still says each premium download costs 3 credits in both languages. Backend credit cost is now configurable through `server-php/src/credits.php` and admin settings, so this copy should become dynamic.
+- Local `EXPORT_COSTS` values are UI estimates only. Backend credit cost is configurable in `server-php/src/credits.php`; the authorize response returns the real `cost`.
+- Account login is handled by the PHP account page. The app modal only summarizes account state and links users to the server-owned account workflow.
 
 ## Validation after changes
 
 1. Run `node --check app/app.js`.
-2. Open `app/index.html?lang=fr` and `app/index.html?lang=en`.
-3. Confirm language switch, theme switch, account modal, PHP page links, and download authorization messaging still work.
-4. If download code changes, test a successful generate/consume flow and a failed authorization flow.
+2. Open `app/index.html?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021` and the same URL with `lang=en`.
+3. Confirm language switch, theme switch, account modal, PHP links and download authorization messages.
+4. If download code changes, test one successful authorize/generate/consume path and one failed authorization path.
+5. If decoration intake changes, test SVG plus one raster image and confirm client logs do not include heavy file payloads.

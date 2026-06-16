@@ -1,14 +1,14 @@
 # PHP public document root
 
-This folder is the intended web document root for the PHP site.
+This folder is the intended web document root for the PHP site during local PHP-server use and simple deployments. The validated Namecheap/cPanel artifact uses `deployment/namecheap/public_html/index.php` as the public wrapper and keeps this front controller under `nichoir_private/server-php/public/`.
 
 ## Files
 
-- `index.php`: front controller. It includes backend modules, runs migrations, registers shutdown logging, emits security/CORS headers, dispatches public pages, handles contact POST, serves JSON APIs, handles Stripe webhook, and returns JSON 404 for unknown API paths.
-- `site.css`: centralized CSS for PHP-rendered public pages, pricing/about/contact layouts, account tabs, admin dashboard, admin modals, tables, forms, responsive behavior, language switcher, and focus-visible states.
-- `.htaccess`: Apache front-controller and deployment hardening when Apache serves this directory.
+- `index.php`: front controller. It includes backend modules, runs migrations, registers shutdown logging, emits security/CORS headers, dispatches public pages, handles contact POST, serves JSON APIs, handles Stripe webhook, guards admin routes and returns JSON 404 for unknown API paths.
+- `site.css`: shared CSS for PHP-rendered public pages, pricing/about/contact layouts, account tabs, admin dashboard, admin modals, tables, forms, language switcher, responsive behavior and focus-visible states.
+- `.htaccess`: Apache front-controller and hardening rules when Apache serves this directory.
 
-## Current routes owned by `index.php`
+## Routes owned by `index.php`
 
 Pages:
 
@@ -20,8 +20,12 @@ Pages:
 - `GET /terms`
 - `GET /legal`
 - `GET /account`
+- `GET /admin/login`
+- `POST /admin/login`
+- `POST /admin/logout`
 - `GET /admin`
 - `POST /admin`
+- `GET /admin/exports/download`
 
 API/webhook:
 
@@ -50,11 +54,12 @@ API/webhook:
 ## Rules
 
 - Keep only public assets and the front controller here.
-- Do not place SQLite databases, DB configs, secrets, migrations, source modules, or install locks in this folder.
+- Do not place SQLite databases, DB configs, secrets, migrations, source modules, install locks, dumps or logs in this folder.
+- In production, `/api/health` should report `env=production` and `db_driver=mysql`; `db_driver=sqlite` is a failed production configuration.
 - API routes should return through `json_response()`.
-- HTML pages should use `page_response()` from `src/layout.php` until the planned split moves page rendering out of `pages.php`.
-- New shared visual styling should go in `site.css`, not inline page styles.
-- Inline JavaScript currently lives in `pages.php`; the planned CSP cleanup should move it to `site.js` in this folder.
+- HTML pages should use `page_response()` from `src/layout.php`.
+- New shared visual styling should go in `site.css`, not page-local inline styles.
+- Inline JavaScript currently lives in `src/layout.php`, `src/account_pages.php` and `src/admin_pages.php`; CSP cleanup should move it to `site.js` in this folder.
 
 ## Local server
 

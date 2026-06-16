@@ -1,90 +1,57 @@
-# Nichoir PHP backend local/cPanel
+# Nichoir PHP backend and site
 
-Backend PHP pour tester compte, credits, billing Stripe, autorisation de telechargement et tickets. SQLite reste le mode local par defaut; MySQL est supporte pour cPanel.
+`server-php/` is the active backend and PHP-rendered site. It serves public pages, account, admin, contact, JSON API and Stripe webhook from one front controller. SQLite is the local/development default; MySQL/MariaDB is mandatory for the Namecheap/cPanel production artifact.
 
-Ce dossier est aussi la base cible du futur site PHP complet:
-
-- landing page publique `/`;
-- page prix/offres `/pricing`;
-- espace client `/account`;
-- admin prive `/admin`;
-- API JSON `/api/...`;
-- webhook Stripe `/stripe/webhook`.
-
-L'app Rust/WASM reste sous `/app/` et continue de generer localement les plans/STL/ZIP.
+The Rust/WASM app stays under `/app/` and generates geometry and fabrication files locally. PHP authorizes and debits premium downloads but does not receive heavy geometry payloads.
 
 ## Structure
 
-- `public/`: document root PHP, routeur HTTP et CSS site. Voir `public/README.md`.
-- `src/`: logique PHP comptes, auth, pages, API helpers et webhook. Voir `src/README.md`.
-- `migrations/`: schema SQLite versionne. Voir `migrations/README.md`.
-- `data/`: base SQLite locale et config DB locale ignoree par Git. Voir `data/README.md`.
+- `public/`: intended PHP document root with front controller, `.htaccess` and shared CSS. See `public/README.md`.
+- `src/`: procedural modules for DB, auth, pages, admin, account, credits, mail, Stripe, logging and responses. See `src/README.md`.
+- `migrations/`: SQLite migration baseline. MySQL schema is created by `ensure_mysql_schema()` in `src/db.php`. See `migrations/README.md`.
+- `data/`: local SQLite database and local generated config/lock files, all outside the public web root. These are development/local artifacts only. See `data/README.md`.
+- `scripts/`: local utilities, currently demo dataset seeding. See `scripts/README.md`.
 
-Etat actuel:
-
-- `/`, `/pricing`, `/account` et `/admin` sont routes par PHP.
-- `/admin` affiche deja les clients et autorisations recents depuis SQLite.
-- `/admin` contient maintenant un repertoire utilisateurs avec recherche, filtres et pagination.
-- `/admin` permet de creer un utilisateur, modifier profil/courriel/statut/credits, reset le mot de passe et supprimer un compte avec confirmation.
-- `/admin` permet aussi de modifier manuellement le statut d'abonnement serveur et de configurer Stripe Checkout/portail/webhook.
-- La fiche client affiche historique credits, abonnements, paiements, exports, tickets, fil de messages et audit admin.
-- `/account` permet maintenant login/register/logout, activation par code email, edition profil, affichage credits, historique credits, abonnement, paiements/factures Stripe, creation/liste de tickets, fil de messages, reponses client et changement open/closed.
-- `/admin` permet de repondre aux tickets, changer open/closed, definir priorite et assignation, configurer SMTP cPanel et tester l'envoi email.
-- `/admin` > `Reglages` permet aussi de configurer/tester les coordonnees DB cPanel/MySQL. Enregistrer cree le schema MySQL si la base est vide.
-- `/admin` > `Exports` permet d'exporter la base en CSV, Excel compatible `.xls` ou JSON par portee: base complete, clients, billing, support, credits ou autorisations.
-- `/admin` > `Logs` affiche alertes, logs applicatifs, audit actions et evenements Stripe avec filtres niveau/channel/event/recherche.
-- `app_logs`, `audit_logs` et `stripe_event_logs` tracent erreurs, securite, actions importantes, emails, tickets, exports, auth et webhooks sans stocker mots de passe, tokens ou secrets.
-- Les notifications tickets sont journalisees dans `ticket_notifications`, puis envoyees immediatement via SMTP si l'envoi est active.
-- `GET /api/credits/ledger` retourne l'historique credits du client connecte.
-- `GET /api/billing/summary` retourne l'abonnement courant et les paiements synchronises du client connecte.
-- `POST /api/checkout/stripe-link` cree une session Checkout Stripe reelle si Stripe est configure.
-- `POST /api/billing/portal` cree une session portail client Stripe.
-- `/stripe/webhook` verifie `Stripe-Signature` quand un webhook secret est configure, journalise `stripe_events` et `stripe_event_logs`, traite `checkout.session.completed`, `invoice.*` et les evenements `customer.subscription.*`.
-- `/admin` utilise une connexion par session PHP. En production, definir `NICHOIR_ADMIN_PASSWORD_HASH`.
-- CORS est limite par `NICHOIR_CORS_ORIGINS` (`http://127.0.0.1:8016` par defaut en dev).
-- Les payloads JSON sont limites a `256 KiB`; offres checkout, types d'export, tickets, profil et mots de passe sont valides cote serveur.
-- `POST /api/exports/consume` reverifie le statut du compte et le solde avant debit.
-
-Secrets Stripe:
-
-- Preferer `NICHOIR_STRIPE_SECRET_KEY` et `NICHOIR_STRIPE_WEBHOOK_SECRET` en production.
-- Si ces variables ne sont pas definies, `/admin` peut stocker les secrets dans SQLite pour un deploiement simple.
-- Les price IDs `credits`, `atelier` et `pro` se configurent dans `/admin`.
-
-Base de donnees:
-
-- Local/dev: SQLite utilise `server-php/data/nichoir.sqlite`.
-- cPanel: creer une base MySQL et un utilisateur dans cPanel, puis entrer host/base/user/password dans `/admin` > `Reglages` > `Base de donnees`.
-- Les valeurs enregistrees sont ecrites dans `server-php/data/db-config.php`, ignore par Git.
-- Le verrou `server-php/data/installed.lock.php` est ecrit par l installateur temporaire, ignore par Git, et bloque une seconde installation.
-- Les variables serveur `NICHOIR_DB_DRIVER`, `NICHOIR_DB_HOST`, `NICHOIR_DB_PORT`, `NICHOIR_DB_NAME`, `NICHOIR_DB_USER`, `NICHOIR_DB_PASSWORD`, `NICHOIR_DB_CHARSET` surchargent le fichier local.
-
-Logs:
-
-- `NICHOIR_LOG_HASH_SALT` doit etre defini en production pour hasher IP/courriels de facon stable sans exposer les valeurs brutes.
-- `NICHOIR_SLOW_REQUEST_MS` controle le seuil `slow_request` via shutdown handler PHP (`1500` ms par defaut, `0` pour desactiver).
-- `POST /api/client-log` recoit les erreurs navigateur/WASM et applique un rate limit de 10 logs/minute par user ou IP.
-
-Deploiement cPanel:
-
-- document root recommande: `server-php/public`;
-- garder `src/`, `data/` et `migrations/` hors du web public;
-- creer la base MySQL et l'utilisateur dans cPanel avant de basculer le driver;
-- utiliser `Tester connexion` dans `/admin` > `Reglages` > `Base de donnees`;
-- utiliser `Enregistrer DB` seulement quand le test passe; le schema MySQL est cree automatiquement si la base est vide;
-- si le document root reste sur la racine du projet, garder le `.htaccess` versionne pour router vers `server-php/public` et bloquer les dossiers sensibles;
-- l'installateur temporaire est `installation/index.php`: il initialise la DB, ecrit `server-php/data/db-config.php` si besoin, peut enregistrer le SMTP de base et pose `server-php/data/installed.lock.php`;
-- apres installation, supprimer le dossier `installation/` du serveur et definir `NICHOIR_ADMIN_PASSWORD_HASH`;
-- ne jamais committer `server-php/data/db-config.php`.
-
-## Demarrer
+## Local server
 
 ```bash
 cd /home/marc/Documents/nichoir16
 php -S 127.0.0.1:8021 -t server-php/public
 ```
 
-## Endpoints
+Useful pages:
+
+- `http://127.0.0.1:8021/`
+- `http://127.0.0.1:8021/pricing`
+- `http://127.0.0.1:8021/account`
+- `http://127.0.0.1:8021/admin/login`
+
+When the static WASM app runs separately on `8016`, open it with:
+
+```text
+http://127.0.0.1:8016/app/index.html?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021
+```
+
+## Current routes
+
+Pages and admin:
+
+- `GET /`
+- `GET /pricing`
+- `GET /about`
+- `GET /contact`
+- `POST /contact`
+- `GET /terms`
+- `GET /legal`
+- `GET /account`
+- `GET /admin/login`
+- `POST /admin/login`
+- `POST /admin/logout`
+- `GET /admin`
+- `POST /admin`
+- `GET /admin/exports/download`
+
+API and webhook:
 
 - `GET /api/health`
 - `POST /api/auth/register`
@@ -108,122 +75,124 @@ php -S 127.0.0.1:8021 -t server-php/public
 - `POST /api/client-log`
 - `POST /stripe/webhook`
 
-## Test rapide
+## Current behavior
 
-```bash
-curl http://127.0.0.1:8021/api/health
+- Public pages are bilingual and use `?lang`, then cookie, then `Accept-Language`.
+- Admin pages are intentionally French-only.
+- `/account` manages login/register/logout, activation codes, profile edits, credits, ledger, billing summary, Stripe checkout/portal, invoices/payments, tickets, ticket messages and open/closed status.
+- `/admin` manages users, profiles, passwords, credits, statuses, manual subscriptions, support tickets, logs, database export, DB settings, Stripe settings, SMTP settings and test email.
+- `/admin/login` uses `NICHOIR_ADMIN_PASSWORD_HASH`, PHP session cookies, `password_verify()` and `session_regenerate_id(true)`.
+- Admin POST actions use CSRF tokens and write audit/app logs for important changes.
+- Contact POST keeps CSRF, honeypot, IP rate limit, length checks, SMTP handoff, logging and flash redirects.
+- Auth endpoints have IP/email rate limits, email activation quotas and cleanup for stale pending accounts.
+- JSON payloads are limited to 256 KiB in `src/response.php`.
+- CORS is restricted by `NICHOIR_CORS_ORIGINS`, defaulting to `http://127.0.0.1:8016` for local dev.
+- `/api/client-log` is rate-limited to 10 logs/minute per user or IP and should not receive geometry or form payloads.
+- `/api/health` reports `env` and `db_driver`. In production it must never return `db_driver=sqlite`.
+
+## Credits and exports
+
+- Valid premium export types are `svg`, `png`, `pdf`, `stl` and `zip`.
+- `server-php/src/credits.php` owns configured export cost and partial-credit bonus policy.
+- `/api/exports/authorize` checks active account status, export type, current balance and optional partial-balance bonus, then creates a short-lived token.
+- `/api/exports/consume` revalidates the account, atomically claims the authorization, applies any configured top-up, debits credits, writes `credit_ledger`, and logs/audits the event.
+- The browser generates the actual file locally after authorization. PHP never generates STL, PDF, ZIP or mesh data.
+
+## Stripe
+
+- `POST /api/checkout/stripe-link` creates a real Stripe Checkout session when Stripe is configured.
+- `POST /api/billing/portal` creates a Stripe customer portal session.
+- `/stripe/webhook` verifies `Stripe-Signature` when `NICHOIR_STRIPE_WEBHOOK_SECRET` is configured.
+- Webhooks are stored/idempotent in `stripe_events`, failed events can be retried, and terminal duplicate events are ignored safely.
+- Unsigned webhooks are acceptable only for local/development. `NICHOIR_ALLOW_UNSIGNED_STRIPE_WEBHOOKS=1` is rejected when `NICHOIR_ENV=production`.
+
+Prefer production secrets from environment variables or private config:
+
+- `NICHOIR_STRIPE_SECRET_KEY`
+- `NICHOIR_STRIPE_WEBHOOK_SECRET`
+- `NICHOIR_SMTP_PASSWORD`
+
+If env/private config is absent, admin settings can store Stripe/SMTP values for simple local/shared-host testing.
+
+## Database and config
+
+Resolution order:
+
+1. Defaults from `src/db.php` use SQLite at `server-php/data/nichoir.sqlite` for local/development.
+2. Local `server-php/data/db-config.php`, generated by admin or installer, can override defaults.
+3. Environment/private config values override local config.
+4. When `NICHOIR_ENV=production`, the normalized config must use `NICHOIR_DB_DRIVER=mysql`; invalid drivers and SQLite fail closed.
+
+Canonical DB env names:
+
+- `NICHOIR_DB_DRIVER`
+- `NICHOIR_DB_HOST`
+- `NICHOIR_DB_PORT`
+- `NICHOIR_DB_NAME`
+- `NICHOIR_DB_USER`
+- `NICHOIR_DB_PASSWORD`
+- `NICHOIR_DB_CHARSET`
+
+The cPanel aliases `NICHOIR_MYSQL_HOST`, `NICHOIR_MYSQL_PORT`, `NICHOIR_MYSQL_DATABASE`, `NICHOIR_MYSQL_USERNAME`, `NICHOIR_MYSQL_PASSWORD` and `NICHOIR_MYSQL_CHARSET` are also accepted.
+
+`server-php/data/db-config.php`, `server-php/data/installed.lock.php`, SQLite DB files, dumps and secrets are ignored by Git and must stay out of public web roots.
+
+Expected production health with valid private MySQL config:
+
+```json
+{"ok":true,"service":"nichoir-php","env":"production","db":true,"db_driver":"mysql"}
 ```
 
-```bash
-curl -X POST http://127.0.0.1:8021/api/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"demo@nichoir.local","password":"password123"}'
-```
+Expected production health without valid private config: HTTP `500` with `error` set to `configuration_error`.
 
-`POST /api/auth/register` cree un compte `pending` et envoie un code a 6 chiffres par le SMTP configure dans `/admin` > `Reglages`. Sans SMTP valide, l'inscription est refusee et la transaction est annulee.
+## Local seed dataset
 
-Les endpoints auth (`register`, `login`, `activate`, `resend-activation`) ont un rate limit par IP et par email. L'activation bloque temporairement un compte pending apres 5 codes invalides, les comptes pending trop vieux sont nettoyes automatiquement, et les emails d'activation ont un quota journalier par IP/email.
-
-Le token retourne doit etre envoye comme ceci:
-
-```bash
-curl http://127.0.0.1:8021/api/me \
-  -H "Authorization: Bearer TOKEN_ICI"
-```
-
-## Dataset demo
-
-Pour remplir l'admin et l'espace client avec des donnees de test:
+For local admin/account test data:
 
 ```bash
 php server-php/scripts/seed_demo_dataset.php
 ```
 
-Le mot de passe de tous les comptes demo est `password123`.
+The script creates disposable local users, credits, subscriptions, payments, invoices, export authorizations, ticket threads and notification rows. Do not run the seed script on a production database, and do not publish seeded credentials in production docs or public assets.
 
-Comptes utiles:
+## cPanel deployment
 
-- `demo@nichoir.local`
-- `lea.client@nichoir.local`
-- `bob.client@nichoir.local`
-- `noemie.suspendue@nichoir.local`
-- `atelier@nichoir.local`
+Preferred path:
 
-## A ajouter
+```bash
+scripts/build-cpanel-artifact.sh /tmp/nichoir-cpanel-artifact
+```
 
-- Admin complet: filtres billing avances, surveillance des echecs email et journal d'audit plus lisible.
-- Rate limiting tickets/webhooks. L'auth client et `/api/client-log` sont deja limites.
-- Admin actuel: `/admin/login`, session PHP, `password_verify()`, `session_regenerate_id(true)` et actions POST protegees par CSRF. L'ancien acces admin par cle en URL est historique et ne doit pas etre utilise en production.
-- CSP, retention/rotation des logs, sanitizer SVG complet et plafonds Rust/WASM pour fichiers/meshes/exports.
-- Tests live Stripe avec les vrais price IDs, portail active dans le dashboard Stripe et webhook de production.
-- Configuration dev/prod pour CORS, `NICHOIR_PUBLIC_BASE_URL`, secrets Stripe/SMTP et base de donnees.
-- Durcir encore le flux d'installation cPanel et documenter la suppression post-setup.
+The artifact separates browser-public files in `public_html/` from PHP source/config/data in `nichoir_private/`. See `../deployment/namecheap/README.md`.
 
-## Notes
+If using the temporary installer:
 
-- Les webhooks non signes ne sont acceptes qu'en local/dev ou avec `NICHOIR_ALLOW_UNSIGNED_STRIPE_WEBHOOKS=1`. En production, configurer `NICHOIR_STRIPE_WEBHOOK_SECRET`.
-- Le serveur ne recoit pas de geometrie et ne genere pas de STL/PDF/ZIP.
-- Les credits sont debites par `POST /api/exports/consume` apres generation locale reussie.
+- remove `installation/` from the server after setup;
+- keep `server-php/src`, `server-php/data` and `server-php/migrations` outside `public_html`;
+- define `NICHOIR_ADMIN_PASSWORD_HASH`;
+- define `NICHOIR_PUBLIC_BASE_URL`, `NICHOIR_CORS_ORIGINS` and `NICHOIR_LOG_HASH_SALT`;
+- define `NICHOIR_DB_DRIVER=mysql` and complete MySQL/MariaDB connection values;
+- disable `NICHOIR_DEBUG` and unsigned Stripe webhooks in production.
 
+## Validation after backend changes
 
-## Current backend ownership map
+```bash
+find server-php installation deployment/namecheap -name '*.php' -print -exec php -l {} \;
+curl http://127.0.0.1:8021/api/health
+```
 
-This backend is not only an API. It currently serves the public marketing pages, account area, admin area, contact form, JSON API, and Stripe webhook from one PHP front controller.
+Manual checks:
 
-### Entry points
+1. Smoke `/`, `/pricing`, `/about`, `/contact`, `/terms`, `/legal`, `/account`, `/admin/login`.
+2. Submit invalid contact form and confirm redirected flash errors.
+3. Test auth/register/activate or login with a known local account.
+4. Test one export authorize/consume success.
+5. Repeat the same consume and confirm no second debit.
+6. If Stripe code changed, test checkout, portal and webhook signature handling in Stripe test mode.
 
-- `public/index.php`: includes all backend modules, runs migrations, emits security/CORS headers, dispatches public GET routes, contact POST, Stripe webhook, auth/profile/billing/export/ticket APIs, and fallback JSON 404.
-- `public/site.css`: shared style layer for PHP-rendered public pages, account tabs, admin dashboard, modals, forms, pricing/about/contact sections, responsive layout, and focus rings.
-- `public/.htaccess`: Apache front-controller and public-directory hardening for deployments where Apache serves this folder.
+## Open risks
 
-### Source modules
-
-- `src/db.php`: database driver config, local/env DB config resolution, PDO creation, settings helpers, SQLite migrations, MySQL schema setup, and install-lock helpers.
-- `src/auth.php`: session tokens, bearer auth, current user loading, public user projection, activation token lifecycle, auth rate limiting, email quota checks, and client IP handling.
-- `src/credits.php`: premium export type allowlist, configured export credit cost, and partial-credit bonus calculation.
-- `src/logger.php`: request IDs, hashed IP/email values, app logs, audit logs, Stripe event logs, and shutdown logging for slow/fatal requests.
-- `src/mail.php`: SMTP configuration, safe email header construction, direct SMTP sending, ticket notification records, activation emails, and contact email delivery support.
-- `helpers.php`: shared `h()` escaping and `money_cents()` formatting helpers.
-- `i18n.php`: `page_lang()`, `page_t()`, `page_tv()`, language-aware path helpers, app URL helper, and public translation tables.
-- `layout.php`: `page_response()`, shared page shell, header/nav/footer, localized ARIA labels, stylesheet link, and shared tab/modal inline JavaScript.
-- `contact.php`: contact CSRF helpers and `handle_contact_post()` for validation, honeypot/rate limit checks, SMTP handoff, logging, and flash redirects.
-- `pages.php`: remaining large page/admin module. It contains public page rendering, account page, account inline JavaScript, admin authorization, admin actions, admin tables, modals, settings panels, exports, and admin inline JavaScript. Planned split is documented in `../../docs/refactoring-plan.md`.
-- `src/response.php`: shared JSON response output, JSON body size limit, required-field helper, and base HTTP security headers.
-- `src/stripe.php`: Stripe settings, API request helper, Checkout session creation, billing portal creation, and webhook signature verification.
-- `src/stripe_webhook.php`: Stripe webhook idempotence, event logging, checkout completion handling, invoice/payment sync, and subscription sync.
-
-### Data and migrations
-
-- `migrations/001_init.sql`: SQLite schema baseline.
-- `data/nichoir.sqlite`: local SQLite database used by dev server.
-- `data/db-config.php`: optional local DB config generated by admin/installer, ignored by Git.
-- `data/installed.lock.php`: optional installer lock, ignored by Git.
-
-### Business invariants
-
-- Credit cost must be read through `credit_policy_settings()` or `export_credit_cost()` from `src/credits.php`.
-- `/api/exports/authorize` creates short-lived authorizations only for valid export types and active users with enough credits or allowed partial-balance bonus.
-- `/api/exports/consume` must atomically claim an authorization before credit debit, then write `credit_ledger` and audit/app logs.
-- Users with zero credits do not receive partial-balance bonus; users with positive but insufficient credits can be topped up when enabled.
-- Contact POST must keep CSRF, honeypot, IP rate limit, input length checks, SMTP failure handling, and session flash messages.
-- Admin credit changes and billing/subscription actions must be auditable.
-- Stripe secrets and SMTP passwords should come from environment variables in production where possible.
-- Geometry and fabrication files are generated client-side; PHP should not receive heavy geometry payloads.
-
-### Current backend drift / risks
-
-- Public pricing card display values are translation strings, while Stripe price IDs and credit package quantities are admin settings. These need one package config source before public launch.
-- `pages.php` still contains inline scripts, blocking a strict no-inline CSP.
-- Admin access uses a PHP session login with `NICHOIR_ADMIN_PASSWORD_HASH`; admin POST actions require CSRF.
-- Some public ARIA labels are still hardcoded in French.
-- Ticket/webhook rate limiting is still weaker than auth/client-log rate limiting.
-
-### Validation checklist after backend edits
-
-1. Run PHP lint on each touched PHP file.
-2. Smoke test `/`, `/pricing`, `/about`, `/contact`, `/account`, and `/admin`.
-3. Submit invalid contact form and confirm flash errors render after redirect.
-4. Test `/api/exports/authorize` and one successful `/api/exports/consume` path.
-5. Repeat the same authorization consume and confirm the second request fails without another debit.
-6. Change admin credit policy and confirm authorize/consume reflect the configured cost.
-7. If Stripe code changed, test Checkout, portal, and webhook signature handling with Stripe test mode.
+- Public pricing cards are static translations while Stripe price IDs and credit package quantities are admin settings.
+- Inline JavaScript remains in PHP-rendered pages, so strict CSP is not ready.
+- Ticket and webhook rate limits are weaker than auth/client-log rate limits.
+- Production log retention/rotation and export-size ceilings still need explicit policy.

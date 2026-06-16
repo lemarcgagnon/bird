@@ -7,11 +7,12 @@ Current status: secondary reference only. The active backend is `server-php/`, w
 ## Structure
 
 - `app/`: FastAPI prototype code. See `app/README.md`.
+- `.env.example`: optional local development example for this historical prototype only.
 - `requirements.txt`: Python dependencies for this prototype.
 
 ## Local use if needed
 
-There is no `.env.example` in this folder. Create `.env` only when you need to override the defaults from `app/settings.py`.
+Copy `.env.example` to `.env` only when you need to override the defaults from `app/settings.py`. This is for the historical prototype, not for the PHP/Namecheap production app.
 
 ```bash
 cd /home/marc/Documents/nichoir16/server

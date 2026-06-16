@@ -2,7 +2,7 @@
 
 Application web pour concevoir un nichoir parametrable, le visualiser en 3D et telecharger des fichiers de fabrication. L'etat actuel du repo est une app Rust/WebAssembly cote navigateur, encadree par un site PHP qui gere comptes, credits, support, admin, Stripe et deploiement cPanel.
 
-Etat release: le commit `3dee4a1` est la base production stabilisee pour Namecheap/cPanel. L'artifact cPanel a ete valide localement avec PHP lint, smoke WASM/mesh, scans de secrets/fichiers interdits, Three.js local, `/api/health` fail-closed sans config et `/api/health` positif avec MySQL temporaire.
+Etat release: la branche `main` courante contient la stabilisation production Namecheap/cPanel, dont le fail-closed MySQL, Three.js local, l'artifact sans docs/dev/secrets, et le chemin admin configurable non evident. Le dernier artifact valide doit etre reconstruit depuis `main`, pas depuis les anciens zips.
 
 `nichoir_v16.html` reste une reference historique monofichier. Le chemin actif est `app/` + `wasm/` + `server-php/`.
 
@@ -25,7 +25,7 @@ NICHOIR_ADMIN_PATH/exports/download
                           Export admin CSV/XLS/JSON
 /api/...                  API JSON compte, billing, exports, tickets, logs client
 /stripe/webhook           Webhook Stripe
-/installation/            Installateur temporaire a supprimer apres setup
+/installation/            Installateur temporaire dev/root seulement, exclu de l'artifact
 ```
 
 Responsabilites actuelles:

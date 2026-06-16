@@ -18,7 +18,7 @@ This folder contains the backend code included by `server-php/public/index.php`.
 - `public_pages.php`: landing, pricing, about, contact, terms and legal page renderers.
 - `contact.php`: contact CSRF helpers and `handle_contact_post()`.
 - `account_pages.php`: account page renderer and account inline JavaScript.
-- `admin_core.php`: admin session auth, admin CSRF, redirect helpers and admin summary helpers.
+- `admin_core.php`: configurable admin path, admin session auth, admin CSRF, redirect helpers and admin summary helpers.
 - `admin_helpers.php`: admin option rendering, validation helpers, entity loaders, ticket notification creation and audit helper.
 - `admin_actions.php`: admin POST handlers for login/logout, users, credits, subscriptions, tickets, SMTP, DB, Stripe and credit policy.
 - `admin_exports.php`: admin database export scopes and CSV/XLS/JSON download handling.
@@ -42,6 +42,7 @@ This folder contains the backend code included by `server-php/public/index.php`.
 - Contact handling must keep CSRF, honeypot, rate limit, input limits, SMTP failure handling and flash messages.
 - Stripe secrets and SMTP passwords should prefer environment variables or private config in production.
 - Admin write actions require a logged-in PHP session and CSRF; keep them auditable.
+- `NICHOIR_ADMIN_PATH` owns the back-office path and defaults to `/gestion-nichoir`; do not reintroduce `/admin` or `/administration` as live routes.
 - Public page text should go through `i18n.php`; admin pages are currently French-only.
 
 ## Planned cleanup

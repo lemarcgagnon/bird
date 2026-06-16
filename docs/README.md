@@ -2,7 +2,7 @@
 
 This folder is the handoff layer for current release status, security backlog and refactoring work. It should explain current state and known gaps; historical docs must not override current implementation facts from the README files next to the code.
 
-Current release baseline: commit `3dee4a1` is the stabilized Namecheap/cPanel production base. The validated artifact uses prebuilt browser assets, local Three.js, production fail-closed config, and MySQL-only production DB behavior.
+Current release baseline: use the current `main` branch. The production hardening now includes prebuilt browser assets, local Three.js, production fail-closed config, MySQL-only production DB behavior, a configurable non-obvious admin path, and an artifact build that rejects docs/dev files/secrets.
 
 ## Documents
 

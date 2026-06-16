@@ -6,7 +6,7 @@ This plan tracks cleanup needed to keep the PHP landing pages, account area, adm
 
 ## Current risks
 
-1. `server-php/src/pages.php` is too large and mixes translations, public pages, account pages, admin rendering, POST handlers, settings panels, and inline JavaScript.
+1. PHP page ownership is now split into focused modules, but inline JavaScript still lives in PHP-rendered page files.
 2. i18n copy is split across PHP, JavaScript, and Rust/WASM, which makes translation drift likely.
 3. Pricing display copy is separate from Stripe/admin configuration, so public prices can drift from actual products.
 4. Export consumption must be protected against duplicate consume requests.
@@ -16,7 +16,7 @@ This plan tracks cleanup needed to keep the PHP landing pages, account area, adm
 
 ## Phase 1: Stabilize behavior
 
-Status: started.
+Status: complete for the listed behavior fixes.
 
 Tasks:
 
@@ -36,7 +36,7 @@ Validation:
 
 ## Phase 2: Split the page monolith
 
-Status: planned.
+Status: complete for the PHP module split; `pages.php` is now a compatibility include.
 
 Target structure:
 
@@ -50,7 +50,7 @@ Target structure:
 Validation:
 
 1. Run PHP lint on every split file.
-2. Request `/`, `/pricing`, `/about`, `/contact`, `/account`, and `/admin`.
+2. Request `/`, `/pricing`, `/about`, `/contact`, `/account`, and `{NICHOIR_ADMIN_PATH}`.
 3. Confirm route behavior is unchanged before and after the split.
 
 ## Phase 3: Centralize i18n
@@ -130,7 +130,7 @@ This checklist is the gate for finishing the PHP split without turning the refac
 1. Run PHP lint on every touched PHP file.
 2. Smoke test public pages: `/`, `/pricing`, `/about`, `/contact`, `/terms`, `/legal`.
 3. Smoke test account page: `/account?lang=fr`, `/account?lang=en`.
-4. Smoke test admin page with local/admin access.
+4. Smoke test the admin page through `{NICHOIR_ADMIN_PATH}` with local/admin access.
 5. Submit invalid contact form and confirm flash errors after redirect.
 6. Confirm language switching keeps path, query, and fragment behavior.
 7. Confirm account/admin tabs still switch and deep links still open the intended panel.

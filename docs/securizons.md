@@ -4,7 +4,7 @@ Date: 2026-06-12
 
 Status: security backlog/reference. Current release facts live in `docs/README.md` and the code-near README files. This document is useful for SVG/WASM/input hardening notes, but it is not a Namecheap/cPanel release checklist.
 
-Objectif: reduire les risques d'attaque dans l'app Nichoir WASM tout en gardant le calcul, la geometrie et les exports cote client. Le serveur futur servira surtout a l'autorisation/licence/facturation, pas au calcul lourd.
+Objectif: reduire les risques d'attaque dans l'app Nichoir WASM tout en gardant le calcul, la geometrie et les exports cote client. Le serveur PHP sert surtout a l'autorisation, aux comptes, aux credits, a la facturation, a l'admin et au support, pas au calcul lourd.
 
 ## 1. Principe general
 
@@ -199,7 +199,7 @@ Architecture serveur cible:
 - `/pricing`: credits et abonnements.
 - `/app/`: application Rust/WASM.
 - `/account`: espace client authentifie.
-- `/admin`: back-office prive pour gerer clients, credits, abonnements, paiements, consommations et tickets.
+- `NICHOIR_ADMIN_PATH`: back-office prive pour gerer clients, credits, abonnements, paiements, consommations et tickets. La valeur par defaut actuelle est `/gestion-nichoir`; `/admin` et `/administration` sont reserves/interdits.
 - `/api/...`: API JSON.
 - `/stripe/webhook`: reception des evenements Stripe.
 
@@ -235,12 +235,12 @@ Mesures deja en place:
 - `consume` reverifie le statut du compte et le solde au moment du debit.
 - Champs compte/tickets limites cote serveur.
 - Admin CRUD centralise cote PHP; le WASM ne gere pas les clients.
-- SMTP tickets configurable dans `/admin`; le mot de passe peut venir de `NICHOIR_SMTP_PASSWORD` ou d'une config privee pour eviter de stocker le secret en base.
-- DB cPanel/MySQL configurable dans `/admin`; les variables/config privee `NICHOIR_DB_*` ou alias `NICHOIR_MYSQL_*` restent preferees en production. SQLite est local/developpement seulement.
+- SMTP tickets configurable dans le back-office; le mot de passe peut venir de `NICHOIR_SMTP_PASSWORD` ou d'une config privee pour eviter de stocker le secret en base.
+- DB cPanel/MySQL configurable dans le back-office; les variables/config privee `NICHOIR_DB_*` ou alias `NICHOIR_MYSQL_*` restent preferees en production. SQLite est local/developpement seulement.
 - Production `NICHOIR_ENV=production` exige `NICHOIR_DB_DRIVER=mysql`; config invalide ou SQLite echoue ferme.
 - Exports admin de base disponibles en CSV/Excel/JSON; ils doivent rester reserves a l'admin et ne jamais inclure les secrets ou password hashes.
 
-Risques restants / durcissement apres stabilisation `3dee4a1`:
+Risques restants / durcissement apres la stabilisation production courante:
 
 - Ajouter plafonds triangles/STL/ZIP et refus explicite d'export trop lourd.
 - Renforcer rate limiting tickets et webhooks.
@@ -281,7 +281,7 @@ Risques restants / durcissement apres stabilisation `3dee4a1`:
 
 ### Phase 4: autorisation/facturation/compte
 
-- Ajouter mini serveur PHP/SQLite d'autorisation et compte. Fait.
+- Ajouter plateforme PHP d'autorisation et compte. Fait.
 - Tester SQLite local. Fait.
 - Ajouter API pour compte, credits, abonnement, tickets et messages. Fait, avec limites de base.
 - Ajouter landing page, espace client et admin PHP. Fait.
@@ -301,7 +301,7 @@ Risques restants / durcissement apres stabilisation `3dee4a1`:
 - [ ] Limiter triangles STL/ZIP.
 - [ ] Garder GIF comme image fixe.
 - [x] Ne pas injecter les SVG importes dans `innerHTML`; seulement les SVG generes par le WASM pour le plan.
-- [ ] Ne jamais stocker secrets dans WASM.
+- [x] Ne jamais stocker secrets dans WASM.
 - [x] Limiter payload JSON API.
 - [x] Valider offres checkout et types d'export.
 - [x] Revalider statut/credits au debit d'export.

@@ -132,6 +132,7 @@ The script refuses to overwrite an existing output directory. Review the artifac
 - The production `.htaccess` blocks installer, docs, server source, private folders, SQLite/dump/log/archive files, Rust source paths and the obvious `/admin` + `/administration` paths.
 - `installation/` is not part of the artifact and should not be uploaded.
 - The back-office is served only at `NICHOIR_ADMIN_PATH` and defaults to `/gestion-nichoir` when not otherwise configured.
+- Public pages should not reveal `NICHOIR_ADMIN_PATH` in HTML or JavaScript; smoke the rendered public source after changing admin routing.
 - `server-php/data/db-config.php` and `installed.lock.php` are local/generated files, not source artifacts.
 - Expected production health after private MySQL config is installed: `/api/health` returns `200` with `env=production`, `db=true` and `db_driver=mysql`.
 - Expected production health before private config is installed: `/api/health` returns `500 configuration_error`.

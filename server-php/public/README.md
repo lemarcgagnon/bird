@@ -29,6 +29,8 @@ Pages:
 
 `NICHOIR_ADMIN_PATH` defaults to `/gestion-nichoir`. The obvious paths `/admin` and `/administration` are reserved/interdicted and should not serve the back-office.
 
+Public pages must not expose the configured admin path in rendered HTML or JavaScript. Shared layout scripts should receive the real admin path only while rendering admin pages.
+
 API/webhook:
 
 - `GET /api/health`

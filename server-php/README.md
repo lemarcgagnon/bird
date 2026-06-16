@@ -83,6 +83,7 @@ API and webhook:
 - `{NICHOIR_ADMIN_PATH}` manages users, profiles, passwords, credits, statuses, manual subscriptions, support tickets, logs, database export, DB settings, Stripe settings, SMTP settings and test email.
 - `{NICHOIR_ADMIN_PATH}/login` uses `NICHOIR_ADMIN_PASSWORD_HASH`, PHP session cookies, `password_verify()` and `session_regenerate_id(true)`.
 - `NICHOIR_ADMIN_PATH` defaults to `/gestion-nichoir`; `/admin` and `/administration` are reserved/interdicted and must not expose the back-office.
+- Public responses must not inject the configured admin path into shared HTML/JavaScript; only admin responses may render it.
 - Admin POST actions use CSRF tokens and write audit/app logs for important changes.
 - Contact POST keeps CSRF, honeypot, IP rate limit, length checks, SMTP handoff, logging and flash redirects.
 - Auth endpoints have IP/email rate limits, email activation quotas and cleanup for stale pending accounts.
@@ -187,11 +188,12 @@ Manual checks:
 
 1. Smoke `/`, `/pricing`, `/about`, `/contact`, `/terms`, `/legal`, `/account`, `{NICHOIR_ADMIN_PATH}/login`.
 2. Confirm `/admin`, `/admin/login` and `/administration` do not expose the back-office.
-3. Submit invalid contact form and confirm redirected flash errors.
-4. Test auth/register/activate or login with a known local account.
-5. Test one export authorize/consume success.
-6. Repeat the same consume and confirm no second debit.
-7. If Stripe code changed, test checkout, portal and webhook signature handling in Stripe test mode.
+3. Confirm public page sources do not contain the configured admin path.
+4. Submit invalid contact form and confirm redirected flash errors.
+5. Test auth/register/activate or login with a known local account.
+6. Test one export authorize/consume success.
+7. Repeat the same consume and confirm no second debit.
+8. If Stripe code changed, test checkout, portal and webhook signature handling in Stripe test mode.
 
 ## Open risks
 

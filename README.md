@@ -136,6 +136,7 @@ Etat actuel:
 - `/account` gere login/register/logout, activation par code email, profil, credits, historique, abonnement, paiements/factures Stripe, tickets, fils de messages et statut open/closed.
 - L'admin utilise `NICHOIR_ADMIN_PATH` (par defaut `/gestion-nichoir`), `NICHOIR_ADMIN_PASSWORD_HASH`, session PHP, `password_verify()`, `session_regenerate_id(true)` et CSRF sur les POST.
 - Les chemins evidents `/admin` et `/administration` sont reserves/interdits et ne doivent pas etre utilises en production.
+- Le chemin admin reel ne doit pas etre expose dans les pages publiques: il est seulement rendu cote admin, et les pages publiques ne doivent pas injecter `NICHOIR_ADMIN_PATH` dans leur HTML/JS.
 - L'admin gere clients, credits, statuts, abonnements manuels, tickets, logs, exports DB, reglages DB/Stripe/SMTP et tests email.
 - `server-php/src/credits.php` est la source de verite pour les types d'export premium, le cout configure et le bonus de solde partiel.
 - `/api/exports/authorize` cree une autorisation courte; `/api/exports/consume` la reclame atomiquement avant debit.
@@ -179,6 +180,7 @@ Checks manuels importants:
 
 - ouvrir `/`, `/pricing`, `/about`, `/contact`, `/terms`, `/legal`, `/account`, puis `NICHOIR_ADMIN_PATH/login`;
 - verifier que `/admin`, `/admin/login` et `/administration` ne servent pas le back-office;
+- verifier que les sources HTML publiques ne contiennent pas le chemin admin configure;
 - tester contact invalide et flash d'erreur apres redirection;
 - tester autorisation puis consommation d'un export avec un compte connecte;
 - consommer deux fois la meme autorisation et verifier qu'un seul debit passe;

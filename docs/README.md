@@ -20,6 +20,7 @@ Current release baseline: use the current `main` branch. The production hardenin
 - PHP page scripts are still inline in `src/layout.php`, `src/account_pages.php` and `src/admin_pages.php`; CSP hardening depends on moving them into `server-php/public/site.js`.
 - Admin pages are intentionally French-only.
 - The admin path is controlled by `NICHOIR_ADMIN_PATH`, defaults to `/gestion-nichoir`, and must not be `/admin` or `/administration`.
+- Public pages must not expose the configured admin path in rendered HTML or JavaScript; the real path is only rendered in admin responses.
 - Public PHP pages are bilingual and resolve language from `?lang`, then cookie, then `Accept-Language`.
 - The static app receives `params.lang` from `app/app.js`.
 - Namecheap/cPanel packaging is documented in `deployment/namecheap/README.md` and scripted by `scripts/build-cpanel-artifact.sh`.
@@ -42,6 +43,7 @@ Use this checklist when changing code before updating audit docs:
 - Test one authenticated export authorize/consume path and repeat consume failure.
 - Smoke `{NICHOIR_ADMIN_PATH}/login` and `{NICHOIR_ADMIN_PATH}` with configured admin password.
 - Confirm `/admin`, `/admin/login` and `/administration` do not expose the back-office.
+- Confirm public page sources do not contain the configured admin path.
 - Test real Namecheap SMTP delivery, Stripe checkout/portal/webhook and HTTPS cookies on the final domain before launch.
 
 ## Known drift to fix

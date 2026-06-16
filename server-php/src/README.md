@@ -43,6 +43,7 @@ This folder contains the backend code included by `server-php/public/index.php`.
 - Stripe secrets and SMTP passwords should prefer environment variables or private config in production.
 - Admin write actions require a logged-in PHP session and CSRF; keep them auditable.
 - `NICHOIR_ADMIN_PATH` owns the back-office path and defaults to `/gestion-nichoir`; do not reintroduce `/admin` or `/administration` as live routes.
+- Keep the configured admin path out of public HTML/JavaScript; render it only in admin page responses.
 - Public page text should go through `i18n.php`; admin pages are currently French-only.
 
 ## Planned cleanup

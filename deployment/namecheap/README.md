@@ -33,7 +33,7 @@ SQLite is local/development only. The cPanel artifact defaults to `NICHOIR_ENV=p
       src/
       migrations/
       data/
-        README.md
+        (empty at build time)
 ```
 
 ## Public files
@@ -54,8 +54,8 @@ Keep outside `public_html`:
 
 1. `server-php/public/index.php`.
 2. `server-php/src/`.
-3. `server-php/migrations/`.
-4. `server-php/data/README.md`.
+3. Runtime migration SQL files in `server-php/migrations/`.
+4. Empty `server-php/data/` and `logs/` directories for generated runtime files.
 5. `config/production.php`.
 6. `logs/`.
 
@@ -63,26 +63,19 @@ The public wrapper loads `nichoir_private/server-php/public/index.php`. It also 
 
 The wrapper sets `NICHOIR_ENV=production` when no environment value exists. Without a complete private production config, `/api/health` must return `500` with `configuration_error`.
 
-## Excluded from public artifact
+## Excluded from the artifact
 
-Never copy these to `public_html`:
+Never copy these to the generated artifact:
 
-1. `installation/`.
-2. `docs/`.
-3. `server/`.
-4. `server-php/src/`.
-5. `server-php/data/`.
-6. `server-php/migrations/`.
-7. `server-php/scripts/`.
-8. `wasm/src/`.
-9. `wasm/target/`.
-10. Rust source/build files.
-11. `.git/`, `.codex/`, `.agents/`.
-12. `.env` and config/secrets.
-13. Database files, dumps and backups.
-14. Logs and archives.
-15. Test and local development files.
-16. Source maps if sensitive.
+1. `README*`, `*.md`, `docs/`, `documentation/` and internal notes.
+2. `installation/`, `server/`, `server-php/scripts/`, tests and dev scripts.
+3. Rust source/build files such as `wasm/src/` and `wasm/target/`.
+4. `.git/`, `.github/`, `.codex/`, `.agents/`.
+5. `.env`, real `production.php`, private config and secrets.
+6. Database files, SQLite files, dumps, generated config locks, logs and archives.
+7. Source maps if sensitive.
+
+The build script copies PHP runtime files, SQL migration files, prebuilt browser assets, local Three.js and the safe production config example by allowlist. It fails the build if documentation, dev context, private config, database files, demo/dev login strings or CDN Three.js references appear in the artifact.
 
 ## Private config
 

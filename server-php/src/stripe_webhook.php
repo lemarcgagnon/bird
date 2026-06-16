@@ -71,6 +71,57 @@ function stripe_store_event_log(PDO $pdo, string $eventId, string $type, array $
     }
 }
 
+function stripe_select_event(PDO $pdo, string $eventId, bool $forUpdate = false): ?array
+{
+    $sql = 'SELECT id, event_id, type, status, payload, error, created_at, processed_at FROM stripe_events WHERE event_id = ?';
+    if ($forUpdate && db_driver_name($pdo) === 'mysql') {
+        $sql .= ' FOR UPDATE';
+    }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute([$eventId]);
+    $row = $stmt->fetch();
+    return is_array($row) ? $row : null;
+}
+
+function stripe_claim_event_for_processing(PDO $pdo, string $eventId, string $type, string $payload): array
+{
+    try {
+        $pdo->prepare('INSERT INTO stripe_events (event_id, type, status, payload) VALUES (?, ?, ?, ?)')
+            ->execute([$eventId, $type, 'received', $payload]);
+    } catch (PDOException $e) {
+        if (stripe_select_event($pdo, $eventId, false) === null) {
+            throw $e;
+        }
+    }
+
+    $event = stripe_select_event($pdo, $eventId, true);
+    if ($event === null) {
+        throw new RuntimeException('stripe_event_claim_failed');
+    }
+
+    $status = (string) $event['status'];
+    if (in_array($status, ['processed', 'ignored'], true)) {
+        return ['action' => 'skip', 'status' => $status];
+    }
+
+    $pdo->prepare('UPDATE stripe_events SET type = ?, payload = ?, status = ?, error = ? WHERE event_id = ?')
+        ->execute([$type, $payload, 'processing', '', $eventId]);
+
+    return ['action' => 'process', 'previous_status' => $status];
+}
+
+function stripe_mark_event_failed(PDO $pdo, string $eventId, string $type, string $payload, string $error): void
+{
+    $error = substr($error, 0, 500);
+    try {
+        $pdo->prepare('INSERT INTO stripe_events (event_id, type, status, payload, error) VALUES (?, ?, ?, ?, ?)')
+            ->execute([$eventId, $type, 'failed', $payload, $error]);
+    } catch (PDOException) {
+        $pdo->prepare("UPDATE stripe_events SET type = ?, payload = ?, status = ?, error = ? WHERE event_id = ? AND status NOT IN ('processed', 'ignored')")
+            ->execute([$type, $payload, 'failed', $error, $eventId]);
+    }
+}
+
 function stripe_processed_event_code(string $type, array $result): string
 {
     if ((string) ($result['status'] ?? '') === 'ignored') {
@@ -400,32 +451,27 @@ function handle_stripe_webhook(): void
         'livemode' => $livemode,
     ]);
 
-    try {
-        $pdo->prepare('INSERT INTO stripe_events (event_id, type, payload) VALUES (?, ?, ?)')->execute([$eventId, $type, $raw]);
-    } catch (PDOException $e) {
-        $stmt = $pdo->prepare('SELECT id FROM stripe_events WHERE event_id = ?');
-        $stmt->execute([$eventId]);
-        if ($stmt->fetchColumn()) {
-            stripe_store_event_log($pdo, $eventId, $type, $object, $livemode, 'ignored', $payloadHash, 'duplicate');
-            stripe_app_log($pdo, 'warning', 'stripe_webhook_duplicate', 'Webhook Stripe deja traite', ['event_id' => $eventId, 'type' => $type]);
-            json_response(['ok' => true, 'status' => 'duplicate', 'event_id' => $eventId]);
-            return;
-        }
-        stripe_store_event_log($pdo, $eventId, $type, $object, $livemode, 'failed', $payloadHash, 'event_store_failed');
-        stripe_app_log($pdo, 'error', 'stripe_webhook_store_failed', 'Stockage webhook Stripe impossible', [
-            'event_id' => $eventId,
-            'type' => $type,
-            'error' => $e->getMessage(),
-        ], 500);
-        json_response(['ok' => false, 'error' => 'event_store_failed', 'event_id' => $eventId], 500);
-        return;
-    }
-
     $pdo->beginTransaction();
     try {
+        $claim = stripe_claim_event_for_processing($pdo, $eventId, $type, $raw);
+        if (($claim['action'] ?? '') === 'skip') {
+            $pdo->commit();
+            $storedStatus = (string) ($claim['status'] ?? 'terminal');
+            stripe_store_event_log($pdo, $eventId, $type, $object, $livemode, $storedStatus === 'processed' ? 'processed' : 'ignored', $payloadHash, 'duplicate_' . $storedStatus);
+            stripe_app_log($pdo, 'info', 'stripe_webhook_duplicate_terminal', 'Webhook Stripe deja termine', [
+                'event_id' => $eventId,
+                'type' => $type,
+                'status' => $storedStatus,
+            ]);
+            json_response(['ok' => true, 'status' => 'duplicate', 'stored_status' => $storedStatus, 'event_id' => $eventId]);
+            return;
+        }
+
+        stripe_store_event_log($pdo, $eventId, $type, $object, $livemode, 'processing', $payloadHash, (string) ($claim['previous_status'] ?? ''));
         $result = stripe_process_event($pdo, $type, $object);
-        $pdo->prepare('UPDATE stripe_events SET status = ?, processed_at = CURRENT_TIMESTAMP WHERE event_id = ?')
-            ->execute([(string) $result['status'], $eventId]);
+        $finalStatus = (string) $result['status'];
+        $pdo->prepare('UPDATE stripe_events SET status = ?, error = ?, processed_at = CURRENT_TIMESTAMP WHERE event_id = ?')
+            ->execute([$finalStatus, '', $eventId]);
         stripe_store_event_log($pdo, $eventId, $type, $object, $livemode, (string) $result['status'] === 'ignored' ? 'ignored' : 'processed', $payloadHash, (string) ($result['reason'] ?? ''));
         stripe_app_log($pdo, 'info', stripe_processed_event_code($type, $result), 'Webhook Stripe traite', [
             'event_id' => $eventId,
@@ -436,9 +482,10 @@ function handle_stripe_webhook(): void
         $pdo->commit();
         json_response(['ok' => true, 'event_id' => $eventId] + $result);
     } catch (Throwable $e) {
-        $pdo->rollBack();
-        $pdo->prepare('UPDATE stripe_events SET status = ?, error = ? WHERE event_id = ?')
-            ->execute(['failed', $e->getMessage(), $eventId]);
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        stripe_mark_event_failed($pdo, $eventId, $type, $raw, $e->getMessage());
         stripe_store_event_log($pdo, $eventId, $type, $object, $livemode, 'failed', $payloadHash, $e->getMessage());
         stripe_app_log($pdo, 'error', 'stripe_webhook_failed', 'Webhook Stripe echoue', [
             'event_id' => $eventId,

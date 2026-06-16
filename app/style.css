@@ -597,7 +597,7 @@ input[type="range"] {
   margin: 0 0 10px;
 }
 
-.dev-credentials {
+.account-source-note {
   display: grid;
   gap: 7px;
   margin: 0 0 16px;
@@ -607,7 +607,7 @@ input[type="range"] {
   background: color-mix(in srgb, var(--accent) 7%, var(--panel-2));
 }
 
-.dev-credentials span {
+.account-source-note span {
   color: var(--accent);
   font-size: 11px;
   font-weight: 700;
@@ -615,12 +615,12 @@ input[type="range"] {
   text-transform: uppercase;
 }
 
-.dev-credentials strong {
+.account-source-note strong {
   color: var(--text);
   font-size: 14px;
 }
 
-.dev-credentials code {
+.account-source-note code {
   color: var(--text);
   font-size: 12px;
   word-break: break-all;
@@ -1070,6 +1070,15 @@ input[type="range"] {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+.viewer-fallback {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
 }
 
 .overlay {

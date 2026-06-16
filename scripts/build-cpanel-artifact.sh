@@ -12,7 +12,7 @@ fi
 PUBLIC="$OUT/public_html"
 PRIVATE="$OUT/nichoir_private"
 
-mkdir -p "$PUBLIC/app" "$PUBLIC/wasm/pkg"
+mkdir -p "$PUBLIC/app/vendor" "$PUBLIC/wasm/pkg"
 mkdir -p "$PRIVATE/server-php/public" "$PRIVATE/server-php/src" "$PRIVATE/server-php/data" "$PRIVATE/server-php/migrations" "$PRIVATE/config" "$PRIVATE/logs"
 
 cp "$ROOT/deployment/namecheap/public_html/index.php" "$PUBLIC/index.php"
@@ -22,6 +22,7 @@ cp "$ROOT/server-php/public/site.css" "$PUBLIC/site.css"
 cp "$ROOT/app/index.html" "$PUBLIC/app/index.html"
 cp "$ROOT/app/app.js" "$PUBLIC/app/app.js"
 cp "$ROOT/app/style.css" "$PUBLIC/app/style.css"
+cp "$ROOT/app/vendor/three.module.min.js" "$PUBLIC/app/vendor/three.module.min.js"
 
 cp "$ROOT/wasm/pkg/wasm.js" "$PUBLIC/wasm/pkg/wasm.js"
 cp "$ROOT/wasm/pkg/wasm_bg.wasm" "$PUBLIC/wasm/pkg/wasm_bg.wasm"
@@ -38,6 +39,7 @@ Namecheap/cPanel artifact.
 Upload public_html/* into cPanel public_html.
 Upload nichoir_private/ next to public_html, outside browser access.
 Copy nichoir_private/config/production.example.php to production.php and fill private values.
+The cPanel wrapper defaults to NICHOIR_ENV=production. Without a complete private MySQL production config, the app fails closed.
 Do not upload repository root, docs, installation, Rust source, SQLite DB, logs, .git, or scripts to public_html.
 EOF
 

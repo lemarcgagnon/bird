@@ -464,7 +464,7 @@ function render_email_settings_panel(PDO $pdo): string
     $recent = $pdo->query('SELECT id, ticket_id, recipient, subject, status, error, created_at, sent_at FROM ticket_notifications ORDER BY id DESC LIMIT 20')->fetchAll();
     $rows = '';
     foreach ($recent as $row) {
-        $rows .= '<tr><td>' . (int) $row['id'] . '</td><td>#' . (int) $row['ticket_id'] . '</td><td>' . h((string) $row['recipient']) . '</td><td>' . h((string) $row['subject']) . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) ($row['error'] ?: '-')) . '</td><td>' . h((string) ($row['sent_at'] ?: $row['created_at'])) . '</td></tr>';
+        $rows .= '<tr><td>' . (int) $row['id'] . '</td><td>#' . (int) $row['ticket_id'] . '</td><td>' . h((string) $row['recipient']) . '</td><td>' . h((string) $row['subject']) . '</td><td>' . h((string) $row['status']) . '</td><td>' . h(admin_error_summary((string) ($row['error'] ?? ''))) . '</td><td>' . h((string) ($row['sent_at'] ?: $row['created_at'])) . '</td></tr>';
     }
     $rows = $rows ?: '<tr><td colspan="7">Aucun email ticket.</td></tr>';
     $passwordNote = app_config_value('NICHOIR_SMTP_PASSWORD') !== '' ? 'Mot de passe fourni par configuration privee NICHOIR_SMTP_PASSWORD.' : 'Laisser vide pour conserver le mot de passe actuel.';
@@ -641,6 +641,11 @@ function admin_log_text(string $value, int $limit = 220): string
     return strlen($value) > $limit ? substr($value, 0, $limit) . '...' : $value;
 }
 
+function admin_error_summary(string $value): string
+{
+    return trim($value) === '' ? '-' : 'Detail technique masque; voir logs serveur.';
+}
+
 function admin_log_filter_link(array $params = []): string
 {
     $base = [];
@@ -655,7 +660,7 @@ function render_app_log_rows(array $logs): string
 {
     $rows = '';
     foreach ($logs as $log) {
-        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['level']) . '</td><td>' . h((string) $log['channel']) . '</td><td>' . h((string) $log['event_code']) . '</td><td>' . h(admin_log_text((string) $log['message'])) . '</td><td>' . h((string) ($log['user_id'] ?? '')) . '</td><td>' . h((string) ($log['http_status'] ?? '')) . '</td><td><code>' . h(admin_log_text((string) ($log['context_json'] ?? ''), 160)) . '</code></td></tr>';
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['level']) . '</td><td>' . h((string) $log['channel']) . '</td><td>' . h((string) $log['event_code']) . '</td><td>' . h(admin_log_text((string) $log['message'])) . '</td><td>' . h((string) ($log['user_id'] ?? '')) . '</td><td>' . h((string) ($log['http_status'] ?? '')) . '</td><td><code>' . h((string) ($log['request_id'] ?? '')) . '</code></td></tr>';
     }
     return $rows ?: '<tr><td colspan="8">Aucun log.</td></tr>';
 }
@@ -673,7 +678,7 @@ function render_stripe_log_rows(array $logs): string
 {
     $rows = '';
     foreach ($logs as $log) {
-        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['stripe_event_id']) . '</td><td>' . h((string) $log['event_type']) . '</td><td>' . h((string) ($log['stripe_object_id'] ?? '')) . '</td><td>' . h((string) $log['status']) . '</td><td>' . (int) $log['attempt_count'] . '</td><td>' . h(admin_log_text((string) ($log['error_message'] ?? ''), 180)) . '</td></tr>';
+        $rows .= '<tr><td>' . h((string) $log['created_at']) . '</td><td>' . h((string) $log['stripe_event_id']) . '</td><td>' . h((string) $log['event_type']) . '</td><td>' . h((string) ($log['stripe_object_id'] ?? '')) . '</td><td>' . h((string) $log['status']) . '</td><td>' . (int) $log['attempt_count'] . '</td><td>' . h(admin_error_summary((string) ($log['error_message'] ?? ''))) . '</td></tr>';
     }
     return $rows ?: '<tr><td colspan="7">Aucun evenement Stripe.</td></tr>';
 }
@@ -699,18 +704,18 @@ function render_admin_logs_panel(PDO $pdo): string
         $params[] = '%' . substr($event, 0, 100) . '%';
     }
     if ($query !== '') {
-        $where[] = '(message LIKE ? OR context_json LIKE ? OR request_id LIKE ?)';
+        $where[] = '(message LIKE ? OR request_id LIKE ?)';
         $term = '%' . substr($query, 0, 120) . '%';
-        array_push($params, $term, $term, $term);
+        array_push($params, $term, $term);
     }
     $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
-    $appStmt = $pdo->prepare('SELECT created_at, level, channel, event_code, message, user_id, http_status, context_json FROM app_logs ' . $whereSql . ' ORDER BY id DESC LIMIT 80');
+    $appStmt = $pdo->prepare('SELECT created_at, level, channel, event_code, message, user_id, http_status, request_id FROM app_logs ' . $whereSql . ' ORDER BY id DESC LIMIT 80');
     $appStmt->execute($params);
     $appRows = render_app_log_rows($appStmt->fetchAll());
 
     $security = $pdo->query(
-        "SELECT created_at, level, channel, event_code, message, user_id, http_status, context_json
+        "SELECT created_at, level, channel, event_code, message, user_id, http_status, request_id
          FROM app_logs
          WHERE level IN ('security', 'critical') OR event_code IN ('rate_limit_triggered', 'admin_access_denied', 'stripe_webhook_signature_failed', 'email_failed', 'php_error')
          ORDER BY id DESC LIMIT 60"
@@ -741,15 +746,15 @@ function render_admin_logs_panel(PDO $pdo): string
           <label><span>Niveau</span><select name="log_level">' . $levelOptions . '</select></label>
           <label><span>Channel</span><input type="search" name="log_channel" value="' . h($channel) . '" placeholder="auth, api, stripe"></label>
           <label><span>Event</span><input type="search" name="log_event" value="' . h($event) . '" placeholder="login_failed"></label>
-          <label><span>Recherche</span><input type="search" name="log_q" value="' . h($query) . '" placeholder="message, contexte, request_id"></label>
+          <label><span>Recherche</span><input type="search" name="log_q" value="' . h($query) . '" placeholder="message, request_id"></label>
           <button type="submit">Filtrer</button>
         </form>
         <h3>Alertes</h3>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Channel</th><th>Event</th><th>Message</th><th>User</th><th>HTTP</th><th>Contexte</th></tr></thead><tbody>' . $securityRows . '</tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Channel</th><th>Event</th><th>Message</th><th>User</th><th>HTTP</th><th>Request ID</th></tr></thead><tbody>' . $securityRows . '</tbody></table></div>
       </section>
       <section class="panel">
         <h2>Application</h2>
-        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Channel</th><th>Event</th><th>Message</th><th>User</th><th>HTTP</th><th>Contexte</th></tr></thead><tbody>' . $appRows . '</tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th>Niveau</th><th>Channel</th><th>Event</th><th>Message</th><th>User</th><th>HTTP</th><th>Request ID</th></tr></thead><tbody>' . $appRows . '</tbody></table></div>
       </section>
       <section class="panel">
         <h2>Audit actions</h2>

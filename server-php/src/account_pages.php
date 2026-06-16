@@ -90,15 +90,14 @@ function render_account_page(): void
 		            <label><span>' . h(page_t('password', $lang)) . '</span><input name="password" type="password" autocomplete="current-password" required></label>
 	            <div class="form-actions">
 	              <button type="submit">' . h(page_t('login', $lang)) . '</button>
-	              <button type="button" data-demo-login>' . h(page_t('demo', $lang)) . '</button>
 	              <button type="button" data-logout>' . h(page_t('logout', $lang)) . '</button>
 	            </div>
 	          </form>
 	        </div>
 	        <div class="panel">
-	          <h2>' . h(page_t('dev_register', $lang)) . '</h2>
+	          <h2>' . h(page_t('create_account', $lang)) . '</h2>
 	          <form class="client-form" data-register-form>
-	            <label><span>' . h(page_t('name', $lang)) . '</span><input name="display_name" type="text" value="Demo" maxlength="120"></label>
+	            <label><span>' . h(page_t('name', $lang)) . '</span><input name="display_name" type="text" maxlength="120"></label>
 	            <label><span>' . h(page_t('email', $lang)) . '</span><input name="email" type="email" placeholder="client@example.com" required></label>
 	            <label><span>' . h(page_t('password', $lang)) . '</span><input name="password" type="password" minlength="8" maxlength="200" required></label>
 	            <button type="submit">' . h(page_t('create_account', $lang)) . '</button>
@@ -199,7 +198,6 @@ function render_account_page(): void
 	      const LANG = "' . h($lang) . '";
 	      const t = (key) => I18N[key] || key;
 	      const TOKEN_KEY = "nichoir-auth-token";
-      const demo = window.NICHOIR_DEMO_ACCOUNT || null;
 	      let selectedTicketId = null;
 	      let selectedTicket = null;
 	      const token = () => localStorage.getItem(TOKEN_KEY);
@@ -415,12 +413,6 @@ function render_account_page(): void
 	        }
       });
 
-      const demoButton = document.querySelector("[data-demo-login]");
-      if (demoButton && demo) {
-        demoButton.addEventListener("click", () => login(demo.email, demo.password));
-      } else if (demoButton) {
-        demoButton.hidden = true;
-      }
       document.querySelectorAll("[data-billing-offer]").forEach((button) => {
         button.addEventListener("click", async () => {
           try {

@@ -655,7 +655,6 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "area_pieces") => "Piece area",
         ("en", "area_panel") => "Sheet area",
         ("en", "auto_smallest_panel") => "Auto - smallest compatible sheet",
-        ("en", "demo") => "Demo",
         ("en", "login") => "Login",
         ("en", "logout_short") => "Logout",
         ("en", "plan_none") => "None",
@@ -674,11 +673,9 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "account_state") => "Status",
         ("en", "account_email") => "Email",
         ("en", "account_plan") => "Plan",
-        ("en", "dev_only") => "Dev only",
         ("en", "app_summary_only") => "Summary only in app",
         ("en", "account_server_master") => "The PHP server remains the source of truth for account, credits, subscriptions, tickets, and payments.",
         ("en", "auth") => "Authentication",
-        ("en", "demo_quick_login") => "Quick demo login to test exports. Full account management stays on the site.",
         ("en", "session_active") => "Session active. The server decides download authorizations.",
         ("en", "refresh") => "Refresh",
         ("en", "state") => "state",
@@ -880,7 +877,6 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "area_pieces") => "Aire pieces",
         (_, "area_panel") => "Aire panneau",
         (_, "auto_smallest_panel") => "Auto - plus petit panneau compatible",
-        (_, "demo") => "Demo",
         (_, "login") => "Connexion",
         (_, "logout_short") => "Sortie",
         (_, "plan_none") => "Aucun",
@@ -899,11 +895,9 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "account_state") => "Etat",
         (_, "account_email") => "Courriel",
         (_, "account_plan") => "Plan",
-        (_, "dev_only") => "Dev seulement",
         (_, "app_summary_only") => "Resume dans l'app seulement",
         (_, "account_server_master") => "Le serveur PHP reste maitre du compte, des credits, abonnements, tickets et paiements.",
         (_, "auth") => "Identification",
-        (_, "demo_quick_login") => "Connexion demo rapide pour tester les exports. Le compte complet se gere sur le site.",
         (_, "session_active") => "Session active. Le serveur decide les autorisations de telechargement.",
         (_, "refresh") => "Rafraichir",
         (_, "state") => "etat",
@@ -5186,8 +5180,8 @@ pub fn render_app_html(input: &str) -> String {
         <div class="stat-row"><span>{account_email}</span><strong data-account-email-label>-</strong></div>
         <div class="stat-row"><span>{account_plan}</span><strong data-account-plan>{plan_none}</strong></div>
       </div>
-      <div class="dev-credentials">
-        <span>{dev_only}</span>
+      <div class="account-source-note">
+        <span>{info}</span>
         <strong>{app_summary_only}</strong>
         <code>{account_server_master}</code>
       </div>
@@ -5195,12 +5189,8 @@ pub fn render_app_html(input: &str) -> String {
       <div class="download-groups account-actions">
         <div class="download-group">
           <h3>{auth}</h3>
-          <p class="control-note" data-account-guest data-demo-account>{demo_quick_login}</p>
+          <p class="control-note" data-account-guest>{account_backend_note}</p>
           <p class="control-note" data-account-authed hidden>{session_active}</p>
-          <div class="buttons compact-buttons action-buttons" data-account-guest data-demo-account>
-            <button class="action-tile" data-action="account-login" type="button"><span class="button-glyph" aria-hidden="true">◎</span><span class="button-label">{demo}</span></button>
-            <button class="action-tile" data-action="account-refresh" type="button"><span class="button-glyph" aria-hidden="true">↻</span><span class="button-label">{refresh}</span></button>
-          </div>
           <div class="buttons compact-buttons action-buttons" data-account-authed hidden>
             <button class="action-tile" data-action="account-refresh" type="button"><span class="button-glyph" aria-hidden="true">↻</span><span class="button-label">{refresh}</span></button>
             <button class="action-tile" data-action="account-logout" type="button"><span class="button-glyph" aria-hidden="true">⏻</span><span class="button-label">{logout}</span></button>
@@ -5262,11 +5252,11 @@ pub fn render_app_html(input: &str) -> String {
         account_state = html_escape(t(lang, "account_state")),
         account_email = html_escape(t(lang, "account_email")),
         account_plan = html_escape(t(lang, "account_plan")),
-        dev_only = html_escape(t(lang, "dev_only")),
+        info = html_escape(t(lang, "info")),
         app_summary_only = html_escape(t(lang, "app_summary_only")),
         account_server_master = html_escape(t(lang, "account_server_master")),
         auth = html_escape(t(lang, "auth")),
-        demo_quick_login = html_escape(t(lang, "demo_quick_login")),
+        account_backend_note = html_escape(t(lang, "account_backend_note")),
         session_active = html_escape(t(lang, "session_active")),
         refresh = html_escape(t(lang, "refresh")),
         logout = html_escape(t(lang, "logout")),
@@ -5276,7 +5266,6 @@ pub fn render_app_html(input: &str) -> String {
         costs = html_escape(t(lang, "costs")),
         offers = html_escape(t(lang, "offers")),
         account_management = html_escape(t(lang, "account_management")),
-        account_backend_note = html_escape(t(lang, "account_backend_note")),
         account = html_escape(t(lang, "account")),
         pricing = html_escape(t(lang, "pricing")),
         support_tickets = html_escape(t(lang, "support_tickets")),
@@ -5290,7 +5279,6 @@ pub fn render_app_html(input: &str) -> String {
         close = html_escape(t(lang, "close")),
         reply = html_escape(t(lang, "reply")),
         reply_label = html_escape(t(lang, "reply_label")),
-        demo = html_escape(t(lang, "demo")),
         plan_none = html_escape(t(lang, "plan_none")),
         credits_three = html_escape(t(lang, "credits_three")),
         credits_two = html_escape(t(lang, "credits_two")),

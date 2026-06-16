@@ -57,7 +57,7 @@ function normalize_email_verification_code(string $code): string
 
 function email_verification_timestamp(string $modifier = 'now'): string
 {
-    return (new DateTimeImmutable($modifier))->format('Y-m-d H:i:s');
+    return sql_utc_datetime($modifier);
 }
 
 function auth_client_ip(): string
@@ -74,9 +74,9 @@ function auth_rate_key(string $value): string
 function auth_rate_limit_hit(PDO $pdo, string $scope, string $key, int $limit, int $windowSeconds): bool
 {
     $keyHash = auth_rate_key($key);
-    $now = new DateTimeImmutable();
-    $nowText = $now->format('Y-m-d H:i:s');
-    $resetAt = $now->modify('+' . $windowSeconds . ' seconds')->format('Y-m-d H:i:s');
+    $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+    $nowText = sql_utc_datetime($now);
+    $resetAt = sql_utc_datetime($now->modify('+' . $windowSeconds . ' seconds'));
 
     $stmt = $pdo->prepare('SELECT id, attempts, reset_at FROM auth_rate_limits WHERE scope = ? AND key_hash = ? LIMIT 1');
     $stmt->execute([$scope, $keyHash]);
@@ -212,7 +212,7 @@ function public_user(array $user): array
 function create_session(int $userId): string
 {
     $token = random_token();
-    $expires = (new DateTimeImmutable('+' . SESSION_DAYS . ' days'))->format(DATE_ATOM);
+    $expires = sql_utc_datetime('+' . SESSION_DAYS . ' days');
     $stmt = db()->prepare('INSERT INTO sessions (user_id, token_hash, expires_at) VALUES (?, ?, ?)');
     $stmt->execute([$userId, token_hash($token), $expires]);
     return $token;
@@ -230,7 +230,7 @@ function current_user(): ?array
          JOIN users ON users.id = sessions.user_id
          WHERE sessions.token_hash = ? AND sessions.expires_at > ?'
     );
-    $stmt->execute([token_hash($token), (new DateTimeImmutable())->format(DATE_ATOM)]);
+    $stmt->execute([token_hash($token), sql_utc_datetime()]);
     $user = $stmt->fetch();
     return is_array($user) ? $user : null;
 }

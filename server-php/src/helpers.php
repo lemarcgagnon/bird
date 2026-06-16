@@ -30,6 +30,48 @@ function app_private_config(): array
     return $config;
 }
 
+function app_environment(): string
+{
+    $env = strtolower(trim(app_config_value('NICHOIR_ENV', 'development')));
+    if (in_array($env, ['production', 'prod'], true)) {
+        return 'production';
+    }
+    if (in_array($env, ['development', 'dev', 'local'], true)) {
+        return 'development';
+    }
+    throw new RuntimeException('Invalid NICHOIR_ENV. Use development or production.');
+}
+
+function app_is_production(): bool
+{
+    return app_environment() === 'production';
+}
+
+function app_validate_runtime_config(): void
+{
+    if (!app_is_production()) {
+        return;
+    }
+
+    $missing = [];
+    foreach (['NICHOIR_PUBLIC_BASE_URL', 'NICHOIR_ADMIN_PASSWORD_HASH', 'NICHOIR_LOG_HASH_SALT'] as $name) {
+        if (app_config_value($name) === '') {
+            $missing[] = $name;
+        }
+    }
+
+    if ($missing !== []) {
+        throw new RuntimeException('Production configuration is incomplete. Missing: ' . implode(', ', $missing));
+    }
+
+    if (app_config_value('NICHOIR_DEBUG') === '1') {
+        throw new RuntimeException('NICHOIR_DEBUG must be disabled in production.');
+    }
+    if (app_config_value('NICHOIR_ALLOW_UNSIGNED_STRIPE_WEBHOOKS') === '1') {
+        throw new RuntimeException('Unsigned Stripe webhooks are not allowed in production.');
+    }
+}
+
 function app_config_value(string $name, string $default = ''): string
 {
     $env = getenv($name);

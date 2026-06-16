@@ -53,7 +53,7 @@ function admin_create_user(PDO $pdo): void
     }
     $pdo->beginTransaction();
     try {
-        $verifiedAt = $status === 'pending' ? null : (new DateTimeImmutable())->format('Y-m-d H:i:s');
+        $verifiedAt = $status === 'pending' ? null : sql_utc_datetime();
         $stmt = $pdo->prepare('INSERT INTO users (email, password_hash, display_name, credits, status, email_verified_at) VALUES (?, ?, ?, ?, ?, ?)');
         $stmt->execute([$email, password_hash($password, PASSWORD_DEFAULT), $name, $credits, $status, $verifiedAt]);
         $newUserId = (int) $pdo->lastInsertId();
@@ -358,8 +358,9 @@ function admin_send_test_email(PDO $pdo): void
         audit_admin_action($pdo, null, 'send_test_email', null, $recipient);
         header('Location: ' . admin_redirect_url(['notice' => 'email_test_envoye']));
     } catch (Throwable $e) {
-        audit_admin_action($pdo, null, 'send_test_email_failed', null, substr($e->getMessage(), 0, 200));
-        header('Location: ' . admin_redirect_url(['notice' => 'email_test_erreur_' . substr(preg_replace('/[^a-z0-9_]+/i', '_', $e->getMessage()), 0, 80)]));
+        $requestId = function_exists('log_request_id') ? log_request_id() : '';
+        audit_admin_action($pdo, null, 'send_test_email_failed', null, 'email_test_failed' . ($requestId !== '' ? ':request_id=' . $requestId : ''));
+        header('Location: ' . admin_redirect_url(['notice' => 'email_test_erreur']));
     }
 }
 
@@ -462,7 +463,8 @@ function admin_handle_database_settings(PDO $pdo, bool $save): void
         }
         header('Location: ' . admin_redirect_url(['notice' => 'db_connexion_ok']) . '#admin-settings');
     } catch (Throwable $e) {
-        audit_admin_action($pdo, null, 'database_settings_failed', null, substr($e->getMessage(), 0, 180));
+        $requestId = function_exists('log_request_id') ? log_request_id() : '';
+        audit_admin_action($pdo, null, 'database_settings_failed', null, 'database_settings_failed' . ($requestId !== '' ? ':request_id=' . $requestId : ''));
         header('Location: ' . admin_redirect_url(['notice' => 'db_connexion_erreur']) . '#admin-settings');
     }
 }

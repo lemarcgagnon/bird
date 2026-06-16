@@ -17,13 +17,38 @@ require_once __DIR__ . '/../src/response.php';
 require_once __DIR__ . '/../src/stripe_webhook.php';
 
 $requestStartedAt = microtime(true);
-run_migrations();
-log_register_shutdown(db(), $requestStartedAt);
-
 $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
 
 emit_security_headers();
+
+try {
+    app_validate_runtime_config();
+    run_migrations();
+    log_register_shutdown(db(), $requestStartedAt);
+} catch (Throwable $e) {
+    error_log('Nichoir bootstrap failed: ' . $e->getMessage());
+    $env = 'unknown';
+    try {
+        $env = app_environment();
+    } catch (Throwable) {
+        $env = 'invalid';
+    }
+    if ($path === '/api/health') {
+        json_response([
+            'ok' => false,
+            'service' => 'nichoir-php',
+            'env' => $env,
+            'db' => false,
+            'error' => 'configuration_error',
+        ], 500);
+        exit;
+    }
+    http_response_code(503);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo "Nichoir production configuration is incomplete.\n";
+    exit;
+}
 
 $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
 $allowedOrigins = array_values(array_filter(array_map(
@@ -179,12 +204,23 @@ function ticket_detail_payload(PDO $pdo, array $ticket): array
 }
 
 if ($method === 'GET' && $path === '/api/health') {
+    $driver = db_driver();
+    $env = app_environment();
+    $dbOk = false;
+    try {
+        db()->query('SELECT 1')->fetchColumn();
+        $dbOk = $driver === 'sqlite' ? file_exists(db_path()) : true;
+    } catch (Throwable) {
+        $dbOk = false;
+    }
+    $ok = $dbOk && ($env !== 'production' || $driver === 'mysql');
     json_response([
-        'ok' => true,
+        'ok' => $ok,
         'service' => 'nichoir-php',
-        'db' => db_driver() === 'sqlite' ? file_exists(db_path()) : true,
-        'db_driver' => db_driver(),
-    ]);
+        'env' => $env,
+        'db' => $dbOk,
+        'db_driver' => $driver,
+    ], $ok ? 200 : 500);
     exit;
 }
 
@@ -387,7 +423,7 @@ if ($method === 'POST' && $path === '/api/auth/resend-activation') {
         exit;
     }
     $sentAt = (string) ($user['email_verification_sent_at'] ?? '');
-    if ($sentAt !== '' && new DateTimeImmutable($sentAt) > new DateTimeImmutable('-60 seconds')) {
+    if ($sentAt !== '' && $sentAt > sql_utc_datetime('-60 seconds')) {
         auth_activation_response($email);
         exit;
     }
@@ -598,7 +634,7 @@ if ($method === 'POST' && $path === '/api/exports/authorize') {
     }
 
     $authToken = random_token();
-    $expires = (new DateTimeImmutable('+10 minutes'))->format(DATE_ATOM);
+    $expires = sql_utc_datetime('+10 minutes');
     $stmt = db()->prepare('INSERT INTO export_authorizations (user_id, export_type, credit_cost, auth_token_hash, expires_at) VALUES (?, ?, ?, ?, ?)');
     $stmt->execute([(int) $user['id'], $type, $cost, token_hash($authToken), $expires]);
     app_log(db(), 'info', 'api', 'export_authorized', 'Export autorise', ['export_type' => $type, 'cost' => $cost, 'bonus_credits' => $bonusCredits], (int) $user['id']);
@@ -614,7 +650,7 @@ if ($method === 'POST' && $path === '/api/exports/consume') {
     $pdo->beginTransaction();
     try {
         $stmt = $pdo->prepare('SELECT * FROM export_authorizations WHERE auth_token_hash = ? AND user_id = ? AND status = ? AND expires_at > ?');
-        $stmt->execute([token_hash((string) $data['authorization']), (int) $user['id'], 'authorized', (new DateTimeImmutable())->format(DATE_ATOM)]);
+        $stmt->execute([token_hash((string) $data['authorization']), (int) $user['id'], 'authorized', sql_utc_datetime()]);
         $auth = $stmt->fetch();
         if (!is_array($auth)) {
             $pdo->rollBack();

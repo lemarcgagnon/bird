@@ -8,21 +8,30 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260612-app-cleanup-v1';
-import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.module.min.js';
+} from '../wasm/pkg/wasm.js?v=20260616-prod-hardening-v1';
+import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260616-site-link-v1';
+const APP_BUILD_ID = '20260616-prod-hardening-v1';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
+
+function isLocalHostname(hostname) {
+  const normalized = String(hostname || '').replace(/^\[|\]$/g, '').toLowerCase();
+  return normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1';
+}
+
 function detectPhpBase() {
   if (window.NICHOIR_PHP_BASE) return window.NICHOIR_PHP_BASE;
   const queryBase = new URLSearchParams(window.location.search).get('php_base');
-  if (queryBase && window.location.protocol !== 'https:') {
+  if (queryBase && isLocalHostname(window.location.hostname)) {
     try {
-      return new URL(queryBase).origin;
+      const parsed = new URL(queryBase);
+      if (['http:', 'https:'].includes(parsed.protocol) && isLocalHostname(parsed.hostname)) {
+        return parsed.origin;
+      }
     } catch (_) {
-      // Fall through to same-origin links when the dev base is malformed.
+      // Fall through to same-origin links when the local dev base is malformed.
     }
   }
   return window.location.origin;
@@ -42,8 +51,6 @@ const FORBIDDEN_SVG_TAGS = [
   'audio',
   'video',
 ];
-const DEMO_ACCOUNT = window.NICHOIR_DEMO_ACCOUNT
-  || null;
 const EXPORT_COSTS = {
   svg: 1,
   png: 1,
@@ -77,12 +84,10 @@ const I18N = {
     tickets_error: 'Tickets: {error}',
     ticket_error: 'Ticket: {error}',
     invalid_session: 'Session invalide: {error}',
-    demo_disabled: 'Connexion demo desactivee hors environnement local.',
-    demo_connected: 'Compte demo connecte.',
     account_error: 'Compte: {error}',
     account_logged_out: 'Compte deconnecte.',
     authorizing_export: 'Autorisation serveur pour {filename}...',
-    login_required_download: 'Connexion requise avant ce telechargement. Ouvre Compte et connecte le demo.',
+    login_required_download: 'Connexion requise avant ce telechargement. Ouvre Compte et connecte-toi.',
     insufficient_credits: 'Credits insuffisants pour ce telechargement.',
     authorization_denied: 'Autorisation refusee: {code}',
     remaining_credits: 'Credits restants: {count}.',
@@ -147,6 +152,7 @@ const I18N = {
     export_plan_empty: 'Export plan impossible: aucun SVG genere.',
     export_obj_empty: 'Export OBJ vide: le modele n a genere aucun triangle.',
     app_unavailable: 'Application indisponible. Recharge la page.',
+    viewer_unavailable: 'Apercu 3D indisponible sur ce navigateur.',
     exploded_mesh_missing: 'Image eclatee impossible: aucun mesh genere.',
     ticket_state_open: 'ouvert',
     ticket_state_closed: 'ferme',
@@ -197,12 +203,10 @@ const I18N = {
     tickets_error: 'Tickets: {error}',
     ticket_error: 'Ticket: {error}',
     invalid_session: 'Invalid session: {error}',
-    demo_disabled: 'Demo login is disabled outside local environments.',
-    demo_connected: 'Demo account connected.',
     account_error: 'Account: {error}',
     account_logged_out: 'Account signed out.',
     authorizing_export: 'Server authorization for {filename}...',
-    login_required_download: 'Login required before this download. Open Account and connect the demo user.',
+    login_required_download: 'Login required before this download. Open Account and sign in.',
     insufficient_credits: 'Insufficient credits for this download.',
     authorization_denied: 'Authorization denied: {code}',
     remaining_credits: 'Credits left: {count}.',
@@ -267,6 +271,7 @@ const I18N = {
     export_plan_empty: 'Plan export unavailable: no SVG was generated.',
     export_obj_empty: 'OBJ export is empty: the model generated no triangles.',
     app_unavailable: 'Application unavailable. Reload the page.',
+    viewer_unavailable: '3D preview unavailable in this browser.',
     exploded_mesh_missing: 'Exploded image unavailable: no mesh was generated.',
     ticket_state_open: 'open',
     ticket_state_closed: 'closed',
@@ -713,9 +718,6 @@ function updateAccountDom() {
   root.querySelectorAll('[data-account-guest]').forEach((el) => {
     el.hidden = Boolean(user);
   });
-  root.querySelectorAll('[data-demo-account]').forEach((el) => {
-    el.hidden = !DEMO_ACCOUNT || Boolean(user);
-  });
   if (!user) {
     accountTickets = [];
     accountTicketDetail = null;
@@ -831,32 +833,7 @@ async function refreshAccountState({ silent = false } = {}) {
 }
 
 async function loginAccount() {
-  if (!DEMO_ACCOUNT) {
-    accountState = {
-      user: null,
-      loading: false,
-      error: tr('demo_disabled'),
-    };
-    updateAccountDom();
-    return;
-  }
-  accountState = { user: accountState.user, loading: true, error: '' };
-  updateAccountDom();
-  try {
-    const payload = await apiRequest('/api/auth/login', {
-      method: 'POST',
-      body: JSON.stringify(DEMO_ACCOUNT),
-    });
-    if (payload.token) localStorage.setItem(AUTH_TOKEN_KEY, payload.token);
-    accountState = { user: payload.user || null, loading: false, error: '' };
-    updateAccountDom();
-    await loadAccountTickets({ openFirst: true });
-    setExportStatus(tr('demo_connected'), 'ok');
-  } catch (err) {
-    accountState = { user: null, loading: false, error: readableApiError(err) };
-    updateAccountDom();
-    setExportStatus(tr('account_error', { error: readableApiError(err) }), 'error');
-  }
+  window.location.href = phpUrl('/account');
 }
 
 async function logoutAccount() {
@@ -1840,7 +1817,18 @@ function renderViewer() {
 
   const camera = new THREE.PerspectiveCamera(42, width / height, 1, 5000);
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  let renderer;
+  try {
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+  } catch (err) {
+    console.warn('viewer_unavailable', err);
+    mount.innerHTML = '';
+    const fallback = document.createElement('div');
+    fallback.className = 'viewer-fallback';
+    fallback.textContent = tr('viewer_unavailable');
+    mount.appendChild(fallback);
+    return;
+  }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(width, height);
   mount.textContent = '';
@@ -2460,7 +2448,7 @@ function render() {
 }
 
 try {
-  await init(new URL(`../wasm/pkg/wasm_bg.wasm?v=${APP_BUILD_ID}`, import.meta.url));
+  await init({ module_or_path: new URL(`../wasm/pkg/wasm_bg.wasm?v=${APP_BUILD_ID}`, import.meta.url) });
   params = JSON.parse(default_params_json());
   params.lang = detectInitialLanguage();
   localStorage.setItem(LANG_KEY, params.lang);

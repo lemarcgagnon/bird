@@ -21,6 +21,8 @@ function installation_lock_path(): string
 function db_default_config(): array
 {
     return [
+        'env' => 'development',
+        'dev_mode' => '0',
         'driver' => 'sqlite',
         'sqlite_path' => dirname(__DIR__) . '/data/nichoir.sqlite',
         'mysql_host' => 'localhost',
@@ -30,6 +32,12 @@ function db_default_config(): array
         'mysql_password' => '',
         'mysql_charset' => 'utf8mb4',
     ];
+}
+
+function db_config_value(string $name, string $default = ''): string
+{
+    $value = function_exists('app_config_value') ? app_config_value($name) : getenv($name);
+    return is_string($value) && $value !== '' ? $value : $default;
 }
 
 function db_local_config(): array
@@ -69,6 +77,8 @@ function db_env_value(string $name): ?string
 function db_env_config(): array
 {
     $map = [
+        'env' => 'NICHOIR_ENV',
+        'dev_mode' => 'NICHOIR_DEV_MODE',
         'driver' => 'NICHOIR_DB_DRIVER',
         'sqlite_path' => 'NICHOIR_SQLITE_PATH',
         'mysql_host' => 'NICHOIR_DB_HOST',
@@ -88,13 +98,65 @@ function db_env_config(): array
     return $config;
 }
 
+function db_normalize_environment(string $env): string
+{
+    $env = strtolower(trim($env));
+    if (in_array($env, ['production', 'prod'], true)) {
+        return 'production';
+    }
+    if (in_array($env, ['development', 'dev', 'local'], true)) {
+        return 'development';
+    }
+    throw new RuntimeException('Invalid NICHOIR_ENV. Use development or production.');
+}
+
+function db_is_production_config(array $config): bool
+{
+    return ($config['env'] ?? 'development') === 'production';
+}
+
+function db_sqlite_allowed(array $config): bool
+{
+    if (db_is_production_config($config)) {
+        return false;
+    }
+    return ($config['env'] ?? 'development') === 'development'
+        || in_array((string) ($config['dev_mode'] ?? ''), ['1', 'true', 'yes'], true);
+}
+
+function db_validate_config(array $config): void
+{
+    if (!in_array($config['driver'], ['sqlite', 'mysql'], true)) {
+        throw new RuntimeException('Invalid NICHOIR_DB_DRIVER. Use sqlite or mysql.');
+    }
+
+    if ($config['driver'] === 'sqlite' && !db_sqlite_allowed($config)) {
+        throw new RuntimeException('SQLite is allowed only for development. Production requires MySQL.');
+    }
+
+    if (db_is_production_config($config) && $config['driver'] !== 'mysql') {
+        throw new RuntimeException('Production requires NICHOIR_DB_DRIVER=mysql.');
+    }
+
+    if ($config['driver'] === 'mysql') {
+        $required = ['mysql_host', 'mysql_database', 'mysql_username', 'mysql_charset'];
+        if (db_is_production_config($config)) {
+            $required[] = 'mysql_password';
+        }
+        foreach ($required as $key) {
+            if ((string) ($config[$key] ?? '') === '') {
+                throw new RuntimeException('Incomplete MySQL configuration: ' . $key . ' is required.');
+            }
+        }
+    }
+}
+
 function db_normalize_config(array $config): array
 {
     $normalized = array_merge(db_default_config(), $config);
+    $normalized['env'] = db_normalize_environment((string) ($normalized['env'] ?: db_config_value('NICHOIR_ENV', 'development')));
+    $normalized['dev_mode'] = trim((string) ($normalized['dev_mode'] ?: db_config_value('NICHOIR_DEV_MODE', '0')));
     $normalized['driver'] = strtolower(trim((string) $normalized['driver']));
-    if (!in_array($normalized['driver'], ['sqlite', 'mysql'], true)) {
-        $normalized['driver'] = 'sqlite';
-    }
     $normalized['sqlite_path'] = trim((string) $normalized['sqlite_path']);
     $normalized['mysql_host'] = trim((string) $normalized['mysql_host']);
     $normalized['mysql_port'] = (string) max(1, min(65535, (int) $normalized['mysql_port']));
@@ -102,7 +164,19 @@ function db_normalize_config(array $config): array
     $normalized['mysql_username'] = trim((string) $normalized['mysql_username']);
     $normalized['mysql_password'] = (string) $normalized['mysql_password'];
     $normalized['mysql_charset'] = preg_replace('/[^a-zA-Z0-9_]/', '', (string) $normalized['mysql_charset']) ?: 'utf8mb4';
+    db_validate_config($normalized);
     return $normalized;
+}
+
+function sql_utc_datetime(DateTimeInterface|string|null $value = null): string
+{
+    if ($value instanceof DateTimeInterface) {
+        $dt = DateTimeImmutable::createFromInterface($value);
+    } else {
+        $dt = new DateTimeImmutable($value ?? 'now', new DateTimeZone('UTC'));
+    }
+
+    return $dt->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
 }
 
 function db_config(bool $reload = false): array

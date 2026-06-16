@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 return [
+    'NICHOIR_ENV' => 'production',
     'NICHOIR_PUBLIC_BASE_URL' => 'https://example.com',
     'NICHOIR_ADMIN_PASSWORD_HASH' => 'replace-with-password_hash-output',
     'NICHOIR_DB_DRIVER' => 'mysql',

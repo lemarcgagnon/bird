@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+if (!is_string(getenv('NICHOIR_ENV')) || getenv('NICHOIR_ENV') === '') {
+    putenv('NICHOIR_ENV=production');
+}
+
 $privateRoot = getenv('NICHOIR_PRIVATE_ROOT');
 if (!is_string($privateRoot) || $privateRoot === '') {
     $privateRoot = dirname(__DIR__) . '/nichoir_private';

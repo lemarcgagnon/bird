@@ -9,7 +9,9 @@ function page_response(string $title, string $body, string $active = '', int $st
 {
     http_response_code($status);
     header('Content-Type: text/html; charset=utf-8');
-    $lang = $active === '/admin' ? 'fr' : page_lang();
+    $adminPath = function_exists('admin_base_path') ? admin_base_path() : '';
+    $isAdmin = $adminPath !== '' && function_exists('admin_path_is_admin') && admin_path_is_admin($active);
+    $lang = $isAdmin ? 'fr' : page_lang();
     $appUrl = h(dev_app_url($lang));
     $nav = [
         '/' => page_t('nav_home', $lang),
@@ -42,15 +44,16 @@ function page_response(string $title, string $body, string $active = '', int $st
     echo '<div><a class="brand" href="' . h(page_path_with_lang('/', $lang)) . '">Nichoir</a><p>' . h(page_t('footer', $lang)) . '</p></div>';
     echo '<nav aria-label="' . h(page_t('footer_product', $lang)) . '"><strong>' . h(page_t('footer_product', $lang)) . '</strong><a href="' . h(page_path_with_lang('/pricing', $lang)) . '">' . h(page_t('nav_pricing', $lang)) . '</a><a href="' . h(dev_app_url($lang)) . '">' . h(page_t('open_app', $lang)) . '</a></nav>';
     echo '<nav aria-label="' . h(page_t('footer_support', $lang)) . '"><strong>' . h(page_t('footer_support', $lang)) . '</strong><a href="' . h(page_path_with_lang('/contact', $lang)) . '">' . h(page_t('nav_contact', $lang)) . '</a><a href="' . h(page_path_with_lang('/account#account-support', $lang)) . '">' . h(page_t('footer_ticket', $lang)) . '</a></nav>';
-    echo '<nav aria-label="' . h(page_t('footer_company', $lang)) . '"><strong>' . h(page_t('footer_company', $lang)) . '</strong><a href="' . h(page_path_with_lang('/about', $lang)) . '">' . h(page_t('nav_about', $lang)) . '</a><a href="' . h(page_path_with_lang('/terms', $lang)) . '">' . h(page_t('footer_terms', $lang)) . '</a><a href="' . h(page_path_with_lang('/legal', $lang)) . '">' . h(page_t('footer_legal', $lang)) . '</a><a href="' . h(page_path_with_lang('/admin', 'fr')) . '">' . h(page_t('nav_admin', 'fr')) . '</a></nav>';
+    echo '<nav aria-label="' . h(page_t('footer_company', $lang)) . '"><strong>' . h(page_t('footer_company', $lang)) . '</strong><a href="' . h(page_path_with_lang('/about', $lang)) . '">' . h(page_t('nav_about', $lang)) . '</a><a href="' . h(page_path_with_lang('/terms', $lang)) . '">' . h(page_t('footer_terms', $lang)) . '</a><a href="' . h(page_path_with_lang('/legal', $lang)) . '">' . h(page_t('footer_legal', $lang)) . '</a></nav>';
     echo '</footer>';
     echo '<script>
       (() => {
+        const adminPath = ' . json_encode($adminPath, JSON_UNESCAPED_SLASHES) . ';
         const tabNavs = document.querySelectorAll("[data-tab-nav]");
         if (!tabNavs.length) return;
         function activateTabs() {
           let hash = window.location.hash.replace("#", "");
-          if (!hash && window.location.pathname === "/admin") {
+          if (!hash && adminPath && window.location.pathname === adminPath) {
             const params = new URLSearchParams(window.location.search);
             if (params.has("ticket_id")) hash = "admin-support";
             else if (params.has("user_id")) hash = params.get("return_tab") || "admin-clients";

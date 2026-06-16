@@ -31,7 +31,7 @@ function admin_exports_download_url(string $format, string $scope = 'exports'): 
     if ($key !== '') {
         $params['key'] = $key;
     }
-    return '/admin/exports/download?' . http_build_query($params);
+    return admin_exports_path() . '?' . http_build_query($params);
 }
 
 function admin_export_dataset(string $label, array $columns, array $rows): array

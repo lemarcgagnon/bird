@@ -33,6 +33,54 @@ function admin_allowed(): bool
     return admin_logged_in();
 }
 
+function admin_base_path(): string
+{
+    static $path = null;
+    if ($path !== null) {
+        return $path;
+    }
+
+    $configured = trim(app_config_value('NICHOIR_ADMIN_PATH', '/gestion-nichoir'));
+    if ($configured === '') {
+        $configured = '/gestion-nichoir';
+    }
+    if (!str_starts_with($configured, '/')) {
+        $configured = '/' . $configured;
+    }
+    $configured = '/' . trim($configured, '/');
+    $lower = strtolower($configured);
+
+    if (in_array($lower, ['/admin', '/administration'], true)) {
+        throw new RuntimeException('Reserved NICHOIR_ADMIN_PATH.');
+    }
+    if (!preg_match('/^\/[A-Za-z0-9][A-Za-z0-9_-]{2,60}$/', $configured)) {
+        throw new RuntimeException('Invalid NICHOIR_ADMIN_PATH.');
+    }
+
+    $path = $configured;
+    return $path;
+}
+
+function admin_login_path(): string
+{
+    return admin_base_path() . '/login';
+}
+
+function admin_logout_path(): string
+{
+    return admin_base_path() . '/logout';
+}
+
+function admin_exports_path(): string
+{
+    return admin_base_path() . '/exports/download';
+}
+
+function admin_path_is_admin(string $path): bool
+{
+    return $path === admin_base_path() || str_starts_with($path, admin_base_path() . '/');
+}
+
 function admin_logged_in(): bool
 {
     app_secure_session_start();
@@ -73,7 +121,7 @@ function admin_mark_logged_out(): void
 function admin_require_login_redirect(): void
 {
     if (!admin_allowed()) {
-        header('Location: /admin/login');
+        header('Location: ' . admin_login_path());
     }
 }
 
@@ -110,13 +158,13 @@ function redirect_admin(int $userId = 0, string $notice = '', int $ticketId = 0)
     if ($notice !== '') {
         $parts[] = 'notice=' . rawurlencode($notice);
     }
-    header('Location: /admin' . ($parts ? '?' . implode('&', $parts) : ''));
+    header('Location: ' . admin_base_path() . ($parts ? '?' . implode('&', $parts) : ''));
 }
 
 function admin_redirect_url(array $params = []): string
 {
     $query = http_build_query($params);
-    return '/admin' . ($query === '' ? '' : '?' . $query);
+    return admin_base_path() . ($query === '' ? '' : '?' . $query);
 }
 
 function admin_tab_value(string $value, string $fallback = 'admin-clients'): string

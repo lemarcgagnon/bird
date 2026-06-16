@@ -12,7 +12,7 @@ require_once __DIR__ . '/stripe.php';
 function handle_admin_login(): void
 {
     if (!admin_csrf_valid((string) ($_POST['csrf_token'] ?? ''))) {
-        page_response('Admin', '<section class="page-title"><h1>Connexion admin</h1><p>Session invalide. Recharge la page.</p></section>', '/admin/login', 403);
+        page_response('Admin', '<section class="page-title"><h1>Connexion admin</h1><p>Session invalide. Recharge la page.</p></section>', admin_login_path(), 403);
         return;
     }
     $password = (string) ($_POST['password'] ?? '');
@@ -20,24 +20,24 @@ function handle_admin_login(): void
         if (function_exists('app_log')) {
             app_log(db(), 'security', 'admin', 'admin_login_failed', 'Connexion admin refusee', [], null, 403);
         }
-        header('Location: /admin/login?error=1');
+        header('Location: ' . admin_login_path() . '?error=1');
         return;
     }
     admin_mark_logged_in();
     if (function_exists('app_log')) {
         app_log(db(), 'security', 'admin', 'admin_login_success', 'Connexion admin reussie');
     }
-    header('Location: /admin');
+    header('Location: ' . admin_base_path());
 }
 
 function handle_admin_logout(): void
 {
     if (!admin_csrf_valid((string) ($_POST['csrf_token'] ?? ''))) {
-        page_response('Admin', '<section class="page-title"><h1>Admin protege</h1><p>Session invalide. Recharge la page.</p></section>', '/admin/login', 403);
+        page_response('Admin', '<section class="page-title"><h1>Admin protege</h1><p>Session invalide. Recharge la page.</p></section>', admin_login_path(), 403);
         return;
     }
     admin_mark_logged_out();
-    header('Location: /admin/login?logout=1');
+    header('Location: ' . admin_login_path() . '?logout=1');
 }
 
 function admin_create_user(PDO $pdo): void
@@ -475,14 +475,14 @@ function handle_admin_post(): void
         if (function_exists('app_log')) {
             app_log(db(), 'security', 'admin', 'admin_access_denied', 'POST admin refuse', [], null, 403);
         }
-        page_response('Admin', '<section class="page-title"><h1>Admin protege</h1><p>Acces refuse.</p></section>', '/admin', 403);
+        page_response('Admin', '<section class="page-title"><h1>Admin protege</h1><p>Acces refuse.</p></section>', admin_base_path(), 403);
         return;
     }
     if (!admin_csrf_valid((string) ($_POST['csrf_token'] ?? ''))) {
         if (function_exists('app_log')) {
             app_log(db(), 'security', 'admin', 'admin_csrf_invalid', 'CSRF admin invalide', [], null, 403);
         }
-        page_response('Admin', '<section class="page-title"><h1>Admin protege</h1><p>Session invalide. Recharge la page.</p></section>', '/admin', 403);
+        page_response('Admin', '<section class="page-title"><h1>Admin protege</h1><p>Session invalide. Recharge la page.</p></section>', admin_base_path(), 403);
         return;
     }
 

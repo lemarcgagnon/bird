@@ -102,40 +102,45 @@ if ($method === 'GET' && $path === '/account') {
     exit;
 }
 
-if ($method === 'GET' && $path === '/admin/login') {
+$adminPath = admin_base_path();
+$adminLoginPath = admin_login_path();
+$adminLogoutPath = admin_logout_path();
+$adminExportsPath = admin_exports_path();
+
+if ($method === 'GET' && $path === $adminLoginPath) {
     render_admin_login_page();
     exit;
 }
 
-if ($method === 'POST' && $path === '/admin/login') {
+if ($method === 'POST' && $path === $adminLoginPath) {
     handle_admin_login();
     exit;
 }
 
-if ($method === 'POST' && $path === '/admin/logout') {
+if ($method === 'POST' && $path === $adminLogoutPath) {
     handle_admin_logout();
     exit;
 }
 
-if ($method === 'GET' && $path === '/admin') {
+if ($method === 'GET' && $path === $adminPath) {
     if (!admin_allowed()) {
-        header('Location: /admin/login');
+        header('Location: ' . $adminLoginPath);
         exit;
     }
     render_admin_page();
     exit;
 }
 
-if ($method === 'GET' && $path === '/admin/exports/download') {
+if ($method === 'GET' && $path === $adminExportsPath) {
     if (!admin_allowed()) {
-        header('Location: /admin/login');
+        header('Location: ' . $adminLoginPath);
         exit;
     }
     handle_admin_exports_download();
     exit;
 }
 
-if ($method === 'POST' && $path === '/admin') {
+if ($method === 'POST' && $path === $adminPath) {
     handle_admin_post();
     exit;
 }

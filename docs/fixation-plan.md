@@ -64,7 +64,9 @@ Objectif: ajouter une option de fixation murale au nichoir sans refonte et sans 
 
 7. Integrer aux exports.
    - `export_house_stl`: inclure le bloc seulement si `wallMount=true`.
+   - `export_wall_mount_stl`: telecharger le bloc seul seulement si `wallMount=true`.
    - `export_panels_zip`: ajouter `bloc_fixation_mur.stl` seulement si `wallMount=true`.
+   - `Plan`: afficher un bouton `.STL` dedie a la fixation murale quand l'option est active.
    - `mesh_report`: compter la piece seulement si active.
    - Le ZIP sans fixation doit rester identique dans sa liste de pieces.
 

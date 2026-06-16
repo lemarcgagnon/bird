@@ -4866,6 +4866,25 @@ pub fn export_door_stl(input: &str) -> Vec<u8> {
 }
 
 #[wasm_bindgen]
+pub fn export_wall_mount_stl(input: &str) -> Vec<u8> {
+    let p = match parse_input(input) {
+        Ok(v) => v,
+        Err(_) => NichoirParams::default(),
+    };
+    if !p.wall_mount {
+        return Vec::new();
+    }
+
+    let g = GeometryPayload::from_p(&p);
+    let tris = wall_mount_block_tris(&p, &g);
+    if tris.is_empty() {
+        return Vec::new();
+    }
+
+    write_stl("Nichoir Wall Mount Block", &tris)
+}
+
+#[wasm_bindgen]
 pub fn export_panels_zip(input: &str) -> Vec<u8> {
     let p = match parse_input(input) {
         Ok(v) => v,
@@ -5576,6 +5595,8 @@ pub fn render_app_html(input: &str) -> String {
     let calc_pdf_label = icon_text("∑", "button-glyph", "button-label", t(lang, "download_calcs_pdf"));
     let export_house_label = icon_text("⌂", "button-glyph", "button-label", t(lang, "house"));
     let export_door_label = icon_text("▣", "button-glyph", "button-label", t(lang, "door"));
+    let export_wall_mount_label =
+        icon_text("▥", "button-glyph", "button-label", t(lang, "wall_mount_piece"));
     let export_panel_label = icon_text("▤", "button-glyph", "button-label", t(lang, "panel"));
     let export_plan_label = icon_text("▧", "button-glyph", "button-label", t(lang, "plan"));
     let export_explosion_label = icon_text("✣", "button-glyph", "button-label", t(lang, "explosion"));
@@ -5602,6 +5623,13 @@ pub fn render_app_html(input: &str) -> String {
             RidgeMode::Miter => "ONGLET",
         },
     );
+    let wall_mount_export_button = if p.wall_mount {
+        format!(
+            r#"<button data-action="export-wall-mount">{export_wall_mount_label}<strong>.STL</strong></button>"#
+        )
+    } else {
+        String::new()
+    };
 
     format!(
         r##"
@@ -5680,6 +5708,7 @@ pub fn render_app_html(input: &str) -> String {
           <div class="buttons compact-buttons action-buttons">
             <button data-action="export-house">{export_house_label}<strong>.STL</strong></button>
             <button data-action="export-door">{export_door_label}<strong>.STL</strong></button>
+            {wall_mount_export_button}
             <button class="action-tile primary-action" data-action="export-panels">{export_panel_label}<strong>.ZIP</strong></button>
           </div>
         </div>
@@ -5755,6 +5784,7 @@ pub fn render_app_html(input: &str) -> String {
         calc_pdf_label = calc_pdf_label,
         export_house_label = export_house_label,
         export_door_label = export_door_label,
+        wall_mount_export_button = wall_mount_export_button,
         export_panel_label = export_panel_label,
         export_plan_label = export_plan_label,
         export_explosion_label = export_explosion_label,
@@ -5904,6 +5934,17 @@ mod tests {
         assert_eq!(wall_mount_depth(&p), 36.0);
         assert_eq!(wall_mount_holes(&p, &g).len(), 2);
         assert!(parts.iter().any(|(name, tris)| name == "bloc_fixation_mur" && !tris.is_empty()));
+    }
+
+    #[test]
+    fn wall_mount_independent_export_requires_wall_mount() {
+        assert!(export_wall_mount_stl("{}").is_empty());
+
+        let bytes = export_wall_mount_stl(r#"{"wallMount":true,"overhang":36}"#);
+        assert!(bytes.len() > 84);
+
+        let tri_count = u32::from_le_bytes(bytes[80..84].try_into().unwrap()) as usize;
+        assert_eq!(bytes.len(), 84 + tri_count * 50);
     }
 
     #[test]

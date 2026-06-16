@@ -5,13 +5,14 @@ import init, {
   export_house_stl,
   export_house_obj,
   export_door_stl,
+  export_wall_mount_stl,
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260616-hig-v1';
+} from '../wasm/pkg/wasm.js?v=20260616-wall-mount-export-v1';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260616-hig-v1';
+const APP_BUILD_ID = '20260616-wall-mount-export-v1';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -148,6 +149,7 @@ const I18N = {
     decor_read_failed: 'Decor: impossible de lire le fichier.',
     export_house_empty: 'Export maison vide: le modele n a genere aucun triangle.',
     export_door_empty: 'Pas de porte STL: choisis une porte et active "Creer le panneau de porte".',
+    export_wall_mount_empty: 'Pas de STL fixation murale: active "Fixation murale" dans Dimensions.',
     export_panels_empty: 'Export panneaux vide: aucune piece n a ete generee.',
     export_plan_empty: 'Export plan impossible: aucun SVG genere.',
     export_obj_empty: 'Export OBJ vide: le modele n a genere aucun triangle.',
@@ -169,6 +171,7 @@ const I18N = {
     subscription_suspended: 'suspendu',
     file_house_stl: 'nichoir_maison.stl',
     file_door_stl: 'nichoir_porte.stl',
+    file_wall_mount_stl: 'nichoir_bloc_fixation_mur.stl',
     file_panels_zip: 'nichoir_panneaux.zip',
     file_plan_svg: 'nichoir_plan.svg',
     file_plan_png: 'nichoir_plan_de_coupe.png',
@@ -267,6 +270,7 @@ const I18N = {
     decor_read_failed: 'Decor: unable to read the file.',
     export_house_empty: 'House export is empty: the model generated no triangles.',
     export_door_empty: 'No STL door: choose a door and enable "Create door panel".',
+    export_wall_mount_empty: 'No wall mount STL: enable "Wall mount" in Dimensions.',
     export_panels_empty: 'Panel export is empty: no part was generated.',
     export_plan_empty: 'Plan export unavailable: no SVG was generated.',
     export_obj_empty: 'OBJ export is empty: the model generated no triangles.',
@@ -288,6 +292,7 @@ const I18N = {
     subscription_suspended: 'suspended',
     file_house_stl: 'nichoir_house.stl',
     file_door_stl: 'nichoir_door.stl',
+    file_wall_mount_stl: 'nichoir_wall_mount_block.stl',
     file_panels_zip: 'nichoir_panels.zip',
     file_plan_svg: 'nichoir_cut_plan.svg',
     file_plan_png: 'nichoir_cut_plan.png',
@@ -2366,6 +2371,16 @@ function render() {
       'stl',
       () => export_door_stl(JSON.stringify(params)),
       tr('export_door_empty')
+    );
+  });
+
+  root.querySelector('[data-action="export-wall-mount"]')?.addEventListener('click', () => {
+    exportBinaryAuthorized(
+      exportFilename('wall_mount_stl'),
+      'model/stl',
+      'stl',
+      () => export_wall_mount_stl(JSON.stringify(params)),
+      tr('export_wall_mount_empty')
     );
   });
 

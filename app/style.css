@@ -564,9 +564,15 @@ input[type="range"] {
 .compact-buttons button span,
 .compact-buttons .button-like span {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.compact-buttons .button-label {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.model-downloads .compact-buttons {
+  grid-template-columns: 1fr;
 }
 
 .compact-buttons button strong,

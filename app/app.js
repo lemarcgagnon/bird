@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260616-export-gate-modal-v1';
+} from '../wasm/pkg/wasm.js?v=20260616-export-scope-admin-diagnostics-v1';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260616-export-gate-modal-v1';
+const APP_BUILD_ID = '20260616-export-scope-admin-diagnostics-v1';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -40,6 +40,7 @@ function detectPhpBase() {
 
 const PHP_BASE = detectPhpBase();
 const AUTH_TOKEN_KEY = 'nichoir-auth-token';
+const MESH_REPORT_STORAGE_KEY = 'nichoir-last-mesh-report';
 const MAX_DECO_FILE_BYTES = 2 * 1024 * 1024;
 const CLIENT_LOG_LIMIT = 10;
 const CLIENT_LOG_WINDOW_MS = 60 * 1000;
@@ -359,6 +360,10 @@ let accountState = {
   user: null,
   loading: false,
   error: '',
+};
+let adminSession = {
+  checked: false,
+  admin: false,
 };
 let accountTickets = [];
 let accountTicketDetail = null;
@@ -694,6 +699,7 @@ async function apiRequest(path, options = {}) {
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const response = await fetch(phpUrl(path), {
+    credentials: 'include',
     ...options,
     headers,
   });
@@ -702,6 +708,54 @@ async function apiRequest(path, options = {}) {
     throw new ApiError(payload.error || `api_${response.status}`, payload, response.status);
   }
   return payload;
+}
+
+function applyAdminVisibility() {
+  root.querySelectorAll('[data-admin-only]').forEach((el) => {
+    el.hidden = !adminSession.admin;
+  });
+}
+
+async function refreshAdminSession({ silent = true } = {}) {
+  try {
+    const payload = await apiRequest('/api/admin/session');
+    adminSession = {
+      checked: true,
+      admin: Boolean(payload.admin),
+    };
+  } catch (err) {
+    if (!silent) console.warn('admin session check failed', err);
+    adminSession = {
+      checked: true,
+      admin: false,
+    };
+  }
+  applyAdminVisibility();
+  return adminSession.admin;
+}
+
+function buildMeshReportSnapshot() {
+  const payload = parseResponse(mesh_report_json(JSON.stringify(params)));
+  if (!payload) return null;
+  return {
+    saved_at: new Date().toISOString(),
+    app_version: APP_BUILD_ID,
+    lang: currentLang(),
+    params,
+    report: payload,
+  };
+}
+
+function saveMeshReportToBrowser() {
+  try {
+    const snapshot = buildMeshReportSnapshot();
+    if (!snapshot) return null;
+    localStorage.setItem(MESH_REPORT_STORAGE_KEY, JSON.stringify(snapshot));
+    return snapshot;
+  } catch (err) {
+    console.warn('mesh report save failed', err);
+    return null;
+  }
 }
 
 function exportGateContent(kind, context = {}) {
@@ -2012,6 +2066,7 @@ function normalizeDependentParams(changedKey) {
 function refreshGeneratedViews() {
   renderPlanPreview();
   renderViewer();
+  saveMeshReportToBrowser();
 }
 
 async function refreshDecoRasterIfNeeded(deco) {
@@ -2201,6 +2256,7 @@ function renderPlanPreview() {
   if (!target) return;
   const payload = parseResponse(plan_preview_svg(JSON.stringify(params)));
   target.innerHTML = payload && payload.svg ? payload.svg : '';
+  saveMeshReportToBrowser();
 }
 
 function render() {
@@ -2582,30 +2638,27 @@ function render() {
   });
 
   root.querySelector('[data-action="export-door"]')?.addEventListener('click', () => {
-    exportBinaryAuthorized(
+    exportBinary(
       exportFilename('door_stl'),
       'model/stl',
-      'stl',
       () => export_door_stl(JSON.stringify(params)),
       tr('export_door_empty')
     );
   });
 
   root.querySelector('[data-action="export-wall-mount"]')?.addEventListener('click', () => {
-    exportBinaryAuthorized(
+    exportBinary(
       exportFilename('wall_mount_stl'),
       'model/stl',
-      'stl',
       () => export_wall_mount_stl(JSON.stringify(params)),
       tr('export_wall_mount_empty')
     );
   });
 
   root.querySelector('[data-action="export-panels"]')?.addEventListener('click', () => {
-    exportBinaryAuthorized(
+    exportBinary(
       exportFilename('panels_zip'),
       'application/zip',
-      'zip',
       () => export_panels_zip(JSON.stringify(params)),
       tr('export_panels_empty')
     );
@@ -2646,12 +2699,13 @@ function render() {
   });
 
   root.querySelector('[data-action="download-calcs-pdf"]')?.addEventListener('click', async () => {
-    await runAuthorizedExport('pdf', exportFilename('calcs_pdf'), downloadCalculationsPdf);
+    await downloadCalculationsPdf();
   });
 
   root.querySelector('[data-action="mesh-report"]')?.addEventListener('click', () => {
     try {
-      const payload = parseResponse(mesh_report_json(JSON.stringify(params)));
+      const snapshot = saveMeshReportToBrowser();
+      const payload = snapshot?.report;
       if (!payload) {
         setExportStatus(tr('mesh_report_invalid'), 'error');
         return;
@@ -2678,10 +2732,16 @@ function render() {
   bindTabs();
   renderPlanPreview();
   renderViewer();
+  saveMeshReportToBrowser();
   updateAccountDom();
+  applyAdminVisibility();
   restoreUiState(uiState);
   if (uiState.modalOpen || modalWasOpen) openAccountModal();
 }
+
+window.addEventListener('pagehide', () => {
+  saveMeshReportToBrowser();
+});
 
 try {
   await init({ module_or_path: new URL(`../wasm/pkg/wasm_bg.wasm?v=${APP_BUILD_ID}`, import.meta.url) });
@@ -2693,6 +2753,7 @@ try {
   applyTheme();
   render();
   refreshAccountState({ silent: true });
+  refreshAdminSession({ silent: true });
 } catch (err) {
   console.error(err);
   sendClientLog('critical', 'wasm_load_failed', err?.message || 'WASM load failed', clientErrorContext(err));

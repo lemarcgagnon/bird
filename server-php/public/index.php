@@ -57,6 +57,7 @@ $allowedOrigins = array_values(array_filter(array_map(
 )));
 if ($origin !== '' && in_array($origin, $allowedOrigins, true)) {
     header('Access-Control-Allow-Origin: ' . $origin);
+    header('Access-Control-Allow-Credentials: true');
     header('Vary: Origin');
 }
 header('Access-Control-Allow-Headers: Authorization, Content-Type');
@@ -226,6 +227,11 @@ if ($method === 'GET' && $path === '/api/health') {
         'db' => $dbOk,
         'db_driver' => $driver,
     ], $ok ? 200 : 500);
+    exit;
+}
+
+if ($method === 'GET' && $path === '/api/admin/session') {
+    json_response(['ok' => true, 'admin' => admin_logged_in()]);
     exit;
 }
 

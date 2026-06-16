@@ -5721,7 +5721,7 @@ pub fn render_app_html(input: &str) -> String {
             <button class="action-tile primary-action" data-action="download-plan-pdf" type="button">{export_plan_label}<strong>.PDF</strong></button>
           </div>
         </div>
-        <div class="download-group diagnostic-downloads">
+        <div class="download-group diagnostic-downloads" data-admin-only="true" hidden>
           <h3>{heading_diagnostic}</h3>
           <div class="buttons compact-buttons action-buttons">
             <button data-action="export-obj">{export_debug_label}<strong>.OBJ</strong></button>

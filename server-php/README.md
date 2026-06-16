@@ -24,7 +24,7 @@ Useful pages:
 - `http://127.0.0.1:8021/`
 - `http://127.0.0.1:8021/pricing`
 - `http://127.0.0.1:8021/account`
-- `http://127.0.0.1:8021/admin/login`
+- `http://127.0.0.1:8021/gestion-nichoir/login` unless `NICHOIR_ADMIN_PATH` is configured differently.
 
 When the static WASM app runs separately on `8016`, open it with:
 
@@ -44,12 +44,12 @@ Pages and admin:
 - `GET /terms`
 - `GET /legal`
 - `GET /account`
-- `GET /admin/login`
-- `POST /admin/login`
-- `POST /admin/logout`
-- `GET /admin`
-- `POST /admin`
-- `GET /admin/exports/download`
+- `GET {NICHOIR_ADMIN_PATH}/login`
+- `POST {NICHOIR_ADMIN_PATH}/login`
+- `POST {NICHOIR_ADMIN_PATH}/logout`
+- `GET {NICHOIR_ADMIN_PATH}`
+- `POST {NICHOIR_ADMIN_PATH}`
+- `GET {NICHOIR_ADMIN_PATH}/exports/download`
 
 API and webhook:
 
@@ -80,8 +80,9 @@ API and webhook:
 - Public pages are bilingual and use `?lang`, then cookie, then `Accept-Language`.
 - Admin pages are intentionally French-only.
 - `/account` manages login/register/logout, activation codes, profile edits, credits, ledger, billing summary, Stripe checkout/portal, invoices/payments, tickets, ticket messages and open/closed status.
-- `/admin` manages users, profiles, passwords, credits, statuses, manual subscriptions, support tickets, logs, database export, DB settings, Stripe settings, SMTP settings and test email.
-- `/admin/login` uses `NICHOIR_ADMIN_PASSWORD_HASH`, PHP session cookies, `password_verify()` and `session_regenerate_id(true)`.
+- `{NICHOIR_ADMIN_PATH}` manages users, profiles, passwords, credits, statuses, manual subscriptions, support tickets, logs, database export, DB settings, Stripe settings, SMTP settings and test email.
+- `{NICHOIR_ADMIN_PATH}/login` uses `NICHOIR_ADMIN_PASSWORD_HASH`, PHP session cookies, `password_verify()` and `session_regenerate_id(true)`.
+- `NICHOIR_ADMIN_PATH` defaults to `/gestion-nichoir`; `/admin` and `/administration` are reserved/interdicted and must not expose the back-office.
 - Admin POST actions use CSRF tokens and write audit/app logs for important changes.
 - Contact POST keeps CSRF, honeypot, IP rate limit, length checks, SMTP handoff, logging and flash redirects.
 - Auth endpoints have IP/email rate limits, email activation quotas and cleanup for stale pending accounts.
@@ -170,6 +171,7 @@ If using the temporary installer:
 - remove `installation/` from the server after setup;
 - keep `server-php/src`, `server-php/data` and `server-php/migrations` outside `public_html`;
 - define `NICHOIR_ADMIN_PASSWORD_HASH`;
+- define `NICHOIR_ADMIN_PATH` or keep the non-obvious default `/gestion-nichoir`;
 - define `NICHOIR_PUBLIC_BASE_URL`, `NICHOIR_CORS_ORIGINS` and `NICHOIR_LOG_HASH_SALT`;
 - define `NICHOIR_DB_DRIVER=mysql` and complete MySQL/MariaDB connection values;
 - disable `NICHOIR_DEBUG` and unsigned Stripe webhooks in production.
@@ -183,12 +185,13 @@ curl http://127.0.0.1:8021/api/health
 
 Manual checks:
 
-1. Smoke `/`, `/pricing`, `/about`, `/contact`, `/terms`, `/legal`, `/account`, `/admin/login`.
-2. Submit invalid contact form and confirm redirected flash errors.
-3. Test auth/register/activate or login with a known local account.
-4. Test one export authorize/consume success.
-5. Repeat the same consume and confirm no second debit.
-6. If Stripe code changed, test checkout, portal and webhook signature handling in Stripe test mode.
+1. Smoke `/`, `/pricing`, `/about`, `/contact`, `/terms`, `/legal`, `/account`, `{NICHOIR_ADMIN_PATH}/login`.
+2. Confirm `/admin`, `/admin/login` and `/administration` do not expose the back-office.
+3. Submit invalid contact form and confirm redirected flash errors.
+4. Test auth/register/activate or login with a known local account.
+5. Test one export authorize/consume success.
+6. Repeat the same consume and confirm no second debit.
+7. If Stripe code changed, test checkout, portal and webhook signature handling in Stripe test mode.
 
 ## Open risks
 

@@ -20,12 +20,14 @@ Pages:
 - `GET /terms`
 - `GET /legal`
 - `GET /account`
-- `GET /admin/login`
-- `POST /admin/login`
-- `POST /admin/logout`
-- `GET /admin`
-- `POST /admin`
-- `GET /admin/exports/download`
+- `GET {NICHOIR_ADMIN_PATH}/login`
+- `POST {NICHOIR_ADMIN_PATH}/login`
+- `POST {NICHOIR_ADMIN_PATH}/logout`
+- `GET {NICHOIR_ADMIN_PATH}`
+- `POST {NICHOIR_ADMIN_PATH}`
+- `GET {NICHOIR_ADMIN_PATH}/exports/download`
+
+`NICHOIR_ADMIN_PATH` defaults to `/gestion-nichoir`. The obvious paths `/admin` and `/administration` are reserved/interdicted and should not serve the back-office.
 
 API/webhook:
 

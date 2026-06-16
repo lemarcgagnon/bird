@@ -11,7 +11,7 @@ Current release baseline: commit `3dee4a1` is the stabilized Namecheap/cPanel pr
 
 ## Current implementation facts
 
-- PHP routes the public site, pricing, about, contact, terms, legal, account, admin login/admin, JSON API and Stripe webhook through `server-php/public/index.php`.
+- PHP routes the public site, pricing, about, contact, terms, legal, account, configurable admin path, JSON API and Stripe webhook through `server-php/public/index.php`.
 - `server-php/src/pages.php` is now a compatibility include that loads smaller page, layout, i18n, contact, account, admin, credit, mail, Stripe and helper modules.
 - Contact form email is implemented with CSRF, honeypot, IP rate limiting, SMTP handoff through `src/mail.php`, app logging and session flash messages.
 - Credit policy is implemented in `server-php/src/credits.php` and configurable from admin settings.
@@ -19,6 +19,7 @@ Current release baseline: commit `3dee4a1` is the stabilized Namecheap/cPanel pr
 - PHP, JS and Rust/WASM each still have their own i18n tables; ownership is not centralized.
 - PHP page scripts are still inline in `src/layout.php`, `src/account_pages.php` and `src/admin_pages.php`; CSP hardening depends on moving them into `server-php/public/site.js`.
 - Admin pages are intentionally French-only.
+- The admin path is controlled by `NICHOIR_ADMIN_PATH`, defaults to `/gestion-nichoir`, and must not be `/admin` or `/administration`.
 - Public PHP pages are bilingual and resolve language from `?lang`, then cookie, then `Accept-Language`.
 - The static app receives `params.lang` from `app/app.js`.
 - Namecheap/cPanel packaging is documented in `deployment/namecheap/README.md` and scripted by `scripts/build-cpanel-artifact.sh`.
@@ -39,7 +40,8 @@ Use this checklist when changing code before updating audit docs:
 - Render public routes `/`, `/pricing`, `/about`, `/contact`, `/terms`, `/legal`, `/account`.
 - Test invalid contact POST and redirected flash errors.
 - Test one authenticated export authorize/consume path and repeat consume failure.
-- Smoke `/admin/login` and `/admin` with configured admin password.
+- Smoke `{NICHOIR_ADMIN_PATH}/login` and `{NICHOIR_ADMIN_PATH}` with configured admin password.
+- Confirm `/admin`, `/admin/login` and `/administration` do not expose the back-office.
 - Test real Namecheap SMTP delivery, Stripe checkout/portal/webhook and HTTPS cookies on the final domain before launch.
 
 ## Known drift to fix
@@ -47,7 +49,7 @@ Use this checklist when changing code before updating audit docs:
 - Public pricing card display values are translation strings, while Stripe price IDs and credit package quantities are admin settings.
 - `app/app.js` and some WASM labels still have 3-credit display fallback/copy even though PHP returns the real authorization cost.
 - `wasm/src/lib.rs` has a stale `deco_clip` label saying the clipping feature is coming later, while clipping code is already present.
-- `/installation` remains reachable in the root dev `.htaccess`; production artifact blocks it and production deploys must remove it after setup.
+- `/installation` remains a temporary dev/root installer path only; the production artifact excludes it and production deploys must remove it after setup if it was ever uploaded separately.
 - Inline PHP scripts block strict CSP.
 - Production log retention/rotation, ticket/webhook rate limits and export-size ceilings need explicit policy.
 - Full live Stripe and keyboard traversal checks are still pending before launch.

@@ -20,7 +20,7 @@ Role: one-time web installer for server setup. Use it during setup, then remove 
 ## Rules
 
 - Delete `installation/` after setup.
-- Define `NICHOIR_ADMIN_PASSWORD_HASH` before opening `/admin`.
+- Define `NICHOIR_ADMIN_PATH` and `NICHOIR_ADMIN_PASSWORD_HASH` before opening the back-office. The default admin path is `/gestion-nichoir`; do not use `/admin` or `/administration`.
 - Prefer the cPanel artifact layout from `deployment/namecheap/README.md`, where `installation/` is never copied to `public_html`.
 - In the validated Namecheap artifact, production starts as `NICHOIR_ENV=production`, requires MySQL/MariaDB and fails closed without private config.
 - If a whole-repo/root deployment is used temporarily, keep the root `.htaccess` rules and remove/block `installation/` after setup.

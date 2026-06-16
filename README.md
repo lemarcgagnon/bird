@@ -19,9 +19,10 @@ Le repo vise un site PHP unique pour les surfaces publiques et applicatives:
 /legal                    Mentions legales
 /app/                     App statique Rust/WASM
 /account                  Espace client
-/admin/login              Connexion admin par session PHP
-/admin                    Back-office prive
-/admin/exports/download   Export admin CSV/XLS/JSON
+NICHOIR_ADMIN_PATH/login  Connexion admin par session PHP
+NICHOIR_ADMIN_PATH        Back-office prive
+NICHOIR_ADMIN_PATH/exports/download
+                          Export admin CSV/XLS/JSON
 /api/...                  API JSON compte, billing, exports, tickets, logs client
 /stripe/webhook           Webhook Stripe
 /installation/            Installateur temporaire a supprimer apres setup
@@ -133,7 +134,8 @@ Les pieces separees du ZIP sont l'objectif principal pour fabrication par pannea
 Etat actuel:
 
 - `/account` gere login/register/logout, activation par code email, profil, credits, historique, abonnement, paiements/factures Stripe, tickets, fils de messages et statut open/closed.
-- `/admin` utilise `/admin/login`, `NICHOIR_ADMIN_PASSWORD_HASH`, session PHP, `password_verify()`, `session_regenerate_id(true)` et CSRF sur les POST.
+- L'admin utilise `NICHOIR_ADMIN_PATH` (par defaut `/gestion-nichoir`), `NICHOIR_ADMIN_PASSWORD_HASH`, session PHP, `password_verify()`, `session_regenerate_id(true)` et CSRF sur les POST.
+- Les chemins evidents `/admin` et `/administration` sont reserves/interdits et ne doivent pas etre utilises en production.
 - L'admin gere clients, credits, statuts, abonnements manuels, tickets, logs, exports DB, reglages DB/Stripe/SMTP et tests email.
 - `server-php/src/credits.php` est la source de verite pour les types d'export premium, le cout configure et le bonus de solde partiel.
 - `/api/exports/authorize` cree une autorisation courte; `/api/exports/consume` la reclame atomiquement avant debit.
@@ -155,10 +157,11 @@ scripts/build-cpanel-artifact.sh /tmp/nichoir-cpanel-artifact
 Points critiques:
 
 - `public_html/` contient seulement le wrapper PHP public, `.htaccess`, `site.css`, `app/` avec Three.js local, et `wasm/pkg/wasm.js` + `wasm_bg.wasm`.
-- `nichoir_private/` contient `server-php/public/index.php`, `server-php/src/`, `server-php/migrations/`, `server-php/data/README.md`, config privee et logs.
+- `nichoir_private/` contient `server-php/public/index.php`, les fichiers PHP runtime de `server-php/src/`, les migrations SQL runtime, des dossiers `data/` et `logs/` vides, config privee et logs generes.
 - Ne pas mettre `server-php/src`, `server-php/data`, `server-php/migrations`, `installation`, `docs`, `.git`, bases SQLite, dumps ou secrets dans `public_html`.
 - Remplir `nichoir_private/config/production.php` depuis `deployment/namecheap/config/production.example.php`.
-- Definir au minimum `NICHOIR_PUBLIC_BASE_URL`, `NICHOIR_ADMIN_PASSWORD_HASH`, la config MySQL, `NICHOIR_CORS_ORIGINS` et `NICHOIR_LOG_HASH_SALT`.
+- Definir au minimum `NICHOIR_PUBLIC_BASE_URL`, `NICHOIR_ADMIN_PATH`, `NICHOIR_ADMIN_PASSWORD_HASH`, la config MySQL, `NICHOIR_CORS_ORIGINS` et `NICHOIR_LOG_HASH_SALT`.
+- `installation/` n'est pas inclus dans l'artifact Namecheap valide; si un installateur temporaire est utilise hors artifact, supprimer le repertoire entier apres setup.
 - Configurer SMTP reel Namecheap avant emails production.
 - Configurer `NICHOIR_STRIPE_SECRET_KEY` et `NICHOIR_STRIPE_WEBHOOK_SECRET` avant Stripe live.
 
@@ -174,7 +177,8 @@ node scripts/mesh-smoke.mjs
 
 Checks manuels importants:
 
-- ouvrir `/`, `/pricing`, `/about`, `/contact`, `/terms`, `/legal`, `/account`, `/admin/login`;
+- ouvrir `/`, `/pricing`, `/about`, `/contact`, `/terms`, `/legal`, `/account`, puis `NICHOIR_ADMIN_PATH/login`;
+- verifier que `/admin`, `/admin/login` et `/administration` ne servent pas le back-office;
 - tester contact invalide et flash d'erreur apres redirection;
 - tester autorisation puis consommation d'un export avec un compte connecte;
 - consommer deux fois la meme autorisation et verifier qu'un seul debit passe;

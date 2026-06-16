@@ -90,14 +90,15 @@ The app reads environment variables first and this private config file second.
 Required production values:
 
 1. `NICHOIR_PUBLIC_BASE_URL`.
-2. `NICHOIR_ADMIN_PASSWORD_HASH`.
-3. `NICHOIR_DB_DRIVER=mysql`.
-4. MySQL host, port, database, username, password and charset.
-5. `NICHOIR_CORS_ORIGINS`.
-6. `NICHOIR_LOG_HASH_SALT`.
-7. `NICHOIR_STRIPE_WEBHOOK_SECRET` if Stripe is enabled.
-8. `NICHOIR_STRIPE_SECRET_KEY` if Stripe live checkout is enabled.
-9. `NICHOIR_SMTP_PASSWORD` if SMTP is enabled and the password is not stored in admin settings.
+2. `NICHOIR_ADMIN_PATH`, for example `/gestion-nichoir`; never `/admin` or `/administration`.
+3. `NICHOIR_ADMIN_PASSWORD_HASH`.
+4. `NICHOIR_DB_DRIVER=mysql`.
+5. MySQL host, port, database, username, password and charset.
+6. `NICHOIR_CORS_ORIGINS`.
+7. `NICHOIR_LOG_HASH_SALT`.
+8. `NICHOIR_STRIPE_WEBHOOK_SECRET` if Stripe is enabled.
+9. `NICHOIR_STRIPE_SECRET_KEY` if Stripe live checkout is enabled.
+10. `NICHOIR_SMTP_PASSWORD` if SMTP is enabled and the password is not stored in admin settings.
 
 Canonical DB env/config names are `NICHOIR_DB_HOST`, `NICHOIR_DB_PORT`, `NICHOIR_DB_NAME`, `NICHOIR_DB_USER`, `NICHOIR_DB_PASSWORD` and `NICHOIR_DB_CHARSET`. The current production example uses accepted cPanel aliases: `NICHOIR_MYSQL_HOST`, `NICHOIR_MYSQL_PORT`, `NICHOIR_MYSQL_DATABASE`, `NICHOIR_MYSQL_USERNAME`, `NICHOIR_MYSQL_PASSWORD` and `NICHOIR_MYSQL_CHARSET`.
 
@@ -128,8 +129,9 @@ The script refuses to overwrite an existing output directory. Review the artifac
 
 - Browser assets and the PHP wrapper share one public origin, so `app/app.js` should use same-origin API calls in production.
 - Three.js is served from `public_html/app/vendor/three.module.min.js`; no CDN access is required at runtime.
-- The production `.htaccess` blocks installer, docs, server source, private folders, SQLite/dump/log/archive files and Rust source paths.
+- The production `.htaccess` blocks installer, docs, server source, private folders, SQLite/dump/log/archive files, Rust source paths and the obvious `/admin` + `/administration` paths.
 - `installation/` is not part of the artifact and should not be uploaded.
+- The back-office is served only at `NICHOIR_ADMIN_PATH` and defaults to `/gestion-nichoir` when not otherwise configured.
 - `server-php/data/db-config.php` and `installed.lock.php` are local/generated files, not source artifacts.
 - Expected production health after private MySQL config is installed: `/api/health` returns `200` with `env=production`, `db=true` and `db_driver=mysql`.
 - Expected production health before private config is installed: `/api/health` returns `500 configuration_error`.

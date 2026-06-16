@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260616-model-downloads-readable-v1';
+} from '../wasm/pkg/wasm.js?v=20260616-export-gate-modal-v1';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260616-model-downloads-readable-v1';
+const APP_BUILD_ID = '20260616-export-gate-modal-v1';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -90,6 +90,23 @@ const I18N = {
     authorizing_export: 'Autorisation serveur pour {filename}...',
     login_required_download: 'Connexion requise avant ce telechargement. Ouvre Compte et connecte-toi.',
     insufficient_credits: 'Credits insuffisants pour ce telechargement.',
+    credit_unit_one: 'credit',
+    credit_unit_many: 'credits',
+    export_gate_eyebrow: 'Telechargement premium',
+    export_gate_guest_title: 'Connecte ton compte pour recuperer ce fichier',
+    export_gate_guest_body: 'Garde ton modele, active ton compte, puis choisis un pack de credits quand tu veux exporter STL, PDF, images ou ZIP panneaux.',
+    export_gate_guest_marketing: 'Les credits sont debites seulement au telechargement. Tu peux comparer les packs avant de payer.',
+    export_gate_credit_title: 'Credits insuffisants',
+    export_gate_credit_body: 'Ce telechargement demande {cost}. Ton solde actuel est {credits}. Choisis un pack de credits pour continuer.',
+    export_gate_credit_marketing: 'Un pack garde tes prochains exports prets pour les STL, plans PDF et ZIP panneaux.',
+    export_gate_bonus_title: 'Activer le bonus gratuit?',
+    export_gate_bonus_body: 'Il te reste {credits}. Ce telechargement coute {cost}. Nichoir peut ajouter {bonus} bonus pour finaliser ce fichier.',
+    export_gate_bonus_note: 'Le bonus s applique seulement a ce telechargement; le journal credits garde le mouvement.',
+    export_gate_buy_credits: 'Acheter des credits',
+    export_gate_sign_in: 'Se connecter',
+    export_gate_activate_bonus: 'Activer le bonus et telecharger',
+    export_gate_cancel: 'Annuler',
+    export_gate_close: 'Fermer',
     authorization_denied: 'Autorisation refusee: {code}',
     remaining_credits: 'Credits restants: {count}.',
     file_created_bytes: 'Fichier cree: {filename} ({size} octets). Cout: {cost} credits.{suffix}',
@@ -211,6 +228,23 @@ const I18N = {
     authorizing_export: 'Server authorization for {filename}...',
     login_required_download: 'Login required before this download. Open Account and sign in.',
     insufficient_credits: 'Insufficient credits for this download.',
+    credit_unit_one: 'credit',
+    credit_unit_many: 'credits',
+    export_gate_eyebrow: 'Premium download',
+    export_gate_guest_title: 'Connect your account to get this file',
+    export_gate_guest_body: 'Keep your model, activate your account, then choose a credit pack when you are ready to export STL, PDF, images, or panel ZIPs.',
+    export_gate_guest_marketing: 'Credits are debited only when you download. You can compare packs before paying.',
+    export_gate_credit_title: 'Not enough credits',
+    export_gate_credit_body: 'This download requires {cost}. Your current balance is {credits}. Choose a credit pack to continue.',
+    export_gate_credit_marketing: 'A pack keeps your next STL, PDF plan, and panel ZIP exports ready.',
+    export_gate_bonus_title: 'Activate the free bonus?',
+    export_gate_bonus_body: 'You have {credits} left. This download costs {cost}. Nichoir can add {bonus} as a bonus to complete this file.',
+    export_gate_bonus_note: 'The bonus applies only to this download; the credit ledger records the movement.',
+    export_gate_buy_credits: 'Buy credits',
+    export_gate_sign_in: 'Sign in',
+    export_gate_activate_bonus: 'Activate bonus and download',
+    export_gate_cancel: 'Cancel',
+    export_gate_close: 'Close',
     authorization_denied: 'Authorization denied: {code}',
     remaining_credits: 'Credits left: {count}.',
     file_created_bytes: 'File created: {filename} ({size} bytes). Cost: {cost} credits.{suffix}',
@@ -334,6 +368,15 @@ let modalWasOpen = false;
 let theme = localStorage.getItem(THEME_KEY)
   || (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
+class ApiError extends Error {
+  constructor(message, payload = {}, status = 0) {
+    super(message);
+    this.name = 'ApiError';
+    this.payload = payload;
+    this.status = status;
+  }
+}
+
 function normalizeLang(lang) {
   return ['fr', 'en'].includes(lang) ? lang : 'fr';
 }
@@ -379,6 +422,12 @@ function formatDisplayDate(value) {
 
 function formatCountText(value) {
   return formatNumber(value, { maximumFractionDigits: 0 });
+}
+
+function formatCreditText(value) {
+  const count = Number(value) || 0;
+  const unit = Math.abs(count) === 1 ? tr('credit_unit_one') : tr('credit_unit_many');
+  return `${formatCountText(count)} ${unit}`;
 }
 
 function setDocumentLanguage() {
@@ -650,9 +699,127 @@ async function apiRequest(path, options = {}) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok || payload.ok === false) {
-    throw new Error(payload.error || `api_${response.status}`);
+    throw new ApiError(payload.error || `api_${response.status}`, payload, response.status);
   }
   return payload;
+}
+
+function exportGateContent(kind, context = {}) {
+  const filename = context.filename || '';
+  const cost = Number.isFinite(Number(context.cost)) ? formatCreditText(Number(context.cost)) : '';
+  const credits = Number.isFinite(Number(context.credits)) ? formatCreditText(Number(context.credits)) : formatCreditText(0);
+  const bonus = Number.isFinite(Number(context.bonus)) ? formatCreditText(Number(context.bonus)) : formatCreditText(0);
+
+  if (kind === 'bonus') {
+    return {
+      title: tr('export_gate_bonus_title'),
+      body: tr('export_gate_bonus_body', { credits, cost, bonus }),
+      note: tr('export_gate_bonus_note'),
+      primaryAction: 'bonus',
+      primaryLabel: tr('export_gate_activate_bonus'),
+      secondaryAction: 'cancel',
+      secondaryLabel: tr('export_gate_cancel'),
+      filename,
+    };
+  }
+
+  if (kind === 'credits') {
+    return {
+      title: tr('export_gate_credit_title'),
+      body: tr('export_gate_credit_body', { credits, cost }),
+      note: tr('export_gate_credit_marketing'),
+      primaryAction: 'buy',
+      primaryLabel: tr('export_gate_buy_credits'),
+      secondaryAction: 'cancel',
+      secondaryLabel: tr('export_gate_close'),
+      filename,
+    };
+  }
+
+  return {
+    title: tr('export_gate_guest_title'),
+    body: tr('export_gate_guest_body'),
+    note: tr('export_gate_guest_marketing'),
+    primaryAction: 'buy',
+    primaryLabel: tr('export_gate_buy_credits'),
+    secondaryAction: 'signin',
+    secondaryLabel: tr('export_gate_sign_in'),
+    filename,
+  };
+}
+
+function openExportGateModal(kind, context = {}) {
+  const content = exportGateContent(kind, context);
+  const previousFocus = document.activeElement;
+  root.querySelector('.export-gate-modal')?.remove();
+
+  return new Promise((resolve) => {
+    const modal = document.createElement('div');
+    modal.className = 'export-gate-modal';
+    modal.innerHTML = `
+      <div class="export-gate-backdrop" data-export-gate-action="cancel"></div>
+      <section class="export-gate-sheet" role="dialog" aria-modal="true" aria-labelledby="export-gate-title" tabindex="-1">
+        <header>
+          <p class="eyebrow">${escapeHtml(tr('export_gate_eyebrow'))}</p>
+          <h2 id="export-gate-title">${escapeHtml(content.title)}</h2>
+          ${content.filename ? `<p class="export-gate-file">${escapeHtml(content.filename)}</p>` : ''}
+        </header>
+        <p>${escapeHtml(content.body)}</p>
+        <p class="export-gate-note">${escapeHtml(content.note)}</p>
+        <div class="export-gate-actions">
+          <button class="primary-action" type="button" data-export-gate-action="${escapeHtml(content.primaryAction)}">${escapeHtml(content.primaryLabel)}</button>
+          <button type="button" data-export-gate-action="${escapeHtml(content.secondaryAction)}">${escapeHtml(content.secondaryLabel)}</button>
+        </div>
+      </section>
+    `;
+
+    const close = (action) => {
+      modal.remove();
+      if (previousFocus && document.contains(previousFocus)) previousFocus.focus();
+      resolve(action);
+    };
+
+    modal.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-export-gate-action]');
+      if (!button) return;
+      const action = button.dataset.exportGateAction;
+      if (action === 'buy') {
+        close(action);
+        window.location.href = phpUrl('/pricing');
+        return;
+      }
+      if (action === 'signin') {
+        close(action);
+        loginAccount();
+        return;
+      }
+      close(action);
+    });
+
+    modal.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        close('cancel');
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(modal.querySelectorAll('button, [href], [tabindex]:not([tabindex="-1"])'))
+        .filter((el) => !el.disabled && el.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+
+    root.append(modal);
+    modal.querySelector('.export-gate-sheet')?.focus({ preventScroll: true });
+  });
 }
 
 function setAccountText(selector, value) {
@@ -896,10 +1063,56 @@ function exportDeniedMessage(err) {
   return tr('authorization_denied', { code });
 }
 
-async function exportBinaryAuthorized(filename, type, exportType, producer, emptyMessage) {
+async function authorizeExportWithPrompt(exportType, filename) {
+  if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
+    await openExportGateModal('guest', { filename, exportType });
+    return null;
+  }
+
   let auth = null;
   try {
     auth = await authorizeExport(exportType, filename);
+  } catch (err) {
+    const code = err?.message || String(err);
+    if (code === 'connexion_requise' || code === 'unauthorized') {
+      await openExportGateModal('guest', { filename, exportType });
+      return null;
+    }
+    if (code === 'insufficient_credits') {
+      await openExportGateModal('credits', {
+        filename,
+        exportType,
+        credits: Number(err?.payload?.credits ?? accountState.user?.credits ?? 0),
+        cost: Number(err?.payload?.cost ?? EXPORT_COSTS[exportType] ?? 0),
+      });
+      return null;
+    }
+    throw err;
+  }
+
+  const bonus = Number(auth?.bonus_credits || 0);
+  if (bonus > 0) {
+    const cost = Number(auth?.cost ?? EXPORT_COSTS[exportType] ?? 0);
+    const action = await openExportGateModal('bonus', {
+      filename,
+      exportType,
+      credits: Math.max(0, cost - bonus),
+      cost,
+      bonus,
+    });
+    if (action !== 'bonus') {
+      return null;
+    }
+  }
+
+  return auth;
+}
+
+async function exportBinaryAuthorized(filename, type, exportType, producer, emptyMessage) {
+  let auth = null;
+  try {
+    auth = await authorizeExportWithPrompt(exportType, filename);
+    if (!auth) return false;
     const bytes = toDownloadBytes(producer());
     if (!bytes || !bytes.byteLength) {
       setExportStatus(emptyMessage, 'warn');
@@ -925,7 +1138,8 @@ async function exportBinaryAuthorized(filename, type, exportType, producer, empt
 
 async function exportTextAuthorized(filename, type, exportType, producer, emptyMessage) {
   try {
-    const auth = await authorizeExport(exportType, filename);
+    const auth = await authorizeExportWithPrompt(exportType, filename);
+    if (!auth) return false;
     const text = producer();
     if (!text || !String(text).length) {
       setExportStatus(emptyMessage, 'warn');
@@ -951,12 +1165,15 @@ async function exportTextAuthorized(filename, type, exportType, producer, emptyM
 
 async function runAuthorizedExport(exportType, filename, producer) {
   try {
-    const auth = await authorizeExport(exportType, filename);
+    const auth = await authorizeExportWithPrompt(exportType, filename);
+    if (!auth) return false;
     const ok = await producer();
     if (ok) await consumeExport(auth.authorization);
+    return Boolean(ok);
   } catch (err) {
     console.error(err);
     setExportStatus(exportDeniedMessage(err), 'error');
+    return false;
   }
 }
 

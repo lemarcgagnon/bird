@@ -355,7 +355,7 @@ warnI18nParity();
 let params = null;
 let frameId = null;
 let activeTab = 'dim';
-let cleanupViewer = null;
+let viewerState = null;
 let lastAccountFocus = null;
 let accountState = {
   user: null,
@@ -2086,44 +2086,118 @@ async function refreshDecoRasterIfNeeded(deco) {
   deco.sourceData = await rasterizeSvgToPngBase64(deco.sourceText, size);
 }
 
-function renderViewer() {
-  const mount = document.getElementById('viewer');
-  if (!mount) return;
-  if (frameId) cancelAnimationFrame(frameId);
-  if (cleanupViewer) cleanupViewer();
-  cleanupViewer = null;
+function disposeViewerObjects(state) {
+  if (state.group) {
+    state.scene.remove(state.group);
+    state.group = null;
+  }
+  state.disposables.forEach((item) => item.dispose && item.dispose());
+  state.disposables = [];
+}
 
-  const payload = parseResponse(scene_meshes_json(JSON.stringify(params)));
-  if (!payload || !Array.isArray(payload.meshes)) return;
+function updateViewerCamera(state) {
+  const phi = Math.max(0.18, Math.min(Math.PI - 0.18, cameraState.phi));
+  const x = cameraState.dist * Math.sin(phi) * Math.sin(cameraState.theta);
+  const y = cameraState.dist * Math.cos(phi);
+  const z = cameraState.dist * Math.sin(phi) * Math.cos(cameraState.theta);
+  state.camera.position.set(
+    cameraState.target.x + x,
+    cameraState.target.y + y,
+    cameraState.target.z + z,
+  );
+  state.camera.lookAt(cameraState.target);
+}
 
-  const scene = new THREE.Scene();
-  const css = getComputedStyle(document.body);
-  const viewerBg = css.getPropertyValue('--viewer-bg').trim() || '#13151c';
-  const edgeColor = css.getPropertyValue('--edge').trim() || '#2a1e15';
-  scene.background = new THREE.Color(viewerBg);
-
-  const rect = mount.getBoundingClientRect();
+function resizeViewer(state) {
+  if (!state.mount) return;
+  const rect = state.mount.getBoundingClientRect();
   const width = Math.max(320, Math.floor(rect.width));
   const height = Math.max(260, Math.floor(rect.height));
+  if (state.width === width && state.height === height) return;
+  state.width = width;
+  state.height = height;
+  state.camera.aspect = width / height;
+  state.camera.updateProjectionMatrix();
+  state.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  state.renderer.setSize(width, height);
+}
 
-  const camera = new THREE.PerspectiveCamera(42, width / height, 1, 5000);
+function animateViewer(state) {
+  if (viewerState !== state) return;
+  resizeViewer(state);
+  updateViewerCamera(state);
+  state.renderer.render(state.scene, state.camera);
+  frameId = requestAnimationFrame(() => animateViewer(state));
+}
 
-  let renderer;
-  try {
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-  } catch (err) {
-    console.warn('viewer_unavailable', err);
-    mount.innerHTML = '';
-    const fallback = document.createElement('div');
-    fallback.className = 'viewer-fallback';
-    fallback.textContent = tr('viewer_unavailable');
-    mount.appendChild(fallback);
-    return;
+function bindViewerMount(state, mount) {
+  if (state.mount === mount && state.renderer.domElement.parentElement === mount) return;
+  if (state.unbindMount) {
+    state.unbindMount();
+    state.unbindMount = null;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.setSize(width, height);
+  state.mount = mount;
   mount.textContent = '';
-  mount.appendChild(renderer.domElement);
+  mount.appendChild(state.renderer.domElement);
+
+  const onPointerDown = (event) => {
+    state.dragging = true;
+    state.panMode = event.shiftKey || event.button === 1 || event.button === 2;
+    state.lastX = event.clientX;
+    state.lastY = event.clientY;
+    mount.setPointerCapture(event.pointerId);
+  };
+  const onPointerMove = (event) => {
+    if (!state.dragging) return;
+    const dx = event.clientX - state.lastX;
+    const dy = event.clientY - state.lastY;
+    state.lastX = event.clientX;
+    state.lastY = event.clientY;
+    if (state.panMode) {
+      cameraState.target.x -= dx * 0.5;
+      cameraState.target.y += dy * 0.5;
+    } else {
+      cameraState.theta -= dx * 0.008;
+      cameraState.phi += dy * 0.008;
+    }
+    updateViewerCamera(state);
+  };
+  const endDrag = (event) => {
+    state.dragging = false;
+    if (mount.hasPointerCapture?.(event.pointerId)) {
+      mount.releasePointerCapture(event.pointerId);
+    }
+  };
+  const onContextMenu = (event) => event.preventDefault();
+  const onWheel = (event) => {
+    event.preventDefault();
+    cameraState.dist = Math.max(160, Math.min(1800, cameraState.dist + event.deltaY * 0.65));
+    updateViewerCamera(state);
+  };
+
+  mount.addEventListener('pointerdown', onPointerDown);
+  mount.addEventListener('pointermove', onPointerMove);
+  mount.addEventListener('pointerup', endDrag);
+  mount.addEventListener('pointercancel', endDrag);
+  mount.addEventListener('contextmenu', onContextMenu);
+  mount.addEventListener('wheel', onWheel, { passive: false });
+
+  state.unbindMount = () => {
+    mount.removeEventListener('pointerdown', onPointerDown);
+    mount.removeEventListener('pointermove', onPointerMove);
+    mount.removeEventListener('pointerup', endDrag);
+    mount.removeEventListener('pointercancel', endDrag);
+    mount.removeEventListener('contextmenu', onContextMenu);
+    mount.removeEventListener('wheel', onWheel);
+  };
+  resizeViewer(state);
+}
+
+function createViewerState() {
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, 1, 1, 5000);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.42));
   const key = new THREE.DirectionalLight(0xfff4df, 0.9);
@@ -2133,8 +2207,65 @@ function renderViewer() {
   fill.position.set(-260, 180, -260);
   scene.add(fill);
 
+  const state = {
+    scene,
+    camera,
+    renderer,
+    mount: null,
+    unbindMount: null,
+    group: null,
+    disposables: [],
+    width: 0,
+    height: 0,
+    dragging: false,
+    panMode: false,
+    lastX: 0,
+    lastY: 0,
+  };
+  frameId = requestAnimationFrame(() => animateViewer(state));
+  return state;
+}
+
+function disposeViewerState() {
+  if (frameId) cancelAnimationFrame(frameId);
+  frameId = null;
+  if (!viewerState) return;
+  if (viewerState.unbindMount) viewerState.unbindMount();
+  disposeViewerObjects(viewerState);
+  viewerState.renderer.dispose();
+  viewerState = null;
+}
+
+function renderViewer() {
+  const mount = document.getElementById('viewer');
+  if (!mount) return;
+  const payload = parseResponse(scene_meshes_json(JSON.stringify(params)));
+  if (!payload || !Array.isArray(payload.meshes)) return;
+
+  if (!viewerState) {
+    try {
+      viewerState = createViewerState();
+    } catch (err) {
+      console.warn('viewer_unavailable', err);
+      mount.innerHTML = '';
+      const fallback = document.createElement('div');
+      fallback.className = 'viewer-fallback';
+      fallback.textContent = tr('viewer_unavailable');
+      mount.appendChild(fallback);
+      return;
+    }
+  }
+
+  bindViewerMount(viewerState, mount);
+  const css = getComputedStyle(document.body);
+  const viewerBg = css.getPropertyValue('--viewer-bg').trim() || '#13151c';
+  const edgeColor = css.getPropertyValue('--edge').trim() || '#2a1e15';
+  viewerState.scene.background = new THREE.Color(viewerBg);
+  disposeViewerObjects(viewerState);
+
   const group = new THREE.Group();
-  scene.add(group);
+  viewerState.scene.add(group);
+  viewerState.group = group;
   const disposables = [];
 
   payload.meshes.forEach((m) => {
@@ -2169,76 +2300,13 @@ function renderViewer() {
     group.add(lines);
     disposables.push(edges, lines.material);
   });
+  viewerState.disposables = disposables;
 
   const box = new THREE.Box3().setFromObject(group);
   const center = box.getCenter(new THREE.Vector3());
   group.position.sub(center);
-
-  const updateCamera = () => {
-    const phi = Math.max(0.18, Math.min(Math.PI - 0.18, cameraState.phi));
-    const x = cameraState.dist * Math.sin(phi) * Math.sin(cameraState.theta);
-    const y = cameraState.dist * Math.cos(phi);
-    const z = cameraState.dist * Math.sin(phi) * Math.cos(cameraState.theta);
-    camera.position.set(
-      cameraState.target.x + x,
-      cameraState.target.y + y,
-      cameraState.target.z + z,
-    );
-    camera.lookAt(cameraState.target);
-  };
-
-  let dragging = false;
-  let panMode = false;
-  let lastX = 0;
-  let lastY = 0;
-
-  mount.addEventListener('pointerdown', (event) => {
-    dragging = true;
-    panMode = event.shiftKey || event.button === 1 || event.button === 2;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    mount.setPointerCapture(event.pointerId);
-  });
-
-  mount.addEventListener('pointermove', (event) => {
-    if (!dragging) return;
-    const dx = event.clientX - lastX;
-    const dy = event.clientY - lastY;
-    lastX = event.clientX;
-    lastY = event.clientY;
-    if (panMode) {
-      cameraState.target.x -= dx * 0.5;
-      cameraState.target.y += dy * 0.5;
-    } else {
-      cameraState.theta -= dx * 0.008;
-      cameraState.phi += dy * 0.008;
-    }
-    updateCamera();
-  });
-
-  mount.addEventListener('pointerup', (event) => {
-    dragging = false;
-    mount.releasePointerCapture(event.pointerId);
-  });
-
-  mount.addEventListener('contextmenu', (event) => event.preventDefault());
-  mount.addEventListener('wheel', (event) => {
-    event.preventDefault();
-    cameraState.dist = Math.max(160, Math.min(1800, cameraState.dist + event.deltaY * 0.65));
-    updateCamera();
-  }, { passive: false });
-
-  function animate() {
-    updateCamera();
-    renderer.render(scene, camera);
-    frameId = requestAnimationFrame(animate);
-  }
-
-  cleanupViewer = () => {
-    disposables.forEach((item) => item.dispose && item.dispose());
-    renderer.dispose();
-  };
-  animate();
+  updateViewerCamera(viewerState);
+  viewerState.renderer.render(viewerState.scene, viewerState.camera);
 }
 
 function updateTabs() {
@@ -2273,9 +2341,6 @@ function render() {
   const uiState = captureUiState();
   setDocumentLanguage();
   ensureDecos();
-  if (frameId) cancelAnimationFrame(frameId);
-  if (cleanupViewer) cleanupViewer();
-  cleanupViewer = null;
   root.innerHTML = render_app_html(JSON.stringify(params));
   applyTheme();
 
@@ -2751,6 +2816,11 @@ function render() {
 
 window.addEventListener('pagehide', () => {
   saveMeshReportToBrowser();
+  disposeViewerState();
+});
+
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) renderViewer();
 });
 
 try {

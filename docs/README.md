@@ -6,6 +6,7 @@ Current release baseline: use the current `main` branch. The production hardenin
 
 ## Documents
 
+- `architecture.mmd`: diagramme Mermaid de l'architecture active: SPA navigateur, WASM/Rust, backend PHP, stockage dev/prod, services externes et packaging cPanel.
 - `refactoring-plan.md`: phased DRY/KISS/i18n/HIG/security refactoring plan.
 - `securizons.md`: security backlog/reference for files, SVG/input handling, WASM and server boundaries. It is not a release certification.
 

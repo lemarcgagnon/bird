@@ -1,0 +1,93 @@
+flowchart TD
+  subgraph Client["Client (Browser SPA)"]
+    direction TB
+    UI["SPA (JS/HTML/CSS)"]
+    T3["Three.js - Persistent 3D Viewer"]
+    JS_SVG["JS SVG Prefilter / Rasterization UX"]
+    WASM["WASM (Rust) - Geometry + Strict SVG Gate"]
+    LocalAssets["Local Browser Assets (Three.js, WASM pkg)"]
+  end
+
+  subgraph PHP_Backend["PHP Backend (server-php)"]
+    direction TB
+    API["REST API (/api/*)"]
+    Pages["Public Pages + Account Pages"]
+    Admin["Configurable Admin Path (/gestion-nichoir default)"]
+    ReservedAdmin["Reserved Paths: /admin, /administration"]
+    Auth["Account Auth (HttpOnly SameSite Cookie)"]
+    AdminAuth["Admin Session + CSRF"]
+    Credits["Credit & Export Policy"]
+    Apps["App Catalog (/api/apps) + app_id Registry"]
+    ExportFlow["Export Quote -> Authorize -> Consume"]
+    Stripe["Stripe Integration"]
+    I18n["i18n Localization"]
+    Mail["Mail/SMTP Handler"]
+  end
+
+  subgraph Data_Storage["Data Storage"]
+    DevDB[("SQLite (local/dev only)")]
+    ProdDB[("MySQL/MariaDB (production only)")]
+    Sessions[("sessions")]
+    ExportAuth[("export_authorizations with app_id")]
+    Ledger[("credit_ledger")]
+  end
+
+  subgraph External_Services["External Services"]
+    Stripe_API["Stripe API"]
+    SMTP["SMTP Server"]
+  end
+
+  subgraph Build_Deploy["Build & Deployment"]
+    WasmBuild["wasm-pack build --target web"]
+    Scripts["scripts/build-cpanel-artifact.sh"]
+    Artifact["cPanel Artifact Directory"]
+    PublicHTML["public_html/"]
+    PrivateRoot["nichoir_private/"]
+    FailClosed["Production Fail-Closed Config Gate"]
+  end
+
+  UI <--> API
+  UI <--> WASM
+  UI <--> T3
+  UI --> JS_SVG
+  JS_SVG --> WASM
+  UI --> LocalAssets
+  T3 --> LocalAssets
+
+  API <--> Auth
+  API <--> Apps
+  API <--> ExportFlow
+  ExportFlow <--> Credits
+  ExportFlow --> ExportAuth
+  ExportFlow --> Ledger
+  API <--> Stripe
+  API <--> DevDB
+  API <--> ProdDB
+  Auth --> Sessions
+
+  Pages <--> Auth
+  Pages <--> I18n
+  Pages <--> DevDB
+  Pages <--> ProdDB
+  Admin <--> AdminAuth
+  Admin <--> DevDB
+  Admin <--> ProdDB
+  ReservedAdmin -. "must not expose back-office" .-> FailClosed
+
+  Stripe <--> Stripe_API
+
+  PHP_Backend --> Mail
+  Mail --> SMTP
+
+  PHP_Backend -- "Serves public/account/admin/API" --> Pages
+  PublicHTML -- "Serves SPA + local assets" --> Client
+  PrivateRoot -- "Contains PHP src/config/migrations" --> PHP_Backend
+
+  WasmBuild --> LocalAssets
+  PHP_Backend & Client -- "Packaged by" --> Scripts
+  Scripts -- "Produces" --> Artifact
+  Artifact --> PublicHTML
+  Artifact --> PrivateRoot
+  PrivateRoot --> FailClosed
+  FailClosed -- "production requires private config + MySQL" --> ProdDB
+  FailClosed -. "rejects SQLite in production" .-> DevDB

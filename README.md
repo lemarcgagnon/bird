@@ -43,7 +43,7 @@ Responsabilites actuelles:
 - `installation/`: assistant web one-shot pour config DB/SMTP et lock d'installation. Voir `installation/README.md`.
 - `deployment/namecheap/`: packaging public/private pour Namecheap/cPanel. Voir `deployment/namecheap/README.md`.
 - `scripts/`: smoke tests mesh et script d'artifact cPanel. Voir `scripts/README.md`.
-- `docs/`: index de plans, audit et notes historiques. Voir `docs/README.md`.
+- `docs/`: index de plans, audit, notes historiques et diagramme d'architecture Mermaid. Voir `docs/README.md` et `docs/architecture.mmd`.
 - `server/`: ancienne API FastAPI/SQLite de licence, gardee comme reference. Voir `server/README.md`.
 - `nichoir_v16.html`: ancienne reference fonctionnelle monofichier.
 

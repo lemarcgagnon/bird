@@ -40,7 +40,7 @@ function detectPhpBase() {
 }
 
 const PHP_BASE = detectPhpBase();
-const AUTH_TOKEN_KEY = 'nichoir-auth-token';
+localStorage.removeItem('nichoir-auth-token');
 const MESH_REPORT_STORAGE_KEY = 'nichoir-last-mesh-report';
 const MAX_DECO_FILE_BYTES = 2 * 1024 * 1024;
 const CLIENT_LOG_LIMIT = 10;
@@ -567,11 +567,10 @@ function clientErrorContext(error) {
 function sendClientLog(level, eventCode, message, context = {}) {
   if (!clientLogAllowed()) return;
   const headers = { 'Content-Type': 'application/json' };
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  if (token) headers.Authorization = `Bearer ${token}`;
   fetch(phpUrl('/api/client-log'), {
     method: 'POST',
     headers,
+    credentials: 'include',
     body: JSON.stringify({
       level,
       event_code: eventCode,
@@ -696,8 +695,6 @@ async function apiRequest(path, options = {}) {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
   };
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  if (token) headers.Authorization = `Bearer ${token}`;
 
   const response = await fetch(phpUrl(path), {
     credentials: 'include',
@@ -896,7 +893,6 @@ function escapeHtml(value) {
 function accountStatusLabel() {
   if (accountState.loading) return tr('account_loading');
   if (accountState.user) return tr('account_connected');
-  if (localStorage.getItem(AUTH_TOKEN_KEY)) return tr('account_session_expired');
   return tr('account_disconnected');
 }
 
@@ -1006,7 +1002,7 @@ function renderAccountTicketDetail(payload) {
 }
 
 async function loadAccountTickets({ openFirst = false } = {}) {
-  if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
+  if (!accountState.user) {
     accountTickets = [];
     renderAccountTickets();
     renderAccountTicketDetail(null);
@@ -1035,13 +1031,6 @@ async function loadAccountTicketDetail(ticketId) {
 }
 
 async function refreshAccountState({ silent = false } = {}) {
-  const token = localStorage.getItem(AUTH_TOKEN_KEY);
-  if (!token) {
-    accountState = { user: null, loading: false, error: '' };
-    updateAccountDom();
-    return null;
-  }
-
   accountState.loading = true;
   if (!silent) accountState.error = '';
   updateAccountDom();
@@ -1052,11 +1041,10 @@ async function refreshAccountState({ silent = false } = {}) {
     await loadAccountTickets();
     return accountState.user;
   } catch (err) {
-    localStorage.removeItem(AUTH_TOKEN_KEY);
     accountState = {
       user: null,
       loading: false,
-      error: silent ? '' : tr('invalid_session', { error: err?.message || err }),
+      error: silent || err?.message === 'unauthorized' ? '' : tr('invalid_session', { error: err?.message || err }),
     };
     updateAccountDom();
     return null;
@@ -1069,20 +1057,17 @@ async function loginAccount() {
 
 async function logoutAccount() {
   try {
-    if (localStorage.getItem(AUTH_TOKEN_KEY)) {
-      await apiRequest('/api/auth/logout', { method: 'POST' });
-    }
+    await apiRequest('/api/auth/logout', { method: 'POST' });
   } catch (err) {
     console.warn('logout failed', err);
   }
-  localStorage.removeItem(AUTH_TOKEN_KEY);
   accountState = { user: null, loading: false, error: '' };
   updateAccountDom();
   setExportStatus(tr('account_logged_out'), 'info');
 }
 
 async function authorizeExport(exportType, filename) {
-  if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
+  if (!accountState.user) {
     throw new Error('connexion_requise');
   }
   setExportStatus(tr('authorizing_export', { filename }), 'info');
@@ -1093,7 +1078,7 @@ async function authorizeExport(exportType, filename) {
 }
 
 async function quoteExport(exportType) {
-  if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
+  if (!accountState.user) {
     throw new Error('connexion_requise');
   }
   return apiRequest('/api/exports/quote', {
@@ -1129,7 +1114,7 @@ function exportDeniedMessage(err) {
 }
 
 async function authorizeExportWithPrompt(exportType, filename) {
-  if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
+  if (!accountState.user) {
     await openExportGateModal('guest', { filename, exportType });
     return null;
   }

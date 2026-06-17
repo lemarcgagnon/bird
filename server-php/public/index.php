@@ -444,9 +444,10 @@ if ($method === 'POST' && $path === '/api/auth/activate') {
     }
 
     $token = create_session($userId);
+    set_account_session_cookie($token);
     $fresh = $pdo->prepare('SELECT * FROM users WHERE id = ?');
     $fresh->execute([$userId]);
-    json_response(['ok' => true, 'token' => $token, 'user' => public_user($fresh->fetch())]);
+    json_response(['ok' => true, 'user' => public_user($fresh->fetch())]);
     exit;
 }
 
@@ -520,19 +521,24 @@ if ($method === 'POST' && $path === '/api/auth/login') {
         exit;
     }
     $token = create_session((int) $user['id']);
+    set_account_session_cookie($token);
     app_log($pdo, 'security', 'auth', 'login_success', 'Connexion reussie', ['user_id' => (int) $user['id']], (int) $user['id']);
     audit_log($pdo, (int) $user['id'], 'client', 'login_success', 'user', (string) $user['id']);
-    json_response(['ok' => true, 'token' => $token, 'user' => public_user($user)]);
+    json_response(['ok' => true, 'user' => public_user($user)]);
     exit;
 }
 
 if ($method === 'POST' && $path === '/api/auth/logout') {
-    $token = bearer_token();
+    $tokens = array_values(array_unique(array_filter([
+        account_session_cookie_token(),
+        bearer_token(),
+    ])));
     $user = current_user();
-    if ($token !== null) {
+    foreach ($tokens as $token) {
         $stmt = db()->prepare('DELETE FROM sessions WHERE token_hash = ?');
         $stmt->execute([token_hash($token)]);
     }
+    clear_account_session_cookie();
     if ($user !== null) {
         app_log(db(), 'info', 'auth', 'logout', 'Deconnexion', ['user_id' => (int) $user['id']], (int) $user['id']);
         audit_log(db(), (int) $user['id'], 'client', 'logout', 'user', (string) $user['id']);

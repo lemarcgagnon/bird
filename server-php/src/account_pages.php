@@ -197,10 +197,9 @@ function render_account_page(): void
 	      const I18N = ' . ($clientI18n ?: '{}') . ';
 	      const LANG = "' . h($lang) . '";
 	      const t = (key) => I18N[key] || key;
-	      const TOKEN_KEY = "nichoir-auth-token";
+	      localStorage.removeItem("nichoir-auth-token");
 	      let selectedTicketId = null;
 	      let selectedTicket = null;
-	      const token = () => localStorage.getItem(TOKEN_KEY);
 	      const setText = (selector, value) => document.querySelector(selector).textContent = value;
 	      const esc = (value) => String(value ?? "").replace(/[&<>"\x27]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\x27": "&#39;" }[c]));
 	      const row = (cells) => `<tr>${cells.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`;
@@ -217,11 +216,28 @@ function render_account_page(): void
 
       async function api(path, options = {}) {
         const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
-        if (token()) headers.Authorization = `Bearer ${token()}`;
-        const res = await fetch(path, { ...options, headers });
+        const res = await fetch(path, { credentials: "same-origin", ...options, headers });
         const payload = await res.json().catch(() => ({}));
         if (!res.ok || payload.ok === false) throw new Error(payload.error || `api_${res.status}`);
         return payload;
+      }
+
+      function renderLoggedOut(messageText = t("account_load_prompt")) {
+        selectedTicketId = null;
+        selectedTicket = null;
+        setText("[data-account-state]", t("not_connected"));
+        setText("[data-account-email]", "-");
+        setText("[data-account-credits]", "0");
+        setText("[data-account-plan]", t("none"));
+        document.querySelector("[data-profile-form]").reset();
+        setText("[data-billing-plan]", t("none"));
+        setText("[data-billing-status]", t("none"));
+        setText("[data-billing-period]", "-");
+        document.querySelector("[data-ledger-rows]").innerHTML = `<tr><td colspan="4">${esc(t("not_connected"))}.</td></tr>`;
+        document.querySelector("[data-payment-rows]").innerHTML = `<tr><td colspan="6">${esc(t("not_connected"))}.</td></tr>`;
+        document.querySelector("[data-ticket-rows]").innerHTML = `<tr><td colspan="6">${esc(t("not_connected"))}.</td></tr>`;
+        renderTicketDetail(null);
+        document.querySelector("[data-account-message]").textContent = messageText;
       }
 
 	      function readableError(error) {
@@ -237,24 +253,6 @@ function render_account_page(): void
 
       async function loadAccount() {
         const message = document.querySelector("[data-account-message]");
-        if (!token()) {
-          selectedTicketId = null;
-          selectedTicket = null;
-	          setText("[data-account-state]", t("not_connected"));
-	          setText("[data-account-email]", "-");
-	          setText("[data-account-credits]", "0");
-	          setText("[data-account-plan]", t("none"));
-	          document.querySelector("[data-profile-form]").reset();
-	          setText("[data-billing-plan]", t("none"));
-	          setText("[data-billing-status]", t("none"));
-	          setText("[data-billing-period]", "-");
-	          document.querySelector("[data-ledger-rows]").innerHTML = `<tr><td colspan="4">${esc(t("not_connected"))}.</td></tr>`;
-	          document.querySelector("[data-payment-rows]").innerHTML = `<tr><td colspan="6">${esc(t("not_connected"))}.</td></tr>`;
-	          document.querySelector("[data-ticket-rows]").innerHTML = `<tr><td colspan="6">${esc(t("not_connected"))}.</td></tr>`;
-	          renderTicketDetail(null);
-	          message.textContent = t("account_load_prompt");
-	          return;
-	        }
         try {
           const account = await api("/api/me");
           setText("[data-account-state]", account.user.status || "active");
@@ -278,9 +276,7 @@ function render_account_page(): void
           renderTicketRows(tickets.tickets || []);
 	          message.textContent = t("loaded");
 	        } catch (err) {
-	          localStorage.removeItem(TOKEN_KEY);
-	          message.textContent = `${t("invalid_session")}: ${err.message || err}`;
-	          await loadAccount();
+	          renderLoggedOut(err.message === "unauthorized" ? t("account_load_prompt") : `${t("invalid_session")}: ${err.message || err}`);
 	        }
       }
 
@@ -314,7 +310,7 @@ function render_account_page(): void
       }
 
       async function loadTicketDetail(ticketId) {
-        if (!ticketId || !token()) return;
+        if (!ticketId) return;
         selectedTicketId = ticketId;
 	        try {
 	          renderTicketDetail(await api(`/api/tickets/${ticketId}`));
@@ -328,7 +324,6 @@ function render_account_page(): void
           method: "POST",
           body: JSON.stringify({ email, password }),
         });
-        localStorage.setItem(TOKEN_KEY, payload.token);
         await loadAccount();
       }
 
@@ -370,7 +365,6 @@ function render_account_page(): void
             method: "POST",
             body: JSON.stringify({ email: data.get("email"), code: data.get("code") }),
           });
-          localStorage.setItem(TOKEN_KEY, payload.token);
           event.currentTarget.reset();
 	          document.querySelector("[data-account-message]").textContent = t("account_activated");
 	          await loadAccount();
@@ -437,8 +431,7 @@ function render_account_page(): void
 	        }
       });
       document.querySelector("[data-logout]").addEventListener("click", async () => {
-        try { if (token()) await api("/api/auth/logout", { method: "POST" }); } catch {}
-        localStorage.removeItem(TOKEN_KEY);
+        try { await api("/api/auth/logout", { method: "POST" }); } catch {}
         await loadAccount();
       });
 

@@ -6,6 +6,7 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/response.php';
 
 const SESSION_DAYS = 14;
+const ACCOUNT_SESSION_COOKIE = 'nichoir_account_session';
 const WELCOME_CREDITS = 10;
 const EMAIL_VERIFICATION_CODE_DIGITS = 6;
 const EMAIL_VERIFICATION_TTL = '+24 hours';
@@ -196,6 +197,46 @@ function bearer_token(): ?string
     return null;
 }
 
+function account_session_cookie_token(): ?string
+{
+    $token = trim((string) ($_COOKIE[ACCOUNT_SESSION_COOKIE] ?? ''));
+    return $token !== '' ? $token : null;
+}
+
+function auth_cookie_secure(): bool
+{
+    return function_exists('app_is_https') && app_is_https();
+}
+
+function set_account_session_cookie(string $token): void
+{
+    setcookie(ACCOUNT_SESSION_COOKIE, $token, [
+        'expires' => time() + (SESSION_DAYS * 86400),
+        'path' => '/',
+        'secure' => auth_cookie_secure(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    $_COOKIE[ACCOUNT_SESSION_COOKIE] = $token;
+}
+
+function clear_account_session_cookie(): void
+{
+    setcookie(ACCOUNT_SESSION_COOKIE, '', [
+        'expires' => time() - 3600,
+        'path' => '/',
+        'secure' => auth_cookie_secure(),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    unset($_COOKIE[ACCOUNT_SESSION_COOKIE]);
+}
+
+function account_session_token(): ?string
+{
+    return account_session_cookie_token() ?? bearer_token();
+}
+
 function public_user(array $user): array
 {
     return [
@@ -220,7 +261,7 @@ function create_session(int $userId): string
 
 function current_user(): ?array
 {
-    $token = bearer_token();
+    $token = account_session_token();
     if ($token === null) {
         return null;
     }

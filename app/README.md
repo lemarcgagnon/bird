@@ -12,6 +12,7 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 ## Runtime inputs
 
 - `window.NICHOIR_PHP_BASE`: optional explicit PHP API origin for controlled local/dev shells.
+- `EXPORT_APP_ID`: fixed to `nichoir` for this WASM app. It is sent with export quote/authorize/consume calls so the PHP backend can act as mission control for multiple WASM apps.
 - `?php_base=http://127.0.0.1:8021`: local-only override when the static app runs on `8016` and the PHP API runs on `8021`. The override is ignored unless both the page host and target API host are `localhost`, `127.0.0.1` or `::1`.
 - `?lang=fr|en` and local storage key `nichoir-lang`.
 - Local storage keys `nichoir-theme`, `nichoir-auth-token` and `nichoir-last-mesh-report`.
@@ -25,7 +26,7 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 - Language propagation to PHP page links.
 - Theme persistence and light/dark toggle behavior.
 - Account modal behavior, focus handling, profile summary, credits, billing, support tickets and ticket replies.
-- API calls to PHP for auth, profile, ledger, billing, Stripe checkout/portal, export quote/authorize/consume, tickets, admin session visibility and client logs.
+- API calls to PHP for auth, profile, ledger, billing, Stripe checkout/portal, export quote/authorize/consume with `app_id=nichoir`, tickets, admin session visibility and client logs.
 - Billed download flow: request a quote from PHP, show the credit/bonus modal if needed, request a short authorization, generate the file locally, then consume the authorization after successful local generation.
 - Current billed downloads: house STL, cut-plan SVG, cut-plan PNG, exploded assembly PNG and cut-plan PDF.
 - Current local/free downloads: door STL, wall-mount STL, panels ZIP, calculations PDF, debug OBJ and mesh report JSON.

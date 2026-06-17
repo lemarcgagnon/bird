@@ -15,7 +15,7 @@ Current release baseline: use the current `main` branch. The production hardenin
 - `server-php/src/pages.php` is now a compatibility include that loads smaller page, layout, i18n, contact, account, admin, credit, mail, Stripe and helper modules.
 - Contact form email is implemented with CSRF, honeypot, IP rate limiting, SMTP handoff through `src/mail.php`, app logging and session flash messages.
 - Credit policy is implemented in `server-php/src/credits.php` and configurable from admin settings.
-- Billed exports use server quote, short authorization and atomic consume before debit. The current billed app downloads are house STL, cut-plan SVG, cut-plan PNG, exploded assembly PNG and cut-plan PDF.
+- Billed exports use server `app_id`, quote, short authorization and atomic consume before debit. The current WASM app id is `nichoir`; billed app downloads are house STL, cut-plan SVG, cut-plan PNG, exploded assembly PNG and cut-plan PDF.
 - Door STL, wall-mount STL, panels ZIP, calculations PDF, debug OBJ and mesh report JSON are currently local/free app downloads.
 - The mesh report JSON may be stored in browser local storage as diagnostic state only; account credit truth stays server-side.
 - PHP, JS and Rust/WASM each still have their own i18n tables; ownership is not centralized.

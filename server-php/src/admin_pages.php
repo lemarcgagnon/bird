@@ -328,14 +328,14 @@ function render_client_billing_detail_panel(PDO $pdo, array $user): string
 
 function render_client_exports_detail_panel(PDO $pdo, array $user): string
 {
-    $exports = $pdo->prepare('SELECT export_type, credit_cost, status, created_at, consumed_at FROM export_authorizations WHERE user_id = ? ORDER BY id DESC LIMIT 50');
+    $exports = $pdo->prepare('SELECT app_id, export_type, credit_cost, status, created_at, consumed_at FROM export_authorizations WHERE user_id = ? ORDER BY id DESC LIMIT 50');
     $exports->execute([(int) $user['id']]);
     $rows = '';
     foreach ($exports->fetchAll() as $row) {
-        $rows .= '<tr><td>' . h((string) $row['export_type']) . '</td><td>' . (int) $row['credit_cost'] . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) $row['created_at']) . '</td><td>' . h((string) ($row['consumed_at'] ?: '-')) . '</td></tr>';
+        $rows .= '<tr><td>' . h((string) $row['app_id']) . '</td><td>' . h((string) $row['export_type']) . '</td><td>' . (int) $row['credit_cost'] . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) $row['created_at']) . '</td><td>' . h((string) ($row['consumed_at'] ?: '-')) . '</td></tr>';
     }
-    $rows = $rows ?: '<tr><td colspan="5">Aucun export.</td></tr>';
-    return '<section class="modal-section"><h3>Exports client</h3><div class="table-wrap"><table><thead><tr><th>Type</th><th>Cout</th><th>Etat</th><th>Cree</th><th>Consomme</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
+    $rows = $rows ?: '<tr><td colspan="6">Aucun export.</td></tr>';
+    return '<section class="modal-section"><h3>Exports client</h3><div class="table-wrap"><table><thead><tr><th>App</th><th>Type</th><th>Cout</th><th>Etat</th><th>Cree</th><th>Consomme</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
 }
 
 function render_client_modal(PDO $pdo, array $user, string $closeHash, string $activePanel): string
@@ -835,17 +835,17 @@ function render_admin_page(): void
     $summary = admin_summary();
     $selected = selected_admin_user($pdo);
     $notice = trim((string) ($_GET['notice'] ?? ''));
-    $exports = $pdo->query('SELECT export_authorizations.id, users.id AS user_id, users.email, export_type, credit_cost, export_authorizations.status AS export_status, export_authorizations.created_at, consumed_at FROM export_authorizations JOIN users ON users.id = export_authorizations.user_id ORDER BY export_authorizations.id DESC LIMIT 20')->fetchAll();
+    $exports = $pdo->query('SELECT export_authorizations.id, users.id AS user_id, users.email, app_id, export_type, credit_cost, export_authorizations.status AS export_status, export_authorizations.created_at, consumed_at FROM export_authorizations JOIN users ON users.id = export_authorizations.user_id ORDER BY export_authorizations.id DESC LIMIT 20')->fetchAll();
     $subscriptions = $pdo->query('SELECT subscriptions.id, users.id AS user_id, users.email, plan, subscriptions.status AS subscription_state, current_period_end, subscriptions.updated_at FROM subscriptions JOIN users ON users.id = subscriptions.user_id ORDER BY subscriptions.id DESC LIMIT 20')->fetchAll();
     $payments = $pdo->query('SELECT payments.id, users.id AS user_id, users.email, amount_cents, currency, payments.status AS payment_state, description, invoice_url, invoice_pdf, payments.created_at FROM payments JOIN users ON users.id = payments.user_id ORDER BY payments.id DESC LIMIT 20')->fetchAll();
 
     $exportRows = '';
     foreach ($exports as $export) {
         $clientHref = admin_client_modal_url((int) $export['user_id'], 'admin-exports', 'exports');
-        $exportRows .= '<tr><td>' . (int) $export['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $export['email']) . '</a></td><td>' . h((string) $export['export_type']) . '</td><td>' . (int) $export['credit_cost'] . '</td><td>' . h((string) $export['export_status']) . '</td><td>' . h((string) ($export['consumed_at'] ?: '-')) . '</td></tr>';
+        $exportRows .= '<tr><td>' . (int) $export['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $export['email']) . '</a></td><td>' . h((string) $export['app_id']) . '</td><td>' . h((string) $export['export_type']) . '</td><td>' . (int) $export['credit_cost'] . '</td><td>' . h((string) $export['export_status']) . '</td><td>' . h((string) ($export['consumed_at'] ?: '-')) . '</td></tr>';
     }
     if ($exportRows === '') {
-        $exportRows = '<tr><td colspan="6">Aucune autorisation.</td></tr>';
+        $exportRows = '<tr><td colspan="7">Aucune autorisation.</td></tr>';
     }
 
     $subscriptionRows = '';
@@ -915,7 +915,7 @@ function render_admin_page(): void
               <p>Telechargements autorises et consommation des credits.</p>
             </div>
           </div>
-          <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Type</th><th>Cout</th><th>Etat</th><th>Consomme</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>App</th><th>Type</th><th>Cout</th><th>Etat</th><th>Consomme</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div>
         </section>
       </section>
 	      <section class="tab-panel" id="admin-logs" data-tab-panel role="tabpanel" aria-labelledby="tab-admin-logs" hidden>

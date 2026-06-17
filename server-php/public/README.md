@@ -43,6 +43,7 @@ API/webhook:
 - `POST /api/profile`
 - `GET /api/credits/ledger`
 - `GET /api/billing/summary`
+- `GET /api/apps`
 - `POST /api/checkout/stripe-link`
 - `POST /api/billing/portal`
 - `POST /api/exports/quote`

@@ -32,7 +32,7 @@ Responsabilites actuelles:
 
 - PHP: pages publiques, comptes, sessions, activation courriel, credits, billing Stripe, tickets, contact, admin, logs, SMTP, CORS, migrations et configuration.
 - Rust/WASM: parametres, geometrie, calculs, maillages, decorations, plan SVG, exports STL/OBJ/ZIP et HTML dense de l'app.
-- JavaScript: chargement WASM, viewer Three.js local, theme/langue, modal compte, appels API PHP, logs client, captures PNG/PDF et flux autorisation/consommation des telechargements.
+- JavaScript: chargement WASM, viewer Three.js local, theme/langue, modal compte, appels API PHP, logs client, captures PNG/PDF, identification `app_id=nichoir` et flux autorisation/consommation des telechargements.
 - Le serveur ne recoit pas de geometrie lourde et ne genere pas les fichiers de fabrication.
 
 ## Carte du repo
@@ -141,8 +141,9 @@ Etat actuel:
 - Les chemins evidents `/admin` et `/administration` sont reserves/interdits et ne doivent pas etre utilises en production.
 - Le chemin admin reel ne doit pas etre expose dans les pages publiques: il est seulement rendu cote admin, et les pages publiques ne doivent pas injecter `NICHOIR_ADMIN_PATH` dans leur HTML/JS.
 - L'admin gere clients, credits, statuts, abonnements manuels, tickets, logs, exports DB, reglages DB/Stripe/SMTP et tests email.
-- `server-php/src/credits.php` est la source de verite pour les types d'export factures, le cout configure et le bonus de solde partiel.
-- `/api/exports/quote` annonce le cout/solde/bonus sans creer d'autorisation; `/api/exports/authorize` cree une autorisation courte; `/api/exports/consume` la reclame atomiquement avant debit.
+- `server-php/src/credits.php` est la source de verite pour le registre des apps WASM, les types d'export factures, le cout configure et le bonus de solde partiel.
+- `/api/apps` expose les apps WASM connues du backend. L'app actuelle utilise `app_id=nichoir`.
+- `/api/exports/quote` annonce le cout/solde/bonus par `app_id` sans creer d'autorisation; `/api/exports/authorize` cree une autorisation courte; `/api/exports/consume` la reclame atomiquement avant debit.
 - `/api/client-log` accepte les erreurs navigateur/WASM avec rate limit de 10 logs/minute par utilisateur ou IP.
 - `/stripe/webhook` verifie `Stripe-Signature` quand un secret est configure, journalise les evenements et synchronise checkout, invoices, paiements et abonnements.
 - SQLite est le mode local/developpement uniquement.

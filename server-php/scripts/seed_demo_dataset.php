@@ -149,10 +149,11 @@ function demo_insert_export(PDO $pdo, int $userId, string $type, int $cost, stri
 {
     $consumedAt = $status === 'consumed' ? demo_date($modifier . ' +20 minutes') : null;
     $pdo->prepare(
-        'INSERT INTO export_authorizations (user_id, export_type, credit_cost, auth_token_hash, status, expires_at, created_at, consumed_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO export_authorizations (user_id, app_id, export_type, credit_cost, auth_token_hash, status, expires_at, created_at, consumed_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     )->execute([
         $userId,
+        'nichoir',
         $type,
         $cost,
         hash('sha256', $userId . ':' . $type . ':' . $modifier . ':' . random_int(1, PHP_INT_MAX)),

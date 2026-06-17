@@ -16,6 +16,7 @@ const APP_BUILD_ID = '20260617-download-section-hig-v1';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
+const EXPORT_APP_ID = 'nichoir';
 
 function isLocalHostname(hostname) {
   const normalized = String(hostname || '').replace(/^\[|\]$/g, '').toLowerCase();
@@ -1087,7 +1088,7 @@ async function authorizeExport(exportType, filename) {
   setExportStatus(tr('authorizing_export', { filename }), 'info');
   return apiRequest('/api/exports/authorize', {
     method: 'POST',
-    body: JSON.stringify({ export_type: exportType }),
+    body: JSON.stringify({ app_id: EXPORT_APP_ID, export_type: exportType }),
   });
 }
 
@@ -1097,7 +1098,7 @@ async function quoteExport(exportType) {
   }
   return apiRequest('/api/exports/quote', {
     method: 'POST',
-    body: JSON.stringify({ export_type: exportType }),
+    body: JSON.stringify({ app_id: EXPORT_APP_ID, export_type: exportType }),
   });
 }
 
@@ -1105,7 +1106,7 @@ async function consumeExport(authorization) {
   if (!authorization) return null;
   const payload = await apiRequest('/api/exports/consume', {
     method: 'POST',
-    body: JSON.stringify({ authorization }),
+    body: JSON.stringify({ app_id: EXPORT_APP_ID, authorization }),
   });
   if (payload.user) {
     accountState = { user: payload.user, loading: false, error: '' };

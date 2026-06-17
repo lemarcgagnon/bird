@@ -104,9 +104,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+
 CREATE TABLE IF NOT EXISTS export_authorizations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
+  app_id TEXT NOT NULL DEFAULT 'nichoir',
   export_type TEXT NOT NULL,
   credit_cost INTEGER NOT NULL,
   auth_token_hash TEXT NOT NULL UNIQUE,
@@ -127,6 +130,11 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_export_authorizations_app_id ON export_authorizations(app_id);
+CREATE INDEX IF NOT EXISTS idx_export_authorizations_user_id ON export_authorizations(user_id);
+CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_id ON credit_ledger(user_id);
+CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_reason_reference ON credit_ledger(user_id, reason, reference);
+
 CREATE TABLE IF NOT EXISTS subscriptions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
@@ -142,6 +150,10 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription_id ON subscriptions(stripe_subscription_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id);
 
 CREATE TABLE IF NOT EXISTS payments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -160,6 +172,10 @@ CREATE TABLE IF NOT EXISTS payments (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id);
+CREATE INDEX IF NOT EXISTS idx_payments_checkout_session_id ON payments(stripe_checkout_session_id);
+CREATE INDEX IF NOT EXISTS idx_payments_invoice_id ON payments(stripe_invoice_id);
 
 CREATE TABLE IF NOT EXISTS stripe_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -185,6 +201,9 @@ CREATE TABLE IF NOT EXISTS tickets (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON tickets(user_id);
+CREATE INDEX IF NOT EXISTS idx_tickets_status_updated_at ON tickets(status, updated_at);
+
 CREATE TABLE IF NOT EXISTS ticket_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ticket_id INTEGER NOT NULL,
@@ -195,6 +214,9 @@ CREATE TABLE IF NOT EXISTS ticket_messages (
   FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket_id ON ticket_messages(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_messages_user_id ON ticket_messages(user_id);
 
 CREATE TABLE IF NOT EXISTS ticket_notifications (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -211,6 +233,9 @@ CREATE TABLE IF NOT EXISTS ticket_notifications (
   FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_ticket_notifications_ticket_id ON ticket_notifications(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_ticket_notifications_user_id ON ticket_notifications(user_id);
 
 CREATE TABLE IF NOT EXISTS app_settings (
   key TEXT PRIMARY KEY,

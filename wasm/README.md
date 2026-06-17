@@ -67,7 +67,7 @@ Current free/local browser exports are:
 - debug OBJ (`export_house_obj`);
 - mesh report JSON (`mesh_report_json`).
 
-For billed exports, `app/app.js` asks PHP for `/api/exports/quote`, shows the credit/bonus gate if needed, calls `/api/exports/authorize`, generates the file locally from WASM or browser capture, then calls `/api/exports/consume`. WASM must not skip or replace that server-side flow.
+For billed exports, `app/app.js` identifies this app as `app_id=nichoir`, asks PHP for `/api/exports/quote`, shows the credit/bonus gate if needed, calls `/api/exports/authorize`, generates the file locally from WASM or browser capture, then calls `/api/exports/consume`. WASM must not skip or replace that server-side flow.
 
 ## Current drift
 

@@ -362,6 +362,12 @@ function ensure_runtime_schema(PDO $pdo): void
     if (!table_has_column($pdo, 'users', 'stripe_customer_id')) {
         $pdo->exec("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT NOT NULL DEFAULT ''");
     }
+    if (table_has_column($pdo, 'export_authorizations', 'id')) {
+        if (!table_has_column($pdo, 'export_authorizations', 'app_id')) {
+            $pdo->exec("ALTER TABLE export_authorizations ADD COLUMN app_id TEXT NOT NULL DEFAULT 'nichoir'");
+        }
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_export_authorizations_app_id ON export_authorizations(app_id)');
+    }
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS auth_rate_limits (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -549,6 +555,24 @@ function ensure_runtime_schema(PDO $pdo): void
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
         )"
     );
+
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_export_authorizations_app_id ON export_authorizations(app_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_export_authorizations_user_id ON export_authorizations(user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_id ON credit_ledger(user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_reason_reference ON credit_ledger(user_id, reason, reference)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions(user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription_id ON subscriptions(stripe_subscription_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON subscriptions(stripe_customer_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_payments_user_id ON payments(user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_payments_checkout_session_id ON payments(stripe_checkout_session_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_payments_invoice_id ON payments(stripe_invoice_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_user_id ON tickets(user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_tickets_status_updated_at ON tickets(status, updated_at)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket_id ON ticket_messages(ticket_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_messages_user_id ON ticket_messages(user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_notifications_ticket_id ON ticket_notifications(ticket_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_ticket_notifications_user_id ON ticket_notifications(user_id)');
 }
 
 function mysql_add_column_if_missing(PDO $pdo, string $table, string $column, string $definition): void
@@ -558,6 +582,20 @@ function mysql_add_column_if_missing(PDO $pdo, string $table, string $column, st
     }
     if (!table_has_column($pdo, $table, $column)) {
         $pdo->exec('ALTER TABLE `' . $table . '` ADD COLUMN ' . $definition);
+    }
+}
+
+function mysql_add_index_if_missing(PDO $pdo, string $table, string $index, string $definition): void
+{
+    if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table) || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $index)) {
+        throw new InvalidArgumentException('Invalid database identifier.');
+    }
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?'
+    );
+    $stmt->execute([$table, $index]);
+    if ((int) $stmt->fetchColumn() === 0) {
+        $pdo->exec('ALTER TABLE `' . $table . '` ADD INDEX `' . $index . '` ' . $definition);
     }
 }
 
@@ -662,11 +700,13 @@ function ensure_mysql_schema(PDO $pdo): void
         token_hash VARCHAR(128) NOT NULL UNIQUE,
         expires_at DATETIME NOT NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_sessions_user_id (user_id),
         CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )' . $tableOptions);
     $pdo->exec('CREATE TABLE IF NOT EXISTS export_authorizations (
         id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         user_id INT UNSIGNED NOT NULL,
+        app_id VARCHAR(64) NOT NULL DEFAULT \'nichoir\',
         export_type VARCHAR(32) NOT NULL,
         credit_cost INT NOT NULL,
         auth_token_hash VARCHAR(128) NOT NULL UNIQUE,
@@ -674,6 +714,8 @@ function ensure_mysql_schema(PDO $pdo): void
         expires_at DATETIME NOT NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         consumed_at DATETIME NULL,
+        INDEX idx_export_authorizations_app_id (app_id),
+        INDEX idx_export_authorizations_user_id (user_id),
         CONSTRAINT fk_export_authorizations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )' . $tableOptions);
     $pdo->exec('CREATE TABLE IF NOT EXISTS credit_ledger (
@@ -683,6 +725,8 @@ function ensure_mysql_schema(PDO $pdo): void
         reason VARCHAR(120) NOT NULL,
         reference VARCHAR(255) NOT NULL DEFAULT \'\',
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_credit_ledger_user_id (user_id),
+        INDEX idx_credit_ledger_user_reason_reference (user_id, reason, reference),
         CONSTRAINT fk_credit_ledger_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )' . $tableOptions);
     $pdo->exec('CREATE TABLE IF NOT EXISTS subscriptions (
@@ -698,6 +742,9 @@ function ensure_mysql_schema(PDO $pdo): void
         cancel_at_period_end TINYINT(1) NOT NULL DEFAULT 0,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_subscriptions_user_id (user_id),
+        INDEX idx_subscriptions_stripe_subscription_id (stripe_subscription_id),
+        INDEX idx_subscriptions_stripe_customer_id (stripe_customer_id),
         CONSTRAINT fk_subscriptions_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )' . $tableOptions);
     $pdo->exec('CREATE TABLE IF NOT EXISTS payments (
@@ -715,6 +762,9 @@ function ensure_mysql_schema(PDO $pdo): void
         invoice_url VARCHAR(2048) NOT NULL DEFAULT \'\',
         invoice_pdf VARCHAR(2048) NOT NULL DEFAULT \'\',
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_payments_user_id (user_id),
+        INDEX idx_payments_checkout_session_id (stripe_checkout_session_id),
+        INDEX idx_payments_invoice_id (stripe_invoice_id),
         CONSTRAINT fk_payments_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )' . $tableOptions);
     $pdo->exec('CREATE TABLE IF NOT EXISTS stripe_events (
@@ -737,6 +787,8 @@ function ensure_mysql_schema(PDO $pdo): void
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         closed_at DATETIME NULL,
+        INDEX idx_tickets_user_id (user_id),
+        INDEX idx_tickets_status_updated_at (status, updated_at),
         CONSTRAINT fk_tickets_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )' . $tableOptions);
     $pdo->exec('CREATE TABLE IF NOT EXISTS ticket_messages (
@@ -746,6 +798,8 @@ function ensure_mysql_schema(PDO $pdo): void
         author_role VARCHAR(32) NOT NULL DEFAULT \'client\',
         body TEXT NOT NULL,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_ticket_messages_ticket_id (ticket_id),
+        INDEX idx_ticket_messages_user_id (user_id),
         CONSTRAINT fk_ticket_messages_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
         CONSTRAINT fk_ticket_messages_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )' . $tableOptions);
@@ -761,6 +815,8 @@ function ensure_mysql_schema(PDO $pdo): void
         error VARCHAR(500) NOT NULL DEFAULT \'\',
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         sent_at DATETIME NULL,
+        INDEX idx_ticket_notifications_ticket_id (ticket_id),
+        INDEX idx_ticket_notifications_user_id (user_id),
         CONSTRAINT fk_ticket_notifications_ticket FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
         CONSTRAINT fk_ticket_notifications_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )' . $tableOptions);
@@ -788,6 +844,7 @@ function ensure_mysql_schema(PDO $pdo): void
     mysql_add_column_if_missing($pdo, 'users', 'email_verification_attempts', 'email_verification_attempts INT NOT NULL DEFAULT 0');
     mysql_add_column_if_missing($pdo, 'users', 'email_verification_blocked_until', 'email_verification_blocked_until DATETIME NULL');
     mysql_add_column_if_missing($pdo, 'users', 'stripe_customer_id', 'stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\'');
+    mysql_add_column_if_missing($pdo, 'export_authorizations', 'app_id', 'app_id VARCHAR(64) NOT NULL DEFAULT \'nichoir\' AFTER user_id');
     mysql_add_column_if_missing($pdo, 'subscriptions', 'stripe_price_id', 'stripe_price_id VARCHAR(255) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'payments', 'stripe_customer_id', 'stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'payments', 'stripe_invoice_id', 'stripe_invoice_id VARCHAR(255) NOT NULL DEFAULT \'\'');
@@ -799,6 +856,24 @@ function ensure_mysql_schema(PDO $pdo): void
     mysql_add_column_if_missing($pdo, 'tickets', 'closed_at', 'closed_at DATETIME NULL');
     mysql_add_column_if_missing($pdo, 'ticket_messages', 'author_role', 'author_role VARCHAR(32) NOT NULL DEFAULT \'client\'');
     mysql_add_column_if_missing($pdo, 'ticket_notifications', 'error', 'error VARCHAR(500) NOT NULL DEFAULT \'\'');
+
+    mysql_add_index_if_missing($pdo, 'sessions', 'idx_sessions_user_id', '(user_id)');
+    mysql_add_index_if_missing($pdo, 'export_authorizations', 'idx_export_authorizations_app_id', '(app_id)');
+    mysql_add_index_if_missing($pdo, 'export_authorizations', 'idx_export_authorizations_user_id', '(user_id)');
+    mysql_add_index_if_missing($pdo, 'credit_ledger', 'idx_credit_ledger_user_id', '(user_id)');
+    mysql_add_index_if_missing($pdo, 'credit_ledger', 'idx_credit_ledger_user_reason_reference', '(user_id, reason, reference)');
+    mysql_add_index_if_missing($pdo, 'subscriptions', 'idx_subscriptions_user_id', '(user_id)');
+    mysql_add_index_if_missing($pdo, 'subscriptions', 'idx_subscriptions_stripe_subscription_id', '(stripe_subscription_id)');
+    mysql_add_index_if_missing($pdo, 'subscriptions', 'idx_subscriptions_stripe_customer_id', '(stripe_customer_id)');
+    mysql_add_index_if_missing($pdo, 'payments', 'idx_payments_user_id', '(user_id)');
+    mysql_add_index_if_missing($pdo, 'payments', 'idx_payments_checkout_session_id', '(stripe_checkout_session_id)');
+    mysql_add_index_if_missing($pdo, 'payments', 'idx_payments_invoice_id', '(stripe_invoice_id)');
+    mysql_add_index_if_missing($pdo, 'tickets', 'idx_tickets_user_id', '(user_id)');
+    mysql_add_index_if_missing($pdo, 'tickets', 'idx_tickets_status_updated_at', '(status, updated_at)');
+    mysql_add_index_if_missing($pdo, 'ticket_messages', 'idx_ticket_messages_ticket_id', '(ticket_id)');
+    mysql_add_index_if_missing($pdo, 'ticket_messages', 'idx_ticket_messages_user_id', '(user_id)');
+    mysql_add_index_if_missing($pdo, 'ticket_notifications', 'idx_ticket_notifications_ticket_id', '(ticket_id)');
+    mysql_add_index_if_missing($pdo, 'ticket_notifications', 'idx_ticket_notifications_user_id', '(user_id)');
 }
 
 function db_test_config(array $config, bool $initialize = false): void

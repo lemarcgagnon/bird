@@ -284,15 +284,6 @@ function stripe_record_payment(PDO $pdo, int $userId, array $object): void
     $invoiceId = stripe_text($object, 'invoice');
     $invoiceUrl = stripe_text($object, 'hosted_invoice_url');
     $invoicePdf = stripe_text($object, 'invoice_pdf');
-    if ($invoiceId !== '' && ($invoiceUrl === '' || $invoicePdf === '')) {
-        try {
-            $invoice = stripe_api_request($pdo, 'GET', '/v1/invoices/' . rawurlencode($invoiceId));
-            $invoiceUrl = stripe_text($invoice, 'hosted_invoice_url', $invoiceUrl);
-            $invoicePdf = stripe_text($invoice, 'invoice_pdf', $invoicePdf);
-        } catch (Throwable) {
-            // The webhook remains idempotent even if invoice fetch fails.
-        }
-    }
     if ($invoiceId !== '') {
         $stmt = $pdo->prepare('SELECT id FROM payments WHERE stripe_invoice_id = ? LIMIT 1');
         $stmt->execute([$invoiceId]);
@@ -312,6 +303,31 @@ function stripe_record_payment(PDO $pdo, int $userId, array $object): void
     if ($customerId !== '') {
         $pdo->prepare('UPDATE users SET stripe_customer_id = ? WHERE id = ? AND stripe_customer_id = ?')->execute([$customerId, $userId, '']);
     }
+}
+
+function stripe_enrich_webhook_object_before_transaction(PDO $pdo, string $eventId, string $type, array $object): array
+{
+    if ($type !== 'checkout.session.completed') {
+        return $object;
+    }
+    $invoiceId = stripe_text($object, 'invoice');
+    if ($invoiceId === '' || (stripe_text($object, 'hosted_invoice_url') !== '' && stripe_text($object, 'invoice_pdf') !== '')) {
+        return $object;
+    }
+
+    try {
+        $invoice = stripe_api_request($pdo, 'GET', '/v1/invoices/' . rawurlencode($invoiceId));
+        $object['hosted_invoice_url'] = stripe_text($invoice, 'hosted_invoice_url', stripe_text($object, 'hosted_invoice_url'));
+        $object['invoice_pdf'] = stripe_text($invoice, 'invoice_pdf', stripe_text($object, 'invoice_pdf'));
+    } catch (Throwable $e) {
+        stripe_app_log($pdo, 'warning', 'stripe_invoice_prefetch_failed', 'Recuperation facture Stripe echouee', [
+            'event_id' => $eventId,
+            'invoice_id' => $invoiceId,
+            'error' => $e->getMessage(),
+        ]);
+    }
+
+    return $object;
 }
 
 function stripe_record_invoice(PDO $pdo, int $userId, array $object): void
@@ -443,6 +459,7 @@ function handle_stripe_webhook(): void
     }
 
     $livemode = stripe_webhook_livemode($event);
+    $object = stripe_enrich_webhook_object_before_transaction($pdo, $eventId, $type, $object);
     stripe_store_event_log($pdo, $eventId, $type, $object, $livemode, 'received', $payloadHash);
     stripe_app_log($pdo, 'info', 'stripe_webhook_received', 'Webhook Stripe recu', [
         'event_id' => $eventId,

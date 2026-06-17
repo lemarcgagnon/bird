@@ -63,6 +63,7 @@ API and webhook:
 - `POST /api/profile`
 - `GET /api/credits/ledger`
 - `GET /api/billing/summary`
+- `GET /api/apps`
 - `POST /api/checkout/stripe-link`
 - `POST /api/billing/portal`
 - `POST /api/exports/quote`
@@ -96,10 +97,11 @@ API and webhook:
 ## Credits and exports
 
 - Valid server-billed export type identifiers are `svg`, `png`, `pdf`, `stl` and `zip`.
-- `server-php/src/credits.php` owns configured export cost and partial-credit bonus policy.
-- `/api/exports/quote` checks the account, export type, current balance and optional partial-balance bonus without creating a token or debiting credits.
-- `/api/exports/authorize` checks active account status, export type, current balance and optional partial-balance bonus, then creates a short-lived token.
-- `/api/exports/consume` revalidates the account, atomically claims the authorization, applies any configured top-up, debits credits, writes `credit_ledger`, and logs/audits the event.
+- `server-php/src/credits.php` owns the WASM app registry, configured export cost and partial-credit bonus policy.
+- `/api/apps` returns the server-known WASM apps. The current app id is `nichoir`.
+- `/api/exports/quote` checks `app_id`, account, export type, current balance and optional partial-balance bonus without creating a token or debiting credits.
+- `/api/exports/authorize` checks active account status, `app_id`, export type, current balance and optional partial-balance bonus, then creates a short-lived token.
+- `/api/exports/consume` revalidates the account and `app_id`, atomically claims the authorization, applies any configured top-up, debits credits, writes `credit_ledger`, and logs/audits the event.
 - The browser generates the actual file locally after authorization. PHP never generates STL, PDF, ZIP or mesh data.
 - The current app only bills house STL and plan-section SVG/PNG/PDF exports. Door STL, wall-mount STL, panels ZIP, calculations PDF and diagnostic exports are local/free unless the browser wiring is intentionally changed.
 

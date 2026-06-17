@@ -399,6 +399,8 @@ fn sanitize_params(mut p: NichoirParams) -> NichoirParams {
     p.overhang = clamp_finite(p.overhang, 0.0, 80.0, defaults.overhang);
     p.t = clamp_finite(p.t, 3.0, 25.0, defaults.t);
     p.taper_x = clamp_finite(p.taper_x, -60.0, 60.0, defaults.taper_x);
+    let min_bottom_w = (p.t * 2.0 + 1.0).min(p.w);
+    p.taper_x = p.taper_x.max((min_bottom_w - p.w) / 2.0);
     p.explode = clamp_finite(p.explode, 0.0, 100.0, defaults.explode);
     p.door_w = clamp_finite(p.door_w, 15.0, 300.0, defaults.door_w);
     p.door_h = clamp_finite(p.door_h, 15.0, 400.0, defaults.door_h);

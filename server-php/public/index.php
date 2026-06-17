@@ -235,6 +235,11 @@ if ($method === 'GET' && $path === '/api/admin/session') {
     exit;
 }
 
+if ($method === 'GET' && $path === '/api/apps') {
+    json_response(['ok' => true, 'apps' => export_app_catalog(db())]);
+    exit;
+}
+
 if ($method === 'POST' && $path === '/api/exports/quote') {
     $user = require_user();
     if (($user['status'] ?? 'active') !== 'active') {
@@ -242,8 +247,13 @@ if ($method === 'POST' && $path === '/api/exports/quote') {
         exit;
     }
     $data = read_json_body();
+    $appId = normalize_export_app_id($data['app_id'] ?? null);
+    if ($appId === null) {
+        json_response(['ok' => false, 'error' => 'invalid_app_id'], 400);
+        exit;
+    }
     $type = strtolower(trim((string) ($data['export_type'] ?? 'stl')));
-    $cost = export_credit_cost(db(), $type);
+    $cost = export_credit_cost(db(), $type, $appId);
     if ($cost === null) {
         json_response(['ok' => false, 'error' => 'invalid_export_type'], 400);
         exit;
@@ -256,6 +266,7 @@ if ($method === 'POST' && $path === '/api/exports/quote') {
     }
     json_response([
         'ok' => true,
+        'app_id' => $appId,
         'export_type' => $type,
         'credits' => $credits,
         'cost' => $cost,
@@ -661,8 +672,13 @@ if ($method === 'POST' && $path === '/api/exports/authorize') {
         exit;
     }
     $data = read_json_body();
+    $appId = normalize_export_app_id($data['app_id'] ?? null);
+    if ($appId === null) {
+        json_response(['ok' => false, 'error' => 'invalid_app_id'], 400);
+        exit;
+    }
     $type = strtolower(trim((string) ($data['export_type'] ?? 'stl')));
-    $cost = export_credit_cost(db(), $type);
+    $cost = export_credit_cost(db(), $type, $appId);
     if ($cost === null) {
         json_response(['ok' => false, 'error' => 'invalid_export_type'], 400);
         exit;
@@ -675,10 +691,10 @@ if ($method === 'POST' && $path === '/api/exports/authorize') {
 
     $authToken = random_token();
     $expires = sql_utc_datetime('+10 minutes');
-    $stmt = db()->prepare('INSERT INTO export_authorizations (user_id, export_type, credit_cost, auth_token_hash, expires_at) VALUES (?, ?, ?, ?, ?)');
-    $stmt->execute([(int) $user['id'], $type, $cost, token_hash($authToken), $expires]);
-    app_log(db(), 'info', 'api', 'export_authorized', 'Export autorise', ['export_type' => $type, 'cost' => $cost, 'bonus_credits' => $bonusCredits], (int) $user['id']);
-    json_response(['ok' => true, 'authorization' => $authToken, 'export_type' => $type, 'cost' => $cost, 'bonus_credits' => $bonusCredits, 'expires_at' => $expires]);
+    $stmt = db()->prepare('INSERT INTO export_authorizations (user_id, app_id, export_type, credit_cost, auth_token_hash, expires_at) VALUES (?, ?, ?, ?, ?, ?)');
+    $stmt->execute([(int) $user['id'], $appId, $type, $cost, token_hash($authToken), $expires]);
+    app_log(db(), 'info', 'api', 'export_authorized', 'Export autorise', ['app_id' => $appId, 'export_type' => $type, 'cost' => $cost, 'bonus_credits' => $bonusCredits], (int) $user['id']);
+    json_response(['ok' => true, 'authorization' => $authToken, 'app_id' => $appId, 'export_type' => $type, 'cost' => $cost, 'bonus_credits' => $bonusCredits, 'expires_at' => $expires]);
     exit;
 }
 
@@ -686,11 +702,16 @@ if ($method === 'POST' && $path === '/api/exports/consume') {
     $user = require_user();
     $data = read_json_body();
     require_fields($data, ['authorization']);
+    $appId = normalize_export_app_id($data['app_id'] ?? null);
+    if ($appId === null) {
+        json_response(['ok' => false, 'error' => 'invalid_app_id'], 400);
+        exit;
+    }
     $pdo = db();
     $pdo->beginTransaction();
     try {
-        $stmt = $pdo->prepare('SELECT * FROM export_authorizations WHERE auth_token_hash = ? AND user_id = ? AND status = ? AND expires_at > ?');
-        $stmt->execute([token_hash((string) $data['authorization']), (int) $user['id'], 'authorized', sql_utc_datetime()]);
+        $stmt = $pdo->prepare('SELECT * FROM export_authorizations WHERE auth_token_hash = ? AND user_id = ? AND app_id = ? AND status = ? AND expires_at > ?');
+        $stmt->execute([token_hash((string) $data['authorization']), (int) $user['id'], $appId, 'authorized', sql_utc_datetime()]);
         $auth = $stmt->fetch();
         if (!is_array($auth)) {
             $pdo->rollBack();
@@ -723,9 +744,9 @@ if ($method === 'POST' && $path === '/api/exports/consume') {
         if ($bonusCredits > 0) {
             $pdo->prepare('UPDATE users SET credits = credits + ? WHERE id = ?')->execute([$bonusCredits, (int) $user['id']]);
             $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
-                ->execute([(int) $user['id'], $bonusCredits, 'bonus_export_topup', (string) $auth['id']]);
-            app_log($pdo, 'info', 'api', 'bonus_credits_granted', 'Bonus credits accordes pour solde partiel', ['bonus_credits' => $bonusCredits, 'authorization_id' => (int) $auth['id']], (int) $user['id']);
-            audit_log($pdo, (int) $user['id'], 'client', 'bonus_export_topup', 'export_authorization', (string) $auth['id'], 'success', '', ['bonus_credits' => $bonusCredits]);
+                ->execute([(int) $user['id'], $bonusCredits, 'bonus_export_topup', $appId . ':' . (string) $auth['id']]);
+            app_log($pdo, 'info', 'api', 'bonus_credits_granted', 'Bonus credits accordes pour solde partiel', ['app_id' => $appId, 'bonus_credits' => $bonusCredits, 'authorization_id' => (int) $auth['id']], (int) $user['id']);
+            audit_log($pdo, (int) $user['id'], 'client', 'bonus_export_topup', 'export_authorization', (string) $auth['id'], 'success', '', ['app_id' => $appId, 'bonus_credits' => $bonusCredits]);
         }
         $debit = $pdo->prepare('UPDATE users SET credits = credits - ? WHERE id = ? AND credits >= ?');
         $debit->execute([$cost, (int) $user['id'], $cost]);
@@ -735,14 +756,14 @@ if ($method === 'POST' && $path === '/api/exports/consume') {
             exit;
         }
         $pdo->prepare('UPDATE export_authorizations SET status = ?, consumed_at = CURRENT_TIMESTAMP WHERE id = ? AND status = ?')->execute(['consumed', (int) $auth['id'], 'processing']);
-        $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')->execute([(int) $user['id'], -$cost, 'export_' . $auth['export_type'], (string) $auth['id']]);
-        app_log($pdo, 'info', 'api', 'export_consumed', 'Export consomme', ['export_type' => (string) $auth['export_type'], 'cost' => $cost, 'bonus_credits' => $bonusCredits, 'authorization_id' => (int) $auth['id']], (int) $user['id']);
-        audit_log($pdo, (int) $user['id'], 'client', 'export_consumed', 'export_authorization', (string) $auth['id'], 'success', '', ['export_type' => (string) $auth['export_type'], 'cost' => $cost, 'bonus_credits' => $bonusCredits]);
+        $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')->execute([(int) $user['id'], -$cost, 'export_' . $appId . '_' . $auth['export_type'], (string) $auth['id']]);
+        app_log($pdo, 'info', 'api', 'export_consumed', 'Export consomme', ['app_id' => $appId, 'export_type' => (string) $auth['export_type'], 'cost' => $cost, 'bonus_credits' => $bonusCredits, 'authorization_id' => (int) $auth['id']], (int) $user['id']);
+        audit_log($pdo, (int) $user['id'], 'client', 'export_consumed', 'export_authorization', (string) $auth['id'], 'success', '', ['app_id' => $appId, 'export_type' => (string) $auth['export_type'], 'cost' => $cost, 'bonus_credits' => $bonusCredits]);
         $pdo->commit();
         $freshStmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
         $freshStmt->execute([(int) $user['id']]);
         $fresh = $freshStmt->fetch();
-        json_response(['ok' => true, 'user' => public_user($fresh), 'cost' => $cost, 'bonus_credits' => $bonusCredits]);
+        json_response(['ok' => true, 'user' => public_user($fresh), 'app_id' => $appId, 'cost' => $cost, 'bonus_credits' => $bonusCredits]);
     } catch (Throwable $e) {
         $pdo->rollBack();
         json_response(['ok' => false, 'error' => 'consume_failed'], 500);

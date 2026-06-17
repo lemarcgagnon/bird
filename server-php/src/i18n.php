@@ -40,7 +40,10 @@ function page_lang(): string
 function page_t(string $key, ?string $lang = null): string
 {
     $lang ??= page_lang();
-    $fr = [
+    static $translations = null;
+    if ($translations === null) {
+        $translations = [
+            'fr' => [
         'nav_home' => 'Accueil',
         'nav_pricing' => 'Offres',
         'nav_about' => 'A propos',
@@ -245,8 +248,8 @@ function page_t(string $key, ?string $lang = null): string
         'activation_failed' => 'Activation refusee. Verifie le courriel/code ou renvoie un nouveau code.',
         'too_many_requests' => 'Trop de tentatives. Attends quelques minutes puis reessaie.',
         'invalid_credentials' => 'Connexion refusee. Verifie le mot de passe ou active le compte avec le code email.',
-    ];
-    $en = [
+            ],
+            'en' => [
         'nav_home' => 'Home',
         'nav_pricing' => 'Pricing',
         'nav_about' => 'About',
@@ -451,8 +454,10 @@ function page_t(string $key, ?string $lang = null): string
         'activation_failed' => 'Activation denied. Verify the email/code or resend a new code.',
         'too_many_requests' => 'Too many attempts. Wait a few minutes and try again.',
         'invalid_credentials' => 'Login denied. Check the password or activate the account with the email code.',
-    ];
-    return ($lang === 'en' ? $en : $fr)[$key] ?? $fr[$key] ?? $key;
+            ],
+        ];
+    }
+    return ($translations[$lang === 'en' ? 'en' : 'fr'][$key] ?? $translations['fr'][$key] ?? $key);
 }
 
 function page_tv(string $key, array $vars = [], ?string $lang = null): string

@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260617-download-section-hig-v1';
+} from '../wasm/pkg/wasm.js?v=20260617-deco-heightmap-v1';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260617-download-section-hig-v1';
+const APP_BUILD_ID = '20260617-deco-heightmap-v1';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -43,6 +43,34 @@ const PHP_BASE = detectPhpBase();
 localStorage.removeItem('nichoir-auth-token');
 const MESH_REPORT_STORAGE_KEY = 'nichoir-last-mesh-report';
 const MAX_DECO_FILE_BYTES = 2 * 1024 * 1024;
+const DECO_TARGET_KEYS = ['front', 'back', 'left', 'right', 'roofL', 'roofR'];
+const DECO_ACCEPT = '.svg,image/*';
+const DECO_RASTER_EXTENSIONS = {
+  png: 'png',
+  jpg: 'jpg',
+  jpeg: 'jpg',
+  gif: 'gif',
+  webp: 'webp',
+  bmp: 'png',
+  ico: 'png',
+  tif: 'png',
+  tiff: 'png',
+  avif: 'png',
+};
+const DECO_RASTER_MIME_TYPES = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+};
+const DECO_PREVIEW_MIME_TYPES = {
+  svg: 'image/png',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+};
 const CLIENT_LOG_LIMIT = 10;
 const CLIENT_LOG_WINDOW_MS = 60 * 1000;
 const FORBIDDEN_SVG_TAGS = [
@@ -160,12 +188,16 @@ const I18N = {
     ticket_closed: 'Ticket ferme.',
     ticket_status_denied: 'Statut ticket refuse: {error}',
     pricing_info: 'Credits: le serveur PHP confirme le cout reel avant chaque telechargement premium.',
-    decor_load_supported: 'Decor: charge un SVG, PNG, JPG, GIF ou WEBP.',
+    decor_load_supported: 'Decor: charge un SVG ou une image prise en charge par ton navigateur.',
     decor_too_large: 'Decor: fichier trop lourd. Limite actuelle: 2 Mo.',
+    decor_processing: 'Decor: conversion en heightmap...',
     decor_svg_heightmap: 'Decor: SVG rasterise en heightmap et envoye au WASM.',
-    decor_image_heightmap: 'Decor: image heightmap envoyee au WASM.',
+    decor_image_heightmap: 'Decor: image convertie en heightmap et envoyee au WASM.',
     decor_heightmap_failed: 'Decor: conversion heightmap impossible ({error}).',
     decor_read_failed: 'Decor: impossible de lire le fichier.',
+    decor_upload_first: 'Decor: charge une image avant d activer le relief.',
+    decor_preview_empty: 'Apercu apres chargement',
+    decor_preview_alt: 'Apercu du decor charge',
     export_house_empty: 'Export maison vide: le modele n a genere aucun triangle.',
     export_door_empty: 'Pas de porte STL: choisis une porte et active "Creer le panneau de porte".',
     export_wall_mount_empty: 'Pas de STL fixation murale: active "Fixation murale" dans Dimensions.',
@@ -298,12 +330,16 @@ const I18N = {
     ticket_closed: 'Ticket closed.',
     ticket_status_denied: 'Ticket status denied: {error}',
     pricing_info: 'Credits: the PHP server confirms the real cost before each premium download.',
-    decor_load_supported: 'Decor: load an SVG, PNG, JPG, GIF, or WEBP.',
+    decor_load_supported: 'Decor: load an SVG or an image supported by your browser.',
     decor_too_large: 'Decor: file too large. Current limit: 2 MB.',
+    decor_processing: 'Decor: converting to heightmap...',
     decor_svg_heightmap: 'Decor: SVG rasterized to a heightmap and sent to WASM.',
-    decor_image_heightmap: 'Decor: heightmap image sent to WASM.',
+    decor_image_heightmap: 'Decor: image converted to heightmap and sent to WASM.',
     decor_heightmap_failed: 'Decor: heightmap conversion failed ({error}).',
     decor_read_failed: 'Decor: unable to read the file.',
+    decor_upload_first: 'Decor: load an image before enabling relief.',
+    decor_preview_empty: 'Preview after upload',
+    decor_preview_alt: 'Uploaded decoration preview',
     export_house_empty: 'House export is empty: the model generated no triangles.',
     export_door_empty: 'No STL door: choose a door and enable "Create door panel".',
     export_wall_mount_empty: 'No wall mount STL: enable "Wall mount" in Dimensions.',
@@ -531,6 +567,100 @@ function dataUrlBytes(dataUrl) {
   return comma >= 0 ? dataUrl.slice(comma + 1) : '';
 }
 
+function decoFileKind(file) {
+  if (!file) return null;
+  const name = String(file.name || '').toLowerCase();
+  const mime = String(file.type || '').toLowerCase();
+  if (mime.includes('svg') || name.endsWith('.svg')) {
+    return { sourceType: 'svg', isSvg: true };
+  }
+  if (mime.startsWith('image/')) {
+    return { sourceType: DECO_RASTER_MIME_TYPES[mime] || 'png', isSvg: false };
+  }
+  const mimeType = DECO_RASTER_MIME_TYPES[mime];
+  if (mimeType) return { sourceType: mimeType, isSvg: false };
+  const ext = name.match(/\.([a-z0-9]+)$/)?.[1] || '';
+  const extType = DECO_RASTER_EXTENSIONS[ext];
+  return extType ? { sourceType: extType, isSvg: false } : null;
+}
+
+function decoHasHeightmapSource(deco) {
+  return Boolean(deco && deco.sourceData && deco.sourceType);
+}
+
+function decoRasterSize(deco) {
+  return Math.max(64, Math.min(512, Number(deco?.resolution || 64) * 4));
+}
+
+function compactFileName(name) {
+  const value = String(name || '').trim();
+  return value.length > 90 ? `${value.slice(0, 72)}...${value.slice(-12)}` : value;
+}
+
+function resetDecoSource(deco) {
+  deco.sourceType = '';
+  deco.sourceText = '';
+  deco.sourceData = '';
+  deco.sourceName = '';
+  deco.sourceBytes = 0;
+  deco.enabled = false;
+  deco.mode = 'heightmap';
+}
+
+function applyDecoHeightmapSource(deco, source) {
+  deco.sourceType = source.sourceType;
+  deco.sourceText = source.sourceText || '';
+  deco.sourceData = source.sourceData || '';
+  deco.sourceName = compactFileName(source.sourceName || '');
+  deco.sourceBytes = Number(source.sourceBytes || 0);
+  deco.mode = 'heightmap';
+  deco.enabled = true;
+  deco.clipToPanel = true;
+}
+
+async function loadDecoFile(file) {
+  const kind = decoFileKind(file);
+  if (!kind) {
+    setDecoStatus(tr('decor_load_supported'), 'warn');
+    return false;
+  }
+  if (file.size > MAX_DECO_FILE_BYTES) {
+    setDecoStatus(tr('decor_too_large'), 'warn');
+    return false;
+  }
+  setDecoStatus(tr('decor_processing'), 'info');
+  const deco = activeDeco();
+  try {
+    if (kind.isSvg) {
+      const svgText = assertSafeSvgText(await file.text());
+      const sourceData = await rasterizeSvgToPngBase64(svgText, decoRasterSize(deco));
+      applyDecoHeightmapSource(deco, {
+        sourceType: 'svg',
+        sourceText: svgText,
+        sourceData,
+        sourceName: file.name,
+        sourceBytes: file.size,
+      });
+      setDecoStatus(tr('decor_svg_heightmap'), 'ok');
+    } else {
+      const sourceData = await rasterizeImageFileToPngBase64(file);
+      applyDecoHeightmapSource(deco, {
+        sourceType: 'png',
+        sourceData,
+        sourceName: file.name,
+        sourceBytes: file.size,
+      });
+      setDecoStatus(tr('decor_image_heightmap'), 'ok');
+    }
+    render();
+    return true;
+  } catch (err) {
+    console.error(err);
+    setDecoStatus(tr('decor_heightmap_failed', { error: err?.message || err }), 'error');
+    return false;
+  }
+}
+
 function phpUrl(path = '/') {
   const url = new URL(path, PHP_BASE);
   if (!url.pathname.startsWith('/api/')) {
@@ -637,6 +767,42 @@ function rasterizeSvgToPngBase64(svgText, size = 256) {
   });
 }
 
+function rasterizeImageFileToPngBase64(file, maxSide = 1024) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const iw = img.naturalWidth || img.width || 0;
+        const ih = img.naturalHeight || img.height || 0;
+        if (iw < 2 || ih < 2) throw new Error('image_too_small');
+        const scale = Math.min(1, maxSide / iw, maxSide / ih);
+        const w = Math.max(2, Math.round(iw * scale));
+        const h = Math.max(2, Math.round(ih * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, w, h);
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, w, h);
+        ctx.drawImage(img, 0, 0, w, h);
+        const png = canvas.toDataURL('image/png');
+        URL.revokeObjectURL(url);
+        resolve(dataUrlBytes(png));
+      } catch (err) {
+        URL.revokeObjectURL(url);
+        reject(err);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('image_decode_failed'));
+    };
+    img.src = url;
+  });
+}
+
 function assertSafeSvgText(svgText) {
   const raw = String(svgText || '');
   if (!raw.trim()) throw new Error('svg_empty');
@@ -688,6 +854,15 @@ function setExportStatus(message, tone = 'info') {
   status.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
   status.className = `export-status ${tone}`;
   status.textContent = message;
+}
+
+function setDecoStatus(message, tone = 'info') {
+  const status = root.querySelector('[data-deco-status]');
+  if (status) {
+    status.dataset.tone = tone;
+    status.textContent = message;
+  }
+  setExportStatus(message, tone);
 }
 
 async function apiRequest(path, options = {}) {
@@ -2021,14 +2196,16 @@ function ensureDecos() {
   if (!params.panelPreset) params.panelPreset = 'auto';
   if (!params.thicknessPreset) params.thicknessPreset = '12';
   if (!params.decos || typeof params.decos !== 'object') params.decos = {};
-  ['front', 'back', 'left', 'right', 'roofL', 'roofR'].forEach((key) => {
+  DECO_TARGET_KEYS.forEach((key) => {
     if (!params.decos[key]) {
       params.decos[key] = {
         enabled: false,
         sourceType: '',
         sourceText: '',
         sourceData: '',
-        mode: 'vector',
+        sourceName: '',
+        sourceBytes: 0,
+        mode: 'heightmap',
         w: 60,
         h: 60,
         posX: 50,
@@ -2048,6 +2225,11 @@ function ensureDecos() {
     if (params.decos[key].threshold === undefined) params.decos[key].threshold = 2;
     if (params.decos[key].removeBg === undefined) params.decos[key].removeBg = false;
     if (params.decos[key].clipToPanel === undefined) params.decos[key].clipToPanel = true;
+    if (params.decos[key].sourceName === undefined) params.decos[key].sourceName = '';
+    if (params.decos[key].sourceBytes === undefined) params.decos[key].sourceBytes = 0;
+    if (!params.decos[key].sourceData && params.decos[key].sourceType !== 'svg') {
+      params.decos[key].mode = 'heightmap';
+    }
   });
   if (!params.decorActive || !params.decos[params.decorActive]) params.decorActive = 'front';
 }
@@ -2081,9 +2263,51 @@ function refreshGeneratedViews() {
 
 async function refreshDecoRasterIfNeeded(deco) {
   if (!deco || deco.sourceType !== 'svg' || !deco.sourceText) return;
-  const size = Math.max(64, Math.min(1024, Number(deco.resolution || 64) * 4));
+  const size = decoRasterSize(deco);
   deco.sourceText = assertSafeSvgText(deco.sourceText);
   deco.sourceData = await rasterizeSvgToPngBase64(deco.sourceText, size);
+}
+
+function decoPreviewSrc(deco) {
+  if (!decoHasHeightmapSource(deco)) return '';
+  const mime = DECO_PREVIEW_MIME_TYPES[deco.sourceType] || 'image/png';
+  return `data:${mime};base64,${deco.sourceData}`;
+}
+
+function updateDecoUploadUi() {
+  const deco = activeDeco();
+  const hasSource = decoHasHeightmapSource(deco);
+  const preview = root.querySelector('[data-deco-preview]');
+  const dropzone = root.querySelector('[data-deco-dropzone]');
+  const fileName = root.querySelector('[data-deco-file-name]');
+  const fileMeta = root.querySelector('[data-deco-file-meta]');
+  if (dropzone) {
+    dropzone.classList.toggle('has-source', hasSource);
+    dropzone.classList.toggle('is-empty', !hasSource);
+  }
+  if (preview) {
+    preview.replaceChildren();
+    if (hasSource) {
+      const img = document.createElement('img');
+      img.src = decoPreviewSrc(deco);
+      img.alt = tr('decor_preview_alt');
+      preview.appendChild(img);
+    } else {
+      const empty = document.createElement('span');
+      empty.textContent = tr('decor_preview_empty');
+      preview.appendChild(empty);
+    }
+  }
+  if (fileName) {
+    fileName.textContent = deco.sourceName || (hasSource ? deco.sourceType.toUpperCase() : '');
+  }
+  if (fileMeta) {
+    const size = Number(deco.sourceBytes || 0);
+    const sizeLabel = size > 0 && size < 1024 ? '< 1 Ko' : `${Math.round(size / 1024)} Ko`;
+    fileMeta.textContent = hasSource
+      ? [deco.sourceType?.toUpperCase(), size > 0 ? sizeLabel : ''].filter(Boolean).join(' · ')
+      : DECO_ACCEPT.replaceAll(',', ', ');
+  }
 }
 
 function disposeViewerObjects(state) {
@@ -2594,70 +2818,55 @@ function render() {
   root.querySelectorAll('[data-deco-bool]').forEach((input) => {
     input.addEventListener('change', () => {
       const deco = activeDeco();
+      if (input.dataset.decoBool === 'enabled' && input.checked && !decoHasHeightmapSource(deco)) {
+        input.checked = false;
+        deco.enabled = false;
+        setDecoStatus(tr('decor_upload_first'), 'warn');
+        updateDecoUploadUi();
+        return;
+      }
       deco[input.dataset.decoBool] = input.checked;
       render();
     });
   });
 
-  root.querySelector('[data-deco-file]')?.addEventListener('change', (event) => {
+  root.querySelector('[data-deco-file]')?.addEventListener('change', async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const isSvg = file.type.includes('svg') || file.name.toLowerCase().endsWith('.svg');
-    const isRaster = /image\/(png|jpeg|gif|webp)/i.test(file.type) || /\.(png|jpe?g|gif|webp)$/i.test(file.name);
-    if (!isSvg && !isRaster) {
-      setExportStatus(tr('decor_load_supported'), 'warn');
-      return;
-    }
-    if (file.size > MAX_DECO_FILE_BYTES) {
-      setExportStatus(tr('decor_too_large'), 'warn');
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const deco = activeDeco();
-      try {
-        if (isSvg) {
-          const svgText = assertSafeSvgText(reader.result || '');
-          deco.sourceType = 'svg';
-          deco.sourceText = svgText;
-          deco.sourceData = await rasterizeSvgToPngBase64(svgText, Math.max(64, Math.min(512, Number(deco.resolution || 64) * 4)));
-          deco.mode = 'heightmap';
-          deco.enabled = true;
-          deco.clipToPanel = true;
-          setExportStatus(tr('decor_svg_heightmap'), 'ok');
-        } else {
-          const lower = file.name.toLowerCase();
-          deco.sourceType = lower.endsWith('.webp') || file.type.includes('webp')
-            ? 'webp'
-            : lower.endsWith('.gif') || file.type.includes('gif')
-              ? 'gif'
-              : file.type.includes('jpeg') || /\.jpe?g$/i.test(lower)
-                ? 'jpg'
-                : 'png';
-          deco.sourceText = '';
-          deco.sourceData = bytesToBase64(new Uint8Array(reader.result));
-          deco.mode = 'heightmap';
-          deco.enabled = true;
-          deco.clipToPanel = true;
-          setExportStatus(tr('decor_image_heightmap'), 'ok');
-        }
-        render();
-      } catch (err) {
-        console.error(err);
-        setExportStatus(tr('decor_heightmap_failed', { error: err?.message || err }), 'error');
-      }
-    };
-    reader.onerror = () => setExportStatus(tr('decor_read_failed'), 'error');
-    if (isSvg) reader.readAsText(file);
-    else reader.readAsArrayBuffer(file);
+    await loadDecoFile(file);
+    event.target.value = '';
+  });
+
+  const decoDropzone = root.querySelector('[data-deco-dropzone]');
+  if (decoDropzone) {
+    ['dragenter', 'dragover'].forEach((type) => {
+      decoDropzone.addEventListener(type, (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        decoDropzone.classList.add('is-dragover');
+      });
+    });
+    ['dragleave', 'drop'].forEach((type) => {
+      decoDropzone.addEventListener(type, (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        decoDropzone.classList.remove('is-dragover');
+      });
+    });
+    decoDropzone.addEventListener('drop', async (event) => {
+      const file = event.dataTransfer?.files?.[0];
+      if (!file) return;
+      await loadDecoFile(file);
+    });
+  }
+
+  root.querySelector('[data-deco-reload]')?.addEventListener('click', () => {
+    root.querySelector('[data-deco-file]')?.click();
   });
 
   root.querySelector('[data-deco-clear]')?.addEventListener('click', () => {
     const deco = activeDeco();
-    deco.sourceType = '';
-    deco.sourceText = '';
-    deco.sourceData = '';
-    deco.enabled = false;
+    resetDecoSource(deco);
     render();
   });
 
@@ -2805,6 +3014,7 @@ function render() {
   });
 
   bindTabs();
+  updateDecoUploadUi();
   renderPlanPreview();
   renderViewer();
   saveMeshReportToBrowser();

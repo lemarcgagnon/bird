@@ -104,7 +104,7 @@ impl Default for DecorSettings {
             source_type: String::new(),
             source_text: String::new(),
             source_data: String::new(),
-            mode: "vector".to_string(),
+            mode: "heightmap".to_string(),
             w: 60.0,
             h: 60.0,
             pos_x: 50.0,
@@ -518,7 +518,7 @@ fn sanitize_decor(mut d: DecorSettings) -> DecorSettings {
         &["", "svg", "png", "jpg", "jpeg", "gif", "webp"],
         "",
     );
-    d.mode = allowed_string(d.mode.trim(), &["vector", "heightmap"], "vector");
+    d.mode = allowed_string(d.mode.trim(), &["vector", "heightmap"], "heightmap");
     d.w = clamp_finite(d.w, 5.0, 400.0, defaults.w);
     d.h = clamp_finite(d.h, 5.0, 400.0, defaults.h);
     d.pos_x = clamp_finite(d.pos_x, 0.0, 100.0, defaults.pos_x);
@@ -536,7 +536,7 @@ fn sanitize_decor(mut d: DecorSettings) -> DecorSettings {
             d.source_type.clear();
             d.source_text.clear();
             d.source_data.clear();
-            d.mode = "vector".to_string();
+            d.mode = "heightmap".to_string();
             return d;
         }
     } else {
@@ -824,15 +824,20 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "mesh_report") => "Mesh report",
         ("en", "panel_stls") => "Panel STLs",
         ("en", "deco_target") => "Target panel",
-        ("en", "deco_no_file") => "No SVG loaded",
+        ("en", "deco_no_file") => "No relief image loaded",
         ("en", "deco_svg_loaded") => "SVG usable",
         ("en", "deco_svg_empty") => "SVG loaded, but no usable filled vector shape was found. Convert text/strokes to paths or use a filled SVG.",
         ("en", "deco_heightmap_loaded") => "Heightmap image loaded for WASM relief",
-        ("en", "deco_enable") => "Enable decoration on this panel",
-        ("en", "deco_load_svg") => "Load SVG",
+        ("en", "deco_enable") => "Relief active",
+        ("en", "deco_load_svg") => "Load image",
+        ("en", "deco_replace_image") => "Replace",
         ("en", "deco_clear") => "Clear",
         ("en", "deco_mode") => "Render mode",
-        ("en", "deco_heightmap_note") => "Vector extrudes filled SVG shapes. Heightmap converts PNG/JPG, or rasterized SVG, into relief using Rust/WASM.",
+        ("en", "deco_upload_title") => "Drop an image here",
+        ("en", "deco_upload_body") => "SVG or browser-supported image, max 2 MB. Every file is converted to a WASM heightmap.",
+        ("en", "deco_preview_empty") => "Preview after upload",
+        ("en", "deco_relief_settings") => "Relief settings",
+        ("en", "deco_heightmap_note") => "Light pixels rise, dark pixels stay low. Use invert if your source image has the relief backwards.",
         ("en", "deco_rotation") => "Image rotation",
         ("en", "deco_depth") => "Relief depth",
         ("en", "deco_invert") => "Invert heightmap",
@@ -858,7 +863,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "door_pentagon") => "Pent.",
         ("en", "vector") => "Vector",
         ("en", "heightmap") => "Heightmap",
-        ("en", "choose_file_to_show_shape_settings") => "Choose a file to show shape settings.",
+        ("en", "choose_file_to_show_shape_settings") => "Load an image to show relief settings.",
         ("en", "download_calcs_pdf") => "Download calculations PDF",
         ("en", "models_3d") => "3D models",
         ("en", "house") => "House",
@@ -1066,15 +1071,20 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "mesh_report") => "Rapport mesh/STL",
         (_, "panel_stls") => "Panneaux STL",
         (_, "deco_target") => "Panneau cible",
-        (_, "deco_no_file") => "Aucun SVG charge",
+        (_, "deco_no_file") => "Aucune image de relief chargee",
         (_, "deco_svg_loaded") => "SVG utilisable",
         (_, "deco_svg_empty") => "SVG charge, mais aucune forme vectorielle pleine exploitable n'a ete trouvee. Convertis les textes/traits en chemins ou utilise un SVG rempli.",
         (_, "deco_heightmap_loaded") => "Image heightmap chargee pour le relief WASM",
-        (_, "deco_enable") => "Activer la decoration sur ce panneau",
-        (_, "deco_load_svg") => "Charger SVG",
+        (_, "deco_enable") => "Relief actif",
+        (_, "deco_load_svg") => "Charger image",
+        (_, "deco_replace_image") => "Remplacer",
         (_, "deco_clear") => "Supprimer",
         (_, "deco_mode") => "Mode de rendu",
-        (_, "deco_heightmap_note") => "Vectoriel extrude les formes SVG pleines. Heightmap convertit PNG/JPG, ou SVG rasterise, en relief via Rust/WASM.",
+        (_, "deco_upload_title") => "Depose une image ici",
+        (_, "deco_upload_body") => "SVG ou image prise en charge par le navigateur, max 2 Mo. Chaque fichier est converti en heightmap WASM.",
+        (_, "deco_preview_empty") => "Apercu apres chargement",
+        (_, "deco_relief_settings") => "Reglages du relief",
+        (_, "deco_heightmap_note") => "Les pixels clairs montent, les pixels fonces restent bas. Utilise inverser si le relief sort a l envers.",
         (_, "deco_rotation") => "Rotation image",
         (_, "deco_depth") => "Profondeur relief",
         (_, "deco_invert") => "Inverser heightmap",
@@ -1100,7 +1110,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "door_pentagon") => "Penta.",
         (_, "vector") => "Vectoriel",
         (_, "heightmap") => "Heightmap",
-        (_, "choose_file_to_show_shape_settings") => "Choisis un fichier pour afficher les reglages de forme.",
+        (_, "choose_file_to_show_shape_settings") => "Charge une image pour afficher les reglages du relief.",
         (_, "download_calcs_pdf") => "Telecharger les calculs PDF",
         (_, "models_3d") => "Modeles 3D",
         (_, "house") => "Maison",
@@ -5478,7 +5488,7 @@ pub fn render_app_html(input: &str) -> String {
     } else {
         parse_deco_svg_loops(&active_deco.source_text).len()
     };
-    let deco_status = if active_deco.mode == "heightmap" && !active_deco.source_data.trim().is_empty() {
+    let deco_status = if !active_deco.source_data.trim().is_empty() {
         t(lang, "deco_heightmap_loaded").to_string()
     } else if active_deco.source_text.trim().is_empty() {
         t(lang, "deco_no_file").to_string()
@@ -5489,95 +5499,89 @@ pub fn render_app_html(input: &str) -> String {
     };
     let deco_has_source = !active_deco.source_text.trim().is_empty()
         || !active_deco.source_data.trim().is_empty();
-    let deco_mode_controls = if deco_has_source {
-        format!(
-            r#"<div class="field-group disclosure-group">
-        <p>{mode_label}</p>
-        <div class="choices">
-          <button class="choice {vector_active}" data-deco-choice="mode" data-value="vector" type="button">{vector_label}</button>
-          <button class="choice {heightmap_active}" data-deco-choice="mode" data-value="heightmap" type="button">{heightmap_label}</button>
-        </div>
-        <p class="control-note">{deco_note}</p>
-      </div>"#,
-            mode_label = html_escape(t(lang, "deco_mode")),
-            vector_active = active_str(&active_deco.mode, "vector"),
-            heightmap_active = active_str(&active_deco.mode, "heightmap"),
-            vector_label = html_escape(t(lang, "vector")),
-            heightmap_label = html_escape(t(lang, "heightmap")),
-            deco_note = html_escape(t(lang, "deco_heightmap_note")),
-        )
-    } else {
-        format!(r#"<p class="control-note">{}</p>"#, html_escape(t(lang, "choose_file_to_show_shape_settings")))
-    };
     let deco_shape_controls = if deco_has_source {
-        let mode_specific = if active_deco.mode == "heightmap" {
-            format!(
-                r#"<div class="subcontrols mode-settings">
+        let heightmap_controls = format!(
+            r#"<div class="subcontrols mode-settings">
         <label class="check"><input data-deco-bool="invert" type="checkbox" {invert}>{invert_label}</label>
         <label class="check"><input data-deco-bool="removeBg" type="checkbox" {remove_bg}>{remove_bg_label}</label>
         {res}{smooth}{bevel}{threshold}
       </div>"#,
-                invert = checked(active_deco.invert),
-                invert_label = html_escape(t(lang, "deco_invert")),
-                remove_bg = checked(active_deco.remove_bg),
-                remove_bg_label = html_escape(t(lang, "deco_remove_bg")),
-                res = deco_range_control(t(lang, "deco_resolution"), "resolution", 8.0, 256.0, 8.0, active_deco.resolution, 1.0),
-                smooth = deco_range_control(t(lang, "deco_smooth"), "smooth", 0.0, 100.0, 5.0, active_deco.smooth, 1.0),
-                bevel = deco_range_control(t(lang, "deco_bevel"), "bevel", 0.0, 100.0, 5.0, active_deco.bevel, 1.0),
-                threshold = deco_range_control(t(lang, "deco_threshold"), "threshold", 0.0, 60.0, 1.0, active_deco.threshold, 1.0),
-            )
-        } else {
-            String::new()
-        };
+            invert = checked(active_deco.invert),
+            invert_label = html_escape(t(lang, "deco_invert")),
+            remove_bg = checked(active_deco.remove_bg),
+            remove_bg_label = html_escape(t(lang, "deco_remove_bg")),
+            res = deco_range_control(t(lang, "deco_resolution"), "resolution", 8.0, 256.0, 8.0, active_deco.resolution, 1.0),
+            smooth = deco_range_control(t(lang, "deco_smooth"), "smooth", 0.0, 100.0, 5.0, active_deco.smooth, 1.0),
+            bevel = deco_range_control(t(lang, "deco_bevel"), "bevel", 0.0, 100.0, 5.0, active_deco.bevel, 1.0),
+            threshold = deco_range_control(t(lang, "deco_threshold"), "threshold", 0.0, 60.0, 1.0, active_deco.threshold, 1.0),
+        );
         format!(
-            r#"<div class="subcontrols deco-settings">
+            r#"<div class="field-group deco-relief-controls">
+      <p>{relief_label}</p>
+      <p class="control-note">{deco_note}</p>
+      <div class="subcontrols deco-settings">
         {w}{h}{px}{py}{rot}{depth}
-        {mode_specific}
+        {heightmap_controls}
         <label class="check"><input data-deco-bool="clipToPanel" type="checkbox" {clip}>{clip_label}</label>
-      </div>"#,
+      </div>
+    </div>"#,
+            relief_label = html_escape(t(lang, "deco_relief_settings")),
+            deco_note = html_escape(t(lang, "deco_heightmap_note")),
             w = deco_length_control(t(lang, "width"), "w", 5.0, 400.0, 1.0, active_deco.w, &p.unit),
             h = deco_length_control(t(lang, "height"), "h", 5.0, 400.0, 1.0, active_deco.h, &p.unit),
             px = deco_range_control(t(lang, "door_x"), "posX", 0.0, 100.0, 1.0, active_deco.pos_x, 1.0),
             py = deco_range_control(t(lang, "door_y"), "posY", 0.0, 100.0, 1.0, active_deco.pos_y, 1.0),
             rot = deco_range_control(t(lang, "deco_rotation"), "rotation", 0.0, 360.0, 1.0, active_deco.rotation, 1.0),
             depth = deco_length_control(t(lang, "deco_depth"), "depth", 0.2, 20.0, 0.1, active_deco.depth, &p.unit),
-            mode_specific = mode_specific,
+            heightmap_controls = heightmap_controls,
             clip = checked(active_deco.clip_to_panel),
             clip_label = html_escape(t(lang, "deco_clip")),
         )
     } else {
-        String::new()
+        format!(r#"<p class="control-note">{}</p>"#, html_escape(t(lang, "choose_file_to_show_shape_settings")))
     };
-    let deco_active_controls = if active_deco.enabled {
-        format!(
-            r#"<div class="subcontrols deco-active">
+    let deco_active_controls = format!(
+        r#"<div class="deco-workflow" data-deco-workflow>
+      <div class="deco-status" data-deco-status>{deco_status}</div>
+      <label class="deco-dropzone {drop_state}" data-deco-dropzone>
+        <input data-deco-file type="file" accept=".svg,image/*">
+        <span class="deco-drop-icon" aria-hidden="true">▧</span>
+        <span class="deco-drop-copy">
+          <strong>{upload_title}</strong>
+          <span>{upload_body}</span>
+        </span>
+      </label>
+      <div class="deco-preview {preview_state}" data-deco-preview aria-live="polite"><span>{preview_empty}</span></div>
+      <div class="deco-file-summary">
+        <span data-deco-file-name></span>
+        <small data-deco-file-meta></small>
+      </div>
       <div class="deco-file-row">
-        <label class="deco-file-label">{load_label}<input data-deco-file type="file" accept=".svg,image/svg+xml,image/png,image/jpeg,image/gif,image/webp"></label>
+        <button class="tool-button" data-deco-reload type="button">{replace_label}</button>
         <button class="tool-button deco-clear" data-deco-clear type="button">{clear_label}</button>
       </div>
-      {mode_controls}
+      <label class="check deco-enable"><input data-deco-bool="enabled" type="checkbox" {enabled}>{enable_label}</label>
       {shape_controls}
     </div>"#,
-            load_label = html_escape(t(lang, "deco_load_svg")),
-            clear_label = html_escape(t(lang, "deco_clear")),
-            mode_controls = deco_mode_controls,
-            shape_controls = deco_shape_controls,
-        )
-    } else {
-        String::new()
-    };
+        deco_status = html_escape(&deco_status),
+        drop_state = if deco_has_source { "has-source" } else { "is-empty" },
+        preview_state = if deco_has_source { "has-source" } else { "is-empty" },
+        upload_title = html_escape(t(lang, "deco_upload_title")),
+        upload_body = html_escape(t(lang, "deco_upload_body")),
+        preview_empty = html_escape(t(lang, "deco_preview_empty")),
+        replace_label = html_escape(t(lang, "deco_replace_image")),
+        clear_label = html_escape(t(lang, "deco_clear")),
+        enabled = checked(active_deco.enabled),
+        enable_label = html_escape(t(lang, "deco_enable")),
+        shape_controls = deco_shape_controls,
+    );
     let deco_controls = format!(
         r#"
       <label class="select-control"><span>{target_label}</span><select data-deco-target>{deco_options}</select></label>
-      <div class="deco-status">{deco_status}</div>
-      <label class="check"><input data-deco-bool="enabled" type="checkbox" {enabled}>{enable_label}</label>
       {active_controls}
     "#,
         target_label = html_escape(t(lang, "deco_target")),
         deco_options = deco_options,
-        deco_status = html_escape(&deco_status),
-        enabled = checked(active_deco.enabled),
-        enable_label = html_escape(t(lang, "deco_enable")),
         active_controls = deco_active_controls,
     );
     let layout_json = compute_cut_layout(input);
@@ -6104,7 +6108,7 @@ mod tests {
         assert!(deco.source_type.is_empty());
         assert!(deco.source_text.is_empty());
         assert!(deco.source_data.is_empty());
-        assert_eq!(deco.mode, "vector");
+        assert_eq!(deco.mode, "heightmap");
     }
 
     #[test]
@@ -6159,8 +6163,19 @@ mod tests {
             assert!(deco.source_type.is_empty());
             assert!(deco.source_text.is_empty());
             assert!(deco.source_data.is_empty());
-            assert_eq!(deco.mode, "vector");
+            assert_eq!(deco.mode, "heightmap");
         }
+    }
+
+    #[test]
+    fn render_app_html_exposes_heightmap_decor_upload_workflow() {
+        let html = render_app_html(&default_params_json());
+
+        assert!(html.contains("data-deco-workflow"));
+        assert!(html.contains("data-deco-dropzone"));
+        assert!(html.contains("data-deco-preview"));
+        assert!(html.contains(".svg,image/*"));
+        assert!(!html.contains("data-deco-choice=\"mode\""));
     }
 
     #[test]
@@ -6185,6 +6200,43 @@ mod tests {
         assert!(deco.source_text.is_empty());
         assert_eq!(deco.source_data, "iVBORw0KGgo=");
         assert_eq!(deco.mode, "heightmap");
+    }
+
+    #[test]
+    fn raster_heightmap_decor_generates_front_panel_tris() {
+        use base64::Engine as _;
+        use image::ImageEncoder as _;
+
+        let pixels = [
+            0u8, 0, 0, 255, 255, 255, 255, 255,
+            128, 128, 128, 255, 64, 64, 64, 255,
+        ];
+        let mut png = Vec::new();
+        image::codecs::png::PngEncoder::new(&mut png)
+            .write_image(&pixels, 2, 2, image::ColorType::Rgba8.into())
+            .expect("test PNG should encode");
+        let data = base64::engine::general_purpose::STANDARD.encode(png);
+        let input = serde_json::json!({
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "png",
+                    "sourceData": data,
+                    "mode": "heightmap",
+                    "w": 40,
+                    "h": 40,
+                    "resolution": 8,
+                    "depth": 3
+                }
+            }
+        })
+        .to_string();
+
+        let p = parse_input(&input).expect("valid JSON should parse");
+        let g = GeometryPayload::from_p(&p);
+        let tris = build_decor_tris_for_target(&p, &g, "front");
+
+        assert!(!tris.is_empty());
     }
 
     #[test]

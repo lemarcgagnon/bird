@@ -16,6 +16,8 @@
   --input-bg: #fbf4e8;
   --status-bg: #fff4df;
   --status-text: #6d6255;
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
   --edge: #6b4320;
 }
 
@@ -37,6 +39,8 @@ body.dark {
   --input-bg: #12141b;
   --status-bg: #151820;
   --status-text: #9aa0aa;
+  --danger: #f87171;
+  --danger-soft: #2a171a;
   --edge: #2a1e15;
 }
 
@@ -1187,8 +1191,13 @@ input[type="range"] {
   color: var(--bg);
 }
 
+.deco-workflow {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
 .deco-status {
-  margin: 8px 0 12px;
   padding: 10px 11px;
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -1198,50 +1207,150 @@ input[type="range"] {
   line-height: 1.35;
 }
 
-.deco-file-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 104px;
-  gap: 8px;
-  margin: 10px 0 14px;
+.deco-status[data-tone="warn"] {
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--line));
+  color: var(--accent-strong);
 }
 
-.deco-active {
-  margin-bottom: 18px;
+.deco-status[data-tone="error"] {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.deco-dropzone {
+  position: relative;
+  min-height: 118px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 44%, var(--line));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--panel-2));
+  color: var(--text);
+  cursor: pointer;
+}
+
+.deco-dropzone:hover,
+.deco-dropzone:focus-within,
+.deco-dropzone.is-dragover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel-2));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.deco-dropzone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.deco-drop-icon {
+  width: 42px;
+  height: 42px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.deco-drop-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.deco-drop-copy strong {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.deco-drop-copy span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.deco-preview {
+  min-height: 118px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background:
+    linear-gradient(45deg, color-mix(in srgb, var(--line) 28%, transparent) 25%, transparent 25%),
+    linear-gradient(-45deg, color-mix(in srgb, var(--line) 28%, transparent) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--line) 28%, transparent) 75%),
+    linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--line) 28%, transparent) 75%),
+    var(--input-bg);
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-size: 16px 16px;
+  overflow: hidden;
+}
+
+.deco-preview img {
+  max-width: 100%;
+  max-height: 170px;
+  object-fit: contain;
+  display: block;
+}
+
+.deco-preview span {
+  padding: 10px;
+  color: var(--muted);
+  font-size: 10px;
+  text-align: center;
+}
+
+.deco-file-summary {
+  min-height: 22px;
+  display: grid;
+  gap: 3px;
+}
+
+.deco-file-summary span,
+.deco-file-summary small {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.deco-file-summary span:not(:empty) {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.deco-file-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.deco-enable {
+  margin: 0;
+}
+
+.deco-relief-controls {
+  margin-top: 4px;
 }
 
 .deco-settings {
-  margin-top: 12px;
+  margin-top: 10px;
 }
 
 .mode-settings {
   margin: 10px 0 12px;
-}
-
-.deco-file-label {
-  min-height: 42px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--button-border);
-  border-radius: 4px;
-  background: var(--button-bg);
-  color: var(--text);
-  font-size: 10px;
-  cursor: pointer;
-}
-
-.deco-file-label:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.deco-file-label:focus-within {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 28%, transparent);
-}
-
-.deco-file-label input {
-  display: none;
 }
 
 .deco-clear {

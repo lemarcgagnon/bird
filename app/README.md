@@ -15,7 +15,8 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 - `EXPORT_APP_ID`: fixed to `nichoir` for this WASM app. It is sent with export quote/authorize/consume calls so the PHP backend can act as mission control for multiple WASM apps.
 - `?php_base=http://127.0.0.1:8021`: local-only override when the static app runs on `8016` and the PHP API runs on `8021`. The override is ignored unless both the page host and target API host are `localhost`, `127.0.0.1` or `::1`.
 - `?lang=fr|en` and local storage key `nichoir-lang`.
-- Local storage keys `nichoir-theme`, `nichoir-auth-token` and `nichoir-last-mesh-report`.
+- Local storage keys `nichoir-theme` and `nichoir-last-mesh-report`.
+- Legacy key `nichoir-auth-token` is removed on load. Current account auth relies on the PHP HttpOnly cookie `nichoir_account_session` and `fetch(..., { credentials: 'include' })`.
 - `nichoir-last-mesh-report` stores only a diagnostic geometry snapshot so the user does not lose the report after leaving the screen. It is not a credit, account or authorization source.
 
 ## What `app.js` owns
@@ -38,6 +39,7 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 - PHP is the source of truth for users, sessions, credits, Stripe billing, support tickets, credit policy and configured package settings.
 - Rust/WASM is the source of truth for geometry, calculations, app control markup and export data generation.
 - JavaScript should coordinate browser behavior and display returned policy data, not define billing or credit policy. Local `EXPORT_COSTS` values are fallback copy only; PHP responses are authoritative.
+- JavaScript should not persist account bearer tokens. The current browser flow depends on the PHP session cookie and `/api/admin/session` for admin-only visibility.
 
 ## Current drift
 

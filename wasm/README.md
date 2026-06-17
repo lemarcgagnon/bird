@@ -7,7 +7,7 @@ This folder contains the Rust crate compiled to WebAssembly for the birdhouse de
 - `Cargo.toml`: Rust crate configuration. The crate builds as `cdylib`/`rlib` and uses `wasm-bindgen`, `serde`, `serde_json`, `earcutr`, `base64` and `image`.
 - `Cargo.lock`: locked Rust dependency graph.
 - `src/lib.rs`: UI markup, i18n lookup, parameter sanitization, geometry calculations, mesh generation, decoration handling, cut-plan SVG generation and WASM exports called from `app/app.js`.
-- `pkg/`: generated `wasm-pack build --target web` output used by the browser app. The directory is ignored by Git and can be regenerated.
+- `pkg/`: generated `wasm-pack build --target web` output used by the browser app. In this repo it contains `wasm.js`, `wasm_bg.wasm`, `wasm.d.ts`, `wasm_bg.wasm.d.ts` and `package.json`; the directory is ignored by Git and can be regenerated.
 
 ## WASM exports
 
@@ -78,7 +78,7 @@ For billed exports, `app/app.js` identifies this app as `app_id=nichoir`, asks P
 
 ```bash
 cd wasm
-cargo check --target wasm32-unknown-unknown
+cargo check
 wasm-pack build --target web
 ```
 

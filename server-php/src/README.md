@@ -7,7 +7,7 @@ This folder contains the backend code included by `server-php/public/index.php`.
 - `helpers.php`: escaping, private config loading, runtime error display policy, secure session cookie setup and money formatting.
 - `db.php`: SQLite/MySQL config resolution, PDO creation, migration/schema creation, settings persistence, local DB config helpers and install lock helpers.
 - `logger.php`: request IDs, hashed IP/email values, app logs, audit logs, Stripe event logs, slow request logging and fatal shutdown logging.
-- `auth.php`: bearer tokens, session creation/deletion, current-user lookup, public user projection, activation codes, auth rate limits, email quotas and client IP helper.
+- `auth.php`: account session cookie creation/deletion, legacy bearer-token fallback, current-user lookup, public user projection, activation codes, auth rate limits, email quotas and client IP helper.
 - `credits.php`: valid premium export types, configured export credit cost and positive-partial-balance bonus calculation.
 - `mail.php`: SMTP settings, header sanitization, raw SMTP sending, activation email support, contact email support and ticket notification queue/send helpers.
 - `stripe.php`: Stripe settings, API request helper, Checkout session creation, billing portal creation and webhook signature verification.

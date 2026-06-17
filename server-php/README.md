@@ -54,6 +54,7 @@ Pages and admin:
 API and webhook:
 
 - `GET /api/health`
+- `GET /api/admin/session`
 - `POST /api/auth/register`
 - `POST /api/auth/activate`
 - `POST /api/auth/resend-activation`
@@ -82,8 +83,10 @@ API and webhook:
 - Public pages are bilingual and use `?lang`, then cookie, then `Accept-Language`.
 - Admin pages are intentionally French-only.
 - `/account` manages login/register/logout, activation codes, profile edits, credits, ledger, billing summary, Stripe checkout/portal, invoices/payments, tickets, ticket messages and open/closed status.
+- Account auth now uses the HttpOnly SameSite `nichoir_account_session` cookie. Current browser code clears the legacy `nichoir-auth-token` local-storage key and uses credentialed same-origin requests.
 - `{NICHOIR_ADMIN_PATH}` manages users, profiles, passwords, credits, statuses, manual subscriptions, support tickets, logs, database export, DB settings, Stripe settings, SMTP settings and test email.
 - `{NICHOIR_ADMIN_PATH}/login` uses `NICHOIR_ADMIN_PASSWORD_HASH`, PHP session cookies, `password_verify()` and `session_regenerate_id(true)`.
+- `/api/admin/session` returns whether the current PHP session is admin-authenticated so the static app can reveal admin-only diagnostics without exposing the configured admin path.
 - `NICHOIR_ADMIN_PATH` defaults to `/gestion-nichoir`; `/admin` and `/administration` are reserved/interdicted and must not expose the back-office.
 - Public responses must not inject the configured admin path into shared HTML/JavaScript; only admin responses may render it.
 - Admin POST actions use CSRF tokens and write audit/app logs for important changes.

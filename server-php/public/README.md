@@ -34,6 +34,7 @@ Public pages must not expose the configured admin path in rendered HTML or JavaS
 API/webhook:
 
 - `GET /api/health`
+- `GET /api/admin/session`
 - `POST /api/auth/register`
 - `POST /api/auth/activate`
 - `POST /api/auth/resend-activation`
@@ -62,6 +63,7 @@ API/webhook:
 - Keep only public assets and the front controller here.
 - Do not place SQLite databases, DB configs, secrets, migrations, source modules, install locks, dumps or logs in this folder.
 - In production, `/api/health` should report `env=production` and `db_driver=mysql`; `db_driver=sqlite` is a failed production configuration.
+- `GET /api/admin/session` should return only the current admin-session boolean used by the static app for admin-only diagnostics.
 - API routes should return through `json_response()`.
 - HTML pages should use `page_response()` from `src/layout.php`.
 - New shared visual styling should go in `site.css`, not page-local inline styles.

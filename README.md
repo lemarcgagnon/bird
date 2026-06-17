@@ -2,7 +2,7 @@
 
 Application web pour concevoir un nichoir parametrable, le visualiser en 3D et telecharger des fichiers de fabrication. L'etat actuel du repo est une app Rust/WebAssembly cote navigateur, encadree par un site PHP qui gere comptes, credits, support, admin, Stripe et deploiement cPanel.
 
-Etat release: la branche `main` courante contient la stabilisation production Namecheap/cPanel, dont le fail-closed MySQL, Three.js local, l'artifact sans docs/dev/secrets, et le chemin admin configurable non evident. Le dernier artifact valide doit etre reconstruit depuis `main`, pas depuis les anciens zips.
+Etat release: le codebase PHP/WASM courant contient la stabilisation production Namecheap/cPanel, dont le fail-closed MySQL, Three.js local, l'artifact sans docs/dev/secrets, et le chemin admin configurable non evident. Le dernier artifact valide doit etre reconstruit depuis cette revision, pas depuis les anciens zips.
 
 `nichoir_v16.html` reste une reference historique monofichier. Le chemin actif est `app/` + `wasm/` + `server-php/`.
 
@@ -137,10 +137,12 @@ Les pieces separees du ZIP sont l'objectif principal pour fabrication par pannea
 Etat actuel:
 
 - `/account` gere login/register/logout, activation par code email, profil, credits, historique, abonnement, paiements/factures Stripe, tickets, fils de messages et statut open/closed.
+- L'auth compte passe maintenant par le cookie HttpOnly `nichoir_account_session` en SameSite=Lax. Le navigateur nettoie l'ancienne cle locale `nichoir-auth-token` et utilise des requetes avec credentials, pas un bearer token persistant.
 - L'admin utilise `NICHOIR_ADMIN_PATH` (par defaut `/gestion-nichoir`), `NICHOIR_ADMIN_PASSWORD_HASH`, session PHP, `password_verify()`, `session_regenerate_id(true)` et CSRF sur les POST.
 - Les chemins evidents `/admin` et `/administration` sont reserves/interdits et ne doivent pas etre utilises en production.
 - Le chemin admin reel ne doit pas etre expose dans les pages publiques: il est seulement rendu cote admin, et les pages publiques ne doivent pas injecter `NICHOIR_ADMIN_PATH` dans leur HTML/JS.
 - L'admin gere clients, credits, statuts, abonnements manuels, tickets, logs, exports DB, reglages DB/Stripe/SMTP et tests email.
+- `/api/admin/session` ne renvoie que l'etat admin de la session PHP courante; l'app statique l'utilise pour afficher les telechargements diagnostiques admin-only sans exposer le chemin admin configure.
 - `server-php/src/credits.php` est la source de verite pour le registre des apps WASM, les types d'export factures, le cout configure et le bonus de solde partiel.
 - `/api/apps` expose les apps WASM connues du backend. L'app actuelle utilise `app_id=nichoir`.
 - `/api/exports/quote` annonce le cout/solde/bonus par `app_id` sans creer d'autorisation; `/api/exports/authorize` cree une autorisation courte; `/api/exports/consume` la reclame atomiquement avant debit.
@@ -175,7 +177,7 @@ Points critiques:
 ```bash
 node --check app/app.js
 find server-php installation deployment/namecheap -name '*.php' -print -exec php -l {} \;
-cd wasm && cargo check --target wasm32-unknown-unknown
+cd wasm && cargo check
 cd wasm && wasm-pack build --target web
 node scripts/mesh-smoke.mjs
 ```

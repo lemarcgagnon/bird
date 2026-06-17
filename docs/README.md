@@ -2,7 +2,7 @@
 
 This folder is the handoff layer for current release status, security backlog and refactoring work. It should explain current state and known gaps; historical docs must not override current implementation facts from the README files next to the code.
 
-Current release baseline: use the current `main` branch. The production hardening now includes prebuilt browser assets, local Three.js, production fail-closed config, MySQL-only production DB behavior, a configurable non-obvious admin path, and an artifact build that rejects docs/dev files/secrets.
+Current release baseline: use the currently checked out hardened PHP/WASM codebase, not historical ZIPs or older handoff notes. The production hardening now includes prebuilt browser assets, local Three.js, production fail-closed config, MySQL-only production DB behavior, a configurable non-obvious admin path, and an artifact build that rejects docs/dev files/secrets.
 
 ## Documents
 
@@ -19,6 +19,7 @@ Current release baseline: use the current `main` branch. The production hardenin
 - Billed exports use server `app_id`, quote, short authorization and atomic consume before debit. The current WASM app id is `nichoir`; billed app downloads are house STL, cut-plan SVG, cut-plan PNG, exploded assembly PNG and cut-plan PDF.
 - Door STL, wall-mount STL, panels ZIP, calculations PDF, debug OBJ and mesh report JSON are currently local/free app downloads.
 - The mesh report JSON may be stored in browser local storage as diagnostic state only; account credit truth stays server-side.
+- Account auth now uses the HttpOnly SameSite `nichoir_account_session` cookie. The browser app clears the old `nichoir-auth-token` local-storage key and relies on credentialed same-origin requests.
 - PHP, JS and Rust/WASM each still have their own i18n tables; ownership is not centralized.
 - PHP page scripts are still inline in `src/layout.php`, `src/account_pages.php` and `src/admin_pages.php`; CSP hardening depends on moving them into `server-php/public/site.js`.
 - Admin pages are intentionally French-only.
@@ -38,7 +39,7 @@ Use this checklist when changing code before updating audit docs:
 
 - PHP lint for every PHP file.
 - `node --check app/app.js`.
-- `cargo check --target wasm32-unknown-unknown` in `wasm/`.
+- `cargo check` in `wasm/`.
 - `wasm-pack build --target web` when Rust/WASM output is needed.
 - `node scripts/mesh-smoke.mjs` after WASM rebuilds that affect geometry/exports.
 - Render public routes `/`, `/pricing`, `/about`, `/contact`, `/terms`, `/legal`, `/account`.

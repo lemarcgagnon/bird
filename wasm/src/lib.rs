@@ -305,6 +305,147 @@ fn allowed_string(value: &str, allowed: &[&str], fallback: &str) -> String {
     }
 }
 
+fn svg_tag_name_allowed(name: &str) -> bool {
+    matches!(
+        name,
+        "svg" | "g" | "path" | "rect" | "circle" | "ellipse" | "polygon" | "polyline" | "line"
+            | "title" | "desc"
+    )
+}
+
+fn svg_attr_name_allowed(name: &str) -> bool {
+    name == "xmlns"
+        || name == "xmlns:xlink"
+        || matches!(
+            name,
+            "id" | "class"
+                | "version"
+                | "viewbox"
+                | "width"
+                | "height"
+                | "x"
+                | "y"
+                | "d"
+                | "points"
+                | "cx"
+                | "cy"
+                | "r"
+                | "rx"
+                | "ry"
+                | "x1"
+                | "y1"
+                | "x2"
+                | "y2"
+                | "fill"
+                | "fill-rule"
+                | "fill-opacity"
+                | "stroke"
+                | "stroke-width"
+                | "stroke-linecap"
+                | "stroke-linejoin"
+                | "stroke-miterlimit"
+                | "stroke-opacity"
+                | "opacity"
+                | "transform"
+                | "style"
+        )
+}
+
+fn svg_tag_end(svg: &str, start: usize) -> Option<usize> {
+    let bytes = svg.as_bytes();
+    let mut quote = 0u8;
+    let mut i = start + 1;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if quote != 0 {
+            if b == quote {
+                quote = 0;
+            }
+        } else if b == b'"' || b == b'\'' {
+            quote = b;
+        } else if b == b'>' {
+            return Some(i);
+        }
+        i += 1;
+    }
+    None
+}
+
+fn svg_name_end(value: &str) -> usize {
+    value
+        .char_indices()
+        .find_map(|(idx, ch)| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '_' | '-' | ':') {
+                None
+            } else {
+                Some(idx)
+            }
+        })
+        .unwrap_or(value.len())
+}
+
+fn svg_attrs_look_safe(attrs: &str) -> bool {
+    let mut rest = attrs.trim();
+    while !rest.is_empty() {
+        rest = rest.trim_start();
+        if rest == "/" {
+            return true;
+        }
+        if rest.starts_with('/') {
+            rest = rest[1..].trim_start();
+            continue;
+        }
+
+        let name_end = svg_name_end(rest);
+        if name_end == 0 {
+            return false;
+        }
+        let name = rest[..name_end].to_ascii_lowercase();
+        if name.starts_with("on") || matches!(name.as_str(), "href" | "xlink:href" | "src") {
+            return false;
+        }
+        if !svg_attr_name_allowed(&name) {
+            return false;
+        }
+        rest = rest[name_end..].trim_start();
+        if !rest.starts_with('=') {
+            return false;
+        }
+        rest = rest[1..].trim_start();
+        if rest.is_empty() {
+            return false;
+        }
+
+        let (value, tail) = if let Some(quote) = rest
+            .as_bytes()
+            .first()
+            .copied()
+            .filter(|b| *b == b'"' || *b == b'\'')
+        {
+            let Some(end) = rest.as_bytes()[1..].iter().position(|b| *b == quote).map(|idx| idx + 1) else {
+                return false;
+            };
+            (&rest[1..end], &rest[end + 1..])
+        } else {
+            let end = rest
+                .char_indices()
+                .find_map(|(idx, ch)| if ch.is_whitespace() || ch == '/' { Some(idx) } else { None })
+                .unwrap_or(rest.len());
+            (&rest[..end], &rest[end..])
+        };
+        let lower_value = value.to_ascii_lowercase();
+        if lower_value.contains("javascript:")
+            || lower_value.contains("@import")
+            || lower_value.contains("url(")
+            || lower_value.contains("expression(")
+        {
+            return false;
+        }
+        rest = tail;
+    }
+    true
+}
+
 fn svg_text_looks_safe(svg: &str) -> bool {
     if svg.trim().is_empty() || svg.len() > MAX_DECO_SOURCE_TEXT_BYTES {
         return false;
@@ -315,6 +456,7 @@ fn svg_text_looks_safe(svg: &str) -> bool {
         || lower.contains("<?xml-stylesheet")
         || lower.contains("@import")
         || lower.contains("url(")
+        || lower.contains("expression(")
         || lower.contains("<script")
         || lower.contains("<foreignobject")
         || lower.contains("<iframe")
@@ -325,22 +467,48 @@ fn svg_text_looks_safe(svg: &str) -> bool {
     {
         return false;
     }
-    if lower
-        .split_whitespace()
-        .any(|part| part.starts_with("on") && part.contains('='))
-    {
-        return false;
+
+    let mut pos = 0usize;
+    while let Some(rel_start) = svg[pos..].find('<') {
+        let start = pos + rel_start;
+        let Some(end) = svg_tag_end(svg, start) else {
+            return false;
+        };
+        let tag = svg[start + 1..end].trim();
+        if tag.is_empty() {
+            return false;
+        }
+        if tag.starts_with("!--") {
+            pos = end + 1;
+            continue;
+        }
+        if tag.starts_with('!') {
+            return false;
+        }
+        if tag.starts_with('?') {
+            if !tag.to_ascii_lowercase().starts_with("?xml") {
+                return false;
+            }
+            pos = end + 1;
+            continue;
+        }
+
+        let is_closing = tag.starts_with('/');
+        let tag_body = tag.trim_start_matches('/').trim_start();
+        let name_end = svg_name_end(tag_body);
+        if name_end == 0 {
+            return false;
+        }
+        let name = tag_body[..name_end].to_ascii_lowercase();
+        if !svg_tag_name_allowed(&name) {
+            return false;
+        }
+        if !is_closing && !svg_attrs_look_safe(&tag_body[name_end..]) {
+            return false;
+        }
+        pos = end + 1;
     }
-    !["href=", "xlink:href="].iter().any(|name| {
-        lower.find(name).is_some_and(|idx| {
-            let tail = lower[idx + name.len()..].trim_start_matches([' ', '"', '\'']);
-            tail.starts_with("http:")
-                || tail.starts_with("https:")
-                || tail.starts_with("data:")
-                || tail.starts_with("javascript:")
-                || tail.starts_with("file:")
-        })
-    })
+    true
 }
 
 fn sanitize_decor(mut d: DecorSettings) -> DecorSettings {
@@ -5937,6 +6105,86 @@ mod tests {
         assert!(deco.source_text.is_empty());
         assert!(deco.source_data.is_empty());
         assert_eq!(deco.mode, "vector");
+    }
+
+    #[test]
+    fn parse_input_keeps_safe_simple_svg_decor() {
+        let input = r##"{
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "svg",
+                    "sourceText": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 10 10\"><g><rect x=\"1\" y=\"1\" width=\"8\" height=\"8\" fill=\"black\"/></g></svg>",
+                    "mode": "vector"
+                }
+            }
+        }"##;
+
+        let p = parse_input(input).expect("valid JSON should parse");
+        let deco = p.decos.get("front").expect("front deco exists");
+
+        assert!(deco.enabled);
+        assert_eq!(deco.source_type, "svg");
+        assert!(deco.source_text.contains("<rect"));
+        assert_eq!(parse_deco_svg_loops(&deco.source_text).len(), 1);
+    }
+
+    #[test]
+    fn parse_input_rejects_svg_event_and_external_references() {
+        let cases = [
+            r#"<svg onload="alert(1)"><rect width="10" height="10"/></svg>"#,
+            r#"<svg><image src="https://example.com/x.png"/></svg>"#,
+            r##"<svg><use href="#shape"/></svg>"##,
+            r#"<svg><path d="M0 0L10 0L10 10Z" style="fill:url(https://example.com/x.svg#p)"/></svg>"#,
+            r#"<svg><rect width="10" height="10" onclick="alert(1)"/></svg>"#,
+        ];
+
+        for svg in cases {
+            let input = serde_json::json!({
+                "decos": {
+                    "front": {
+                        "enabled": true,
+                        "sourceType": "svg",
+                        "sourceText": svg,
+                        "sourceData": "abcd",
+                        "mode": "heightmap"
+                    }
+                }
+            })
+            .to_string();
+
+            let p = parse_input(&input).expect("valid JSON should parse");
+            let deco = p.decos.get("front").expect("front deco exists");
+            assert!(!deco.enabled, "unsafe SVG should be disabled: {svg}");
+            assert!(deco.source_type.is_empty());
+            assert!(deco.source_text.is_empty());
+            assert!(deco.source_data.is_empty());
+            assert_eq!(deco.mode, "vector");
+        }
+    }
+
+    #[test]
+    fn parse_input_preserves_raster_decor_source_data() {
+        let input = r#"{
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "png",
+                    "sourceText": "<svg><script>alert(1)</script></svg>",
+                    "sourceData": "iVBORw0KGgo=",
+                    "mode": "heightmap"
+                }
+            }
+        }"#;
+
+        let p = parse_input(input).expect("valid JSON should parse");
+        let deco = p.decos.get("front").expect("front deco exists");
+
+        assert!(deco.enabled);
+        assert_eq!(deco.source_type, "png");
+        assert!(deco.source_text.is_empty());
+        assert_eq!(deco.source_data, "iVBORw0KGgo=");
+        assert_eq!(deco.mode, "heightmap");
     }
 
     #[test]

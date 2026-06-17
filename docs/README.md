@@ -15,7 +15,9 @@ Current release baseline: use the current `main` branch. The production hardenin
 - `server-php/src/pages.php` is now a compatibility include that loads smaller page, layout, i18n, contact, account, admin, credit, mail, Stripe and helper modules.
 - Contact form email is implemented with CSRF, honeypot, IP rate limiting, SMTP handoff through `src/mail.php`, app logging and session flash messages.
 - Credit policy is implemented in `server-php/src/credits.php` and configurable from admin settings.
-- Export consume claims an authorization before debit to reduce duplicate-consume risk.
+- Billed exports use server quote, short authorization and atomic consume before debit. The current billed app downloads are house STL, cut-plan SVG, cut-plan PNG, exploded assembly PNG and cut-plan PDF.
+- Door STL, wall-mount STL, panels ZIP, calculations PDF, debug OBJ and mesh report JSON are currently local/free app downloads.
+- The mesh report JSON may be stored in browser local storage as diagnostic state only; account credit truth stays server-side.
 - PHP, JS and Rust/WASM each still have their own i18n tables; ownership is not centralized.
 - PHP page scripts are still inline in `src/layout.php`, `src/account_pages.php` and `src/admin_pages.php`; CSP hardening depends on moving them into `server-php/public/site.js`.
 - Admin pages are intentionally French-only.
@@ -40,7 +42,7 @@ Use this checklist when changing code before updating audit docs:
 - `node scripts/mesh-smoke.mjs` after WASM rebuilds that affect geometry/exports.
 - Render public routes `/`, `/pricing`, `/about`, `/contact`, `/terms`, `/legal`, `/account`.
 - Test invalid contact POST and redirected flash errors.
-- Test one authenticated export authorize/consume path and repeat consume failure.
+- Test one authenticated export quote/authorize/consume path and repeat consume failure.
 - Smoke `{NICHOIR_ADMIN_PATH}/login` and `{NICHOIR_ADMIN_PATH}` with configured admin password.
 - Confirm `/admin`, `/admin/login` and `/administration` do not expose the back-office.
 - Confirm public page sources do not contain the configured admin path.
@@ -49,7 +51,7 @@ Use this checklist when changing code before updating audit docs:
 ## Known drift to fix
 
 - Public pricing card display values are translation strings, while Stripe price IDs and credit package quantities are admin settings.
-- `app/app.js` and some WASM labels still have 3-credit display fallback/copy even though PHP returns the real authorization cost.
+- `wasm/src/lib.rs` still contains an unused `credits_three` translation key; visible credit pricing should continue to come from PHP quote/authorize responses.
 - `wasm/src/lib.rs` has a stale `deco_clip` label saying the clipping feature is coming later, while clipping code is already present.
 - `/installation` remains a temporary dev/root installer path only; the production artifact excludes it and production deploys must remove it after setup if it was ever uploaded separately.
 - Inline PHP scripts block strict CSP.

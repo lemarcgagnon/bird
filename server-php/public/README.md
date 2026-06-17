@@ -45,6 +45,7 @@ API/webhook:
 - `GET /api/billing/summary`
 - `POST /api/checkout/stripe-link`
 - `POST /api/billing/portal`
+- `POST /api/exports/quote`
 - `POST /api/exports/authorize`
 - `POST /api/exports/consume`
 - `GET /api/tickets`

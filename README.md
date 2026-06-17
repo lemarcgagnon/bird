@@ -100,7 +100,7 @@ Le package genere est `wasm/pkg/`; `app/app.js` importe `wasm/pkg/wasm.js`.
 - Unites `mm`, `cm` et `in`.
 - Dimensions, epaisseur, evasement, plancher `enclave` ou `pose`.
 - Toit avec pente, debordement pluie et crete `gauche`, `droit` ou `onglet`.
-- Porte `aucune`, `ronde`, `carree` ou `pentagonale`, panneau de porte optionnel et perchoir cylindrique optionnel.
+- Porte `aucune`, `ronde`, `carree` ou `pentagonale`, panneau de porte optionnel, perchoir cylindrique optionnel et bloc de fixation murale optionnel.
 - Jusqu'a quatre trous de suspension dans le toit.
 - Viewer Three.js avec modes plein, filaire, rayons X, aretes et mode eclate.
 - Light/dark mode, langue FR/EN et liens de retour au site PHP.
@@ -109,21 +109,24 @@ Le package genere est `wasm/pkg/`; `app/app.js` importe `wasm/pkg/wasm.js`.
 
 ## Exports
 
-Telechargements premium autorises par PHP puis generes localement:
+Telechargements factures autorises par PHP puis generes localement:
 
 - STL maison complete;
-- STL porte;
-- ZIP de panneaux STL separes;
 - plan SVG;
 - plan PNG;
 - PDF du plan de coupe avec image d'assemblage;
-- PDF des calculs;
 - PNG de l'assemblage eclate.
 
-Diagnostics gratuits/non debites dans l'app actuelle:
+Telechargements locaux/gratuits dans l'app actuelle:
 
+- STL porte;
+- STL bloc de fixation murale;
+- ZIP de panneaux STL separes;
+- PDF des calculs;
 - OBJ maison complete pour debug;
 - rapport mesh JSON.
+
+Le rapport mesh JSON peut etre sauvegarde dans le navigateur sous `nichoir-last-mesh-report` pour eviter de le perdre en quittant l'ecran. Cette sauvegarde est seulement diagnostique; elle ne contient pas l'autorite compte/credits. Les credits, le bonus, les autorisations et le debit sont controles par le serveur PHP.
 
 Les pieces separees du ZIP sont l'objectif principal pour fabrication par panneaux. Le STL maison complete reste un assemblage de panneaux en contact; une union booleenne/CSG serait necessaire pour produire une maison complete parfaitement fusionnee en un seul solide manifold.
 
@@ -138,8 +141,8 @@ Etat actuel:
 - Les chemins evidents `/admin` et `/administration` sont reserves/interdits et ne doivent pas etre utilises en production.
 - Le chemin admin reel ne doit pas etre expose dans les pages publiques: il est seulement rendu cote admin, et les pages publiques ne doivent pas injecter `NICHOIR_ADMIN_PATH` dans leur HTML/JS.
 - L'admin gere clients, credits, statuts, abonnements manuels, tickets, logs, exports DB, reglages DB/Stripe/SMTP et tests email.
-- `server-php/src/credits.php` est la source de verite pour les types d'export premium, le cout configure et le bonus de solde partiel.
-- `/api/exports/authorize` cree une autorisation courte; `/api/exports/consume` la reclame atomiquement avant debit.
+- `server-php/src/credits.php` est la source de verite pour les types d'export factures, le cout configure et le bonus de solde partiel.
+- `/api/exports/quote` annonce le cout/solde/bonus sans creer d'autorisation; `/api/exports/authorize` cree une autorisation courte; `/api/exports/consume` la reclame atomiquement avant debit.
 - `/api/client-log` accepte les erreurs navigateur/WASM avec rate limit de 10 logs/minute par utilisateur ou IP.
 - `/stripe/webhook` verifie `Stripe-Signature` quand un secret est configure, journalise les evenements et synchronise checkout, invoices, paiements et abonnements.
 - SQLite est le mode local/developpement uniquement.
@@ -188,8 +191,8 @@ Checks manuels importants:
 
 ## Points ouverts
 
-- Le texte `pricing_info` et certains libelles WASM indiquent encore 3 credits; le backend renvoie deja le cout reel au moment d'autoriser.
 - Les cartes prix publiques sont encore des traductions statiques, alors que Stripe price IDs et quantites sont des reglages admin.
+- Une cle de traduction WASM inutilisee `credits_three` existe encore; elle ne doit pas redevenir une source visible de prix.
 - Le label UI `deco_clip` dit encore "coming later/bientot" alors que le clipping decor est deja cable dans le WASM.
 - Les scripts inline PHP restent dans `layout.php`, `account_pages.php` et `admin_pages.php`; une CSP stricte attend leur extraction vers `server-php/public/site.js`.
 - Ajouter rate limiting plus fort sur tickets et webhooks.

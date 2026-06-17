@@ -2,7 +2,7 @@
 
 `server-php/` is the active backend and PHP-rendered site. It serves public pages, account, admin, contact, JSON API and Stripe webhook from one front controller. SQLite is the local/development default; MySQL/MariaDB is mandatory for the Namecheap/cPanel production artifact.
 
-The Rust/WASM app stays under `/app/` and generates geometry and fabrication files locally. PHP authorizes and debits premium downloads but does not receive heavy geometry payloads.
+The Rust/WASM app stays under `/app/` and generates geometry and fabrication files locally. PHP authorizes and debits billed downloads but does not receive heavy geometry payloads.
 
 ## Structure
 
@@ -65,6 +65,7 @@ API and webhook:
 - `GET /api/billing/summary`
 - `POST /api/checkout/stripe-link`
 - `POST /api/billing/portal`
+- `POST /api/exports/quote`
 - `POST /api/exports/authorize`
 - `POST /api/exports/consume`
 - `GET /api/tickets`
@@ -94,11 +95,13 @@ API and webhook:
 
 ## Credits and exports
 
-- Valid premium export types are `svg`, `png`, `pdf`, `stl` and `zip`.
+- Valid server-billed export type identifiers are `svg`, `png`, `pdf`, `stl` and `zip`.
 - `server-php/src/credits.php` owns configured export cost and partial-credit bonus policy.
+- `/api/exports/quote` checks the account, export type, current balance and optional partial-balance bonus without creating a token or debiting credits.
 - `/api/exports/authorize` checks active account status, export type, current balance and optional partial-balance bonus, then creates a short-lived token.
 - `/api/exports/consume` revalidates the account, atomically claims the authorization, applies any configured top-up, debits credits, writes `credit_ledger`, and logs/audits the event.
 - The browser generates the actual file locally after authorization. PHP never generates STL, PDF, ZIP or mesh data.
+- The current app only bills house STL and plan-section SVG/PNG/PDF exports. Door STL, wall-mount STL, panels ZIP, calculations PDF and diagnostic exports are local/free unless the browser wiring is intentionally changed.
 
 ## Stripe
 
@@ -191,7 +194,7 @@ Manual checks:
 3. Confirm public page sources do not contain the configured admin path.
 4. Submit invalid contact form and confirm redirected flash errors.
 5. Test auth/register/activate or login with a known local account.
-6. Test one export authorize/consume success.
+6. Test one export quote/authorize/consume success.
 7. Repeat the same consume and confirm no second debit.
 8. If Stripe code changed, test checkout, portal and webhook signature handling in Stripe test mode.
 

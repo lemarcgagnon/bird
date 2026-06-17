@@ -235,6 +235,35 @@ if ($method === 'GET' && $path === '/api/admin/session') {
     exit;
 }
 
+if ($method === 'POST' && $path === '/api/exports/quote') {
+    $user = require_user();
+    if (($user['status'] ?? 'active') !== 'active') {
+        json_response(['ok' => false, 'error' => 'account_suspended'], 403);
+        exit;
+    }
+    $data = read_json_body();
+    $type = strtolower(trim((string) ($data['export_type'] ?? 'stl')));
+    $cost = export_credit_cost(db(), $type);
+    if ($cost === null) {
+        json_response(['ok' => false, 'error' => 'invalid_export_type'], 400);
+        exit;
+    }
+    $credits = (int) $user['credits'];
+    $bonusCredits = export_partial_bonus_amount(db(), $credits, $cost);
+    if ($credits + $bonusCredits < $cost) {
+        json_response(['ok' => false, 'error' => 'insufficient_credits', 'credits' => $credits, 'cost' => $cost], 402);
+        exit;
+    }
+    json_response([
+        'ok' => true,
+        'export_type' => $type,
+        'credits' => $credits,
+        'cost' => $cost,
+        'bonus_credits' => $bonusCredits,
+    ]);
+    exit;
+}
+
 if ($method === 'POST' && $path === '/api/client-log') {
     $pdo = db();
     $user = current_user();

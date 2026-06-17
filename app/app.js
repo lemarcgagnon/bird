@@ -1091,6 +1091,16 @@ async function authorizeExport(exportType, filename) {
   });
 }
 
+async function quoteExport(exportType) {
+  if (!localStorage.getItem(AUTH_TOKEN_KEY)) {
+    throw new Error('connexion_requise');
+  }
+  return apiRequest('/api/exports/quote', {
+    method: 'POST',
+    body: JSON.stringify({ export_type: exportType }),
+  });
+}
+
 async function consumeExport(authorization) {
   if (!authorization) return null;
   const payload = await apiRequest('/api/exports/consume', {
@@ -1123,9 +1133,9 @@ async function authorizeExportWithPrompt(exportType, filename) {
     return null;
   }
 
-  let auth = null;
+  let quote = null;
   try {
-    auth = await authorizeExport(exportType, filename);
+    quote = await quoteExport(exportType);
   } catch (err) {
     const code = err?.message || String(err);
     if (code === 'connexion_requise' || code === 'unauthorized') {
@@ -1144,13 +1154,13 @@ async function authorizeExportWithPrompt(exportType, filename) {
     throw err;
   }
 
-  const bonus = Number(auth?.bonus_credits || 0);
+  const bonus = Number(quote?.bonus_credits || 0);
   if (bonus > 0) {
-    const cost = Number(auth?.cost ?? EXPORT_COSTS[exportType] ?? 0);
+    const cost = Number(quote?.cost ?? EXPORT_COSTS[exportType] ?? 0);
     const action = await openExportGateModal('bonus', {
       filename,
       exportType,
-      credits: Math.max(0, cost - bonus),
+      credits: Number(quote?.credits ?? Math.max(0, cost - bonus)),
       cost,
       bonus,
     });
@@ -1159,7 +1169,21 @@ async function authorizeExportWithPrompt(exportType, filename) {
     }
   }
 
-  return auth;
+  try {
+    return await authorizeExport(exportType, filename);
+  } catch (err) {
+    const code = err?.message || String(err);
+    if (code === 'insufficient_credits') {
+      await openExportGateModal('credits', {
+        filename,
+        exportType,
+        credits: Number(err?.payload?.credits ?? accountState.user?.credits ?? 0),
+        cost: Number(err?.payload?.cost ?? quote?.cost ?? EXPORT_COSTS[exportType] ?? 0),
+      });
+      return null;
+    }
+    throw err;
+  }
 }
 
 async function exportBinaryAuthorized(filename, type, exportType, producer, emptyMessage) {

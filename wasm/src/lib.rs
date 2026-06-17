@@ -252,7 +252,7 @@ impl Default for NichoirParams {
             floor: FloorMode::Enclave,
             ridge: RidgeMode::Left,
             taper_x: 0.0,
-            door: DoorMode::None,
+            door: DoorMode::Round,
             door_w: 38.0,
             door_h: 38.0,
             door_px: 50.0,
@@ -268,7 +268,7 @@ impl Default for NichoirParams {
             panel_h: 2440.0,
             panel_preset: "auto".to_string(),
             kerf: 3.2,
-            hang_holes: false,
+            hang_holes: true,
             hang_fl: true,
             hang_fr: true,
             hang_bl: true,
@@ -605,6 +605,12 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "wall_mount_note") => "Two rear holes align with the external block. Fasten it from inside through the entrance door. The block top sheds rain outward at 30 degrees.",
         ("en", "wall_mount_piece") => "Wall mount block",
         ("en", "wall_mount_note_cut") => "rear holes aligned to block",
+        ("en", "models_3d_info") => "Fabrication geometry: STL files for the assembled house and individual printable parts.",
+        ("en", "plans_info") => "Cut and assembly drawings: SVG, PNG and PDF files generated from the current dimensions.",
+        ("en", "downloads") => "Downloads",
+        ("en", "downloads_note") => "Download the files generated from the current model. 3D models are STL or ZIP; plans are SVG, PNG or PDF.",
+        ("en", "download_models_3d") => "3D model downloads",
+        ("en", "download_plans") => "Plan downloads",
         ("en", "material") => "Material",
         ("en", "thickness") => "Wall thickness",
         ("en", "thickness_preset") => "Market board thickness",
@@ -646,6 +652,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "export_plan") => "Export plan SVG",
         ("en", "export_obj") => "Export debug OBJ",
         ("en", "mesh_report") => "Mesh report",
+        ("en", "panel_stls") => "Panel STLs",
         ("en", "deco_target") => "Target panel",
         ("en", "deco_no_file") => "No SVG loaded",
         ("en", "deco_svg_loaded") => "SVG usable",
@@ -840,6 +847,12 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "wall_mount_note") => "Deux trous arriere s'alignent avec le bloc externe. Vissage depuis l'interieur par la porte. Le dessus du bloc evacue l'eau vers l'exterieur a 30 degres.",
         (_, "wall_mount_piece") => "Bloc fixation murale",
         (_, "wall_mount_note_cut") => "trous arriere alignes au bloc",
+        (_, "models_3d_info") => "Geometrie de fabrication: fichiers STL pour la maison assemblee et les pieces imprimables separees.",
+        (_, "plans_info") => "Plans de coupe et d'assemblage: fichiers SVG, PNG et PDF generes depuis les dimensions courantes.",
+        (_, "downloads") => "Telechargements",
+        (_, "downloads_note") => "Telecharge les fichiers generes depuis le modele courant. Les modeles 3D sont en STL ou ZIP; les plans sont en SVG, PNG ou PDF.",
+        (_, "download_models_3d") => "Telechargements modeles 3D",
+        (_, "download_plans") => "Telechargements plans",
         (_, "material") => "Materiau",
         (_, "thickness") => "Epaisseur parois",
         (_, "thickness_preset") => "Epaisseur panneau commercial",
@@ -881,6 +894,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "export_plan") => "Exporter plan SVG",
         (_, "export_obj") => "Exporter OBJ debug",
         (_, "mesh_report") => "Rapport mesh/STL",
+        (_, "panel_stls") => "Panneaux STL",
         (_, "deco_target") => "Panneau cible",
         (_, "deco_no_file") => "Aucun SVG charge",
         (_, "deco_svg_loaded") => "SVG utilisable",
@@ -1189,6 +1203,14 @@ fn icon_text(icon: &str, glyph_class: &str, label_class: &str, label: &str) -> S
         html_escape(glyph_class),
         html_escape(icon),
         html_escape(label_class),
+        html_escape(label),
+    )
+}
+
+fn info_tip(label: &str) -> String {
+    format!(
+        r#"<button class="group-info" type="button" title="{}" aria-label="{}"><span aria-hidden="true">i</span></button>"#,
+        html_escape(label),
         html_escape(label),
     )
 }
@@ -5589,15 +5611,18 @@ pub fn render_app_html(input: &str) -> String {
     let heading_calcs = icon_text("∑", "section-glyph", "section-label", t(lang, "calcs"));
     let heading_pieces = icon_text("▤", "section-glyph", "section-label", t(lang, "pieces"));
     let heading_cut_plan = icon_text("✂", "section-glyph", "section-label", t(lang, "cut_plan"));
-    let heading_models = icon_text("◼", "group-glyph", "group-label", t(lang, "models_3d"));
-    let heading_plans = icon_text("▧", "group-glyph", "group-label", t(lang, "plans"));
+    let heading_downloads = icon_text("⇩", "section-glyph", "section-label", t(lang, "downloads"));
+    let heading_models = icon_text("◼", "group-glyph", "group-label", t(lang, "download_models_3d"));
+    let heading_plans = icon_text("▧", "group-glyph", "group-label", t(lang, "download_plans"));
+    let models_info = info_tip(t(lang, "models_3d_info"));
+    let plans_info = info_tip(t(lang, "plans_info"));
     let heading_diagnostic = icon_text("◌", "group-glyph", "group-label", t(lang, "diagnostic"));
     let calc_pdf_label = icon_text("∑", "button-glyph", "button-label", t(lang, "download_calcs_pdf"));
     let export_house_label = icon_text("⌂", "button-glyph", "button-label", t(lang, "house"));
     let export_door_label = icon_text("▣", "button-glyph", "button-label", t(lang, "door"));
     let export_wall_mount_label =
         icon_text("▥", "button-glyph", "button-label", t(lang, "wall_mount_piece"));
-    let export_panel_label = icon_text("▤", "button-glyph", "button-label", t(lang, "panel"));
+    let export_panel_label = icon_text("▤", "button-glyph", "button-label", t(lang, "panel_stls"));
     let export_plan_label = icon_text("▧", "button-glyph", "button-label", t(lang, "plan"));
     let export_explosion_label = icon_text("✣", "button-glyph", "button-label", t(lang, "explosion"));
     let export_debug_label = icon_text("◈", "button-glyph", "button-label", t(lang, "debug"));
@@ -5702,9 +5727,13 @@ pub fn render_app_html(input: &str) -> String {
       <h2>{heading_cut_plan}</h2>{panel_controls}
       {plan_stats}
       <div id="plan-preview" class="plan-preview"></div>
+      <div class="download-section-heading">
+        <h3>{heading_downloads}</h3>
+        <p>{downloads_note}</p>
+      </div>
       <div class="download-groups">
         <div class="download-group primary-downloads model-downloads">
-          <h3>{heading_models}</h3>
+          <h3>{heading_models}{models_info}</h3>
           <div class="buttons compact-buttons action-buttons">
             <button data-action="export-house">{export_house_label}<strong>.STL</strong></button>
             <button data-action="export-door">{export_door_label}<strong>.STL</strong></button>
@@ -5713,7 +5742,7 @@ pub fn render_app_html(input: &str) -> String {
           </div>
         </div>
         <div class="download-group primary-downloads">
-          <h3>{heading_plans}</h3>
+          <h3>{heading_plans}{plans_info}</h3>
           <div class="buttons compact-buttons action-buttons">
             <button data-action="export-plan">{export_plan_label}<strong>.SVG</strong></button>
             <button data-action="download-plan-png" type="button">{export_plan_label}<strong>.PNG</strong></button>
@@ -5778,8 +5807,12 @@ pub fn render_app_html(input: &str) -> String {
         heading_calcs = heading_calcs,
         heading_pieces = heading_pieces,
         heading_cut_plan = heading_cut_plan,
+        heading_downloads = heading_downloads,
+        downloads_note = html_escape(t(lang, "downloads_note")),
         heading_models = heading_models,
         heading_plans = heading_plans,
+        models_info = models_info,
+        plans_info = plans_info,
         heading_diagnostic = heading_diagnostic,
         calc_pdf_label = calc_pdf_label,
         export_house_label = export_house_label,

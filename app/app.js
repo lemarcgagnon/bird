@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260616-export-scope-admin-diagnostics-v1';
+} from '../wasm/pkg/wasm.js?v=20260617-download-section-hig-v1';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260616-export-scope-admin-diagnostics-v1';
+const APP_BUILD_ID = '20260617-download-section-hig-v1';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';

@@ -106,7 +106,7 @@ Le package genere est `wasm/pkg/`; `app/app.js` importe `wasm/pkg/wasm.js`.
 - Light/dark mode, langue FR/EN et liens de retour au site PHP.
 - Decorations SVG, PNG, JPG/JPEG, GIF fixe, WEBP et import STL local. Les images deviennent des reliefs heightmap; les STL sont attaches au panneau cible et inclus dans le mesh maison.
 - Largeur/hauteur de decor peuvent etre liees pour garder les proportions pendant le redimensionnement.
-- Clipping decor au panneau et aux trous: les trous de porte/perchoir dominent toujours le decor de facade. Si un STL importe deviendrait ouvert ou non-manifold apres clipping, il est exclu de l'export au lieu de produire un fichier casse.
+- Clipping decor au panneau et aux trous: les trous de porte/perchoir dominent toujours le decor de facade. Le viewer affiche le STL importe en mode preview permissif pour permettre le placement. Si ce decor deviendrait ouvert ou non-manifold apres clipping, il est exclu des exports stricts au lieu de produire un fichier casse.
 - Rapport mesh avec comptage des triangles degeneres, valeurs non finies, aretes ouvertes, aretes non-manifold et indicateur `watertight`.
 - Limite navigateur de 2 Mo pour images/SVG et 4 Mo pour STL, plus limites decodees cote WASM.
 

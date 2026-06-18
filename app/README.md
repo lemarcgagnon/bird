@@ -36,6 +36,7 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 - Admin export access: when `/api/admin/session` returns `admin=true`, premium downloads still go through quote/authorize/consume but PHP returns `cost=0`, stores the token in the admin PHP session, and consumes it once without touching credits.
 - Client-side decoration file intake: SVG/raster images are capped at 2 MiB and converted to WASM heightmaps; local STL imports are capped at 4 MiB and sent to WASM as base64 mesh data.
 - Decoration controls support panel target selection, width/height proportion lock, rotation, depth, heightmap smoothing/threshold and clipping to panel/hole geometry. Door/perch holes dominate front-panel decor in the WASM geometry.
+- STL decor preview is permissive so imported meshes remain visible while the user places them. Strict export/report generation can still omit a decor if clipping makes it open or non-manifold; `app.js` logs the strict `deco_*` export report after import and shows a warning when that happens.
 
 ## Boundaries
 

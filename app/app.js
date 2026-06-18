@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260618-stl-import-v8';
+} from '../wasm/pkg/wasm.js?v=20260618-stl-import-v9';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260618-stl-import-v8';
+const APP_BUILD_ID = '20260618-stl-import-v9';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -208,6 +208,7 @@ const I18N = {
     decor_svg_heightmap: 'Decor: SVG rasterise en heightmap et envoye au WASM.',
     decor_image_heightmap: 'Decor: image convertie en heightmap et envoyee au WASM.',
     decor_stl_loaded: 'Decor: STL charge et attache au panneau cible dans le mesh local.',
+    decor_stl_export_omitted: 'Decor: STL visible en apercu, mais exclu des exports car il devient ouvert ou non-manifold apres clipping.',
     decor_heightmap_failed: 'Decor: conversion heightmap impossible ({error}).',
     decor_stl_failed: 'Decor: STL impossible a charger ({error}).',
     decor_read_failed: 'Decor: impossible de lire le fichier.',
@@ -355,6 +356,7 @@ const I18N = {
     decor_svg_heightmap: 'Decor: SVG rasterized to a heightmap and sent to WASM.',
     decor_image_heightmap: 'Decor: image converted to heightmap and sent to WASM.',
     decor_stl_loaded: 'Decor: STL loaded and attached to the selected panel in the local mesh.',
+    decor_stl_export_omitted: 'Decor: STL is visible in preview, but excluded from exports because it becomes open or non-manifold after clipping.',
     decor_heightmap_failed: 'Decor: heightmap conversion failed ({error}).',
     decor_stl_failed: 'Decor: unable to load STL ({error}).',
     decor_read_failed: 'Decor: unable to read the file.',
@@ -761,6 +763,9 @@ async function loadDecoFile(file) {
       setDecoStatus(tr('decor_image_heightmap'), 'ok');
     }
     render();
+    if (kind.isStl) {
+      reportActiveStlExportStatus('after decor import');
+    }
     debugStlLog('render requested after decor import', {
       target: params?.decorActive,
       sourceType: activeDeco()?.sourceType,
@@ -1068,6 +1073,46 @@ function saveMeshReportToBrowser() {
     return snapshot;
   } catch (err) {
     console.warn('mesh report save failed', err);
+    return null;
+  }
+}
+
+function reportActiveStlExportStatus(reason = '') {
+  const target = params?.decorActive;
+  const deco = activeDeco();
+  if (!target || deco?.sourceType !== 'stl') return null;
+  try {
+    const payload = parseResponse(mesh_report_json(JSON.stringify(params)));
+    const expectedPartName = `deco_${target}`;
+    const parts = Array.isArray(payload?.parts) ? payload.parts : [];
+    const part = parts.find((item) => item?.name === expectedPartName) || null;
+    debugStlLog('strict export report for active STL decor', {
+      reason,
+      target,
+      expectedPartName,
+      exportPartPresent: Boolean(part),
+      exportPart: part,
+      exportDecorParts: parts
+        .filter((item) => String(item?.name || '').startsWith('deco_'))
+        .map((item) => ({
+          name: item.name,
+          triangles: item.triangles,
+          open_edges: item.open_edges,
+          non_manifold_edges: item.non_manifold_edges,
+          watertight: item.watertight,
+          warnings: item.warnings,
+        })),
+    });
+    if (!part) {
+      setDecoStatus(tr('decor_stl_export_omitted'), 'warn');
+    }
+    return part;
+  } catch (err) {
+    debugStlLog('strict export report failed for active STL decor', {
+      reason,
+      target,
+      error: err?.message || String(err),
+    });
     return null;
   }
 }

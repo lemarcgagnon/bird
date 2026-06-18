@@ -39,7 +39,7 @@ Current public bindings include:
 - SVG/image/STL decoration parsing, heightmap/vector extrusion, imported mesh placement, panel clipping and dominant front-door/perch hole clipping.
 - Export helpers for fabrication outputs used by the JavaScript download flow: house STL, door STL, wall-mount STL, panels ZIP, debug OBJ, mesh report JSON and cut-plan SVG. Imported STL decor is included in the full house mesh as an additive local mesh merge.
 - Mesh topology analysis for reports and safety gates: open edge count, non-manifold edge count and `watertight` flag using the same 0.001 mm quantization as the Node smoke test.
-- Watertight safety gate for generated decor: heightmap cells with zero relief are not emitted as double coplanar skin, and STL/heightmap decor that would survive clipping as an open or non-manifold mesh is excluded instead of exported broken.
+- Watertight safety gate for generated decor: heightmap cells with zero relief are not emitted as double coplanar skin, and STL/heightmap decor that would survive clipping as an open or non-manifold mesh is excluded from strict exports instead of exported broken.
 - Client-side validation/clamping for geometry-heavy inputs.
 
 ## Boundaries
@@ -49,7 +49,7 @@ Current public bindings include:
 - Keep browser/API/network orchestration in `app/app.js`.
 - The browser may save the mesh report snapshot in local storage as `nichoir-last-mesh-report`; this is diagnostic state only, not account, token or credit authority.
 - Treat all incoming JSON and imported files as untrusted, even when they come from the UI.
-- Do not claim arbitrary imported STL clipping is exact CSG. The current implementation maps the STL onto a panel and clips triangles against panel/hole footprints. Door/perch holes dominate the decor; if that clipping would make the resulting decor non-watertight, the decor is dropped from export rather than repaired with a fake surface.
+- Do not claim arbitrary imported STL clipping is exact CSG. The current implementation maps the STL onto a panel and clips triangles against panel/hole footprints. Door/perch holes dominate the decor. The viewer uses a permissive preview mesh so users can still see and position imported STL files; strict exports drop decor that becomes non-watertight rather than repairing it with a fake surface.
 
 ## Download billing contract
 

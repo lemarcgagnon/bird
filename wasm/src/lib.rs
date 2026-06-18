@@ -6043,7 +6043,12 @@ fn deco_panel_clip_holes(
         .collect()
 }
 
-fn build_decor_tris_for_target(p: &NichoirParams, g: &GeometryPayload, key: &str) -> Vec<Tri> {
+fn build_decor_tris_for_target_with_topology_guard(
+    p: &NichoirParams,
+    g: &GeometryPayload,
+    key: &str,
+    require_watertight: bool,
+) -> Vec<Tri> {
     let Some(d) = deco_for(p, key) else {
         return Vec::new();
     };
@@ -6098,13 +6103,25 @@ fn build_decor_tris_for_target(p: &NichoirParams, g: &GeometryPayload, key: &str
             return Vec::new();
         }
     }
-    if !cleaned.is_empty() {
+    if require_watertight && !cleaned.is_empty() {
         let topology = mesh_topology(&cleaned);
         if !topology.is_watertight() {
             return Vec::new();
         }
     }
     cleaned
+}
+
+fn build_decor_tris_for_target(p: &NichoirParams, g: &GeometryPayload, key: &str) -> Vec<Tri> {
+    build_decor_tris_for_target_with_topology_guard(p, g, key, true)
+}
+
+fn build_decor_preview_tris_for_target(
+    p: &NichoirParams,
+    g: &GeometryPayload,
+    key: &str,
+) -> Vec<Tri> {
+    build_decor_tris_for_target_with_topology_guard(p, g, key, false)
 }
 
 fn build_all_decor_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
@@ -6327,7 +6344,7 @@ fn build_scene_meshes(p: &NichoirParams) -> Vec<RenderMesh> {
     }
 
     for key in deco_target_keys() {
-        let tris = build_decor_tris_for_target(p, &g, key);
+        let tris = build_decor_preview_tris_for_target(p, &g, key);
         if !tris.is_empty() {
             out.push(render_mesh_offset(
                 &format!("deco_{key}"),
@@ -8111,8 +8128,13 @@ mod tests {
         let p = parse_input(&input).expect("valid JSON should parse");
         let g = GeometryPayload::from_p(&p);
         let tris = build_decor_tris_for_target(&p, &g, "front");
+        let preview_tris = build_decor_preview_tris_for_target(&p, &g, "front");
 
         assert!(tris.is_empty());
+        assert!(
+            !preview_tris.is_empty(),
+            "preview should still show clipped STL triangles even when strict export rejects them"
+        );
     }
 
     #[test]

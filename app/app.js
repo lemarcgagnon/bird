@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260617-deco-heightmap-v1';
+} from '../wasm/pkg/wasm.js?v=20260618-stl-import-v8';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260617-deco-heightmap-v1';
+const APP_BUILD_ID = '20260618-stl-import-v8';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -36,6 +36,9 @@ function detectPhpBase() {
       // Fall through to same-origin links when the local dev base is malformed.
     }
   }
+  if (isLocalHostname(window.location.hostname) && window.location.port === '8016') {
+    return `${window.location.protocol}//${window.location.hostname}:8021`;
+  }
   return window.location.origin;
 }
 
@@ -43,8 +46,12 @@ const PHP_BASE = detectPhpBase();
 localStorage.removeItem('nichoir-auth-token');
 const MESH_REPORT_STORAGE_KEY = 'nichoir-last-mesh-report';
 const MAX_DECO_FILE_BYTES = 2 * 1024 * 1024;
+const MAX_DECO_STL_FILE_BYTES = 4 * 1024 * 1024;
+const MAX_DECO_STL_TRIANGLES_HINT = 120_000;
+const DECO_SIZE_MIN_MM = 5;
+const DECO_SIZE_MAX_MM = 400;
 const DECO_TARGET_KEYS = ['front', 'back', 'left', 'right', 'roofL', 'roofR'];
-const DECO_ACCEPT = '.svg,image/*';
+const DECO_ACCEPT = '.svg,image/*,.stl';
 const DECO_RASTER_EXTENSIONS = {
   png: 'png',
   jpg: 'jpg',
@@ -89,6 +96,11 @@ const EXPORT_COSTS = {
   stl: 3,
   zip: 5,
 };
+
+function debugStlLog(message, details = {}) {
+  console.log(`[nichoir stl] ${message}`, details);
+}
+
 const I18N = {
   fr: {
     loading_title: 'Nichoir WASM',
@@ -188,15 +200,20 @@ const I18N = {
     ticket_closed: 'Ticket ferme.',
     ticket_status_denied: 'Statut ticket refuse: {error}',
     pricing_info: 'Credits: le serveur PHP confirme le cout reel avant chaque telechargement premium.',
-    decor_load_supported: 'Decor: charge un SVG ou une image prise en charge par ton navigateur.',
+    decor_load_supported: 'Decor: charge un SVG, STL ou une image prise en charge par ton navigateur.',
     decor_too_large: 'Decor: fichier trop lourd. Limite actuelle: 2 Mo.',
+    decor_stl_too_large: 'Decor: STL trop lourd. Limite actuelle: 4 Mo.',
     decor_processing: 'Decor: conversion en heightmap...',
+    decor_stl_processing: 'Decor: chargement du STL...',
     decor_svg_heightmap: 'Decor: SVG rasterise en heightmap et envoye au WASM.',
     decor_image_heightmap: 'Decor: image convertie en heightmap et envoyee au WASM.',
+    decor_stl_loaded: 'Decor: STL charge et attache au panneau cible dans le mesh local.',
     decor_heightmap_failed: 'Decor: conversion heightmap impossible ({error}).',
+    decor_stl_failed: 'Decor: STL impossible a charger ({error}).',
     decor_read_failed: 'Decor: impossible de lire le fichier.',
-    decor_upload_first: 'Decor: charge une image avant d activer le relief.',
+    decor_upload_first: 'Decor: charge un fichier avant d activer le relief.',
     decor_preview_empty: 'Apercu apres chargement',
+    decor_stl_preview: 'STL importe',
     decor_preview_alt: 'Apercu du decor charge',
     export_house_empty: 'Export maison vide: le modele n a genere aucun triangle.',
     export_door_empty: 'Pas de porte STL: choisis une porte et active "Creer le panneau de porte".',
@@ -330,15 +347,20 @@ const I18N = {
     ticket_closed: 'Ticket closed.',
     ticket_status_denied: 'Ticket status denied: {error}',
     pricing_info: 'Credits: the PHP server confirms the real cost before each premium download.',
-    decor_load_supported: 'Decor: load an SVG or an image supported by your browser.',
+    decor_load_supported: 'Decor: load an SVG, STL, or image supported by your browser.',
     decor_too_large: 'Decor: file too large. Current limit: 2 MB.',
+    decor_stl_too_large: 'Decor: STL file too large. Current limit: 4 MB.',
     decor_processing: 'Decor: converting to heightmap...',
+    decor_stl_processing: 'Decor: loading STL...',
     decor_svg_heightmap: 'Decor: SVG rasterized to a heightmap and sent to WASM.',
     decor_image_heightmap: 'Decor: image converted to heightmap and sent to WASM.',
+    decor_stl_loaded: 'Decor: STL loaded and attached to the selected panel in the local mesh.',
     decor_heightmap_failed: 'Decor: heightmap conversion failed ({error}).',
+    decor_stl_failed: 'Decor: unable to load STL ({error}).',
     decor_read_failed: 'Decor: unable to read the file.',
-    decor_upload_first: 'Decor: load an image before enabling relief.',
+    decor_upload_first: 'Decor: load a file before enabling relief.',
     decor_preview_empty: 'Preview after upload',
+    decor_stl_preview: 'Imported STL',
     decor_preview_alt: 'Uploaded decoration preview',
     export_house_empty: 'House export is empty: the model generated no triangles.',
     export_door_empty: 'No STL door: choose a door and enable "Create door panel".',
@@ -567,25 +589,54 @@ function dataUrlBytes(dataUrl) {
   return comma >= 0 ? dataUrl.slice(comma + 1) : '';
 }
 
+function readLeU32(bytes, offset) {
+  if (!bytes || bytes.byteLength < offset + 4) return null;
+  return new DataView(bytes.buffer, bytes.byteOffset + offset, 4).getUint32(0, true);
+}
+
+function stlByteDiagnostics(bytes) {
+  const byteLength = bytes?.byteLength || 0;
+  const binaryTriangleCount = readLeU32(bytes, 80);
+  const expectedBinaryBytes = binaryTriangleCount === null ? null : 84 + binaryTriangleCount * 50;
+  const binaryShapeMatches = expectedBinaryBytes !== null && expectedBinaryBytes <= byteLength;
+  return {
+    byteLength,
+    firstBytes: Array.from((bytes || []).slice(0, 16)),
+    formatGuess: binaryShapeMatches ? 'binary' : 'ascii-or-unknown',
+    binaryTriangleCount: binaryShapeMatches ? binaryTriangleCount : null,
+    expectedBinaryBytes: binaryShapeMatches ? expectedBinaryBytes : null,
+    extraBytes: binaryShapeMatches ? byteLength - expectedBinaryBytes : null,
+    wasmTriangleLimit: MAX_DECO_STL_TRIANGLES_HINT,
+    overTriangleLimit: binaryShapeMatches ? binaryTriangleCount > MAX_DECO_STL_TRIANGLES_HINT : null,
+  };
+}
+
 function decoFileKind(file) {
   if (!file) return null;
   const name = String(file.name || '').toLowerCase();
   const mime = String(file.type || '').toLowerCase();
+  if (name.endsWith('.stl') || mime.includes('stl') || mime === 'model/stl') {
+    return { sourceType: 'stl', isSvg: false, isStl: true };
+  }
   if (mime.includes('svg') || name.endsWith('.svg')) {
-    return { sourceType: 'svg', isSvg: true };
+    return { sourceType: 'svg', isSvg: true, isStl: false };
   }
   if (mime.startsWith('image/')) {
-    return { sourceType: DECO_RASTER_MIME_TYPES[mime] || 'png', isSvg: false };
+    return { sourceType: DECO_RASTER_MIME_TYPES[mime] || 'png', isSvg: false, isStl: false };
   }
   const mimeType = DECO_RASTER_MIME_TYPES[mime];
-  if (mimeType) return { sourceType: mimeType, isSvg: false };
+  if (mimeType) return { sourceType: mimeType, isSvg: false, isStl: false };
   const ext = name.match(/\.([a-z0-9]+)$/)?.[1] || '';
   const extType = DECO_RASTER_EXTENSIONS[ext];
-  return extType ? { sourceType: extType, isSvg: false } : null;
+  return extType ? { sourceType: extType, isSvg: false, isStl: false } : null;
+}
+
+function decoHasSource(deco) {
+  return Boolean(deco && deco.sourceData && deco.sourceType);
 }
 
 function decoHasHeightmapSource(deco) {
-  return Boolean(deco && deco.sourceData && deco.sourceType);
+  return decoHasSource(deco) && deco.sourceType !== 'stl';
 }
 
 function decoRasterSize(deco) {
@@ -618,20 +669,77 @@ function applyDecoHeightmapSource(deco, source) {
   deco.clipToPanel = true;
 }
 
+function applyDecoStlSource(deco, source) {
+  deco.sourceType = 'stl';
+  deco.sourceText = '';
+  deco.sourceData = source.sourceData || '';
+  deco.sourceName = compactFileName(source.sourceName || '');
+  deco.sourceBytes = Number(source.sourceBytes || 0);
+  deco.mode = 'stl';
+  deco.enabled = true;
+  deco.clipToPanel = true;
+  debugStlLog('state updated from imported STL', {
+    target: params?.decorActive,
+    sourceName: deco.sourceName,
+    sourceBytes: deco.sourceBytes,
+    sourceDataChars: deco.sourceData.length,
+    mode: deco.mode,
+    enabled: deco.enabled,
+    w: deco.w,
+    h: deco.h,
+    depth: deco.depth,
+    posX: deco.posX,
+    posY: deco.posY,
+    rotation: deco.rotation,
+    clipToPanel: deco.clipToPanel,
+  });
+}
+
 async function loadDecoFile(file) {
   const kind = decoFileKind(file);
+  debugStlLog('file selected for decor import', {
+    name: file?.name || '',
+    type: file?.type || '',
+    size: file?.size || 0,
+    detected: kind,
+    target: params?.decorActive,
+  });
   if (!kind) {
     setDecoStatus(tr('decor_load_supported'), 'warn');
+    debugStlLog('file rejected: unsupported decor type', {
+      name: file?.name || '',
+      type: file?.type || '',
+    });
     return false;
   }
-  if (file.size > MAX_DECO_FILE_BYTES) {
-    setDecoStatus(tr('decor_too_large'), 'warn');
+  const sizeLimit = kind.isStl ? MAX_DECO_STL_FILE_BYTES : MAX_DECO_FILE_BYTES;
+  if (file.size > sizeLimit) {
+    setDecoStatus(kind.isStl ? tr('decor_stl_too_large') : tr('decor_too_large'), 'warn');
+    debugStlLog('file rejected: too large', {
+      name: file.name,
+      size: file.size,
+      sizeLimit,
+      isStl: kind.isStl,
+    });
     return false;
   }
-  setDecoStatus(tr('decor_processing'), 'info');
+  setDecoStatus(kind.isStl ? tr('decor_stl_processing') : tr('decor_processing'), 'info');
   const deco = activeDeco();
   try {
-    if (kind.isSvg) {
+    if (kind.isStl) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (!bytes.byteLength) throw new Error('stl_empty');
+      debugStlLog('stl bytes read', {
+        name: file.name,
+        ...stlByteDiagnostics(bytes),
+      });
+      applyDecoStlSource(deco, {
+        sourceData: bytesToBase64(bytes),
+        sourceName: file.name,
+        sourceBytes: file.size,
+      });
+      setDecoStatus(tr('decor_stl_loaded'), 'ok');
+    } else if (kind.isSvg) {
       const svgText = assertSafeSvgText(await file.text());
       const sourceData = await rasterizeSvgToPngBase64(svgText, decoRasterSize(deco));
       applyDecoHeightmapSource(deco, {
@@ -653,10 +761,20 @@ async function loadDecoFile(file) {
       setDecoStatus(tr('decor_image_heightmap'), 'ok');
     }
     render();
+    debugStlLog('render requested after decor import', {
+      target: params?.decorActive,
+      sourceType: activeDeco()?.sourceType,
+      enabled: activeDeco()?.enabled,
+    });
     return true;
   } catch (err) {
     console.error(err);
-    setDecoStatus(tr('decor_heightmap_failed', { error: err?.message || err }), 'error');
+    debugStlLog('decor import failed', {
+      name: file?.name || '',
+      isStl: kind.isStl,
+      error: err?.message || String(err),
+    });
+    setDecoStatus(tr(kind.isStl ? 'decor_stl_failed' : 'decor_heightmap_failed', { error: err?.message || err }), 'error');
     return false;
   }
 }
@@ -865,6 +983,21 @@ function setDecoStatus(message, tone = 'info') {
   setExportStatus(message, tone);
 }
 
+function diagnosticParamsSnapshot(source) {
+  const copy = JSON.parse(JSON.stringify(source || {}));
+  if (!copy.decos || typeof copy.decos !== 'object') return copy;
+  Object.values(copy.decos).forEach((deco) => {
+    if (!deco || typeof deco !== 'object') return;
+    if (deco.sourceData) {
+      deco.sourceData = `[omitted ${String(deco.sourceType || 'source')}]`;
+    }
+    if (deco.sourceText && String(deco.sourceText).length > 8000) {
+      deco.sourceText = `${String(deco.sourceText).slice(0, 8000)}...`;
+    }
+  });
+  return copy;
+}
+
 async function apiRequest(path, options = {}) {
   const headers = {
     'Content-Type': 'application/json',
@@ -907,6 +1040,14 @@ async function refreshAdminSession({ silent = true } = {}) {
   return adminSession.admin;
 }
 
+async function hasAdminExportAccess() {
+  if (adminSession.admin) return true;
+  if (!adminSession.checked) {
+    return refreshAdminSession({ silent: true });
+  }
+  return false;
+}
+
 function buildMeshReportSnapshot() {
   const payload = parseResponse(mesh_report_json(JSON.stringify(params)));
   if (!payload) return null;
@@ -914,7 +1055,7 @@ function buildMeshReportSnapshot() {
     saved_at: new Date().toISOString(),
     app_version: APP_BUILD_ID,
     lang: currentLang(),
-    params,
+    params: diagnosticParamsSnapshot(params),
     report: payload,
   };
 }
@@ -1242,7 +1383,7 @@ async function logoutAccount() {
 }
 
 async function authorizeExport(exportType, filename) {
-  if (!accountState.user) {
+  if (!accountState.user && !(await hasAdminExportAccess())) {
     throw new Error('connexion_requise');
   }
   setExportStatus(tr('authorizing_export', { filename }), 'info');
@@ -1253,7 +1394,7 @@ async function authorizeExport(exportType, filename) {
 }
 
 async function quoteExport(exportType) {
-  if (!accountState.user) {
+  if (!accountState.user && !(await hasAdminExportAccess())) {
     throw new Error('connexion_requise');
   }
   return apiRequest('/api/exports/quote', {
@@ -1271,6 +1412,8 @@ async function consumeExport(authorization) {
   if (payload.user) {
     accountState = { user: payload.user, loading: false, error: '' };
     updateAccountDom();
+  } else if (payload.admin) {
+    return payload;
   } else {
     await refreshAccountState({ silent: true });
   }
@@ -1289,6 +1432,10 @@ function exportDeniedMessage(err) {
 }
 
 async function authorizeExportWithPrompt(exportType, filename) {
+  if (await hasAdminExportAccess()) {
+    return authorizeExport(exportType, filename);
+  }
+
   if (!accountState.user) {
     await openExportGateModal('guest', { filename, exportType });
     return null;
@@ -2219,14 +2366,19 @@ function ensureDecos() {
         resolution: 64,
         removeBg: false,
         clipToPanel: true,
+        lockProportions: false,
       };
     }
     if (params.decos[key].smooth === undefined) params.decos[key].smooth = 25;
     if (params.decos[key].threshold === undefined) params.decos[key].threshold = 2;
     if (params.decos[key].removeBg === undefined) params.decos[key].removeBg = false;
     if (params.decos[key].clipToPanel === undefined) params.decos[key].clipToPanel = true;
+    if (params.decos[key].lockProportions === undefined) params.decos[key].lockProportions = false;
     if (params.decos[key].sourceName === undefined) params.decos[key].sourceName = '';
     if (params.decos[key].sourceBytes === undefined) params.decos[key].sourceBytes = 0;
+    if (params.decos[key].sourceType === 'stl') {
+      params.decos[key].mode = 'stl';
+    }
     if (!params.decos[key].sourceData && params.decos[key].sourceType !== 'svg') {
       params.decos[key].mode = 'heightmap';
     }
@@ -2247,6 +2399,50 @@ function syncDecoControl(key, value) {
   const number = control.querySelector(`[data-deco-number="${key}"]`);
   if (range) range.value = String(value);
   if (number) number.value = String(value);
+}
+
+function syncDecoControlToParam(key, value) {
+  const control = root.querySelector(`[data-deco-param="${key}"]`)?.closest('.range-control')
+    || root.querySelector(`[data-deco-number="${key}"]`)?.closest('.range-control');
+  if (!control) return;
+  const input = control.querySelector(`[data-deco-param="${key}"]`)
+    || control.querySelector(`[data-deco-number="${key}"]`);
+  const scale = Number(input?.dataset?.decoScale || 1);
+  const displayValue = Number(value) / (Number.isFinite(scale) && scale > 0 ? scale : 1);
+  syncDecoControl(key, displayValue);
+}
+
+function applyDecoDimensionValue(deco, key, nextValue) {
+  if (!deco || !['w', 'h'].includes(key) || !Number.isFinite(nextValue)) return [key];
+  if (!deco.lockProportions) {
+    deco[key] = Math.max(DECO_SIZE_MIN_MM, Math.min(DECO_SIZE_MAX_MM, nextValue));
+    return [key];
+  }
+
+  const otherKey = key === 'w' ? 'h' : 'w';
+  const current = Number(deco[key]);
+  const other = Number(deco[otherKey]);
+  if (!Number.isFinite(current) || current <= 0 || !Number.isFinite(other) || other <= 0) {
+    deco[key] = Math.max(DECO_SIZE_MIN_MM, Math.min(DECO_SIZE_MAX_MM, nextValue));
+    return [key];
+  }
+
+  let factor = nextValue / current;
+  if (!Number.isFinite(factor) || factor <= 0) factor = 1;
+  const minFactor = Math.max(DECO_SIZE_MIN_MM / current, DECO_SIZE_MIN_MM / other);
+  const maxFactor = Math.min(DECO_SIZE_MAX_MM / current, DECO_SIZE_MAX_MM / other);
+  factor = Math.max(minFactor, Math.min(maxFactor, factor));
+  deco[key] = current * factor;
+  deco[otherKey] = other * factor;
+  return [key, otherKey];
+}
+
+function setDecoNumericParam(deco, key, value) {
+  if (['w', 'h'].includes(key)) {
+    return applyDecoDimensionValue(deco, key, value);
+  }
+  deco[key] = value;
+  return [key];
 }
 
 function normalizeDependentParams(changedKey) {
@@ -2276,7 +2472,7 @@ function decoPreviewSrc(deco) {
 
 function updateDecoUploadUi() {
   const deco = activeDeco();
-  const hasSource = decoHasHeightmapSource(deco);
+  const hasSource = decoHasSource(deco);
   const preview = root.querySelector('[data-deco-preview]');
   const dropzone = root.querySelector('[data-deco-dropzone]');
   const fileName = root.querySelector('[data-deco-file-name]');
@@ -2287,7 +2483,11 @@ function updateDecoUploadUi() {
   }
   if (preview) {
     preview.replaceChildren();
-    if (hasSource) {
+    if (hasSource && deco.sourceType === 'stl') {
+      const label = document.createElement('span');
+      label.textContent = tr('decor_stl_preview');
+      preview.appendChild(label);
+    } else if (hasSource) {
       const img = document.createElement('img');
       img.src = decoPreviewSrc(deco);
       img.alt = tr('decor_preview_alt');
@@ -2460,11 +2660,138 @@ function disposeViewerState() {
   viewerState = null;
 }
 
+function meshBoundsSummary(vertices) {
+  if (!vertices || vertices.length < 3) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let minZ = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  let maxZ = -Infinity;
+  for (let i = 0; i + 2 < vertices.length; i += 3) {
+    const x = Number(vertices[i]);
+    const y = Number(vertices[i + 1]);
+    const z = Number(vertices[i + 2]);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) continue;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    minZ = Math.min(minZ, z);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+    maxZ = Math.max(maxZ, z);
+  }
+  if (![minX, minY, minZ, maxX, maxY, maxZ].every(Number.isFinite)) return null;
+  const round = (value) => Math.round(value * 100) / 100;
+  return {
+    min: [round(minX), round(minY), round(minZ)],
+    max: [round(maxX), round(maxY), round(maxZ)],
+    size: [round(maxX - minX), round(maxY - minY), round(maxZ - minZ)],
+  };
+}
+
+function smoothGeometryNormalsByPosition(geo) {
+  const position = geo.getAttribute('position');
+  if (!position || position.count < 3) {
+    geo.computeVertexNormals();
+    return;
+  }
+  const normals = new Float32Array(position.count * 3);
+  const accum = new Map();
+  const keyFor = (idx) => {
+    const x = Math.round(position.getX(idx) * 1000);
+    const y = Math.round(position.getY(idx) * 1000);
+    const z = Math.round(position.getZ(idx) * 1000);
+    return `${x},${y},${z}`;
+  };
+  const addNormal = (idx, nx, ny, nz) => {
+    const key = keyFor(idx);
+    const prev = accum.get(key);
+    if (prev) {
+      prev[0] += nx;
+      prev[1] += ny;
+      prev[2] += nz;
+    } else {
+      accum.set(key, [nx, ny, nz]);
+    }
+  };
+  for (let i = 0; i + 2 < position.count; i += 3) {
+    const ax = position.getX(i);
+    const ay = position.getY(i);
+    const az = position.getZ(i);
+    const bx = position.getX(i + 1);
+    const by = position.getY(i + 1);
+    const bz = position.getZ(i + 1);
+    const cx = position.getX(i + 2);
+    const cy = position.getY(i + 2);
+    const cz = position.getZ(i + 2);
+    const abx = bx - ax;
+    const aby = by - ay;
+    const abz = bz - az;
+    const acx = cx - ax;
+    const acy = cy - ay;
+    const acz = cz - az;
+    let nx = aby * acz - abz * acy;
+    let ny = abz * acx - abx * acz;
+    let nz = abx * acy - aby * acx;
+    const len = Math.hypot(nx, ny, nz);
+    if (!Number.isFinite(len) || len <= 0) continue;
+    nx /= len;
+    ny /= len;
+    nz /= len;
+    addNormal(i, nx, ny, nz);
+    addNormal(i + 1, nx, ny, nz);
+    addNormal(i + 2, nx, ny, nz);
+  }
+  for (let i = 0; i < position.count; i += 1) {
+    const normal = accum.get(keyFor(i)) || [0, 0, 1];
+    const len = Math.hypot(normal[0], normal[1], normal[2]) || 1;
+    normals[i * 3] = normal[0] / len;
+    normals[i * 3 + 1] = normal[1] / len;
+    normals[i * 3 + 2] = normal[2] / len;
+  }
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+}
+
 function renderViewer() {
   const mount = document.getElementById('viewer');
   if (!mount) return;
+  const active = params?.decorActive && params.decos ? params.decos[params.decorActive] : null;
+  if (active?.sourceType === 'stl') {
+    debugStlLog('renderViewer: active STL before WASM scene build', {
+      target: params.decorActive,
+      enabled: active.enabled,
+      sourceName: active.sourceName,
+      sourceBytes: active.sourceBytes,
+      sourceDataChars: String(active.sourceData || '').length,
+      w: active.w,
+      h: active.h,
+      depth: active.depth,
+      posX: active.posX,
+      posY: active.posY,
+      rotation: active.rotation,
+      clipToPanel: active.clipToPanel,
+      viewMode: params.mode,
+    });
+  }
   const payload = parseResponse(scene_meshes_json(JSON.stringify(params)));
-  if (!payload || !Array.isArray(payload.meshes)) return;
+  if (!payload || !Array.isArray(payload.meshes)) {
+    debugStlLog('renderViewer: invalid scene payload from WASM', {
+      payload,
+    });
+    return;
+  }
+  const meshSummary = payload.meshes.map((mesh) => ({
+    key: mesh.key,
+    vertices: mesh.vertices?.length || 0,
+    triangles: Math.floor((mesh.vertices?.length || 0) / 9),
+    bounds: meshBoundsSummary(mesh.vertices),
+  }));
+  if (active?.sourceType === 'stl' || meshSummary.some((mesh) => String(mesh.key || '').startsWith('deco_'))) {
+    debugStlLog('renderViewer: WASM scene meshes', {
+      meshSummary,
+      decorMeshes: meshSummary.filter((mesh) => String(mesh.key || '').startsWith('deco_')),
+    });
+  }
 
   if (!viewerState) {
     try {
@@ -2496,9 +2823,15 @@ function renderViewer() {
     if (!m.vertices || m.vertices.length < 9) return;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(m.vertices, 3));
-    geo.computeVertexNormals();
     const edgesOnly = params.mode === 'edges';
-    const isFacade = m.key === 'front' || m.key === 'back';
+    const meshKey = String(m.key || '');
+    const isFacade = meshKey === 'front' || meshKey === 'back';
+    const isDecor = meshKey.startsWith('deco_');
+    if (isDecor) {
+      smoothGeometryNormalsByPosition(geo);
+    } else {
+      geo.computeVertexNormals();
+    }
     const mat = new THREE.MeshPhongMaterial({
       color: new THREE.Color(m.color || '#d4a574'),
       side: THREE.DoubleSide,
@@ -2514,7 +2847,7 @@ function renderViewer() {
     group.add(mesh);
     disposables.push(geo, mat);
 
-    if (isFacade && !edgesOnly) return;
+    if ((isFacade || isDecor) && !edgesOnly) return;
     const edges = new THREE.EdgesGeometry(geo, 18);
     const lines = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({
       color: edgesOnly ? 0xd4a574 : edgeColor,
@@ -2768,15 +3101,21 @@ function render() {
   root.querySelectorAll('[data-deco-param]').forEach((input) => {
     input.addEventListener('input', () => {
       const deco = activeDeco();
-      deco[input.dataset.decoParam] = decoValueToParam(input);
-      syncDecoControl(input.dataset.decoParam, input.value);
+      const key = input.dataset.decoParam;
+      const value = decoValueToParam(input);
+      if (!Number.isFinite(value)) return;
+      const changedKeys = setDecoNumericParam(deco, key, value);
+      changedKeys.forEach((changedKey) => syncDecoControlToParam(changedKey, deco[changedKey]));
       refreshGeneratedViews();
     });
     input.addEventListener('change', () => {
       const deco = activeDeco();
-      deco[input.dataset.decoParam] = decoValueToParam(input);
-      syncDecoControl(input.dataset.decoParam, input.value);
-      if (input.dataset.decoParam === 'resolution') {
+      const key = input.dataset.decoParam;
+      const value = decoValueToParam(input);
+      if (!Number.isFinite(value)) return;
+      const changedKeys = setDecoNumericParam(deco, key, value);
+      changedKeys.forEach((changedKey) => syncDecoControlToParam(changedKey, deco[changedKey]));
+      if (key === 'resolution') {
         refreshDecoRasterIfNeeded(deco).finally(() => render());
       } else {
         render();
@@ -2789,17 +3128,19 @@ function render() {
       const value = decoValueToParam(input);
       if (!Number.isFinite(value)) return;
       const deco = activeDeco();
-      deco[input.dataset.decoNumber] = value;
-      syncDecoControl(input.dataset.decoNumber, input.value);
+      const key = input.dataset.decoNumber;
+      const changedKeys = setDecoNumericParam(deco, key, value);
+      changedKeys.forEach((changedKey) => syncDecoControlToParam(changedKey, deco[changedKey]));
       refreshGeneratedViews();
     });
     input.addEventListener('change', () => {
       const value = decoValueToParam(input);
       if (!Number.isFinite(value)) return;
       const deco = activeDeco();
-      deco[input.dataset.decoNumber] = value;
-      syncDecoControl(input.dataset.decoNumber, input.value);
-      if (input.dataset.decoNumber === 'resolution') {
+      const key = input.dataset.decoNumber;
+      const changedKeys = setDecoNumericParam(deco, key, value);
+      changedKeys.forEach((changedKey) => syncDecoControlToParam(changedKey, deco[changedKey]));
+      if (key === 'resolution') {
         refreshDecoRasterIfNeeded(deco).finally(() => render());
       } else {
         render();
@@ -2818,7 +3159,7 @@ function render() {
   root.querySelectorAll('[data-deco-bool]').forEach((input) => {
     input.addEventListener('change', () => {
       const deco = activeDeco();
-      if (input.dataset.decoBool === 'enabled' && input.checked && !decoHasHeightmapSource(deco)) {
+      if (input.dataset.decoBool === 'enabled' && input.checked && !decoHasSource(deco)) {
         input.checked = false;
         deco.enabled = false;
         setDecoStatus(tr('decor_upload_first'), 'warn');
@@ -3036,6 +3377,12 @@ window.addEventListener('pageshow', (event) => {
 try {
   await init({ module_or_path: new URL(`../wasm/pkg/wasm_bg.wasm?v=${APP_BUILD_ID}`, import.meta.url) });
   params = JSON.parse(default_params_json());
+  debugStlLog('app booted', {
+    appBuildId: APP_BUILD_ID,
+    phpBase: PHP_BASE,
+    wasmUrl: new URL(`../wasm/pkg/wasm_bg.wasm?v=${APP_BUILD_ID}`, import.meta.url).toString(),
+    decorTargets: DECO_TARGET_KEYS,
+  });
   params.lang = detectInitialLanguage();
   localStorage.setItem(LANG_KEY, params.lang);
   setDocumentLanguage();

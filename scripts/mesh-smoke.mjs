@@ -6,11 +6,29 @@ import init, {
   export_door_stl,
   export_panels_zip,
   mesh_report_json,
+  scene_meshes_json,
 } from '../wasm/pkg/wasm.js';
 
 await init({ module_or_path: readFileSync(new URL('../wasm/pkg/wasm_bg.wasm', import.meta.url)) });
 
 const base = JSON.parse(default_params_json());
+const importedStlDecor = {
+  enabled: true,
+  sourceType: 'stl',
+  sourceData: smallBinaryStlBase64([
+    [[-5, -1, -10], [5, -1, -10], [0, -1, 10]],
+    [[-5, -1, -10], [0, 3, 0], [5, -1, -10]],
+    [[5, -1, -10], [0, 3, 0], [0, -1, 10]],
+    [[0, -1, 10], [0, 3, 0], [-5, -1, -10]],
+  ]),
+  sourceName: 'smoke-tetra.stl',
+  sourceBytes: 284,
+  mode: 'stl',
+  w: 40,
+  h: 40,
+  depth: 8,
+  clipToPanel: true,
+};
 const presets = [
   ['default', {}],
   ['round-perch-door-panel', { door: 'round', perch: true, doorPanel: true }],
@@ -18,6 +36,7 @@ const presets = [
   ['pentagon-door-panel', { door: 'pentagon', doorPanel: true, doorFollowTaper: true }],
   ['positive-taper-miter', { taperX: 35, ridge: 'miter', door: 'round', perch: true, doorPanel: true }],
   ['negative-taper-pose', { taperX: -25, floor: 'pose', door: 'pentagon', doorPanel: true, doorFollowTaper: true }],
+  ['imported-stl-front', { door: 'none', decos: { ...base.decos, front: importedStlDecor } }],
 ];
 
 let failures = 0;
@@ -36,6 +55,24 @@ function assertBinaryStl(bytes, label, name) {
   const triCount = view.getUint32(80, true);
   const expected = 84 + triCount * 50;
   assertCase(bytes.byteLength === expected, label, `${name} STL byte size mismatch: got ${bytes.byteLength}, expected ${expected}`);
+}
+
+function smallBinaryStlBase64(triangles) {
+  const bytes = new Uint8Array(84 + triangles.length * 50);
+  const view = new DataView(bytes.buffer);
+  view.setUint32(80, triangles.length, true);
+  let offset = 84;
+  for (const vertices of triangles) {
+    offset += 12;
+    for (const vertex of vertices) {
+      view.setFloat32(offset, vertex[0], true);
+      view.setFloat32(offset + 4, vertex[1], true);
+      view.setFloat32(offset + 8, vertex[2], true);
+      offset += 12;
+    }
+    offset += 2;
+  }
+  return Buffer.from(bytes).toString('base64');
 }
 
 function edgeTopology(bytes) {
@@ -113,6 +150,8 @@ for (const [label, patch] of presets) {
   const door = export_door_stl(input);
   const reportRaw = JSON.parse(mesh_report_json(input));
   const report = reportRaw.payload;
+  const sceneRaw = JSON.parse(scene_meshes_json(input));
+  const scene = sceneRaw.payload;
 
   assertCase(house.byteLength > 84, label, 'house STL empty');
   assertBinaryStl(house, label, 'house');
@@ -132,6 +171,10 @@ for (const [label, patch] of presets) {
   ];
   if (params.door !== 'none' && params.doorPanel) expectedNames.push('porte.stl');
   if (params.door !== 'none' && params.perch) expectedNames.push('perchoir.stl');
+  for (const key of ['front', 'back', 'left', 'right', 'roofL', 'roofR']) {
+    const deco = params.decos?.[key];
+    if (deco?.enabled && deco?.sourceData) expectedNames.push(`deco_${key}.stl`);
+  }
   expectedNames.sort();
   assertCase(JSON.stringify(zipNames) === JSON.stringify(expectedNames), label, `ZIP entries mismatch: got ${zipNames.join(', ')}`);
   for (const entry of zipEntries) {
@@ -141,15 +184,24 @@ for (const [label, patch] of presets) {
   assertCase(report.house.triangles > 0, label, 'report has no house triangles');
   assertCase(report.house.non_finite_values === 0, label, 'non-finite values in house mesh');
   assertCase(report.house.degenerate_triangles === 0, label, 'degenerate triangles in house mesh');
+  assertCase(report.house.open_edges === 0, label, `house has ${report.house.open_edges} open edges`);
   for (const part of report.parts) {
     assertCase(part.triangles > 0, label, `${part.name} has no triangles`);
     assertCase(part.non_finite_values === 0, label, `${part.name} has non-finite values`);
     assertCase(part.degenerate_triangles === 0, label, `${part.name} has degenerate triangles`);
+    assertCase(part.open_edges === 0, label, `${part.name} has ${part.open_edges} open edges`);
+    assertCase(part.non_manifold_edges === 0, label, `${part.name} has ${part.non_manifold_edges} non-manifold edges`);
+    assertCase(part.watertight === true, label, `${part.name} is not watertight`);
   }
   if (params.door !== 'none' && params.doorPanel) {
     assertCase(door.byteLength > 84, label, 'door STL empty despite doorPanel=true');
     assertBinaryStl(door, label, 'door');
     assertWatertightStl(door, label, 'door');
+  }
+  if (params.decos?.front?.sourceType === 'stl') {
+    const imported = scene.meshes.find((mesh) => mesh.key === 'deco_front');
+    assertCase(imported?.vertices?.length > 0, label, 'imported front STL missing from scene meshes');
+    assertCase(report.parts.some((part) => part.name === 'deco_front'), label, 'imported front STL missing from ZIP/report parts');
   }
 
   console.log([

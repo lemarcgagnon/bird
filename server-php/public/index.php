@@ -9,6 +9,7 @@ app_apply_runtime_security();
 require_once __DIR__ . '/../src/db.php';
 require_once __DIR__ . '/../src/logger.php';
 require_once __DIR__ . '/../src/auth.php';
+require_once __DIR__ . '/../src/admin_core.php';
 require_once __DIR__ . '/../src/credits.php';
 require_once __DIR__ . '/../src/mail.php';
 require_once __DIR__ . '/../src/stripe.php';
@@ -241,11 +242,6 @@ if ($method === 'GET' && $path === '/api/apps') {
 }
 
 if ($method === 'POST' && $path === '/api/exports/quote') {
-    $user = require_user();
-    if (($user['status'] ?? 'active') !== 'active') {
-        json_response(['ok' => false, 'error' => 'account_suspended'], 403);
-        exit;
-    }
     $data = read_json_body();
     $appId = normalize_export_app_id($data['app_id'] ?? null);
     if ($appId === null) {
@@ -256,6 +252,25 @@ if ($method === 'POST' && $path === '/api/exports/quote') {
     $cost = export_credit_cost(db(), $type, $appId);
     if ($cost === null) {
         json_response(['ok' => false, 'error' => 'invalid_export_type'], 400);
+        exit;
+    }
+
+    if (admin_logged_in()) {
+        json_response([
+            'ok' => true,
+            'admin' => true,
+            'app_id' => $appId,
+            'export_type' => $type,
+            'cost' => 0,
+            'credits' => null,
+            'bonus_credits' => 0,
+        ]);
+        exit;
+    }
+
+    $user = require_user();
+    if (($user['status'] ?? 'active') !== 'active') {
+        json_response(['ok' => false, 'error' => 'account_suspended'], 403);
         exit;
     }
     $credits = (int) $user['credits'];
@@ -672,11 +687,6 @@ if ($method === 'POST' && $path === '/api/billing/portal') {
 }
 
 if ($method === 'POST' && $path === '/api/exports/authorize') {
-    $user = require_user();
-    if (($user['status'] ?? 'active') !== 'active') {
-        json_response(['ok' => false, 'error' => 'account_suspended'], 403);
-        exit;
-    }
     $data = read_json_body();
     $appId = normalize_export_app_id($data['app_id'] ?? null);
     if ($appId === null) {
@@ -687,6 +697,39 @@ if ($method === 'POST' && $path === '/api/exports/authorize') {
     $cost = export_credit_cost(db(), $type, $appId);
     if ($cost === null) {
         json_response(['ok' => false, 'error' => 'invalid_export_type'], 400);
+        exit;
+    }
+
+    if (admin_logged_in()) {
+        app_secure_session_start();
+        $authToken = random_token();
+        $expires = sql_utc_datetime('+10 minutes');
+        if (!isset($_SESSION['nichoir_admin_export_authorizations']) || !is_array($_SESSION['nichoir_admin_export_authorizations'])) {
+            $_SESSION['nichoir_admin_export_authorizations'] = [];
+        }
+        $_SESSION['nichoir_admin_export_authorizations'][token_hash($authToken)] = [
+            'app_id' => $appId,
+            'export_type' => $type,
+            'expires_at' => $expires,
+            'created_at' => sql_utc_datetime(),
+        ];
+        app_log(db(), 'info', 'api', 'admin_export_authorized', 'Export admin autorise sans credit', ['app_id' => $appId, 'export_type' => $type, 'cost' => 0], null);
+        json_response([
+            'ok' => true,
+            'admin' => true,
+            'authorization' => $authToken,
+            'app_id' => $appId,
+            'export_type' => $type,
+            'cost' => 0,
+            'bonus_credits' => 0,
+            'expires_at' => $expires,
+        ]);
+        exit;
+    }
+
+    $user = require_user();
+    if (($user['status'] ?? 'active') !== 'active') {
+        json_response(['ok' => false, 'error' => 'account_suspended'], 403);
         exit;
     }
     $bonusCredits = export_partial_bonus_amount(db(), (int) $user['credits'], $cost);
@@ -705,7 +748,6 @@ if ($method === 'POST' && $path === '/api/exports/authorize') {
 }
 
 if ($method === 'POST' && $path === '/api/exports/consume') {
-    $user = require_user();
     $data = read_json_body();
     require_fields($data, ['authorization']);
     $appId = normalize_export_app_id($data['app_id'] ?? null);
@@ -713,6 +755,32 @@ if ($method === 'POST' && $path === '/api/exports/consume') {
         json_response(['ok' => false, 'error' => 'invalid_app_id'], 400);
         exit;
     }
+
+    if (admin_logged_in()) {
+        app_secure_session_start();
+        $hash = token_hash((string) $data['authorization']);
+        $authorizations = $_SESSION['nichoir_admin_export_authorizations'] ?? [];
+        $auth = is_array($authorizations) ? ($authorizations[$hash] ?? null) : null;
+        if (!is_array($auth)
+            || ($auth['app_id'] ?? '') !== $appId
+            || (string) ($auth['expires_at'] ?? '') <= sql_utc_datetime()) {
+            json_response(['ok' => false, 'error' => 'invalid_authorization'], 400);
+            exit;
+        }
+        unset($_SESSION['nichoir_admin_export_authorizations'][$hash]);
+        app_log(db(), 'info', 'api', 'admin_export_consumed', 'Export admin consomme sans debit', ['app_id' => $appId, 'export_type' => (string) ($auth['export_type'] ?? ''), 'cost' => 0], null);
+        json_response([
+            'ok' => true,
+            'admin' => true,
+            'app_id' => $appId,
+            'export_type' => (string) ($auth['export_type'] ?? ''),
+            'cost' => 0,
+            'bonus_credits' => 0,
+        ]);
+        exit;
+    }
+
+    $user = require_user();
     $pdo = db();
     $pdo->beginTransaction();
     try {

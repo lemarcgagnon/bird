@@ -13,7 +13,8 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 
 - `window.NICHOIR_PHP_BASE`: optional explicit PHP API origin for controlled local/dev shells.
 - `EXPORT_APP_ID`: fixed to `nichoir` for this WASM app. It is sent with export quote/authorize/consume calls so the PHP backend can act as mission control for multiple WASM apps.
-- `?php_base=http://127.0.0.1:8021`: local-only override when the static app runs on `8016` and the PHP API runs on `8021`. The override is ignored unless both the page host and target API host are `localhost`, `127.0.0.1` or `::1`.
+- `?php_base=http://127.0.0.1:8021`: local-only override when the static app and PHP API run on separate local origins. The override is ignored unless both the page host and target API host are `localhost`, `127.0.0.1` or `::1`.
+- When the static app is served from `127.0.0.1:8016` or `localhost:8016` without `php_base`, `app.js` automatically uses the PHP API at the same host on port `8021`.
 - `?lang=fr|en` and local storage key `nichoir-lang`.
 - Local storage keys `nichoir-theme` and `nichoir-last-mesh-report`.
 - Legacy key `nichoir-auth-token` is removed on load. Current account auth relies on the PHP HttpOnly cookie `nichoir_account_session` and `fetch(..., { credentials: 'include' })`.
@@ -32,7 +33,9 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 - Current billed downloads: house STL, cut-plan SVG, cut-plan PNG, exploded assembly PNG and cut-plan PDF.
 - Current local/free downloads: door STL, wall-mount STL, panels ZIP, calculations PDF, debug OBJ and mesh report JSON.
 - Diagnostic downloads are rendered by WASM but hidden by default with `data-admin-only`; `app.js` unhides them only when `/api/admin/session` confirms an admin PHP session.
-- Client-side decoration file intake with a 2 MiB limit before sending image/vector data to WASM.
+- Admin export access: when `/api/admin/session` returns `admin=true`, premium downloads still go through quote/authorize/consume but PHP returns `cost=0`, stores the token in the admin PHP session, and consumes it once without touching credits.
+- Client-side decoration file intake: SVG/raster images are capped at 2 MiB and converted to WASM heightmaps; local STL imports are capped at 4 MiB and sent to WASM as base64 mesh data.
+- Decoration controls support panel target selection, width/height proportion lock, rotation, depth, heightmap smoothing/threshold and clipping to panel/hole geometry. Door/perch holes dominate front-panel decor in the WASM geometry.
 
 ## Boundaries
 
@@ -40,6 +43,7 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 - Rust/WASM is the source of truth for geometry, calculations, app control markup and export data generation.
 - JavaScript should coordinate browser behavior and display returned policy data, not define billing or credit policy. Local `EXPORT_COSTS` values are fallback copy only; PHP responses are authoritative.
 - JavaScript should not persist account bearer tokens. The current browser flow depends on the PHP session cookie and `/api/admin/session` for admin-only visibility.
+- JavaScript should not special-case downloads by directly skipping authorization. Even admin downloads use the server quote/authorize/consume endpoints so one-shot tokens, expiry and logging stay consistent.
 
 ## Current drift
 
@@ -49,7 +53,8 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 ## Validation after changes
 
 1. Run `node --check app/app.js`.
-2. Open `app/index.html?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021` and the same URL with `lang=en`.
+2. Open `http://127.0.0.1:8016/app/?lang=fr` and the same URL with `lang=en`.
 3. Confirm language switch, theme switch, account modal, PHP links and download authorization messages.
 4. If download code changes, test one successful authorize/generate/consume path and one failed authorization path.
-5. If decoration intake changes, test SVG plus one raster image and confirm client logs do not include heavy file payloads.
+5. If admin download code changes, log into `{NICHOIR_ADMIN_PATH}/login`, confirm `/api/admin/session` returns `admin=true`, and verify a premium export returns `cost=0` then refuses a second consume of the same authorization.
+6. If decoration intake changes, test SVG plus one raster image and one STL, and confirm client logs do not include heavy file payloads.

@@ -36,8 +36,10 @@ Current public bindings include:
 - Rust-rendered control markup and labels for dense app UI sections.
 - Rust-rendered download button markup, including the diagnostic group marker. Admin visibility is resolved later by JavaScript/PHP session state.
 - Rust-side French/English translation table for labels rendered from Rust.
-- SVG/image decoration parsing, heightmap/vector extrusion and panel/hole clipping.
-- Export helpers for fabrication outputs used by the JavaScript download flow: house STL, door STL, wall-mount STL, panels ZIP, debug OBJ, mesh report JSON and cut-plan SVG.
+- SVG/image/STL decoration parsing, heightmap/vector extrusion, imported mesh placement, panel clipping and dominant front-door/perch hole clipping.
+- Export helpers for fabrication outputs used by the JavaScript download flow: house STL, door STL, wall-mount STL, panels ZIP, debug OBJ, mesh report JSON and cut-plan SVG. Imported STL decor is included in the full house mesh as an additive local mesh merge.
+- Mesh topology analysis for reports and safety gates: open edge count, non-manifold edge count and `watertight` flag using the same 0.001 mm quantization as the Node smoke test.
+- Watertight safety gate for generated decor: heightmap cells with zero relief are not emitted as double coplanar skin, and STL/heightmap decor that would survive clipping as an open or non-manifold mesh is excluded instead of exported broken.
 - Client-side validation/clamping for geometry-heavy inputs.
 
 ## Boundaries
@@ -47,6 +49,7 @@ Current public bindings include:
 - Keep browser/API/network orchestration in `app/app.js`.
 - The browser may save the mesh report snapshot in local storage as `nichoir-last-mesh-report`; this is diagnostic state only, not account, token or credit authority.
 - Treat all incoming JSON and imported files as untrusted, even when they come from the UI.
+- Do not claim arbitrary imported STL clipping is exact CSG. The current implementation maps the STL onto a panel and clips triangles against panel/hole footprints. Door/perch holes dominate the decor; if that clipping would make the resulting decor non-watertight, the decor is dropped from export rather than repaired with a fake surface.
 
 ## Download billing contract
 
@@ -69,6 +72,8 @@ Current free/local browser exports are:
 
 For billed exports, `app/app.js` identifies this app as `app_id=nichoir`, asks PHP for `/api/exports/quote`, shows the credit/bonus gate if needed, calls `/api/exports/authorize`, generates the file locally from WASM or browser capture, then calls `/api/exports/consume`. WASM must not skip or replace that server-side flow.
 
+Admin sessions are handled entirely by PHP/JavaScript. If PHP reports an admin session, premium exports still use quote/authorize/consume but with `cost=0`; WASM is unaware of that policy and only returns bytes/text.
+
 ## Current drift
 
 - Export-size ceilings for very large meshes/STL/ZIP are still an open hardening item.
@@ -79,6 +84,7 @@ For billed exports, `app/app.js` identifies this app as `app_id=nichoir`, asks P
 ```bash
 cd wasm
 cargo check
+cargo test
 wasm-pack build --target web
 ```
 
@@ -90,3 +96,8 @@ node scripts/mesh-smoke.mjs
 ```
 
 Open the app in French and English after UI/i18n changes and confirm Rust-rendered labels do not fall back to raw keys.
+
+Topology expectations:
+
+- ZIP panel parts and surviving `deco_*` parts should have `open_edges=0`, `non_manifold_edges=0` and `watertight=true`.
+- `house.stl` should have no open edges, but it can report over-shared/non-manifold contact edges because it is an assembly of touching panels, not a CSG union.

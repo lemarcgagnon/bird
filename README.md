@@ -72,10 +72,10 @@ http://127.0.0.1:8021/
 Ouvrir l'app directement avec l'API PHP separee:
 
 ```text
-http://127.0.0.1:8016/app/index.html?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021
+http://127.0.0.1:8016/app/
 ```
 
-Sans `php_base`, l'app utilise `window.location.origin` pour l'API. C'est le bon comportement dans l'artifact production, ou `public_html/app/` et le wrapper PHP sont sur la meme origine. L'override `php_base` est ignore hors hote local.
+Sur `localhost`/`127.0.0.1`, l'app servie sur le port `8016` pointe automatiquement l'API vers `8021`. L'override local `?php_base=http://127.0.0.1:8021` reste accepte pour tester une autre origine locale. Hors hote local, `php_base` est ignore et l'app utilise `window.location.origin`, ce qui correspond a l'artifact production ou `public_html/app/` et le wrapper PHP partagent la meme origine.
 
 ## Compiler le WASM
 
@@ -104,8 +104,11 @@ Le package genere est `wasm/pkg/`; `app/app.js` importe `wasm/pkg/wasm.js`.
 - Jusqu'a quatre trous de suspension dans le toit.
 - Viewer Three.js avec modes plein, filaire, rayons X, aretes et mode eclate.
 - Light/dark mode, langue FR/EN et liens de retour au site PHP.
-- Decorations SVG, PNG, JPG/JPEG, GIF fixe et WEBP en modes vectoriel ou heightmap.
-- Clipping decor au panneau et aux trous, limite fichier navigateur de 2 Mo et limites decodees cote WASM.
+- Decorations SVG, PNG, JPG/JPEG, GIF fixe, WEBP et import STL local. Les images deviennent des reliefs heightmap; les STL sont attaches au panneau cible et inclus dans le mesh maison.
+- Largeur/hauteur de decor peuvent etre liees pour garder les proportions pendant le redimensionnement.
+- Clipping decor au panneau et aux trous: les trous de porte/perchoir dominent toujours le decor de facade. Si un STL importe deviendrait ouvert ou non-manifold apres clipping, il est exclu de l'export au lieu de produire un fichier casse.
+- Rapport mesh avec comptage des triangles degeneres, valeurs non finies, aretes ouvertes, aretes non-manifold et indicateur `watertight`.
+- Limite navigateur de 2 Mo pour images/SVG et 4 Mo pour STL, plus limites decodees cote WASM.
 
 ## Exports
 
@@ -116,6 +119,8 @@ Telechargements factures autorises par PHP puis generes localement:
 - plan PNG;
 - PDF du plan de coupe avec image d'assemblage;
 - PNG de l'assemblage eclate.
+
+Une session admin PHP valide contourne le debit credits pour ces exports: `/api/exports/quote`, `/api/exports/authorize` et `/api/exports/consume` renvoient alors `admin=true` et `cost=0`. Les autorisations admin sont stockees en session PHP, one-shot, et expirent apres 10 minutes.
 
 Telechargements locaux/gratuits dans l'app actuelle:
 
@@ -128,7 +133,7 @@ Telechargements locaux/gratuits dans l'app actuelle:
 
 Le rapport mesh JSON peut etre sauvegarde dans le navigateur sous `nichoir-last-mesh-report` pour eviter de le perdre en quittant l'ecran. Cette sauvegarde est seulement diagnostique; elle ne contient pas l'autorite compte/credits. Les credits, le bonus, les autorisations et le debit sont controles par le serveur PHP.
 
-Les pieces separees du ZIP sont l'objectif principal pour fabrication par panneaux. Le STL maison complete reste un assemblage de panneaux en contact; une union booleenne/CSG serait necessaire pour produire une maison complete parfaitement fusionnee en un seul solide manifold.
+Les pieces separees du ZIP sont l'objectif principal pour fabrication par panneaux. Le smoke test exige que chaque piece separee, y compris les decors exportes, n'ait ni aretes ouvertes ni aretes non-manifold. Le STL maison complete reste un assemblage de panneaux en contact; il est watertight mais peut contenir des aretes sur-partagees la ou les pieces s'appuient l'une sur l'autre. Une union booleenne/CSG serait necessaire pour produire une maison complete parfaitement fusionnee en un seul solide manifold.
 
 ## Backend PHP
 
@@ -142,10 +147,10 @@ Etat actuel:
 - Les chemins evidents `/admin` et `/administration` sont reserves/interdits et ne doivent pas etre utilises en production.
 - Le chemin admin reel ne doit pas etre expose dans les pages publiques: il est seulement rendu cote admin, et les pages publiques ne doivent pas injecter `NICHOIR_ADMIN_PATH` dans leur HTML/JS.
 - L'admin gere clients, credits, statuts, abonnements manuels, tickets, logs, exports DB, reglages DB/Stripe/SMTP et tests email.
-- `/api/admin/session` ne renvoie que l'etat admin de la session PHP courante; l'app statique l'utilise pour afficher les telechargements diagnostiques admin-only sans exposer le chemin admin configure.
+- `/api/admin/session` ne renvoie que l'etat admin de la session PHP courante; l'app statique l'utilise pour afficher les telechargements diagnostiques admin-only et debloquer les exports premium a cout zero sans exposer le chemin admin configure.
 - `server-php/src/credits.php` est la source de verite pour le registre des apps WASM, les types d'export factures, le cout configure et le bonus de solde partiel.
 - `/api/apps` expose les apps WASM connues du backend. L'app actuelle utilise `app_id=nichoir`.
-- `/api/exports/quote` annonce le cout/solde/bonus par `app_id` sans creer d'autorisation; `/api/exports/authorize` cree une autorisation courte; `/api/exports/consume` la reclame atomiquement avant debit.
+- `/api/exports/quote` annonce le cout/solde/bonus par `app_id` sans creer d'autorisation; `/api/exports/authorize` cree une autorisation courte; `/api/exports/consume` la reclame atomiquement avant debit. Avec une session admin, le cout est zero et l'autorisation est stockee/consommee en session PHP sans ligne `credit_ledger`.
 - `/api/client-log` accepte les erreurs navigateur/WASM avec rate limit de 10 logs/minute par utilisateur ou IP.
 - `/stripe/webhook` verifie `Stripe-Signature` quand un secret est configure, journalise les evenements et synchronise checkout, invoices, paiements et abonnements.
 - SQLite est le mode local/developpement uniquement.
@@ -190,13 +195,13 @@ Checks manuels importants:
 - tester contact invalide et flash d'erreur apres redirection;
 - tester autorisation puis consommation d'un export avec un compte connecte;
 - consommer deux fois la meme autorisation et verifier qu'un seul debit passe;
+- tester la session admin: quote/authorize/consume doivent retourner `admin=true`, `cost=0`, puis refuser une seconde consommation du meme token;
 - tester Checkout, portail et webhook Stripe en mode test avant production.
 
 ## Points ouverts
 
 - Les cartes prix publiques sont encore des traductions statiques, alors que Stripe price IDs et quantites sont des reglages admin.
 - Une cle de traduction WASM inutilisee `credits_three` existe encore; elle ne doit pas redevenir une source visible de prix.
-- Le label UI `deco_clip` dit encore "coming later/bientot" alors que le clipping decor est deja cable dans le WASM.
 - Les scripts inline PHP restent dans `layout.php`, `account_pages.php` et `admin_pages.php`; une CSP stricte attend leur extraction vers `server-php/public/site.js`.
 - Ajouter rate limiting plus fort sur tickets et webhooks.
 - Ajouter retention/rotation des logs et plafonds triangles/STL/ZIP plus explicites.

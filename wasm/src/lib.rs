@@ -7,8 +7,12 @@ use std::f64::consts::PI;
 
 const MAX_DECO_SOURCE_TEXT_BYTES: usize = 1_000_000;
 const MAX_DECO_SOURCE_DATA_CHARS: usize = 3_000_000;
+const MAX_DECO_STL_SOURCE_DATA_CHARS: usize = 6_000_000;
 const MAX_DECO_IMAGE_SIDE: u32 = 4096;
 const MAX_DECO_IMAGE_PIXELS: u64 = 16_777_216;
+// A 4 MiB binary STL can carry roughly 84k triangles; leave headroom for
+// small metadata differences while keeping pathological files out.
+const MAX_IMPORTED_STL_TRIANGLES: usize = 120_000;
 
 #[derive(Serialize)]
 struct ApiOk<T: Serialize> {
@@ -95,6 +99,8 @@ struct DecorSettings {
     remove_bg: bool,
     #[serde(rename = "clipToPanel", alias = "clip_to_panel")]
     clip_to_panel: bool,
+    #[serde(rename = "lockProportions", alias = "lock_proportions")]
+    lock_proportions: bool,
 }
 
 impl Default for DecorSettings {
@@ -118,6 +124,7 @@ impl Default for DecorSettings {
             resolution: 64.0,
             remove_bg: false,
             clip_to_panel: true,
+            lock_proportions: false,
         }
     }
 }
@@ -152,7 +159,11 @@ struct NichoirParams {
     overhang: f64,
     #[serde(rename = "T", alias = "t")]
     t: f64,
-    #[serde(rename = "thicknessPreset", alias = "thickness_preset", default = "default_thickness_preset")]
+    #[serde(
+        rename = "thicknessPreset",
+        alias = "thickness_preset",
+        default = "default_thickness_preset"
+    )]
     thickness_preset: String,
     #[serde(rename = "unit")]
     unit: String,
@@ -196,7 +207,11 @@ struct NichoirParams {
     panel_w: f64,
     #[serde(rename = "panelH", alias = "panel_h")]
     panel_h: f64,
-    #[serde(rename = "panelPreset", alias = "panel_preset", default = "default_panel_preset")]
+    #[serde(
+        rename = "panelPreset",
+        alias = "panel_preset",
+        default = "default_panel_preset"
+    )]
     panel_preset: String,
     #[serde(rename = "kerf", alias = "saw_kerf")]
     kerf: f64,
@@ -308,8 +323,17 @@ fn allowed_string(value: &str, allowed: &[&str], fallback: &str) -> String {
 fn svg_tag_name_allowed(name: &str) -> bool {
     matches!(
         name,
-        "svg" | "g" | "path" | "rect" | "circle" | "ellipse" | "polygon" | "polyline" | "line"
-            | "title" | "desc"
+        "svg"
+            | "g"
+            | "path"
+            | "rect"
+            | "circle"
+            | "ellipse"
+            | "polygon"
+            | "polyline"
+            | "line"
+            | "title"
+            | "desc"
     )
 }
 
@@ -422,14 +446,24 @@ fn svg_attrs_look_safe(attrs: &str) -> bool {
             .copied()
             .filter(|b| *b == b'"' || *b == b'\'')
         {
-            let Some(end) = rest.as_bytes()[1..].iter().position(|b| *b == quote).map(|idx| idx + 1) else {
+            let Some(end) = rest.as_bytes()[1..]
+                .iter()
+                .position(|b| *b == quote)
+                .map(|idx| idx + 1)
+            else {
                 return false;
             };
             (&rest[1..end], &rest[end + 1..])
         } else {
             let end = rest
                 .char_indices()
-                .find_map(|(idx, ch)| if ch.is_whitespace() || ch == '/' { Some(idx) } else { None })
+                .find_map(|(idx, ch)| {
+                    if ch.is_whitespace() || ch == '/' {
+                        Some(idx)
+                    } else {
+                        None
+                    }
+                })
                 .unwrap_or(rest.len());
             (&rest[..end], &rest[end..])
         };
@@ -515,10 +549,13 @@ fn sanitize_decor(mut d: DecorSettings) -> DecorSettings {
     let defaults = DecorSettings::default();
     d.source_type = allowed_string(
         d.source_type.trim(),
-        &["", "svg", "png", "jpg", "jpeg", "gif", "webp"],
+        &["", "svg", "png", "jpg", "jpeg", "gif", "webp", "stl"],
         "",
     );
-    d.mode = allowed_string(d.mode.trim(), &["vector", "heightmap"], "heightmap");
+    d.mode = allowed_string(d.mode.trim(), &["vector", "heightmap", "stl"], "heightmap");
+    if d.source_type == "stl" {
+        d.mode = "stl".to_string();
+    }
     d.w = clamp_finite(d.w, 5.0, 400.0, defaults.w);
     d.h = clamp_finite(d.h, 5.0, 400.0, defaults.h);
     d.pos_x = clamp_finite(d.pos_x, 0.0, 100.0, defaults.pos_x);
@@ -543,15 +580,24 @@ fn sanitize_decor(mut d: DecorSettings) -> DecorSettings {
         d.source_text.clear();
     }
 
-    if d.source_data.len() > MAX_DECO_SOURCE_DATA_CHARS {
+    let source_data_limit = if d.source_type == "stl" {
+        MAX_DECO_STL_SOURCE_DATA_CHARS
+    } else {
+        MAX_DECO_SOURCE_DATA_CHARS
+    };
+    if d.source_data.len() > source_data_limit {
         d.source_data.clear();
-        if d.mode == "heightmap" && d.source_type != "svg" {
+        if (d.mode == "heightmap" && d.source_type != "svg") || d.source_type == "stl" {
             d.enabled = false;
             d.source_type.clear();
+            d.mode = "heightmap".to_string();
         }
     }
 
-    if d.source_type.is_empty() && d.source_data.trim().is_empty() && d.source_text.trim().is_empty() {
+    if d.source_type.is_empty()
+        && d.source_data.trim().is_empty()
+        && d.source_text.trim().is_empty()
+    {
         d.enabled = false;
     }
 
@@ -584,22 +630,49 @@ fn sanitize_params(mut p: NichoirParams) -> NichoirParams {
     p.hang_diam = clamp_finite(p.hang_diam, 2.0, 30.0, defaults.hang_diam);
     p.hang_side_offset = clamp_finite(p.hang_side_offset, 2.0, 120.0, defaults.hang_side_offset);
     p.hang_end_offset = clamp_finite(p.hang_end_offset, 2.0, 120.0, defaults.hang_end_offset);
-    p.wall_mount_hole_diam = clamp_finite(p.wall_mount_hole_diam, 3.0, 20.0, defaults.wall_mount_hole_diam);
-    p.wall_mount_hole_spacing = clamp_finite(p.wall_mount_hole_spacing, 20.0, 220.0, defaults.wall_mount_hole_spacing);
+    p.wall_mount_hole_diam = clamp_finite(
+        p.wall_mount_hole_diam,
+        3.0,
+        20.0,
+        defaults.wall_mount_hole_diam,
+    );
+    p.wall_mount_hole_spacing = clamp_finite(
+        p.wall_mount_hole_spacing,
+        20.0,
+        220.0,
+        defaults.wall_mount_hole_spacing,
+    );
     p.wall_mount_y = clamp_finite(p.wall_mount_y, 20.0, 440.0, defaults.wall_mount_y);
-    p.wall_mount_block_w = clamp_finite(p.wall_mount_block_w, 40.0, 260.0, defaults.wall_mount_block_w);
-    p.wall_mount_block_h = clamp_finite(p.wall_mount_block_h, 30.0, 220.0, defaults.wall_mount_block_h);
-    p.wall_mount_block_depth = if p.wall_mount_block_depth.is_finite() && p.wall_mount_block_depth > 0.0 {
-        clamp_finite(p.wall_mount_block_depth, 6.0, 80.0, p.overhang.max(6.0))
-    } else {
-        p.overhang.max(6.0).min(80.0)
-    };
+    p.wall_mount_block_w = clamp_finite(
+        p.wall_mount_block_w,
+        40.0,
+        260.0,
+        defaults.wall_mount_block_w,
+    );
+    p.wall_mount_block_h = clamp_finite(
+        p.wall_mount_block_h,
+        30.0,
+        220.0,
+        defaults.wall_mount_block_h,
+    );
+    p.wall_mount_block_depth =
+        if p.wall_mount_block_depth.is_finite() && p.wall_mount_block_depth > 0.0 {
+            clamp_finite(p.wall_mount_block_depth, 6.0, 80.0, p.overhang.max(6.0))
+        } else {
+            p.overhang.max(6.0).min(80.0)
+        };
     p.unit = allowed_string(p.unit.trim(), &["mm", "cm", "in"], "mm");
     p.lang = allowed_string(p.lang.trim(), &["fr", "en"], "fr");
-    p.mode = allowed_string(p.mode.trim(), &["solid", "wireframe", "xray", "edges"], "solid");
+    p.mode = allowed_string(
+        p.mode.trim(),
+        &["solid", "wireframe", "xray", "edges"],
+        "solid",
+    );
     p.panel_preset = if p.panel_preset == "auto"
         || p.panel_preset == "custom"
-        || market_panel_presets().iter().any(|(label, _, _)| *label == p.panel_preset)
+        || market_panel_presets()
+            .iter()
+            .any(|(label, _, _)| *label == p.panel_preset)
     {
         p.panel_preset
     } else {
@@ -704,11 +777,8 @@ fn parse_input(input: &str) -> Result<NichoirParams, String> {
 }
 
 fn ok_json<T: Serialize>(payload: T) -> String {
-    serde_json::to_string(&ApiOk {
-        ok: true,
-        payload,
-    })
-    .unwrap_or_else(|_| "{\"ok\":false,\"message\":\"Serialization failed\"}".to_string())
+    serde_json::to_string(&ApiOk { ok: true, payload })
+        .unwrap_or_else(|_| "{\"ok\":false,\"message\":\"Serialization failed\"}".to_string())
 }
 
 fn err_json(msg: &str) -> String {
@@ -772,20 +842,30 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "wall_mount_block_w") => "Mount block width",
         ("en", "wall_mount_block_h") => "Mount block height",
         ("en", "wall_mount_block_depth") => "Mount block depth",
-        ("en", "wall_mount_note") => "Two rear holes align with the external block. Fasten it from inside through the entrance door. The block top sheds rain outward at 30 degrees.",
+        ("en", "wall_mount_note") => {
+            "Two rear holes align with the external block. Fasten it from inside through the entrance door. The block top sheds rain outward at 30 degrees."
+        }
         ("en", "wall_mount_piece") => "Wall mount block",
         ("en", "wall_mount_note_cut") => "rear holes aligned to block",
-        ("en", "models_3d_info") => "Fabrication geometry: STL files for the assembled house and individual printable parts.",
-        ("en", "plans_info") => "Cut and assembly drawings: SVG, PNG and PDF files generated from the current dimensions.",
+        ("en", "models_3d_info") => {
+            "Fabrication geometry: STL files for the assembled house and individual printable parts."
+        }
+        ("en", "plans_info") => {
+            "Cut and assembly drawings: SVG, PNG and PDF files generated from the current dimensions."
+        }
         ("en", "downloads") => "Downloads",
-        ("en", "downloads_note") => "Download the files generated from the current model. 3D models are STL or ZIP; plans are SVG, PNG or PDF.",
+        ("en", "downloads_note") => {
+            "Download the files generated from the current model. 3D models are STL or ZIP; plans are SVG, PNG or PDF."
+        }
         ("en", "download_models_3d") => "3D model downloads",
         ("en", "download_plans") => "Plan downloads",
         ("en", "material") => "Material",
         ("en", "thickness") => "Wall thickness",
         ("en", "thickness_preset") => "Market board thickness",
         ("en", "custom_stl_free") => "Custom / free STL",
-        ("en", "thickness_note") => "This thickness drives STL wall thickness and cut-plan bevel dimensions. For fabrication, choose the real board thickness available on the market.",
+        ("en", "thickness_note") => {
+            "This thickness drives STL wall thickness and cut-plan bevel dimensions. For fabrication, choose the real board thickness available on the market."
+        }
         ("en", "door") => "Entrance door",
         ("en", "door_width") => "Door width",
         ("en", "door_height") => "Door height",
@@ -824,21 +904,31 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "mesh_report") => "Mesh report",
         ("en", "panel_stls") => "Panel STLs",
         ("en", "deco_target") => "Target panel",
-        ("en", "deco_no_file") => "No relief image loaded",
+        ("en", "deco_no_file") => "No decor file loaded",
         ("en", "deco_svg_loaded") => "SVG usable",
-        ("en", "deco_svg_empty") => "SVG loaded, but no usable filled vector shape was found. Convert text/strokes to paths or use a filled SVG.",
+        ("en", "deco_svg_empty") => {
+            "SVG loaded, but no usable filled vector shape was found. Convert text/strokes to paths or use a filled SVG."
+        }
         ("en", "deco_heightmap_loaded") => "Heightmap image loaded for WASM relief",
         ("en", "deco_enable") => "Relief active",
-        ("en", "deco_load_svg") => "Load image",
+        ("en", "deco_load_svg") => "Load file",
         ("en", "deco_replace_image") => "Replace",
         ("en", "deco_clear") => "Clear",
         ("en", "deco_mode") => "Render mode",
-        ("en", "deco_upload_title") => "Drop an image here",
-        ("en", "deco_upload_body") => "SVG or browser-supported image, max 2 MB. Every file is converted to a WASM heightmap.",
+        ("en", "deco_upload_title") => "Drop a file here",
+        ("en", "deco_upload_body") => {
+            "SVG, image, or STL from your drive. Images become relief heightmaps; STL files are attached to the selected panel mesh."
+        }
         ("en", "deco_preview_empty") => "Preview after upload",
         ("en", "deco_relief_settings") => "Relief settings",
-        ("en", "deco_heightmap_note") => "Light pixels rise, dark pixels stay low. Use invert if your source image has the relief backwards.",
-        ("en", "deco_rotation") => "Image rotation",
+        ("en", "deco_heightmap_note") => {
+            "Light pixels rise, dark pixels stay low. Use invert if your source image has the relief backwards."
+        }
+        ("en", "deco_stl_loaded") => "STL loaded for selected panel",
+        ("en", "deco_stl_note") => {
+            "Imported STL is scaled to this width and height, then attached outward from the selected panel. It is included in the house STL mesh."
+        }
+        ("en", "deco_rotation") => "Rotation",
         ("en", "deco_depth") => "Relief depth",
         ("en", "deco_invert") => "Invert heightmap",
         ("en", "deco_remove_bg") => "Transparent background / remove white background",
@@ -847,6 +937,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "deco_bevel") => "Bevel / chamfer intensity",
         ("en", "deco_threshold") => "Noise threshold",
         ("en", "deco_clip") => "Clip relief to panel shape",
+        ("en", "deco_lock_proportions") => "Link width and height",
         ("en", "language") => "Language",
         ("en", "app_subtitle") => "BIRDHOUSE CALCULATOR",
         ("en", "dim_tab") => "DIM.",
@@ -863,7 +954,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "door_pentagon") => "Pent.",
         ("en", "vector") => "Vector",
         ("en", "heightmap") => "Heightmap",
-        ("en", "choose_file_to_show_shape_settings") => "Load an image to show relief settings.",
+        ("en", "choose_file_to_show_shape_settings") => "Load a file to show decor settings.",
         ("en", "download_calcs_pdf") => "Download calculations PDF",
         ("en", "models_3d") => "3D models",
         ("en", "house") => "House",
@@ -898,7 +989,9 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "account_email") => "Email",
         ("en", "account_plan") => "Plan",
         ("en", "app_summary_only") => "Summary only in app",
-        ("en", "account_server_master") => "The PHP server remains the source of truth for account, credits, subscriptions, tickets, and payments.",
+        ("en", "account_server_master") => {
+            "The PHP server remains the source of truth for account, credits, subscriptions, tickets, and payments."
+        }
         ("en", "auth") => "Authentication",
         ("en", "session_active") => "Session active. The server decides download authorizations.",
         ("en", "refresh") => "Refresh",
@@ -914,7 +1007,9 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "site") => "site",
         ("en", "info") => "info",
         ("en", "account_management") => "Account management",
-        ("en", "account_backend_note") => "Profile, credits, subscription, and invoices stay on the PHP site. Quick tickets can also be followed here.",
+        ("en", "account_backend_note") => {
+            "Profile, credits, subscription, and invoices stay on the PHP site. Quick tickets can also be followed here."
+        }
         ("en", "pricing") => "Pricing",
         ("en", "support_tickets") => "Support tickets",
         ("en", "subject") => "Subject",
@@ -933,7 +1028,9 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "panels_zip") => "Panel ZIP exports",
         ("en", "plan_svg_or_png") => "SVG / PNG exports",
         ("en", "user_management") => "User management",
-        ("en", "account_backend_source") => "Account, credits, subscription, tickets, and payments come from the PHP backend.",
+        ("en", "account_backend_source") => {
+            "Account, credits, subscription, tickets, and payments come from the PHP backend."
+        }
         ("en", "close_account") => "Close",
         ("en", "close_account_aria") => "Close account",
         ("en", "viewer_controls_aria") => "View controls",
@@ -1019,20 +1116,30 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "wall_mount_block_w") => "Largeur bloc",
         (_, "wall_mount_block_h") => "Hauteur bloc",
         (_, "wall_mount_block_depth") => "Profondeur bloc",
-        (_, "wall_mount_note") => "Deux trous arriere s'alignent avec le bloc externe. Vissage depuis l'interieur par la porte. Le dessus du bloc evacue l'eau vers l'exterieur a 30 degres.",
+        (_, "wall_mount_note") => {
+            "Deux trous arriere s'alignent avec le bloc externe. Vissage depuis l'interieur par la porte. Le dessus du bloc evacue l'eau vers l'exterieur a 30 degres."
+        }
         (_, "wall_mount_piece") => "Bloc fixation murale",
         (_, "wall_mount_note_cut") => "trous arriere alignes au bloc",
-        (_, "models_3d_info") => "Geometrie de fabrication: fichiers STL pour la maison assemblee et les pieces imprimables separees.",
-        (_, "plans_info") => "Plans de coupe et d'assemblage: fichiers SVG, PNG et PDF generes depuis les dimensions courantes.",
+        (_, "models_3d_info") => {
+            "Geometrie de fabrication: fichiers STL pour la maison assemblee et les pieces imprimables separees."
+        }
+        (_, "plans_info") => {
+            "Plans de coupe et d'assemblage: fichiers SVG, PNG et PDF generes depuis les dimensions courantes."
+        }
         (_, "downloads") => "Telechargements",
-        (_, "downloads_note") => "Telecharge les fichiers generes depuis le modele courant. Les modeles 3D sont en STL ou ZIP; les plans sont en SVG, PNG ou PDF.",
+        (_, "downloads_note") => {
+            "Telecharge les fichiers generes depuis le modele courant. Les modeles 3D sont en STL ou ZIP; les plans sont en SVG, PNG ou PDF."
+        }
         (_, "download_models_3d") => "Telechargements modeles 3D",
         (_, "download_plans") => "Telechargements plans",
         (_, "material") => "Materiau",
         (_, "thickness") => "Epaisseur parois",
         (_, "thickness_preset") => "Epaisseur panneau commercial",
         (_, "custom_stl_free") => "Custom / STL libre",
-        (_, "thickness_note") => "Cette epaisseur pilote le STL, les angles et les dimensions du plan de coupe. Pour fabriquer en panneau, choisis l'epaisseur reelle disponible sur le marche.",
+        (_, "thickness_note") => {
+            "Cette epaisseur pilote le STL, les angles et les dimensions du plan de coupe. Pour fabriquer en panneau, choisis l'epaisseur reelle disponible sur le marche."
+        }
         (_, "door") => "Porte d'entree",
         (_, "door_width") => "Largeur porte",
         (_, "door_height") => "Hauteur porte",
@@ -1071,21 +1178,31 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "mesh_report") => "Rapport mesh/STL",
         (_, "panel_stls") => "Panneaux STL",
         (_, "deco_target") => "Panneau cible",
-        (_, "deco_no_file") => "Aucune image de relief chargee",
+        (_, "deco_no_file") => "Aucun fichier decor charge",
         (_, "deco_svg_loaded") => "SVG utilisable",
-        (_, "deco_svg_empty") => "SVG charge, mais aucune forme vectorielle pleine exploitable n'a ete trouvee. Convertis les textes/traits en chemins ou utilise un SVG rempli.",
+        (_, "deco_svg_empty") => {
+            "SVG charge, mais aucune forme vectorielle pleine exploitable n'a ete trouvee. Convertis les textes/traits en chemins ou utilise un SVG rempli."
+        }
         (_, "deco_heightmap_loaded") => "Image heightmap chargee pour le relief WASM",
         (_, "deco_enable") => "Relief actif",
-        (_, "deco_load_svg") => "Charger image",
+        (_, "deco_load_svg") => "Charger fichier",
         (_, "deco_replace_image") => "Remplacer",
         (_, "deco_clear") => "Supprimer",
         (_, "deco_mode") => "Mode de rendu",
-        (_, "deco_upload_title") => "Depose une image ici",
-        (_, "deco_upload_body") => "SVG ou image prise en charge par le navigateur, max 2 Mo. Chaque fichier est converti en heightmap WASM.",
+        (_, "deco_upload_title") => "Depose un fichier ici",
+        (_, "deco_upload_body") => {
+            "SVG, image ou STL depuis ton disque. Les images deviennent des heightmaps; les STL sont attaches au mesh du panneau cible."
+        }
         (_, "deco_preview_empty") => "Apercu apres chargement",
         (_, "deco_relief_settings") => "Reglages du relief",
-        (_, "deco_heightmap_note") => "Les pixels clairs montent, les pixels fonces restent bas. Utilise inverser si le relief sort a l envers.",
-        (_, "deco_rotation") => "Rotation image",
+        (_, "deco_heightmap_note") => {
+            "Les pixels clairs montent, les pixels fonces restent bas. Utilise inverser si le relief sort a l envers."
+        }
+        (_, "deco_stl_loaded") => "STL charge pour le panneau cible",
+        (_, "deco_stl_note") => {
+            "Le STL importe est redimensionne selon cette largeur et hauteur, puis attache vers l'exterieur du panneau cible. Il est inclus dans le STL maison."
+        }
+        (_, "deco_rotation") => "Rotation",
         (_, "deco_depth") => "Profondeur relief",
         (_, "deco_invert") => "Inverser heightmap",
         (_, "deco_remove_bg") => "Fond transparent / supprimer fond blanc",
@@ -1094,6 +1211,7 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "deco_bevel") => "Intensite biseau / chanfrein",
         (_, "deco_threshold") => "Seuil anti-bruit",
         (_, "deco_clip") => "Clipper le relief au panneau",
+        (_, "deco_lock_proportions") => "Lier largeur et hauteur",
         (_, "language") => "Langue",
         (_, "app_subtitle") => "CALCULATEUR MAISON D'OISEAU",
         (_, "dim_tab") => "DIM.",
@@ -1110,7 +1228,9 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "door_pentagon") => "Penta.",
         (_, "vector") => "Vectoriel",
         (_, "heightmap") => "Heightmap",
-        (_, "choose_file_to_show_shape_settings") => "Charge une image pour afficher les reglages du relief.",
+        (_, "choose_file_to_show_shape_settings") => {
+            "Charge un fichier pour afficher les reglages du decor."
+        }
         (_, "download_calcs_pdf") => "Telecharger les calculs PDF",
         (_, "models_3d") => "Modeles 3D",
         (_, "house") => "Maison",
@@ -1145,9 +1265,13 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "account_email") => "Courriel",
         (_, "account_plan") => "Plan",
         (_, "app_summary_only") => "Resume dans l'app seulement",
-        (_, "account_server_master") => "Le serveur PHP reste maitre du compte, des credits, abonnements, tickets et paiements.",
+        (_, "account_server_master") => {
+            "Le serveur PHP reste maitre du compte, des credits, abonnements, tickets et paiements."
+        }
         (_, "auth") => "Identification",
-        (_, "session_active") => "Session active. Le serveur decide les autorisations de telechargement.",
+        (_, "session_active") => {
+            "Session active. Le serveur decide les autorisations de telechargement."
+        }
         (_, "refresh") => "Rafraichir",
         (_, "state") => "etat",
         (_, "logout") => "Sortir",
@@ -1161,7 +1285,9 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "site") => "site",
         (_, "info") => "info",
         (_, "account_management") => "Gestion compte",
-        (_, "account_backend_note") => "Profil, credits, abonnement et factures restent sur le site PHP. Les tickets rapides peuvent aussi etre suivis ici.",
+        (_, "account_backend_note") => {
+            "Profil, credits, abonnement et factures restent sur le site PHP. Les tickets rapides peuvent aussi etre suivis ici."
+        }
         (_, "pricing") => "Tarifs",
         (_, "support_tickets") => "Tickets support",
         (_, "subject") => "Sujet",
@@ -1180,7 +1306,9 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "panels_zip") => "Exports ZIP panneaux",
         (_, "plan_svg_or_png") => "Exports SVG / PNG",
         (_, "user_management") => "Gestion usager",
-        (_, "account_backend_source") => "Compte, credits, abonnement, tickets et paiements viennent du backend PHP.",
+        (_, "account_backend_source") => {
+            "Compte, credits, abonnement, tickets et paiements viennent du backend PHP."
+        }
         (_, "close_account") => "Fermer",
         (_, "close_account_aria") => "Fermer le compte",
         (_, "viewer_controls_aria") => "Controles de vue",
@@ -1251,7 +1379,11 @@ fn taper_side_note(p: &NichoirParams, lang: &str) -> String {
         } else {
             t(lang, "narrowed_short")
         };
-        format!("{label} {} {}", format_len(p.taper_x.abs(), &p.unit), unit_def(&p.unit).label)
+        format!(
+            "{label} {} {}",
+            format_len(p.taper_x.abs(), &p.unit),
+            unit_def(&p.unit).label
+        )
     }
 }
 
@@ -1309,7 +1441,16 @@ fn effective_ridge(p: &NichoirParams) -> RidgeMode {
     }
 }
 
-fn range_control_scaled(label: &str, key: &str, min: f64, max: f64, step: f64, value: f64, _suffix: &str, scale: f64) -> String {
+fn range_control_scaled(
+    label: &str,
+    key: &str,
+    min: f64,
+    max: f64,
+    step: f64,
+    value: f64,
+    _suffix: &str,
+    scale: f64,
+) -> String {
     let scale = scale.max(0.000001);
     let min_display = min / scale;
     let max_display = max / scale;
@@ -1333,16 +1474,42 @@ fn range_control_scaled(label: &str, key: &str, min: f64, max: f64, step: f64, v
     )
 }
 
-fn range_control(label: &str, key: &str, min: f64, max: f64, step: f64, value: f64, suffix: &str) -> String {
+fn range_control(
+    label: &str,
+    key: &str,
+    min: f64,
+    max: f64,
+    step: f64,
+    value: f64,
+    suffix: &str,
+) -> String {
     range_control_scaled(label, key, min, max, step, value, suffix, 1.0)
 }
 
-fn length_control(label: &str, key: &str, min_mm: f64, max_mm: f64, step_mm: f64, value_mm: f64, unit: &str) -> String {
+fn length_control(
+    label: &str,
+    key: &str,
+    min_mm: f64,
+    max_mm: f64,
+    step_mm: f64,
+    value_mm: f64,
+    unit: &str,
+) -> String {
     let u = unit_def(unit);
-    range_control_scaled(label, key, min_mm, max_mm, step_mm, value_mm, u.label, u.factor)
+    range_control_scaled(
+        label, key, min_mm, max_mm, step_mm, value_mm, u.label, u.factor,
+    )
 }
 
-fn deco_range_control(label: &str, key: &str, min: f64, max: f64, step: f64, value: f64, scale: f64) -> String {
+fn deco_range_control(
+    label: &str,
+    key: &str,
+    min: f64,
+    max: f64,
+    step: f64,
+    value: f64,
+    scale: f64,
+) -> String {
     let scale = scale.max(0.000001);
     format!(
         r#"<label class="range-control"><span>{}</span><span class="range-row"><input data-deco-param="{}" data-deco-scale="{:.6}" type="range" min="{:.3}" max="{:.3}" step="{:.3}" value="{:.3}"><span class="number-row"><input data-deco-number="{}" data-deco-scale="{:.6}" type="number" min="{:.3}" max="{:.3}" step="{:.3}" value="{:.3}"></span></span></label>"#,
@@ -1362,7 +1529,15 @@ fn deco_range_control(label: &str, key: &str, min: f64, max: f64, step: f64, val
     )
 }
 
-fn deco_length_control(label: &str, key: &str, min_mm: f64, max_mm: f64, step_mm: f64, value_mm: f64, unit: &str) -> String {
+fn deco_length_control(
+    label: &str,
+    key: &str,
+    min_mm: f64,
+    max_mm: f64,
+    step_mm: f64,
+    value_mm: f64,
+    unit: &str,
+) -> String {
     let u = unit_def(unit);
     deco_range_control(label, key, min_mm, max_mm, step_mm, value_mm, u.factor)
 }
@@ -1400,8 +1575,14 @@ fn selected_panel_preset(p: &NichoirParams, value: &str) -> &'static str {
         return "selected";
     }
     let mut parts = value.split('x');
-    let w = parts.next().and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0);
-    let h = parts.next().and_then(|x| x.parse::<f64>().ok()).unwrap_or(0.0);
+    let w = parts
+        .next()
+        .and_then(|x| x.parse::<f64>().ok())
+        .unwrap_or(0.0);
+    let h = parts
+        .next()
+        .and_then(|x| x.parse::<f64>().ok())
+        .unwrap_or(0.0);
     if (p.panel_w - w).abs() < 0.6 && (p.panel_h - h).abs() < 0.6 {
         "selected"
     } else {
@@ -1449,7 +1630,11 @@ fn panel_preset_select(p: &NichoirParams, lang: &str) -> String {
         ));
     }
     let custom_selected = if matched { "" } else { "selected" };
-    options = options.replacen("<option value=\"custom\" >", &format!("<option value=\"custom\" {custom_selected}>"), 1);
+    options = options.replacen(
+        "<option value=\"custom\" >",
+        &format!("<option value=\"custom\" {custom_selected}>"),
+        1,
+    );
     format!(
         r#"<label class="select-control"><span>{}</span><select data-panel-preset>{}</select></label>"#,
         html_escape(t(lang, "panel_preset")),
@@ -1509,7 +1694,11 @@ fn thickness_preset_select(p: &NichoirParams, lang: &str) -> String {
         ));
     }
     if !matched {
-        options = options.replacen("<option value=\"custom\" >", "<option value=\"custom\" selected>", 1);
+        options = options.replacen(
+            "<option value=\"custom\" >",
+            "<option value=\"custom\" selected>",
+            1,
+        );
     }
     format!(
         r#"<label class="select-control"><span>{}</span><select data-thickness-preset>{}</select></label>"#,
@@ -1590,7 +1779,11 @@ impl GeometryPayload {
             0.0
         };
         let wall_h_real = (wall_h * wall_h + p.taper_x * p.taper_x).sqrt();
-        let floor_w = if is_pose { w_bot } else { (w_bot - 2.0 * side_inset).max(0.0) };
+        let floor_w = if is_pose {
+            w_bot
+        } else {
+            (w_bot - 2.0 * side_inset).max(0.0)
+        };
         let floor_side_cut = if is_pose {
             0.0
         } else {
@@ -1603,7 +1796,11 @@ impl GeometryPayload {
         } else {
             floor_w + 2.0 * floor_side_cut
         };
-        let floor_d = if is_pose { p.d } else { (p.d - 2.0 * p.t).max(0.0) };
+        let floor_d = if is_pose {
+            p.d
+        } else {
+            (p.d - 2.0 * p.t).max(0.0)
+        };
         let side_d = (p.d - 2.0 * p.t).max(0.0);
 
         let wall_prism = ((w_top + w_bot) / 2.0) * wall_h * p.d;
@@ -1612,10 +1809,18 @@ impl GeometryPayload {
 
         let i_w = (p.w - 2.0 * p.t).max(0.0);
         let i_d = (p.d - 2.0 * p.t).max(0.0);
-        let i_wall_h = if is_pose { wall_h } else { (wall_h - p.t).max(0.0) };
+        let i_wall_h = if is_pose {
+            wall_h
+        } else {
+            (wall_h - p.t).max(0.0)
+        };
         let i_w_bot = i_w + 2.0 * p.taper_x;
         let i_wall_prism = ((i_w + i_w_bot) / 2.0) * i_wall_h * i_d;
-        let i_roof_h = if i_w > 0.0 { (i_w / 2.0) * ang.tan() } else { 0.0 };
+        let i_roof_h = if i_w > 0.0 {
+            (i_w / 2.0) * ang.tan()
+        } else {
+            0.0
+        };
         let i_gable = (i_w * i_d * i_roof_h * 0.5).max(0.0);
         let int_volume = (i_wall_prism + i_gable).max(0.0);
 
@@ -1708,8 +1913,7 @@ fn build_cuts(p: &NichoirParams, g: &GeometryPayload) -> Vec<BomLine> {
     let (roof_left_w, _) = poly_bounds(&roof_profile_points(p, g, true));
     let (roof_right_w, _) = poly_bounds(&roof_profile_points(p, g, false));
 
-    let base_cut = |
-name: &str, qty: u32, shape: &str, w: f64, h: f64, note: &str| BomLine {
+    let base_cut = |name: &str, qty: u32, shape: &str, w: f64, h: f64, note: &str| BomLine {
         name: name.to_string(),
         kind: shape.to_string(),
         qty,
@@ -1737,7 +1941,11 @@ name: &str, qty: u32, shape: &str, w: f64, h: f64, note: &str| BomLine {
         g.wall_h_real + g.roof_side_cut,
         &format!(
             "{}; {} {:.1}°, {} {}, {} {}",
-            if g.side_note.is_empty() { t(lang, "side_straight") } else { &g.side_note },
+            if g.side_note.is_empty() {
+                t(lang, "side_straight")
+            } else {
+                &g.side_note
+            },
             t(lang, "angle"),
             g.side_angle_deg,
             t(lang, "inset"),
@@ -1835,14 +2043,7 @@ name: &str, qty: u32, shape: &str, w: f64, h: f64, note: &str| BomLine {
         } else {
             t(lang, "larger_overlays_hole")
         };
-        cuts.push(base_cut(
-            t(lang, "door"),
-            1,
-            shape_name,
-            w,
-            h,
-            door_note,
-        ));
+        cuts.push(base_cut(t(lang, "door"), 1, shape_name, w, h, door_note));
     }
 
     if p.perch && !matches!(p.door, DoorMode::None) {
@@ -1877,7 +2078,11 @@ pub fn compute_summary(input: &str) -> String {
         Ok(p) => {
             let geom = GeometryPayload::from_p(&p);
             let cuts = build_cuts(&p, &geom);
-            let roof_height_display = format!("{:.3} {}", to_display(geom.roof_h, &p.unit), unit_def(&p.unit).label);
+            let roof_height_display = format!(
+                "{:.3} {}",
+                to_display(geom.roof_h, &p.unit),
+                unit_def(&p.unit).label
+            );
             let wall_thickness_display = format!(
                 "{:.3} {}",
                 to_display(p.t, &p.unit),
@@ -1887,7 +2092,18 @@ pub fn compute_summary(input: &str) -> String {
                 unit: p.unit.clone(),
                 geometry: geom.clone(),
                 cuts,
-                piece_count: 7 + if !matches!(p.door, DoorMode::None) && p.door_panel { 1 } else { 0 } + if p.perch && !matches!(p.door, DoorMode::None) { 1 } else { 0 } + if p.wall_mount { 1 } else { 0 },
+                piece_count: 7
+                    + if !matches!(p.door, DoorMode::None) && p.door_panel {
+                        1
+                    } else {
+                        0
+                    }
+                    + if p.perch && !matches!(p.door, DoorMode::None) {
+                        1
+                    } else {
+                        0
+                    }
+                    + if p.wall_mount { 1 } else { 0 },
                 unit_label: unit_def(&p.unit).label.to_string(),
                 unit_area_label: unit_area_label(&p.unit).to_string(),
                 unit_volume_label: unit_volume_label(&p.unit).to_string(),
@@ -1953,11 +2169,46 @@ fn build_layout_pieces(p: &NichoirParams, geom: &GeometryPayload) -> Vec<LayoutP
     let lang = p.lang.as_str();
     let ridge = effective_ridge(p);
     let base_defs = [
-        (piece_name(lang, "facade", Some("1")), "#d4a574", "pent", geom.w_bot.max(geom.w_top), geom.wall_h + geom.roof_h, 1),
-        (piece_name(lang, "facade", Some("2")), "#d4a574", "pent", geom.w_bot.max(geom.w_top), geom.wall_h + geom.roof_h, 1),
-        (piece_name(lang, "side", Some(t(lang, "left_short"))), "#c49464", "rect", geom.side_d, geom.wall_h_real + geom.roof_side_cut, 1),
-        (piece_name(lang, "side", Some(t(lang, "right_short"))), "#c49464", "rect", geom.side_d, geom.wall_h_real + geom.roof_side_cut, 1),
-        (piece_name(lang, "floor", None), "#b48454", "rect", geom.floor_w.max(geom.floor_top_w), geom.floor_d, 1),
+        (
+            piece_name(lang, "facade", Some("1")),
+            "#d4a574",
+            "pent",
+            geom.w_bot.max(geom.w_top),
+            geom.wall_h + geom.roof_h,
+            1,
+        ),
+        (
+            piece_name(lang, "facade", Some("2")),
+            "#d4a574",
+            "pent",
+            geom.w_bot.max(geom.w_top),
+            geom.wall_h + geom.roof_h,
+            1,
+        ),
+        (
+            piece_name(lang, "side", Some(t(lang, "left_short"))),
+            "#c49464",
+            "rect",
+            geom.side_d,
+            geom.wall_h_real + geom.roof_side_cut,
+            1,
+        ),
+        (
+            piece_name(lang, "side", Some(t(lang, "right_short"))),
+            "#c49464",
+            "rect",
+            geom.side_d,
+            geom.wall_h_real + geom.roof_side_cut,
+            1,
+        ),
+        (
+            piece_name(lang, "floor", None),
+            "#b48454",
+            "rect",
+            geom.floor_w.max(geom.floor_top_w),
+            geom.floor_d,
+            1,
+        ),
     ];
     let mut pieces: Vec<LayoutPiece> = base_defs
         .iter()
@@ -1972,10 +2223,26 @@ fn build_layout_pieces(p: &NichoirParams, geom: &GeometryPayload) -> Vec<LayoutP
             px: 0.0,
             py: 0.0,
             overflow: false,
-            wall_h: if *shape == "pent" { Some(geom.wall_h) } else { None },
-            roof_h: if *shape == "pent" { Some(geom.roof_h) } else { None },
-            w_top: if *shape == "pent" { Some(geom.w_top) } else { None },
-            w_bot: if *shape == "pent" { Some(geom.w_bot) } else { None },
+            wall_h: if *shape == "pent" {
+                Some(geom.wall_h)
+            } else {
+                None
+            },
+            roof_h: if *shape == "pent" {
+                Some(geom.roof_h)
+            } else {
+                None
+            },
+            w_top: if *shape == "pent" {
+                Some(geom.w_top)
+            } else {
+                None
+            },
+            w_bot: if *shape == "pent" {
+                Some(geom.w_bot)
+            } else {
+                None
+            },
         })
         .collect();
 
@@ -1988,8 +2255,16 @@ fn build_layout_pieces(p: &NichoirParams, geom: &GeometryPayload) -> Vec<LayoutP
         ]
     } else {
         vec![
-            (piece_name(lang, "roof", Some(t(lang, "left_short"))), roof_w_left, geom.roof_len),
-            (piece_name(lang, "roof", Some(t(lang, "right_short"))), roof_w_right, geom.roof_len),
+            (
+                piece_name(lang, "roof", Some(t(lang, "left_short"))),
+                roof_w_left,
+                geom.roof_len,
+            ),
+            (
+                piece_name(lang, "roof", Some(t(lang, "right_short"))),
+                roof_w_right,
+                geom.roof_len,
+            ),
         ]
     };
     for (name, w, h) in roof_defs {
@@ -2052,7 +2327,12 @@ fn build_layout_pieces(p: &NichoirParams, geom: &GeometryPayload) -> Vec<LayoutP
     pieces
 }
 
-fn pack_layout(mut sorted: Vec<LayoutPiece>, panel_w: f64, panel_h: f64, gap: f64) -> (Vec<LayoutPiece>, f64, f64) {
+fn pack_layout(
+    mut sorted: Vec<LayoutPiece>,
+    panel_w: f64,
+    panel_h: f64,
+    gap: f64,
+) -> (Vec<LayoutPiece>, f64, f64) {
     sorted.sort_by(|a, b| b.h.partial_cmp(&a.h).unwrap_or(std::cmp::Ordering::Equal));
     let mut shelf_y = gap;
     let mut shelf_h: f64 = 0.0;
@@ -2161,12 +2441,27 @@ pub fn compute_cut_layout(input: &str) -> String {
             }
         }
         best.unwrap_or_else(|| {
-            let (candidate, placed, use_ratio) = pack_layout(pieces.clone(), p.panel_w, p.panel_h, gap);
-            (t(p.lang.as_str(), "selected_panel_fallback").to_string(), p.panel_w, p.panel_h, candidate, placed, use_ratio)
+            let (candidate, placed, use_ratio) =
+                pack_layout(pieces.clone(), p.panel_w, p.panel_h, gap);
+            (
+                t(p.lang.as_str(), "selected_panel_fallback").to_string(),
+                p.panel_w,
+                p.panel_h,
+                candidate,
+                placed,
+                use_ratio,
+            )
         })
     } else {
         let (candidate, placed, use_ratio) = pack_layout(pieces, p.panel_w, p.panel_h, gap);
-        (t(p.lang.as_str(), "custom_manual").to_string(), p.panel_w, p.panel_h, candidate, placed, use_ratio)
+        (
+            t(p.lang.as_str(), "custom_manual").to_string(),
+            p.panel_w,
+            p.panel_h,
+            candidate,
+            placed,
+            use_ratio,
+        )
     };
 
     let payload = CutLayoutPayload {
@@ -2251,12 +2546,7 @@ fn tri(a: Vec3, b: Vec3, c: Vec3) -> Tri {
     let ab = sub(b, a);
     let ac = sub(c, a);
     let normal = normalize(cross(ab, ac));
-    Tri {
-        normal,
-        a,
-        b,
-        c,
-    }
+    Tri { normal, a, b, c }
 }
 
 fn quad(mesh: &mut Vec<Tri>, a: Vec3, b: Vec3, c: Vec3, d: Vec3) {
@@ -2321,14 +2611,93 @@ fn point_in_poly_2d(x: f64, y: f64, poly: &[(f64, f64)]) -> bool {
     for i in 0..poly.len() {
         let (xi, yi) = poly[i];
         let (xj, yj) = poly[j];
+        let denom = yj - yi;
         let intersects = ((yi > y) != (yj > y))
-            && (x < (xj - xi) * (y - yi) / ((yj - yi).abs().max(0.000001)) + xi);
+            && denom.abs() > 0.000001
+            && (x < (xj - xi) * (y - yi) / denom + xi);
         if intersects {
             inside = !inside;
         }
         j = i;
     }
     inside
+}
+
+fn orient_2d(a: (f64, f64), b: (f64, f64), c: (f64, f64)) -> f64 {
+    (b.0 - a.0) * (c.1 - a.1) - (b.1 - a.1) * (c.0 - a.0)
+}
+
+fn point_on_segment_2d(p: (f64, f64), a: (f64, f64), b: (f64, f64)) -> bool {
+    const EPS: f64 = 1e-7;
+    orient_2d(a, b, p).abs() <= EPS
+        && p.0 >= a.0.min(b.0) - EPS
+        && p.0 <= a.0.max(b.0) + EPS
+        && p.1 >= a.1.min(b.1) - EPS
+        && p.1 <= a.1.max(b.1) + EPS
+}
+
+fn point_on_poly_boundary_2d(p: (f64, f64), poly: &[(f64, f64)]) -> bool {
+    if poly.len() < 2 {
+        return false;
+    }
+    (0..poly.len()).any(|i| point_on_segment_2d(p, poly[i], poly[(i + 1) % poly.len()]))
+}
+
+fn segments_intersect_2d(a0: (f64, f64), a1: (f64, f64), b0: (f64, f64), b1: (f64, f64)) -> bool {
+    let o1 = orient_2d(a0, a1, b0);
+    let o2 = orient_2d(a0, a1, b1);
+    let o3 = orient_2d(b0, b1, a0);
+    let o4 = orient_2d(b0, b1, a1);
+
+    if (o1 > 0.0) != (o2 > 0.0) && (o3 > 0.0) != (o4 > 0.0) {
+        return true;
+    }
+
+    point_on_segment_2d(b0, a0, a1)
+        || point_on_segment_2d(b1, a0, a1)
+        || point_on_segment_2d(a0, b0, b1)
+        || point_on_segment_2d(a1, b0, b1)
+}
+
+fn point_in_triangle_2d(p: (f64, f64), tri: &[(f64, f64); 3]) -> bool {
+    const EPS: f64 = 1e-7;
+    let d0 = orient_2d(tri[0], tri[1], p);
+    let d1 = orient_2d(tri[1], tri[2], p);
+    let d2 = orient_2d(tri[2], tri[0], p);
+    let has_neg = d0 < -EPS || d1 < -EPS || d2 < -EPS;
+    let has_pos = d0 > EPS || d1 > EPS || d2 > EPS;
+    !(has_neg && has_pos)
+}
+
+fn triangle_intersects_poly_2d(tri: &[(f64, f64); 3], poly: &[(f64, f64)]) -> bool {
+    if poly.len() < 3 {
+        return false;
+    }
+
+    if tri
+        .iter()
+        .any(|pt| point_in_poly_2d(pt.0, pt.1, poly) || point_on_poly_boundary_2d(*pt, poly))
+    {
+        return true;
+    }
+
+    if poly.iter().any(|pt| point_in_triangle_2d(*pt, tri)) {
+        return true;
+    }
+
+    for i in 0..3 {
+        let a0 = tri[i];
+        let a1 = tri[(i + 1) % 3];
+        for j in 0..poly.len() {
+            let b0 = poly[j];
+            let b1 = poly[(j + 1) % poly.len()];
+            if segments_intersect_2d(a0, a1, b0, b1) {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 fn deco_attr(tag: &str, name: &str) -> Option<String> {
@@ -2391,11 +2760,7 @@ fn deco_circle(tag: &str, ellipse: bool) -> Option<Vec<(f64, f64)>> {
     } else {
         deco_num(tag, "r")?
     };
-    let ry = if ellipse {
-        deco_num(tag, "ry")?
-    } else {
-        rx
-    };
+    let ry = if ellipse { deco_num(tag, "ry")? } else { rx };
     if rx <= 0.0 || ry <= 0.0 {
         return None;
     }
@@ -2453,7 +2818,13 @@ fn parse_svg_path_subset(raw: &str) -> Vec<(f64, f64)> {
     let mut last_quad: Option<(f64, f64)> = None;
 
     while i < tokens.len() {
-        if tokens[i].len() == 1 && tokens[i].chars().next().unwrap_or(' ').is_ascii_alphabetic() {
+        if tokens[i].len() == 1
+            && tokens[i]
+                .chars()
+                .next()
+                .unwrap_or(' ')
+                .is_ascii_alphabetic()
+        {
             cmd = tokens[i].chars().next().unwrap_or(cmd);
             i += 1;
             if cmd == 'Z' || cmd == 'z' {
@@ -2510,7 +2881,14 @@ fn parse_svg_path_subset(raw: &str) -> Vec<(f64, f64)> {
                     vals[k] = tokens[i + k].parse::<f64>().unwrap_or(0.0);
                 }
                 let (x1, y1, x2, y2, x3, y3) = if cmd == 'c' {
-                    (x + vals[0], y + vals[1], x + vals[2], y + vals[3], x + vals[4], y + vals[5])
+                    (
+                        x + vals[0],
+                        y + vals[1],
+                        x + vals[2],
+                        y + vals[3],
+                        x + vals[4],
+                        y + vals[5],
+                    )
                 } else {
                     (vals[0], vals[1], vals[2], vals[3], vals[4], vals[5])
                 };
@@ -2518,8 +2896,14 @@ fn parse_svg_path_subset(raw: &str) -> Vec<(f64, f64)> {
                 for sidx in 1..=16 {
                     let t = sidx as f64 / 16.0;
                     let mt = 1.0 - t;
-                    let px = mt.powi(3) * x0 + 3.0 * mt.powi(2) * t * x1 + 3.0 * mt * t.powi(2) * x2 + t.powi(3) * x3;
-                    let py = mt.powi(3) * y0 + 3.0 * mt.powi(2) * t * y1 + 3.0 * mt * t.powi(2) * y2 + t.powi(3) * y3;
+                    let px = mt.powi(3) * x0
+                        + 3.0 * mt.powi(2) * t * x1
+                        + 3.0 * mt * t.powi(2) * x2
+                        + t.powi(3) * x3;
+                    let py = mt.powi(3) * y0
+                        + 3.0 * mt.powi(2) * t * y1
+                        + 3.0 * mt * t.powi(2) * y2
+                        + t.powi(3) * y3;
                     pts.push((px, py));
                 }
                 x = x3;
@@ -2532,7 +2916,9 @@ fn parse_svg_path_subset(raw: &str) -> Vec<(f64, f64)> {
                 if i + 3 >= tokens.len() {
                     break;
                 }
-                let (x1, y1) = last_cubic.map(|(cx, cy)| (2.0 * x - cx, 2.0 * y - cy)).unwrap_or((x, y));
+                let (x1, y1) = last_cubic
+                    .map(|(cx, cy)| (2.0 * x - cx, 2.0 * y - cy))
+                    .unwrap_or((x, y));
                 let mut vals = [0.0; 4];
                 for k in 0..4 {
                     vals[k] = tokens[i + k].parse::<f64>().unwrap_or(0.0);
@@ -2546,8 +2932,14 @@ fn parse_svg_path_subset(raw: &str) -> Vec<(f64, f64)> {
                 for sidx in 1..=16 {
                     let t = sidx as f64 / 16.0;
                     let mt = 1.0 - t;
-                    let px = mt.powi(3) * x0 + 3.0 * mt.powi(2) * t * x1 + 3.0 * mt * t.powi(2) * x2 + t.powi(3) * x3;
-                    let py = mt.powi(3) * y0 + 3.0 * mt.powi(2) * t * y1 + 3.0 * mt * t.powi(2) * y2 + t.powi(3) * y3;
+                    let px = mt.powi(3) * x0
+                        + 3.0 * mt.powi(2) * t * x1
+                        + 3.0 * mt * t.powi(2) * x2
+                        + t.powi(3) * x3;
+                    let py = mt.powi(3) * y0
+                        + 3.0 * mt.powi(2) * t * y1
+                        + 3.0 * mt * t.powi(2) * y2
+                        + t.powi(3) * y3;
                     pts.push((px, py));
                 }
                 x = x3;
@@ -2587,10 +2979,16 @@ fn parse_svg_path_subset(raw: &str) -> Vec<(f64, f64)> {
                 if i + 1 >= tokens.len() {
                     break;
                 }
-                let (x1, y1) = last_quad.map(|(qx, qy)| (2.0 * x - qx, 2.0 * y - qy)).unwrap_or((x, y));
+                let (x1, y1) = last_quad
+                    .map(|(qx, qy)| (2.0 * x - qx, 2.0 * y - qy))
+                    .unwrap_or((x, y));
                 let nx = tokens[i].parse::<f64>().unwrap_or(x);
                 let ny = tokens[i + 1].parse::<f64>().unwrap_or(y);
-                let (x2, y2) = if cmd == 't' { (x + nx, y + ny) } else { (nx, ny) };
+                let (x2, y2) = if cmd == 't' {
+                    (x + nx, y + ny)
+                } else {
+                    (nx, ny)
+                };
                 let (x0, y0) = (x, y);
                 for sidx in 1..=14 {
                     let t = sidx as f64 / 14.0;
@@ -2775,7 +3173,10 @@ fn decode_deco_luma(d: &DecorSettings) -> Option<(usize, usize, Vec<f64>)> {
     if w < 2 || h < 2 {
         return None;
     }
-    if w > MAX_DECO_IMAGE_SIDE || h > MAX_DECO_IMAGE_SIDE || u64::from(w) * u64::from(h) > MAX_DECO_IMAGE_PIXELS {
+    if w > MAX_DECO_IMAGE_SIDE
+        || h > MAX_DECO_IMAGE_SIDE
+        || u64::from(w) * u64::from(h) > MAX_DECO_IMAGE_PIXELS
+    {
         return None;
     }
     let img = decoded.to_rgba8();
@@ -2796,6 +3197,250 @@ fn decode_deco_luma(d: &DecorSettings) -> Option<(usize, usize, Vec<f64>)> {
         values.push(value.clamp(0.0, 1.0));
     }
     Some((w as usize, h as usize, values))
+}
+
+fn read_le_f32(bytes: &[u8], offset: usize) -> Option<f32> {
+    let raw: [u8; 4] = bytes.get(offset..offset + 4)?.try_into().ok()?;
+    Some(f32::from_le_bytes(raw))
+}
+
+fn parse_binary_stl(bytes: &[u8]) -> Option<Vec<Tri>> {
+    if bytes.len() < 84 {
+        return None;
+    }
+    let count_raw: [u8; 4] = bytes.get(80..84)?.try_into().ok()?;
+    let count = u32::from_le_bytes(count_raw) as usize;
+    if count == 0 || count > MAX_IMPORTED_STL_TRIANGLES {
+        return None;
+    }
+    let expected = 84usize.checked_add(count.checked_mul(50)?)?;
+    if expected > bytes.len() {
+        return None;
+    }
+
+    let mut tris = Vec::with_capacity(count);
+    for i in 0..count {
+        let start = 84 + i * 50;
+        let a = Vec3 {
+            x: read_le_f32(bytes, start + 12)?,
+            y: read_le_f32(bytes, start + 16)?,
+            z: read_le_f32(bytes, start + 20)?,
+        };
+        let b = Vec3 {
+            x: read_le_f32(bytes, start + 24)?,
+            y: read_le_f32(bytes, start + 28)?,
+            z: read_le_f32(bytes, start + 32)?,
+        };
+        let c = Vec3 {
+            x: read_le_f32(bytes, start + 36)?,
+            y: read_le_f32(bytes, start + 40)?,
+            z: read_le_f32(bytes, start + 44)?,
+        };
+        tris.push(tri(a, b, c));
+    }
+    Some(clean_tris(tris))
+}
+
+fn parse_ascii_stl(bytes: &[u8]) -> Vec<Tri> {
+    let text = String::from_utf8_lossy(bytes);
+    let mut verts = Vec::<Vec3>::new();
+    let mut tris = Vec::<Tri>::new();
+
+    for line in text.lines() {
+        let mut parts = line.split_whitespace();
+        if !matches!(parts.next(), Some(token) if token.eq_ignore_ascii_case("vertex")) {
+            continue;
+        }
+        let Some(x) = parts.next().and_then(|v| v.parse::<f32>().ok()) else {
+            continue;
+        };
+        let Some(y) = parts.next().and_then(|v| v.parse::<f32>().ok()) else {
+            continue;
+        };
+        let Some(z) = parts.next().and_then(|v| v.parse::<f32>().ok()) else {
+            continue;
+        };
+        verts.push(Vec3 { x, y, z });
+        if verts.len() == 3 {
+            tris.push(tri(verts[0], verts[1], verts[2]));
+            verts.clear();
+            if tris.len() >= MAX_IMPORTED_STL_TRIANGLES {
+                break;
+            }
+        }
+    }
+
+    clean_tris(tris)
+}
+
+fn decode_imported_stl(d: &DecorSettings) -> Vec<Tri> {
+    if d.source_type != "stl" || d.source_data.trim().is_empty() {
+        return Vec::new();
+    }
+    let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(d.source_data.trim()) else {
+        return Vec::new();
+    };
+    if let Some(tris) = parse_binary_stl(&bytes) {
+        return tris;
+    }
+    parse_ascii_stl(&bytes)
+}
+
+fn stl_bounds(tris: &[Tri]) -> Option<(Vec3, Vec3)> {
+    if tris.is_empty() {
+        return None;
+    }
+    let mut min = Vec3 {
+        x: f32::INFINITY,
+        y: f32::INFINITY,
+        z: f32::INFINITY,
+    };
+    let mut max = Vec3 {
+        x: f32::NEG_INFINITY,
+        y: f32::NEG_INFINITY,
+        z: f32::NEG_INFINITY,
+    };
+    for t in tris {
+        for v in [t.a, t.b, t.c] {
+            min.x = min.x.min(v.x);
+            min.y = min.y.min(v.y);
+            min.z = min.z.min(v.z);
+            max.x = max.x.max(v.x);
+            max.y = max.y.max(v.y);
+            max.z = max.z.max(v.z);
+        }
+    }
+    if [min.x, min.y, min.z, max.x, max.y, max.z]
+        .into_iter()
+        .all(|v| v.is_finite())
+    {
+        Some((min, max))
+    } else {
+        None
+    }
+}
+
+fn vec3_axis(v: Vec3, axis: usize) -> f64 {
+    match axis {
+        0 => v.x as f64,
+        1 => v.y as f64,
+        _ => v.z as f64,
+    }
+}
+
+fn imported_stl_axes(min: Vec3, max: Vec3) -> (usize, usize, usize) {
+    let dims = [
+        (max.x - min.x).abs() as f64,
+        (max.y - min.y).abs() as f64,
+        (max.z - min.z).abs() as f64,
+    ];
+    let mut depth_axis = 2usize;
+    for axis in 0..3 {
+        if dims[axis] < dims[depth_axis] {
+            depth_axis = axis;
+        }
+    }
+    let mut panel_axes = Vec::with_capacity(2);
+    for axis in 0..3 {
+        if axis != depth_axis {
+            panel_axes.push(axis);
+        }
+    }
+    (panel_axes[0], panel_axes[1], depth_axis)
+}
+
+#[derive(Default)]
+struct ImportedStlBuildStats {
+    kept: usize,
+    clipped_by_panel: usize,
+    clipped_by_hole: usize,
+}
+
+fn add_imported_stl_basis(
+    mesh: &mut Vec<Tri>,
+    d: &DecorSettings,
+    origin: Vec3,
+    u_axis: Vec3,
+    v_axis: Vec3,
+    n_axis: Vec3,
+    clip_poly: Option<&[(f64, f64)]>,
+    clip_holes: Option<&[Vec<(f64, f64)>]>,
+) -> ImportedStlBuildStats {
+    let mut stats = ImportedStlBuildStats::default();
+    let source = decode_imported_stl(d);
+    let Some((min, max)) = stl_bounds(&source) else {
+        return stats;
+    };
+
+    let bounds_min = [min.x as f64, min.y as f64, min.z as f64];
+    let bounds_max = [max.x as f64, max.y as f64, max.z as f64];
+    let (u_src_axis, v_src_axis, depth_src_axis) = imported_stl_axes(min, max);
+    let bw = (bounds_max[u_src_axis] - bounds_min[u_src_axis])
+        .abs()
+        .max(0.001);
+    let bh = (bounds_max[v_src_axis] - bounds_min[v_src_axis])
+        .abs()
+        .max(0.001);
+    let bd = (bounds_max[depth_src_axis] - bounds_min[depth_src_axis]).abs();
+    let cx = (bounds_min[u_src_axis] + bounds_max[u_src_axis]) * 0.5;
+    let cy = (bounds_min[v_src_axis] + bounds_max[v_src_axis]) * 0.5;
+    let sx = d.w.max(1.0) / bw;
+    let sy = d.h.max(1.0) / bh;
+    let sz = if bd > 0.001 {
+        d.depth.max(0.1) / bd
+    } else {
+        1.0
+    };
+    let rot = d.rotation * PI / 180.0;
+    let c = rot.cos();
+    let s = rot.sin();
+
+    let map_vertex = |src: Vec3| -> (Vec3, f64, f64) {
+        let local_x = (vec3_axis(src, u_src_axis) - cx) * sx;
+        let local_y = (vec3_axis(src, v_src_axis) - cy) * sy;
+        let rx = local_x * c - local_y * s;
+        let ry = local_x * s + local_y * c;
+        let local_z = if bd > 0.001 {
+            (vec3_axis(src, depth_src_axis) - bounds_min[depth_src_axis]) * sz
+        } else {
+            0.0
+        };
+        (
+            map_basis(origin, u_axis, v_axis, n_axis, rx, ry, local_z),
+            rx,
+            ry,
+        )
+    };
+
+    for src in source {
+        let (a, ax, ay) = map_vertex(src.a);
+        let (b, bx, by) = map_vertex(src.b);
+        let (cpt, cxp, cyp) = map_vertex(src.c);
+        let mx = (ax + bx + cxp) / 3.0;
+        let my = (ay + by + cyp) / 3.0;
+        let tri2 = [(ax, ay), (bx, by), (cxp, cyp)];
+        let inside = clip_poly
+            .map(|poly| point_in_poly_2d(mx, my, poly))
+            .unwrap_or(true);
+        let in_hole = clip_holes
+            .map(|holes| {
+                holes
+                    .iter()
+                    .any(|hole| triangle_intersects_poly_2d(&tri2, hole))
+            })
+            .unwrap_or(false);
+        if !inside {
+            stats.clipped_by_panel += 1;
+            continue;
+        }
+        if in_hole {
+            stats.clipped_by_hole += 1;
+            continue;
+        }
+        mesh.push(tri(a, b, cpt));
+        stats.kept += 1;
+    }
+    stats
 }
 
 fn sample_luma(src_w: usize, src_h: usize, values: &[f64], u: f64, v: f64) -> f64 {
@@ -2842,7 +3487,11 @@ fn shape_height_value(raw: f64, d: &DecorSettings) -> f64 {
     let mut v = raw.clamp(0.0, 1.0);
     let threshold = (d.threshold / 100.0).clamp(0.0, 0.95);
     if threshold > 0.0 {
-        v = if v <= threshold { 0.0 } else { (v - threshold) / (1.0 - threshold) };
+        v = if v <= threshold {
+            0.0
+        } else {
+            (v - threshold) / (1.0 - threshold)
+        };
     }
     let bevel = (d.bevel / 100.0).clamp(0.0, 1.0);
     if bevel > 0.0 {
@@ -2892,7 +3541,11 @@ fn add_heightmap_basis(
                 .map(|poly| point_in_poly_2d(local_x, local_y, poly))
                 .unwrap_or(true);
             let in_hole = clip_holes
-                .map(|holes| holes.iter().any(|hole| point_in_poly_2d(local_x, local_y, hole)))
+                .map(|holes| {
+                    holes
+                        .iter()
+                        .any(|hole| point_in_poly_2d(local_x, local_y, hole))
+                })
                 .unwrap_or(false);
             let mut lum = sample_luma(src_w, src_h, &values, fx, fy);
             if d.invert {
@@ -2900,9 +3553,13 @@ fn add_heightmap_basis(
             }
             lum = shape_height_value(lum, d);
             let z = if inside && !in_hole { lum * depth } else { 0.0 };
-            base_verts.push(map_basis(origin, u_axis, v_axis, n_axis, local_x, local_y, 0.0));
-            verts.push(map_basis(origin, u_axis, v_axis, n_axis, local_x, local_y, z));
-            mask.push(inside && !in_hole);
+            base_verts.push(map_basis(
+                origin, u_axis, v_axis, n_axis, local_x, local_y, 0.0,
+            ));
+            verts.push(map_basis(
+                origin, u_axis, v_axis, n_axis, local_x, local_y, z,
+            ));
+            mask.push(inside && !in_hole && z > 0.001);
         }
     }
 
@@ -3021,14 +3678,46 @@ fn add_floor_panel(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload) 
     let zf = (g.floor_d as f32) / 2.0;
     let zb = -zf;
 
-    let b0 = Vec3 { x: -bw, y: y0, z: zf };
-    let b1 = Vec3 { x: bw, y: y0, z: zf };
-    let b2 = Vec3 { x: bw, y: y0, z: zb };
-    let b3 = Vec3 { x: -bw, y: y0, z: zb };
-    let t0 = Vec3 { x: -tw, y: y1, z: zf };
-    let t1 = Vec3 { x: tw, y: y1, z: zf };
-    let t2 = Vec3 { x: tw, y: y1, z: zb };
-    let t3 = Vec3 { x: -tw, y: y1, z: zb };
+    let b0 = Vec3 {
+        x: -bw,
+        y: y0,
+        z: zf,
+    };
+    let b1 = Vec3 {
+        x: bw,
+        y: y0,
+        z: zf,
+    };
+    let b2 = Vec3 {
+        x: bw,
+        y: y0,
+        z: zb,
+    };
+    let b3 = Vec3 {
+        x: -bw,
+        y: y0,
+        z: zb,
+    };
+    let t0 = Vec3 {
+        x: -tw,
+        y: y1,
+        z: zf,
+    };
+    let t1 = Vec3 {
+        x: tw,
+        y: y1,
+        z: zf,
+    };
+    let t2 = Vec3 {
+        x: tw,
+        y: y1,
+        z: zb,
+    };
+    let t3 = Vec3 {
+        x: -tw,
+        y: y1,
+        z: zb,
+    };
 
     quad(mesh, b3, b2, b1, b0);
     quad(mesh, t0, t1, t2, t3);
@@ -3044,12 +3733,28 @@ fn floor_panel_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
     clean_tris(tris)
 }
 
-fn add_cylinder_z(mesh: &mut Vec<Tri>, cx: f64, cy: f64, z0: f64, radius: f64, len: f64, segments: usize) {
+fn add_cylinder_z(
+    mesh: &mut Vec<Tri>,
+    cx: f64,
+    cy: f64,
+    z0: f64,
+    radius: f64,
+    len: f64,
+    segments: usize,
+) {
     let segs = segments.max(12);
     let r = radius.max(0.25);
     let z1 = z0 + len.max(0.5);
-    let c0 = Vec3 { x: cx as f32, y: cy as f32, z: z0 as f32 };
-    let c1 = Vec3 { x: cx as f32, y: cy as f32, z: z1 as f32 };
+    let c0 = Vec3 {
+        x: cx as f32,
+        y: cy as f32,
+        z: z0 as f32,
+    };
+    let c1 = Vec3 {
+        x: cx as f32,
+        y: cy as f32,
+        z: z1 as f32,
+    };
     for i in 0..segs {
         let a0 = (i as f64 / segs as f64) * PI * 2.0;
         let a1 = ((i + 1) as f64 / segs as f64) * PI * 2.0;
@@ -3080,7 +3785,13 @@ fn add_side_panel_with_cuts(mesh: &mut Vec<Tri>, inner: [Vec3; 4], outer: [Vec3;
     quad(mesh, inner[1], outer[1], outer[2], inner[2]);
 }
 
-fn add_one_side_wall(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload, base_y: f64, left: bool) {
+fn add_one_side_wall(
+    mesh: &mut Vec<Tri>,
+    p: &NichoirParams,
+    g: &GeometryPayload,
+    base_y: f64,
+    left: bool,
+) {
     let alpha = (p.taper_x / g.wall_h.max(0.001)).atan();
     let inset = p.t / alpha.cos().max(0.001);
     let roof_extra = inset * (p.slope * PI / 180.0).tan();
@@ -3099,16 +3810,48 @@ fn add_one_side_wall(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload
         add_side_panel_with_cuts(
             mesh,
             [
-                Vec3 { x: inner_bottom, y: y0, z: zf },
-                Vec3 { x: inner_bottom, y: y0, z: zb },
-                Vec3 { x: inner_top, y: y1_inner, z: zb },
-                Vec3 { x: inner_top, y: y1_inner, z: zf },
+                Vec3 {
+                    x: inner_bottom,
+                    y: y0,
+                    z: zf,
+                },
+                Vec3 {
+                    x: inner_bottom,
+                    y: y0,
+                    z: zb,
+                },
+                Vec3 {
+                    x: inner_top,
+                    y: y1_inner,
+                    z: zb,
+                },
+                Vec3 {
+                    x: inner_top,
+                    y: y1_inner,
+                    z: zf,
+                },
             ],
             [
-                Vec3 { x: outer_bottom, y: y0, z: zf },
-                Vec3 { x: outer_bottom, y: y0, z: zb },
-                Vec3 { x: outer_top, y: y1_outer, z: zb },
-                Vec3 { x: outer_top, y: y1_outer, z: zf },
+                Vec3 {
+                    x: outer_bottom,
+                    y: y0,
+                    z: zf,
+                },
+                Vec3 {
+                    x: outer_bottom,
+                    y: y0,
+                    z: zb,
+                },
+                Vec3 {
+                    x: outer_top,
+                    y: y1_outer,
+                    z: zb,
+                },
+                Vec3 {
+                    x: outer_top,
+                    y: y1_outer,
+                    z: zf,
+                },
             ],
         );
     } else {
@@ -3119,16 +3862,48 @@ fn add_one_side_wall(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload
         add_side_panel_with_cuts(
             mesh,
             [
-                Vec3 { x: inner_bottom, y: y0, z: zb },
-                Vec3 { x: inner_bottom, y: y0, z: zf },
-                Vec3 { x: inner_top, y: y1_inner, z: zf },
-                Vec3 { x: inner_top, y: y1_inner, z: zb },
+                Vec3 {
+                    x: inner_bottom,
+                    y: y0,
+                    z: zb,
+                },
+                Vec3 {
+                    x: inner_bottom,
+                    y: y0,
+                    z: zf,
+                },
+                Vec3 {
+                    x: inner_top,
+                    y: y1_inner,
+                    z: zf,
+                },
+                Vec3 {
+                    x: inner_top,
+                    y: y1_inner,
+                    z: zb,
+                },
             ],
             [
-                Vec3 { x: outer_bottom, y: y0, z: zb },
-                Vec3 { x: outer_bottom, y: y0, z: zf },
-                Vec3 { x: outer_top, y: y1_outer, z: zf },
-                Vec3 { x: outer_top, y: y1_outer, z: zb },
+                Vec3 {
+                    x: outer_bottom,
+                    y: y0,
+                    z: zb,
+                },
+                Vec3 {
+                    x: outer_bottom,
+                    y: y0,
+                    z: zf,
+                },
+                Vec3 {
+                    x: outer_top,
+                    y: y1_outer,
+                    z: zf,
+                },
+                Vec3 {
+                    x: outer_top,
+                    y: y1_outer,
+                    z: zb,
+                },
             ],
         );
     }
@@ -3140,13 +3915,25 @@ fn add_side_walls(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload, b
 }
 
 fn side_panel_tris(p: &NichoirParams, g: &GeometryPayload, left: bool) -> Vec<Tri> {
-    let base_y = if matches!(p.floor, FloorMode::Pose) { p.t } else { 0.0 };
+    let base_y = if matches!(p.floor, FloorMode::Pose) {
+        p.t
+    } else {
+        0.0
+    };
     let mut tris = Vec::<Tri>::new();
     add_one_side_wall(&mut tris, p, g, base_y, left);
     clean_tris(tris)
 }
 
-fn add_extruded_polygon_z(mesh: &mut Vec<Tri>, points: &[(f64, f64)], depth: f64, tx: f64, ty: f64, tz: f64, rz: f64) {
+fn add_extruded_polygon_z(
+    mesh: &mut Vec<Tri>,
+    points: &[(f64, f64)],
+    depth: f64,
+    tx: f64,
+    ty: f64,
+    tz: f64,
+    rz: f64,
+) {
     add_extruded_polygon_z_skip_edges(mesh, points, depth, tx, ty, tz, rz, &[]);
 }
 
@@ -3166,11 +3953,35 @@ fn add_extruded_polygon_z_skip_edges(
     let dz = depth.max(0.5);
     let bottom: Vec<Vec3> = points
         .iter()
-        .map(|(x, y)| transform_point(Vec3 { x: *x as f32, y: *y as f32, z: 0.0 }, tx, ty, tz, rz))
+        .map(|(x, y)| {
+            transform_point(
+                Vec3 {
+                    x: *x as f32,
+                    y: *y as f32,
+                    z: 0.0,
+                },
+                tx,
+                ty,
+                tz,
+                rz,
+            )
+        })
         .collect();
     let top: Vec<Vec3> = points
         .iter()
-        .map(|(x, y)| transform_point(Vec3 { x: *x as f32, y: *y as f32, z: dz as f32 }, tx, ty, tz, rz))
+        .map(|(x, y)| {
+            transform_point(
+                Vec3 {
+                    x: *x as f32,
+                    y: *y as f32,
+                    z: dz as f32,
+                },
+                tx,
+                ty,
+                tz,
+                rz,
+            )
+        })
         .collect();
 
     for i in 1..points.len() - 1 {
@@ -3196,7 +4007,15 @@ fn polygon_area(points: &[(f64, f64)]) -> f64 {
     area * 0.5
 }
 
-fn add_extruded_poly_if_valid(mesh: &mut Vec<Tri>, points: &[(f64, f64)], depth: f64, tx: f64, ty: f64, tz: f64, skip_edges: &[usize]) {
+fn add_extruded_poly_if_valid(
+    mesh: &mut Vec<Tri>,
+    points: &[(f64, f64)],
+    depth: f64,
+    tx: f64,
+    ty: f64,
+    tz: f64,
+    skip_edges: &[usize],
+) {
     if points.len() >= 3 && polygon_area(points).abs() > 0.01 {
         add_extruded_polygon_z_skip_edges(mesh, points, depth, tx, ty, tz, 0.0, skip_edges);
     }
@@ -3253,7 +4072,19 @@ fn add_extruded_shape_with_holes_z(
     };
 
     let dz = depth.max(0.5);
-    let v = |x: f64, y: f64, z: f64| transform_point(Vec3 { x: x as f32, y: y as f32, z: z as f32 }, tx, ty, tz, 0.0);
+    let v = |x: f64, y: f64, z: f64| {
+        transform_point(
+            Vec3 {
+                x: x as f32,
+                y: y as f32,
+                z: z as f32,
+            },
+            tx,
+            ty,
+            tz,
+            0.0,
+        )
+    };
 
     let bottom: Vec<Vec3> = points.iter().map(|(x, y)| v(*x, *y, 0.0)).collect();
     let top: Vec<Vec3> = points.iter().map(|(x, y)| v(*x, *y, dz)).collect();
@@ -3299,7 +4130,8 @@ fn point_in_poly(x: f64, y: f64, poly: &[(f64, f64)]) -> bool {
     for i in 0..poly.len() {
         let (xi, yi) = poly[i];
         let (xj, yj) = poly[j];
-        if ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / ((yj - yi).abs().max(1e-9)) + xi) {
+        let denom = yj - yi;
+        if ((yi > y) != (yj > y)) && denom.abs() > 1e-9 && (x < (xj - xi) * (y - yi) / denom + xi) {
             inside = !inside;
         }
         j = i;
@@ -3363,7 +4195,9 @@ fn facade_holes(p: &NichoirParams, g: &GeometryPayload) -> Vec<Vec<(f64, f64)>> 
     if !matches!(p.door, DoorMode::None) {
         let (cx, cy) = door_center(p, g);
         let door = match p.door {
-            DoorMode::Round => ellipse_points(cx, cy, p.door_w.max(0.5) / 2.0, p.door_h.max(0.5) / 2.0, 64),
+            DoorMode::Round => {
+                ellipse_points(cx, cy, p.door_w.max(0.5) / 2.0, p.door_h.max(0.5) / 2.0, 64)
+            }
             DoorMode::Square | DoorMode::Pentagon => door_hole_points(p, g),
             DoorMode::None => Vec::new(),
         };
@@ -3510,7 +4344,15 @@ fn wall_right_x(g: &GeometryPayload, y: f64) -> f64 {
     g.w_bot / 2.0 - (g.w_bot - g.w_top) * 0.5 * (y / g.wall_h.max(0.001))
 }
 
-fn add_facade_with_polygon_door(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload, depth: f64, tx: f64, ty: f64, tz: f64) {
+fn add_facade_with_polygon_door(
+    mesh: &mut Vec<Tri>,
+    p: &NichoirParams,
+    g: &GeometryPayload,
+    depth: f64,
+    tx: f64,
+    ty: f64,
+    tz: f64,
+) {
     let gable_poly = vec![
         (-g.w_top / 2.0, g.wall_h),
         (g.w_top / 2.0, g.wall_h),
@@ -3595,12 +4437,31 @@ fn add_facade_with_polygon_door(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &Geom
     }
 }
 
-fn add_hole_wall_z(mesh: &mut Vec<Tri>, points: &[(f64, f64)], depth: f64, tx: f64, ty: f64, tz: f64) {
+fn add_hole_wall_z(
+    mesh: &mut Vec<Tri>,
+    points: &[(f64, f64)],
+    depth: f64,
+    tx: f64,
+    ty: f64,
+    tz: f64,
+) {
     if points.len() < 3 {
         return;
     }
     let dz = depth.max(0.5);
-    let v = |x: f64, y: f64, z: f64| transform_point(Vec3 { x: x as f32, y: y as f32, z: z as f32 }, tx, ty, tz, 0.0);
+    let v = |x: f64, y: f64, z: f64| {
+        transform_point(
+            Vec3 {
+                x: x as f32,
+                y: y as f32,
+                z: z as f32,
+            },
+            tx,
+            ty,
+            tz,
+            0.0,
+        )
+    };
     for i in 0..points.len() {
         let j = (i + 1) % points.len();
         if (points[i].0 - points[j].0).abs() < 0.001 && (points[i].1 - points[j].1).abs() < 0.001 {
@@ -3641,7 +4502,13 @@ impl RoundCutout {
     }
 }
 
-fn full_wall_span_poly(g: &GeometryPayload, y0: f64, y1: f64, bottom_x: Option<f64>, top_x: Option<f64>) -> Vec<(f64, f64)> {
+fn full_wall_span_poly(
+    g: &GeometryPayload,
+    y0: f64,
+    y1: f64,
+    bottom_x: Option<f64>,
+    top_x: Option<f64>,
+) -> Vec<(f64, f64)> {
     let mut pts = Vec::new();
     pts.push((wall_left_x(g, y0), y0));
     if let Some(x) = bottom_x {
@@ -3668,7 +4535,15 @@ fn round_cutout_bands(hole: RoundCutout, segments: usize) -> Vec<(f64, f64, f64)
     bands
 }
 
-fn add_facade_with_round_door(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload, depth: f64, tx: f64, ty: f64, tz: f64) {
+fn add_facade_with_round_door(
+    mesh: &mut Vec<Tri>,
+    p: &NichoirParams,
+    g: &GeometryPayload,
+    depth: f64,
+    tx: f64,
+    ty: f64,
+    tz: f64,
+) {
     let (cx, cy) = door_center(p, g);
     let mut holes = vec![RoundCutout {
         cx,
@@ -3687,7 +4562,11 @@ fn add_facade_with_round_door(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &Geomet
         });
     }
 
-    holes.sort_by(|a, b| a.bottom().partial_cmp(&b.bottom()).unwrap_or(std::cmp::Ordering::Equal));
+    holes.sort_by(|a, b| {
+        a.bottom()
+            .partial_cmp(&b.bottom())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let segments = 32usize;
     for hole in &holes {
@@ -3758,7 +4637,8 @@ fn add_facade_with_round_door(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &Geomet
         add_hole_wall_z(mesh, &hole_wall, depth, tx, ty, tz);
 
         if let Some(next) = holes.get(idx + 1) {
-            let middle = full_wall_span_poly(g, hole.top(), next.bottom(), Some(hole.cx), Some(next.cx));
+            let middle =
+                full_wall_span_poly(g, hole.top(), next.bottom(), Some(hole.cx), Some(next.cx));
             add_extruded_poly_if_valid(mesh, &middle, depth, tx, ty, tz, &[]);
         }
     }
@@ -3768,14 +4648,24 @@ fn add_facade_with_round_door(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &Geomet
     add_extruded_poly_if_valid(mesh, &top, depth, tx, ty, tz, &[]);
 }
 
-fn add_facade_with_cutouts(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload, depth: f64, tx: f64, ty: f64, tz: f64) {
+fn add_facade_with_cutouts(
+    mesh: &mut Vec<Tri>,
+    p: &NichoirParams,
+    g: &GeometryPayload,
+    depth: f64,
+    tx: f64,
+    ty: f64,
+    tz: f64,
+) {
     if matches!(p.door, DoorMode::None) && !p.perch {
         add_extruded_polygon_z(mesh, &facade_points(g), depth, tx, ty, tz, 0.0);
         return;
     }
 
     let holes = facade_holes(p, g);
-    if !holes.is_empty() && add_extruded_shape_with_holes_z(mesh, &facade_points(g), &holes, depth, tx, ty, tz) {
+    if !holes.is_empty()
+        && add_extruded_shape_with_holes_z(mesh, &facade_points(g), &holes, depth, tx, ty, tz)
+    {
         return;
     }
 
@@ -3792,29 +4682,28 @@ fn add_facade_with_cutouts(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryP
         return;
     }
 
-    let wall_poly = vec![
-        (-g.w_bot / 2.0, 0.0),
-        (g.w_bot / 2.0, 0.0),
-        (g.w_top / 2.0, g.wall_h),
-        (-g.w_top / 2.0, g.wall_h),
-    ];
-    let gable_poly = vec![
-        (-g.w_top / 2.0, g.wall_h),
-        (g.w_top / 2.0, g.wall_h),
-        (0.0, g.wall_h + g.roof_h),
-    ];
-    // Keep the roof peak exact, but do not create a side wall on the shared
-    // wall/gable boundary. In v16 this is one THREE.Shape with a hole, not two
-    // solids separated by an internal horizontal face.
-    add_extruded_polygon_z_skip_edges(mesh, &gable_poly, depth, tx, ty, tz, 0.0, &[0]);
-
-    let min_x = -g.w_bot.max(g.w_top) / 2.0;
-    let max_x = g.w_bot.max(g.w_top) / 2.0;
+    let facade_poly = facade_points(g);
+    let min_x = facade_poly
+        .iter()
+        .map(|pt| pt.0)
+        .fold(f64::INFINITY, f64::min);
+    let max_x = facade_poly
+        .iter()
+        .map(|pt| pt.0)
+        .fold(f64::NEG_INFINITY, f64::max);
     let min_y = 0.0;
-    let max_y = g.wall_h;
+    let max_y = g.wall_h + g.roof_h;
     let step = 2.0;
-    let mut xs = vec![min_x, max_x, -g.w_bot / 2.0, g.w_bot / 2.0, -g.w_top / 2.0, g.w_top / 2.0, 0.0];
-    let mut ys = vec![min_y, max_y];
+    let mut xs = vec![
+        min_x,
+        max_x,
+        -g.w_bot / 2.0,
+        g.w_bot / 2.0,
+        -g.w_top / 2.0,
+        g.w_top / 2.0,
+        0.0,
+    ];
+    let mut ys = vec![min_y, g.wall_h, max_y];
 
     if !matches!(p.door, DoorMode::None) {
         let (cx, cy) = door_center(p, g);
@@ -3866,7 +4755,7 @@ fn add_facade_with_cutouts(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryP
     let xs = sorted_dedup(xs);
     let ys = sorted_dedup(ys);
     if xs.len() < 2 || ys.len() < 2 {
-        add_extruded_polygon_z(mesh, &wall_poly, depth, tx, ty, tz, 0.0);
+        add_extruded_polygon_z(mesh, &facade_poly, depth, tx, ty, tz, 0.0);
         return;
     }
 
@@ -3877,7 +4766,8 @@ fn add_facade_with_cutouts(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryP
         for ix in 0..nx {
             let cx = (xs[ix] + xs[ix + 1]) / 2.0;
             let cy = (ys[iy] + ys[iy + 1]) / 2.0;
-            keep[iy * nx + ix] = point_in_poly(cx, cy, &wall_poly) && !point_in_cutout(p, g, cx, cy);
+            keep[iy * nx + ix] =
+                point_in_poly(cx, cy, &facade_poly) && !point_in_cutout(p, g, cx, cy);
         }
     }
 
@@ -3888,7 +4778,19 @@ fn add_facade_with_cutouts(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryP
         keep[iy as usize * nx + ix as usize]
     };
 
-    let v = |x: f64, y: f64, z: f64| transform_point(Vec3 { x: x as f32, y: y as f32, z: z as f32 }, tx, ty, tz, 0.0);
+    let v = |x: f64, y: f64, z: f64| {
+        transform_point(
+            Vec3 {
+                x: x as f32,
+                y: y as f32,
+                z: z as f32,
+            },
+            tx,
+            ty,
+            tz,
+            0.0,
+        )
+    };
     let dz = depth.max(0.5);
     for iy in 0..ny {
         for ix in 0..nx {
@@ -3919,7 +4821,7 @@ fn add_facade_with_cutouts(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryP
             if !kept(ix as isize, iy as isize - 1, &keep) {
                 quad(mesh, b00, t00, t10, b10);
             }
-            if !kept(ix as isize, iy as isize + 1, &keep) && (y1 - max_y).abs() > 0.001 {
+            if !kept(ix as isize, iy as isize + 1, &keep) {
                 quad(mesh, b01, b11, t11, t01);
             }
         }
@@ -3994,11 +4896,18 @@ fn roof_hole_list(p: &NichoirParams, g: &GeometryPayload, left: bool) -> Vec<Roo
         return Vec::new();
     }
     let min_x = profile.iter().map(|pt| pt.0).fold(f64::INFINITY, f64::min);
-    let max_x = profile.iter().map(|pt| pt.0).fold(f64::NEG_INFINITY, f64::max);
+    let max_x = profile
+        .iter()
+        .map(|pt| pt.0)
+        .fold(f64::NEG_INFINITY, f64::max);
     let side_offset = p.hang_side_offset.clamp(2.0, g.s_l.max(2.0));
     let end_offset = p.hang_end_offset.clamp(2.0, (g.roof_len / 2.0).max(2.0));
     let r = (p.hang_diam / 2.0).clamp(1.0, 25.0);
-    let x = if left { min_x + side_offset } else { max_x - side_offset };
+    let x = if left {
+        min_x + side_offset
+    } else {
+        max_x - side_offset
+    };
     let z_front = g.roof_len - end_offset;
     let z_back = end_offset;
     let mut out = Vec::new();
@@ -4070,7 +4979,10 @@ fn add_roof_panel_with_holes(
     }
 
     let min_x = profile.iter().map(|pt| pt.0).fold(f64::INFINITY, f64::min);
-    let max_x = profile.iter().map(|pt| pt.0).fold(f64::NEG_INFINITY, f64::max);
+    let max_x = profile
+        .iter()
+        .map(|pt| pt.0)
+        .fold(f64::NEG_INFINITY, f64::max);
     let min_z = 0.0;
     let max_z = g.roof_len;
     let step = (p.hang_diam / 4.0).clamp(3.0, 8.0);
@@ -4119,7 +5031,8 @@ fn add_roof_panel_with_holes(
         for ix in 0..nx {
             let cx = (xs[ix] + xs[ix + 1]) / 2.0;
             let cz = (zs[iz] + zs[iz + 1]) / 2.0;
-            keep[iz * nx + ix] = roof_y_range_at_x(&profile, cx).is_some() && !in_roof_hole(cx, cz, &holes);
+            keep[iz * nx + ix] =
+                roof_y_range_at_x(&profile, cx).is_some() && !in_roof_hole(cx, cz, &holes);
         }
     }
     let kept = |ix: isize, iz: isize, keep: &[bool]| -> bool {
@@ -4128,7 +5041,19 @@ fn add_roof_panel_with_holes(
         }
         keep[iz as usize * nx + ix as usize]
     };
-    let local = |x: f64, y: f64, z: f64| transform_point(Vec3 { x: x as f32, y: y as f32, z: z as f32 }, tx, ty, tz, rz);
+    let local = |x: f64, y: f64, z: f64| {
+        transform_point(
+            Vec3 {
+                x: x as f32,
+                y: y as f32,
+                z: z as f32,
+            },
+            tx,
+            ty,
+            tz,
+            rz,
+        )
+    };
 
     for iz in 0..nz {
         for ix in 0..nx {
@@ -4139,8 +5064,12 @@ fn add_roof_panel_with_holes(
             let x1 = xs[ix + 1];
             let z0 = zs[iz];
             let z1 = zs[iz + 1];
-            let Some((b0, t0)) = roof_y_range_at_x(&profile, x0) else { continue };
-            let Some((b1, t1)) = roof_y_range_at_x(&profile, x1) else { continue };
+            let Some((b0, t0)) = roof_y_range_at_x(&profile, x0) else {
+                continue;
+            };
+            let Some((b1, t1)) = roof_y_range_at_x(&profile, x1) else {
+                continue;
+            };
             let b00 = local(x0, b0, z0);
             let b01 = local(x0, b0, z1);
             let b10 = local(x1, b1, z0);
@@ -4207,7 +5136,11 @@ fn poly_bounds(points: &[(f64, f64)]) -> (f64, f64) {
 fn build_house_tris(p: &NichoirParams) -> Vec<Tri> {
     let g = GeometryPayload::from_p(p);
     let ang = p.slope * PI / 180.0;
-    let base_y = if matches!(p.floor, FloorMode::Pose) { p.t } else { 0.0 };
+    let base_y = if matches!(p.floor, FloorMode::Pose) {
+        p.t
+    } else {
+        0.0
+    };
     let peak_y = base_y + g.wall_h + g.roof_h;
     let roof_len = g.roof_len.max(0.5);
     let mut tris = Vec::<Tri>::new();
@@ -4215,7 +5148,14 @@ fn build_house_tris(p: &NichoirParams) -> Vec<Tri> {
     add_facade_with_cutouts(&mut tris, p, &g, p.t, 0.0, base_y, p.d / 2.0 - p.t);
     add_back_panel_with_mount_holes(&mut tris, p, &g, p.t, 0.0, base_y, -p.d / 2.0);
     if p.wall_mount {
-        add_wall_mount_block(&mut tris, p, &g, base_y, -p.d / 2.0 - wall_mount_depth(p), true);
+        add_wall_mount_block(
+            &mut tris,
+            p,
+            &g,
+            base_y,
+            -p.d / 2.0 - wall_mount_depth(p),
+            true,
+        );
     }
 
     add_side_walls(&mut tris, p, &g, base_y);
@@ -4297,6 +5237,9 @@ struct MeshReport {
     obj_bytes: usize,
     degenerate_triangles: usize,
     non_finite_values: usize,
+    open_edges: usize,
+    non_manifold_edges: usize,
+    watertight: bool,
     bbox_min: [f32; 3],
     bbox_max: [f32; 3],
     dimensions: [f32; 3],
@@ -4337,6 +5280,51 @@ fn clean_tris(tris: Vec<Tri>) -> Vec<Tri> {
         .collect()
 }
 
+#[derive(Clone, Copy, Default)]
+struct MeshTopology {
+    open_edges: usize,
+    non_manifold_edges: usize,
+}
+
+impl MeshTopology {
+    fn is_watertight(self) -> bool {
+        self.open_edges == 0 && self.non_manifold_edges == 0
+    }
+}
+
+fn quantized_vertex_key(v: Vec3) -> [i64; 3] {
+    [
+        (v.x as f64 * 1000.0).round() as i64,
+        (v.y as f64 * 1000.0).round() as i64,
+        (v.z as f64 * 1000.0).round() as i64,
+    ]
+}
+
+fn topology_edge_key(a: Vec3, b: Vec3) -> ([i64; 3], [i64; 3]) {
+    let ka = quantized_vertex_key(a);
+    let kb = quantized_vertex_key(b);
+    if ka <= kb { (ka, kb) } else { (kb, ka) }
+}
+
+fn mesh_topology(tris: &[Tri]) -> MeshTopology {
+    let mut edges = HashMap::<([i64; 3], [i64; 3]), usize>::new();
+    for t in tris {
+        for (a, b) in [(t.a, t.b), (t.b, t.c), (t.c, t.a)] {
+            *edges.entry(topology_edge_key(a, b)).or_insert(0) += 1;
+        }
+    }
+
+    let mut topology = MeshTopology::default();
+    for count in edges.values() {
+        if *count == 1 {
+            topology.open_edges += 1;
+        } else if *count > 2 {
+            topology.non_manifold_edges += 1;
+        }
+    }
+    topology
+}
+
 fn signed_volume(tris: &[Tri]) -> f64 {
     let mut volume = 0.0;
     for t in tris {
@@ -4349,10 +5337,8 @@ fn signed_volume(tris: &[Tri]) -> f64 {
         let cx = t.c.x as f64;
         let cy = t.c.y as f64;
         let cz = t.c.z as f64;
-        volume += (ax * (by * cz - bz * cy)
-            - ay * (bx * cz - bz * cx)
-            + az * (bx * cy - by * cx))
-            / 6.0;
+        volume +=
+            (ax * (by * cz - bz * cy) - ay * (bx * cz - bz * cx) + az * (bx * cy - by * cx)) / 6.0;
     }
     volume
 }
@@ -4395,6 +5381,17 @@ fn analyze_mesh(name: &str, tris: &[Tri]) -> MeshReport {
     if degenerate_triangles > 0 {
         warnings.push("triangles degeneres detectes".to_string());
     }
+    let topology = mesh_topology(tris);
+    if topology.open_edges > 0 {
+        warnings.push(format!("{} aretes ouvertes detectees", topology.open_edges));
+    }
+    if topology.non_manifold_edges > 0 {
+        warnings.push(format!(
+            "{} aretes non-manifold detectees",
+            topology.non_manifold_edges
+        ));
+    }
+    let watertight = !tris.is_empty() && topology.is_watertight();
 
     MeshReport {
         name: name.to_string(),
@@ -4403,6 +5400,9 @@ fn analyze_mesh(name: &str, tris: &[Tri]) -> MeshReport {
         obj_bytes: write_obj(name, tris).len(),
         degenerate_triangles,
         non_finite_values,
+        open_edges: topology.open_edges,
+        non_manifold_edges: topology.non_manifold_edges,
+        watertight,
         bbox_min: min,
         bbox_max: max,
         dimensions,
@@ -4506,10 +5506,20 @@ fn front_panel_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
     clean_tris(tris)
 }
 
-fn add_back_panel_with_mount_holes(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload, depth: f64, tx: f64, ty: f64, tz: f64) {
+fn add_back_panel_with_mount_holes(
+    mesh: &mut Vec<Tri>,
+    p: &NichoirParams,
+    g: &GeometryPayload,
+    depth: f64,
+    tx: f64,
+    ty: f64,
+    tz: f64,
+) {
     let facade = facade_points(g);
     let holes = wall_mount_holes(p, g);
-    if !holes.is_empty() && add_extruded_shape_with_holes_z(mesh, &facade, &holes, depth, tx, ty, tz) {
+    if !holes.is_empty()
+        && add_extruded_shape_with_holes_z(mesh, &facade, &holes, depth, tx, ty, tz)
+    {
         return;
     }
     add_extruded_polygon_z(mesh, &facade, depth, tx, ty, tz, 0.0);
@@ -4533,14 +5543,46 @@ fn add_wall_mount_shed_cap(mesh: &mut Vec<Tri>, m: &WallMountGeometry, cy: f64, 
     let y_exterior = y_base + WALL_MOUNT_SHED_EDGE_THICKNESS;
     let y_wall = y_exterior + wall_mount_shed_rise(m);
 
-    let p00 = Vec3 { x: x0 as f32, y: y_base as f32, z: z0 as f32 };
-    let p10 = Vec3 { x: x1 as f32, y: y_base as f32, z: z0 as f32 };
-    let p11 = Vec3 { x: x1 as f32, y: y_base as f32, z: z1 as f32 };
-    let p01 = Vec3 { x: x0 as f32, y: y_base as f32, z: z1 as f32 };
-    let q00 = Vec3 { x: x0 as f32, y: y_exterior as f32, z: z0 as f32 };
-    let q10 = Vec3 { x: x1 as f32, y: y_exterior as f32, z: z0 as f32 };
-    let q11 = Vec3 { x: x1 as f32, y: y_wall as f32, z: z1 as f32 };
-    let q01 = Vec3 { x: x0 as f32, y: y_wall as f32, z: z1 as f32 };
+    let p00 = Vec3 {
+        x: x0 as f32,
+        y: y_base as f32,
+        z: z0 as f32,
+    };
+    let p10 = Vec3 {
+        x: x1 as f32,
+        y: y_base as f32,
+        z: z0 as f32,
+    };
+    let p11 = Vec3 {
+        x: x1 as f32,
+        y: y_base as f32,
+        z: z1 as f32,
+    };
+    let p01 = Vec3 {
+        x: x0 as f32,
+        y: y_base as f32,
+        z: z1 as f32,
+    };
+    let q00 = Vec3 {
+        x: x0 as f32,
+        y: y_exterior as f32,
+        z: z0 as f32,
+    };
+    let q10 = Vec3 {
+        x: x1 as f32,
+        y: y_exterior as f32,
+        z: z0 as f32,
+    };
+    let q11 = Vec3 {
+        x: x1 as f32,
+        y: y_wall as f32,
+        z: z1 as f32,
+    };
+    let q01 = Vec3 {
+        x: x0 as f32,
+        y: y_wall as f32,
+        z: z1 as f32,
+    };
 
     quad(mesh, p00, p01, p11, p10);
     quad(mesh, q00, q10, q11, q01);
@@ -4550,7 +5592,14 @@ fn add_wall_mount_shed_cap(mesh: &mut Vec<Tri>, m: &WallMountGeometry, cy: f64, 
     quad(mesh, p10, p11, q11, q10);
 }
 
-fn add_wall_mount_block(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload, base_y: f64, z_start: f64, placed: bool) {
+fn add_wall_mount_block(
+    mesh: &mut Vec<Tri>,
+    p: &NichoirParams,
+    g: &GeometryPayload,
+    base_y: f64,
+    z_start: f64,
+    placed: bool,
+) {
     if !p.wall_mount {
         return;
     }
@@ -4636,7 +5685,8 @@ fn deco_target_label(lang: &str, key: &str) -> &'static str {
 fn deco_for<'a>(p: &'a NichoirParams, key: &str) -> Option<&'a DecorSettings> {
     p.decos.get(key).filter(|d| {
         d.enabled
-            && ((d.mode == "heightmap" && !d.source_data.trim().is_empty())
+            && ((d.source_type == "stl" && !d.source_data.trim().is_empty())
+                || (d.mode == "heightmap" && !d.source_data.trim().is_empty())
                 || (d.source_type == "svg" && !d.source_text.trim().is_empty()))
     })
 }
@@ -4647,7 +5697,11 @@ fn deco_basis_for_target(
     key: &str,
     d: &DecorSettings,
 ) -> Option<(Vec3, Vec3, Vec3, Vec3)> {
-    let base_y = if matches!(p.floor, FloorMode::Pose) { p.t } else { 0.0 };
+    let base_y = if matches!(p.floor, FloorMode::Pose) {
+        p.t
+    } else {
+        0.0
+    };
     let wall_total = (g.wall_h + g.roof_h).max(1.0);
     let eps = 0.08;
 
@@ -4656,48 +5710,110 @@ fn deco_basis_for_target(
             let cx = -g.w_bot / 2.0 + (d.pos_x / 100.0) * g.w_bot;
             let cy = base_y + (d.pos_y / 100.0) * wall_total;
             Some((
-                Vec3 { x: cx as f32, y: cy as f32, z: (p.d / 2.0 + eps) as f32 },
-                Vec3 { x: 1.0, y: 0.0, z: 0.0 },
-                Vec3 { x: 0.0, y: 1.0, z: 0.0 },
-                Vec3 { x: 0.0, y: 0.0, z: 1.0 },
+                Vec3 {
+                    x: cx as f32,
+                    y: cy as f32,
+                    z: (p.d / 2.0 + eps) as f32,
+                },
+                Vec3 {
+                    x: 1.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                Vec3 {
+                    x: 0.0,
+                    y: 1.0,
+                    z: 0.0,
+                },
+                Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 1.0,
+                },
             ))
         }
         "back" => {
             let cx = g.w_bot / 2.0 - (d.pos_x / 100.0) * g.w_bot;
             let cy = base_y + (d.pos_y / 100.0) * wall_total;
             Some((
-                Vec3 { x: cx as f32, y: cy as f32, z: (-p.d / 2.0 - eps) as f32 },
-                Vec3 { x: -1.0, y: 0.0, z: 0.0 },
-                Vec3 { x: 0.0, y: 1.0, z: 0.0 },
-                Vec3 { x: 0.0, y: 0.0, z: -1.0 },
+                Vec3 {
+                    x: cx as f32,
+                    y: cy as f32,
+                    z: (-p.d / 2.0 - eps) as f32,
+                },
+                Vec3 {
+                    x: -1.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                Vec3 {
+                    x: 0.0,
+                    y: 1.0,
+                    z: 0.0,
+                },
+                Vec3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: -1.0,
+                },
             ))
         }
         "left" => {
-            let v = normalize(Vec3 { x: p.taper_x as f32, y: g.wall_h as f32, z: 0.0 });
-            let n = normalize(Vec3 { x: -v.y, y: v.x, z: 0.0 });
-            let u = Vec3 { x: 0.0, y: 0.0, z: 1.0 };
+            let v = normalize(Vec3 {
+                x: p.taper_x as f32,
+                y: g.wall_h as f32,
+                z: 0.0,
+            });
+            let n = normalize(Vec3 {
+                x: -v.y,
+                y: v.x,
+                z: 0.0,
+            });
+            let u = Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 1.0,
+            };
             let start = Vec3 {
                 x: (-g.w_bot / 2.0) as f32,
                 y: base_y as f32,
                 z: (-g.side_d / 2.0) as f32,
             };
             let origin = add3(
-                add3(add3(start, scale3(u, (d.pos_x / 100.0) * g.side_d)), scale3(v, (d.pos_y / 100.0) * g.wall_h_real)),
+                add3(
+                    add3(start, scale3(u, (d.pos_x / 100.0) * g.side_d)),
+                    scale3(v, (d.pos_y / 100.0) * g.wall_h_real),
+                ),
                 scale3(n, eps),
             );
             Some((origin, u, v, n))
         }
         "right" => {
-            let v = normalize(Vec3 { x: (-p.taper_x) as f32, y: g.wall_h as f32, z: 0.0 });
-            let n = normalize(Vec3 { x: v.y, y: -v.x, z: 0.0 });
-            let u = Vec3 { x: 0.0, y: 0.0, z: -1.0 };
+            let v = normalize(Vec3 {
+                x: (-p.taper_x) as f32,
+                y: g.wall_h as f32,
+                z: 0.0,
+            });
+            let n = normalize(Vec3 {
+                x: v.y,
+                y: -v.x,
+                z: 0.0,
+            });
+            let u = Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: -1.0,
+            };
             let start = Vec3 {
                 x: (g.w_bot / 2.0) as f32,
                 y: base_y as f32,
                 z: (g.side_d / 2.0) as f32,
             };
             let origin = add3(
-                add3(add3(start, scale3(u, (d.pos_x / 100.0) * g.side_d)), scale3(v, (d.pos_y / 100.0) * g.wall_h_real)),
+                add3(
+                    add3(start, scale3(u, (d.pos_x / 100.0) * g.side_d)),
+                    scale3(v, (d.pos_y / 100.0) * g.wall_h_real),
+                ),
                 scale3(n, eps),
             );
             Some((origin, u, v, n))
@@ -4705,16 +5821,36 @@ fn deco_basis_for_target(
         "roofL" | "roofR" => {
             let ang = p.slope * PI / 180.0;
             let peak_y = base_y + g.wall_h + g.roof_h;
-            let u = Vec3 { x: 0.0, y: 0.0, z: 1.0 };
+            let u = Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 1.0,
+            };
             let (v, n) = if key == "roofL" {
                 (
-                    Vec3 { x: (-ang.cos()) as f32, y: (-ang.sin()) as f32, z: 0.0 },
-                    Vec3 { x: (-ang.sin()) as f32, y: ang.cos() as f32, z: 0.0 },
+                    Vec3 {
+                        x: (-ang.cos()) as f32,
+                        y: (-ang.sin()) as f32,
+                        z: 0.0,
+                    },
+                    Vec3 {
+                        x: (-ang.sin()) as f32,
+                        y: ang.cos() as f32,
+                        z: 0.0,
+                    },
                 )
             } else {
                 (
-                    Vec3 { x: ang.cos() as f32, y: (-ang.sin()) as f32, z: 0.0 },
-                    Vec3 { x: ang.sin() as f32, y: ang.cos() as f32, z: 0.0 },
+                    Vec3 {
+                        x: ang.cos() as f32,
+                        y: (-ang.sin()) as f32,
+                        z: 0.0,
+                    },
+                    Vec3 {
+                        x: ang.sin() as f32,
+                        y: ang.cos() as f32,
+                        z: 0.0,
+                    },
                 )
             };
             let start = Vec3 {
@@ -4723,7 +5859,10 @@ fn deco_basis_for_target(
                 z: (-g.roof_len / 2.0) as f32,
             };
             let origin = add3(
-                add3(add3(start, scale3(u, (d.pos_x / 100.0) * g.roof_len)), scale3(v, (d.pos_y / 100.0) * g.s_l)),
+                add3(
+                    add3(start, scale3(u, (d.pos_x / 100.0) * g.roof_len)),
+                    scale3(v, (d.pos_y / 100.0) * g.s_l),
+                ),
                 scale3(n, eps),
             );
             Some((origin, u, v, normalize(n)))
@@ -4740,7 +5879,11 @@ fn deco_panel_clip_polygon(
     u: Vec3,
     v: Vec3,
 ) -> Option<Vec<(f64, f64)>> {
-    let base_y = if matches!(p.floor, FloorMode::Pose) { p.t } else { 0.0 };
+    let base_y = if matches!(p.floor, FloorMode::Pose) {
+        p.t
+    } else {
+        0.0
+    };
     let eps = 0.08;
     let project = |pt: Vec3| project_to_deco(origin, u, v, pt);
 
@@ -4775,12 +5918,23 @@ fn deco_panel_clip_polygon(
                 y: base_y as f32,
                 z: (-g.side_d / 2.0) as f32,
             };
-            let up = normalize(Vec3 { x: p.taper_x as f32, y: g.wall_h as f32, z: 0.0 });
-            let along = Vec3 { x: 0.0, y: 0.0, z: 1.0 };
+            let up = normalize(Vec3 {
+                x: p.taper_x as f32,
+                y: g.wall_h as f32,
+                z: 0.0,
+            });
+            let along = Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 1.0,
+            };
             Some(vec![
                 project(start),
                 project(add3(start, scale3(along, g.side_d))),
-                project(add3(add3(start, scale3(along, g.side_d)), scale3(up, g.wall_h_real))),
+                project(add3(
+                    add3(start, scale3(along, g.side_d)),
+                    scale3(up, g.wall_h_real),
+                )),
                 project(add3(start, scale3(up, g.wall_h_real))),
             ])
         }
@@ -4790,12 +5944,23 @@ fn deco_panel_clip_polygon(
                 y: base_y as f32,
                 z: (g.side_d / 2.0) as f32,
             };
-            let up = normalize(Vec3 { x: (-p.taper_x) as f32, y: g.wall_h as f32, z: 0.0 });
-            let along = Vec3 { x: 0.0, y: 0.0, z: -1.0 };
+            let up = normalize(Vec3 {
+                x: (-p.taper_x) as f32,
+                y: g.wall_h as f32,
+                z: 0.0,
+            });
+            let along = Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: -1.0,
+            };
             Some(vec![
                 project(start),
                 project(add3(start, scale3(along, g.side_d))),
-                project(add3(add3(start, scale3(along, g.side_d)), scale3(up, g.wall_h_real))),
+                project(add3(
+                    add3(start, scale3(along, g.side_d)),
+                    scale3(up, g.wall_h_real),
+                )),
                 project(add3(start, scale3(up, g.wall_h_real))),
             ])
         }
@@ -4807,16 +5972,31 @@ fn deco_panel_clip_polygon(
                 y: peak_y as f32,
                 z: (-g.roof_len / 2.0) as f32,
             };
-            let along_z = Vec3 { x: 0.0, y: 0.0, z: 1.0 };
+            let along_z = Vec3 {
+                x: 0.0,
+                y: 0.0,
+                z: 1.0,
+            };
             let down_slope = if key == "roofL" {
-                Vec3 { x: (-ang.cos()) as f32, y: (-ang.sin()) as f32, z: 0.0 }
+                Vec3 {
+                    x: (-ang.cos()) as f32,
+                    y: (-ang.sin()) as f32,
+                    z: 0.0,
+                }
             } else {
-                Vec3 { x: ang.cos() as f32, y: (-ang.sin()) as f32, z: 0.0 }
+                Vec3 {
+                    x: ang.cos() as f32,
+                    y: (-ang.sin()) as f32,
+                    z: 0.0,
+                }
             };
             Some(vec![
                 project(start),
                 project(add3(start, scale3(along_z, g.roof_len))),
-                project(add3(add3(start, scale3(along_z, g.roof_len)), scale3(down_slope, g.s_l))),
+                project(add3(
+                    add3(start, scale3(along_z, g.roof_len)),
+                    scale3(down_slope, g.s_l),
+                )),
                 project(add3(start, scale3(down_slope, g.s_l))),
             ])
         }
@@ -4835,7 +6015,11 @@ fn deco_panel_clip_holes(
     if key != "front" {
         return Vec::new();
     }
-    let base_y = if matches!(p.floor, FloorMode::Pose) { p.t } else { 0.0 };
+    let base_y = if matches!(p.floor, FloorMode::Pose) {
+        p.t
+    } else {
+        0.0
+    };
     let eps = 0.08;
     facade_holes(p, g)
         .into_iter()
@@ -4867,25 +6051,60 @@ fn build_decor_tris_for_target(p: &NichoirParams, g: &GeometryPayload, key: &str
         return Vec::new();
     };
     let mut tris = Vec::new();
-    if d.mode == "heightmap" {
+    let mut imported_stl_stats = None;
+    if d.source_type == "stl" {
         let clip_poly = if d.clip_to_panel {
             deco_panel_clip_polygon(p, g, key, origin, u, v)
         } else {
             None
         };
-        let clip_holes = if d.clip_to_panel {
-            deco_panel_clip_holes(p, g, key, origin, u, v)
+        let clip_holes = deco_panel_clip_holes(p, g, key, origin, u, v);
+        imported_stl_stats = Some(add_imported_stl_basis(
+            &mut tris,
+            d,
+            origin,
+            u,
+            v,
+            n,
+            clip_poly.as_deref(),
+            Some(&clip_holes),
+        ));
+    } else if d.mode == "heightmap" {
+        let clip_poly = if d.clip_to_panel {
+            deco_panel_clip_polygon(p, g, key, origin, u, v)
         } else {
-            Vec::new()
+            None
         };
-        add_heightmap_basis(&mut tris, d, origin, u, v, n, clip_poly.as_deref(), Some(&clip_holes));
+        let clip_holes = deco_panel_clip_holes(p, g, key, origin, u, v);
+        add_heightmap_basis(
+            &mut tris,
+            d,
+            origin,
+            u,
+            v,
+            n,
+            clip_poly.as_deref(),
+            Some(&clip_holes),
+        );
     } else {
         let loops = deco_normalized_loops(d);
         for pts in loops {
             add_deco_loop_basis(&mut tris, &pts, d.depth, origin, u, v, n);
         }
     }
-    clean_tris(tris)
+    let cleaned = clean_tris(tris);
+    if let Some(stats) = imported_stl_stats {
+        if stats.kept == 0 && (stats.clipped_by_panel > 0 || stats.clipped_by_hole > 0) {
+            return Vec::new();
+        }
+    }
+    if !cleaned.is_empty() {
+        let topology = mesh_topology(&cleaned);
+        if !topology.is_watertight() {
+            return Vec::new();
+        }
+    }
+    cleaned
 }
 
 fn build_all_decor_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
@@ -4930,7 +6149,14 @@ fn panel_export_parts(p: &NichoirParams, g: &GeometryPayload) -> Vec<(String, Ve
     parts
 }
 
-fn render_mesh_offset(key: &str, color: &str, tris: &[Tri], dx: f32, dy: f32, dz: f32) -> RenderMesh {
+fn render_mesh_offset(
+    key: &str,
+    color: &str,
+    tris: &[Tri],
+    dx: f32,
+    dy: f32,
+    dz: f32,
+) -> RenderMesh {
     let mut vertices = Vec::with_capacity(tris.len() * 9);
     for t in tris {
         for v in [t.a, t.b, t.c] {
@@ -4949,7 +6175,11 @@ fn render_mesh_offset(key: &str, color: &str, tris: &[Tri], dx: f32, dy: f32, dz
 fn build_scene_meshes(p: &NichoirParams) -> Vec<RenderMesh> {
     let g = GeometryPayload::from_p(p);
     let ang = p.slope * PI / 180.0;
-    let base_y = if matches!(p.floor, FloorMode::Pose) { p.t } else { 0.0 };
+    let base_y = if matches!(p.floor, FloorMode::Pose) {
+        p.t
+    } else {
+        0.0
+    };
     let peak_y = base_y + g.wall_h + g.roof_h;
     let roof_len = g.roof_len.max(0.5);
     let explode_dist = (p.explode / 100.0).max(0.0) as f32 * p.w.max(p.h).max(p.d) as f32 * 0.65;
@@ -4957,41 +6187,121 @@ fn build_scene_meshes(p: &NichoirParams) -> Vec<RenderMesh> {
 
     let mut front = Vec::<Tri>::new();
     add_facade_with_cutouts(&mut front, p, &g, p.t, 0.0, base_y, p.d / 2.0 - p.t);
-    out.push(render_mesh_offset("front", "#d4a574", &front, 0.0, 0.0, explode_dist));
+    out.push(render_mesh_offset(
+        "front",
+        "#d4a574",
+        &front,
+        0.0,
+        0.0,
+        explode_dist,
+    ));
 
     let mut back = Vec::<Tri>::new();
     add_back_panel_with_mount_holes(&mut back, p, &g, p.t, 0.0, base_y, -p.d / 2.0);
-    out.push(render_mesh_offset("back", "#d4a574", &back, 0.0, 0.0, -explode_dist));
+    out.push(render_mesh_offset(
+        "back",
+        "#d4a574",
+        &back,
+        0.0,
+        0.0,
+        -explode_dist,
+    ));
 
     if p.wall_mount {
         let mut block = Vec::<Tri>::new();
-        add_wall_mount_block(&mut block, p, &g, base_y, -p.d / 2.0 - wall_mount_depth(p), true);
-        out.push(render_mesh_offset("wallMount", "#7f6245", &clean_tris(block), 0.0, 0.0, -explode_dist * 1.25));
+        add_wall_mount_block(
+            &mut block,
+            p,
+            &g,
+            base_y,
+            -p.d / 2.0 - wall_mount_depth(p),
+            true,
+        );
+        out.push(render_mesh_offset(
+            "wallMount",
+            "#7f6245",
+            &clean_tris(block),
+            0.0,
+            0.0,
+            -explode_dist * 1.25,
+        ));
     }
 
     let mut sides = Vec::<Tri>::new();
     add_side_walls(&mut sides, p, &g, base_y);
-    out.push(render_mesh_offset("sideWalls", "#c49464", &sides, 0.0, 0.0, 0.0));
+    out.push(render_mesh_offset(
+        "sideWalls",
+        "#c49464",
+        &sides,
+        0.0,
+        0.0,
+        0.0,
+    ));
 
     let mut bottom = Vec::<Tri>::new();
     add_floor_panel(&mut bottom, p, &g);
-    out.push(render_mesh_offset("bottom", "#b48454", &bottom, 0.0, -explode_dist, 0.0));
+    out.push(render_mesh_offset(
+        "bottom",
+        "#b48454",
+        &bottom,
+        0.0,
+        -explode_dist,
+        0.0,
+    ));
 
     let mut roof_l = Vec::<Tri>::new();
     add_roof_panel_with_holes(&mut roof_l, p, &g, true, 0.0, peak_y, -roof_len / 2.0, ang);
-    out.push(render_mesh_offset("roofL", "#9e7044", &clean_tris(roof_l), -explode_dist * 0.7, explode_dist * 0.7, 0.0));
+    out.push(render_mesh_offset(
+        "roofL",
+        "#9e7044",
+        &clean_tris(roof_l),
+        -explode_dist * 0.7,
+        explode_dist * 0.7,
+        0.0,
+    ));
 
     let mut roof_r = Vec::<Tri>::new();
-    add_roof_panel_with_holes(&mut roof_r, p, &g, false, 0.0, peak_y, -roof_len / 2.0, -ang);
-    out.push(render_mesh_offset("roofR", "#9e7044", &clean_tris(roof_r), explode_dist * 0.7, explode_dist * 0.7, 0.0));
+    add_roof_panel_with_holes(
+        &mut roof_r,
+        p,
+        &g,
+        false,
+        0.0,
+        peak_y,
+        -roof_len / 2.0,
+        -ang,
+    );
+    out.push(render_mesh_offset(
+        "roofR",
+        "#9e7044",
+        &clean_tris(roof_r),
+        explode_dist * 0.7,
+        explode_dist * 0.7,
+        0.0,
+    ));
 
     if !matches!(p.door, DoorMode::None) && p.door_panel {
         let door_y = base_y + p.door_py / 100.0 * g.wall_h;
         let door_w_local = g.w_bot - 2.0 * p.taper_x * (p.door_py / 100.0);
         let door_x = -door_w_local / 2.0 + p.door_px / 100.0 * door_w_local;
         let mut door = Vec::<Tri>::new();
-        add_extruded_polygon_z(&mut door, &door_points(p), p.t, door_x, door_y, p.d / 2.0 + 1.0, 0.0);
-        out.push(render_mesh_offset("doorPanel", "#e8c088", &door, 0.0, 0.0, explode_dist * 1.2));
+        add_extruded_polygon_z(
+            &mut door,
+            &door_points(p),
+            p.t,
+            door_x,
+            door_y,
+            p.d / 2.0 + 1.0,
+            0.0,
+        );
+        out.push(render_mesh_offset(
+            "doorPanel",
+            "#e8c088",
+            &door,
+            0.0,
+            0.0,
+            explode_dist * 1.2,
+        ));
     }
 
     if p.perch && !matches!(p.door, DoorMode::None) {
@@ -5006,13 +6316,27 @@ fn build_scene_meshes(p: &NichoirParams) -> Vec<RenderMesh> {
             p.perch_len,
             32,
         );
-        out.push(render_mesh_offset("perch", "#8b6e4e", &perch, 0.0, 0.0, explode_dist * 1.4));
+        out.push(render_mesh_offset(
+            "perch",
+            "#8b6e4e",
+            &perch,
+            0.0,
+            0.0,
+            explode_dist * 1.4,
+        ));
     }
 
     for key in deco_target_keys() {
         let tris = build_decor_tris_for_target(p, &g, key);
         if !tris.is_empty() {
-            out.push(render_mesh_offset(&format!("deco_{key}"), "#e8a955", &tris, 0.0, 0.0, 0.0));
+            out.push(render_mesh_offset(
+                &format!("deco_{key}"),
+                "#e8a955",
+                &tris,
+                0.0,
+                0.0,
+                0.0,
+            ));
         }
     }
 
@@ -5210,7 +6534,11 @@ pub fn plan_preview_svg(input: &str) -> String {
         grid += 200.0;
     }
 
-    if let Some(arr) = v.get("payload").and_then(|p| p.get("pieces")).and_then(|x| x.as_array()) {
+    if let Some(arr) = v
+        .get("payload")
+        .and_then(|p| p.get("pieces"))
+        .and_then(|x| x.as_array())
+    {
         for i in arr {
             let name = i.get("name").and_then(|x| x.as_str()).unwrap_or("piece");
             let x = i.get("px").and_then(|x| x.as_f64()).unwrap_or(0.0);
@@ -5224,17 +6552,18 @@ pub fn plan_preview_svg(input: &str) -> String {
             let w_bot = i.get("w_bot").and_then(|x| x.as_f64()).unwrap_or(w);
             let overflow = i.get("overflow").and_then(|x| x.as_bool()).unwrap_or(false);
             let fill = if overflow { "#661a1a" } else { color };
-            let base_name = name
-                .split_whitespace()
-                .next()
-                .unwrap_or(name)
-                .trim();
+            let base_name = name.split_whitespace().next().unwrap_or(name).trim();
             let cut = cuts.iter().find(|c| {
                 let cut_base = c.name.split_whitespace().next().unwrap_or(&c.name);
                 cut_base == base_name
             });
             let dim_label = if let Some(cut) = cut {
-                format!("{} x {} {}", cut.w_display, cut.h_display, unit_def(&p.unit).label)
+                format!(
+                    "{} x {} {}",
+                    cut.w_display,
+                    cut.h_display,
+                    unit_def(&p.unit).label
+                )
             } else {
                 format!(
                     "{} x {} {}",
@@ -5336,9 +6665,22 @@ pub fn render_app_html(input: &str) -> String {
         length_control(t(lang, "width"), "W", 80.0, 400.0, 1.0, p.w, &p.unit),
         length_control(t(lang, "height"), "H", 80.0, 500.0, 1.0, p.h, &p.unit),
         length_control(t(lang, "depth"), "D", 80.0, 400.0, 1.0, p.d, &p.unit),
-        length_control(t(lang, "taper"), "taperX", -60.0, 60.0, 1.0, p.taper_x, &p.unit),
+        length_control(
+            t(lang, "taper"),
+            "taperX",
+            -60.0,
+            60.0,
+            1.0,
+            p.taper_x,
+            &p.unit
+        ),
         t(lang, "floor"),
-        choice_button(t(lang, "floor_enclave"), "floor", "enclave", floor_value(p.floor)),
+        choice_button(
+            t(lang, "floor_enclave"),
+            "floor",
+            "enclave",
+            floor_value(p.floor)
+        ),
         choice_button(t(lang, "floor_pose"), "floor", "pose", floor_value(p.floor)),
     );
 
@@ -5353,9 +6695,33 @@ pub fn render_app_html(input: &str) -> String {
             html_escape(t(lang, "hang_back_left")),
             checked(p.hang_br),
             html_escape(t(lang, "hang_back_right")),
-            length_control(t(lang, "hang_diam"), "hangDiam", 2.0, 30.0, 0.5, p.hang_diam, &p.unit),
-            length_control(t(lang, "hang_side_offset"), "hangSideOffset", 2.0, 120.0, 1.0, p.hang_side_offset, &p.unit),
-            length_control(t(lang, "hang_end_offset"), "hangEndOffset", 2.0, 120.0, 1.0, p.hang_end_offset, &p.unit),
+            length_control(
+                t(lang, "hang_diam"),
+                "hangDiam",
+                2.0,
+                30.0,
+                0.5,
+                p.hang_diam,
+                &p.unit
+            ),
+            length_control(
+                t(lang, "hang_side_offset"),
+                "hangSideOffset",
+                2.0,
+                120.0,
+                1.0,
+                p.hang_side_offset,
+                &p.unit
+            ),
+            length_control(
+                t(lang, "hang_end_offset"),
+                "hangEndOffset",
+                2.0,
+                120.0,
+                1.0,
+                p.hang_end_offset,
+                &p.unit
+            ),
         )
     } else {
         String::new()
@@ -5370,12 +6736,60 @@ pub fn render_app_html(input: &str) -> String {
     let wall_mount_details = if p.wall_mount {
         format!(
             r#"<div class="subcontrols">{}{}{}{}{}{}<p class="control-note">{}</p></div>"#,
-            length_control(t(lang, "wall_mount_hole_diam"), "wallMountHoleDiam", 3.0, 20.0, 0.5, p.wall_mount_hole_diam, &p.unit),
-            length_control(t(lang, "wall_mount_hole_spacing"), "wallMountHoleSpacing", 20.0, 220.0, 1.0, p.wall_mount_hole_spacing, &p.unit),
-            length_control(t(lang, "wall_mount_y"), "wallMountY", 20.0, 440.0, 1.0, p.wall_mount_y, &p.unit),
-            length_control(t(lang, "wall_mount_block_w"), "wallMountBlockW", 40.0, 260.0, 1.0, p.wall_mount_block_w, &p.unit),
-            length_control(t(lang, "wall_mount_block_h"), "wallMountBlockH", 30.0, 220.0, 1.0, p.wall_mount_block_h, &p.unit),
-            length_control(t(lang, "wall_mount_block_depth"), "wallMountBlockDepth", 6.0, 80.0, 1.0, p.wall_mount_block_depth, &p.unit),
+            length_control(
+                t(lang, "wall_mount_hole_diam"),
+                "wallMountHoleDiam",
+                3.0,
+                20.0,
+                0.5,
+                p.wall_mount_hole_diam,
+                &p.unit
+            ),
+            length_control(
+                t(lang, "wall_mount_hole_spacing"),
+                "wallMountHoleSpacing",
+                20.0,
+                220.0,
+                1.0,
+                p.wall_mount_hole_spacing,
+                &p.unit
+            ),
+            length_control(
+                t(lang, "wall_mount_y"),
+                "wallMountY",
+                20.0,
+                440.0,
+                1.0,
+                p.wall_mount_y,
+                &p.unit
+            ),
+            length_control(
+                t(lang, "wall_mount_block_w"),
+                "wallMountBlockW",
+                40.0,
+                260.0,
+                1.0,
+                p.wall_mount_block_w,
+                &p.unit
+            ),
+            length_control(
+                t(lang, "wall_mount_block_h"),
+                "wallMountBlockH",
+                30.0,
+                220.0,
+                1.0,
+                p.wall_mount_block_h,
+                &p.unit
+            ),
+            length_control(
+                t(lang, "wall_mount_block_depth"),
+                "wallMountBlockDepth",
+                6.0,
+                80.0,
+                1.0,
+                p.wall_mount_block_depth,
+                &p.unit
+            ),
             html_escape(t(lang, "wall_mount_note")),
         )
     } else {
@@ -5400,13 +6814,24 @@ pub fn render_app_html(input: &str) -> String {
     let roof_controls = format!(
         "{}{}<div class=\"field-group\"><p>{}</p><div class=\"choices\">{}{}{}</div>{}</div>{}{}{}",
         range_control(t(lang, "slope"), "slope", 10.0, 60.0, 1.0, p.slope, "deg"),
-        length_control(t(lang, "overhang"), "overhang", 0.0, 80.0, 1.0, p.overhang, &p.unit),
+        length_control(
+            t(lang, "overhang"),
+            "overhang",
+            0.0,
+            80.0,
+            1.0,
+            p.overhang,
+            &p.unit
+        ),
         t(lang, "ridge"),
         choice_button(t(lang, "ridge_left"), "ridge", "left", ridge_value(ridge)),
         choice_button(t(lang, "ridge_right"), "ridge", "right", ridge_value(ridge)),
         choice_button(t(lang, "ridge_miter"), "ridge", "miter", ridge_value(ridge)),
         if matches!(ridge, RidgeMode::Miter) && !matches!(p.ridge, RidgeMode::Miter) {
-            format!(r#"<p class="control-note">{}</p>"#, html_escape(t(lang, "ridge_auto_miter")))
+            format!(
+                r#"<p class="control-note">{}</p>"#,
+                html_escape(t(lang, "ridge_auto_miter"))
+            )
         } else {
             String::new()
         },
@@ -5428,24 +6853,72 @@ pub fn render_app_html(input: &str) -> String {
         String::new()
     } else {
         let door_panel_details = if p.door_panel {
-            range_control(t(lang, "door_var"), "doorVar", 85.0, 125.0, 1.0, p.door_var, "%")
+            range_control(
+                t(lang, "door_var"),
+                "doorVar",
+                85.0,
+                125.0,
+                1.0,
+                p.door_var,
+                "%",
+            )
         } else {
             String::new()
         };
         let perch_details = if p.perch {
             format!(
                 "{}{}{}",
-                length_control(t(lang, "perch_diam"), "perchDiam", 3.0, 20.0, 0.5, p.perch_diam, &p.unit),
-                length_control(t(lang, "perch_len"), "perchLen", 10.0, 80.0, 1.0, p.perch_len, &p.unit),
-                length_control(t(lang, "perch_off"), "perchOff", 5.0, 60.0, 1.0, p.perch_off, &p.unit),
+                length_control(
+                    t(lang, "perch_diam"),
+                    "perchDiam",
+                    3.0,
+                    20.0,
+                    0.5,
+                    p.perch_diam,
+                    &p.unit
+                ),
+                length_control(
+                    t(lang, "perch_len"),
+                    "perchLen",
+                    10.0,
+                    80.0,
+                    1.0,
+                    p.perch_len,
+                    &p.unit
+                ),
+                length_control(
+                    t(lang, "perch_off"),
+                    "perchOff",
+                    5.0,
+                    60.0,
+                    1.0,
+                    p.perch_off,
+                    &p.unit
+                ),
             )
         } else {
             String::new()
         };
         format!(
             r#"<div class="subcontrols">{}{}{}{}<label class="check"><input data-bool="doorPanel" type="checkbox" {}>{}</label>{}<label class="check"><input data-bool="doorFollowTaper" type="checkbox" {}>{}</label><label class="check"><input data-bool="perch" type="checkbox" {}>{}</label>{}</div>"#,
-            length_control(t(lang, "door_width"), "doorW", 15.0, 300.0, 1.0, p.door_w, &p.unit),
-            length_control(t(lang, "door_height"), "doorH", 15.0, 400.0, 1.0, p.door_h, &p.unit),
+            length_control(
+                t(lang, "door_width"),
+                "doorW",
+                15.0,
+                300.0,
+                1.0,
+                p.door_w,
+                &p.unit
+            ),
+            length_control(
+                t(lang, "door_height"),
+                "doorH",
+                15.0,
+                400.0,
+                1.0,
+                p.door_h,
+                &p.unit
+            ),
             range_control(t(lang, "door_x"), "doorPX", 10.0, 90.0, 1.0, p.door_px, "%"),
             range_control(t(lang, "door_y"), "doorPY", 15.0, 85.0, 1.0, p.door_py, "%"),
             checked(p.door_panel),
@@ -5463,8 +6936,24 @@ pub fn render_app_html(input: &str) -> String {
     let panel_controls = format!(
         "{}{}{}{}",
         panel_preset_select(&p, lang),
-        length_control(t(lang, "panel_width"), "panelW", 400.0, 3200.0, 10.0, p.panel_w, &p.unit),
-        length_control(t(lang, "panel_height"), "panelH", 400.0, 3200.0, 10.0, p.panel_h, &p.unit),
+        length_control(
+            t(lang, "panel_width"),
+            "panelW",
+            400.0,
+            3200.0,
+            10.0,
+            p.panel_w,
+            &p.unit
+        ),
+        length_control(
+            t(lang, "panel_height"),
+            "panelH",
+            400.0,
+            3200.0,
+            10.0,
+            p.panel_h,
+            &p.unit
+        ),
         length_control(t(lang, "kerf"), "kerf", 0.0, 10.0, 0.1, p.kerf, &p.unit),
     );
     let active_deco_key = if deco_target_keys().contains(&p.decor_active.as_str()) {
@@ -5479,7 +6968,11 @@ pub fn render_app_html(input: &str) -> String {
         deco_options.push_str(&format!(
             r#"<option value="{}" {}>{}</option>"#,
             key,
-            if key == active_deco_key { "selected" } else { "" },
+            if key == active_deco_key {
+                "selected"
+            } else {
+                ""
+            },
             html_escape(deco_target_label(lang, key)),
         ));
     }
@@ -5488,63 +6981,167 @@ pub fn render_app_html(input: &str) -> String {
     } else {
         parse_deco_svg_loops(&active_deco.source_text).len()
     };
-    let deco_status = if !active_deco.source_data.trim().is_empty() {
+    let is_stl_deco = active_deco.source_type == "stl";
+    let deco_status = if is_stl_deco && !active_deco.source_data.trim().is_empty() {
+        t(lang, "deco_stl_loaded").to_string()
+    } else if !active_deco.source_data.trim().is_empty() {
         t(lang, "deco_heightmap_loaded").to_string()
     } else if active_deco.source_text.trim().is_empty() {
         t(lang, "deco_no_file").to_string()
     } else if parsed_deco_count == 0 {
         t(lang, "deco_svg_empty").to_string()
     } else {
-        format!("{}: {} {}", t(lang, "deco_svg_loaded"), parsed_deco_count, t(lang, "shape_count"))
+        format!(
+            "{}: {} {}",
+            t(lang, "deco_svg_loaded"),
+            parsed_deco_count,
+            t(lang, "shape_count")
+        )
     };
-    let deco_has_source = !active_deco.source_text.trim().is_empty()
-        || !active_deco.source_data.trim().is_empty();
+    let deco_has_source =
+        !active_deco.source_text.trim().is_empty() || !active_deco.source_data.trim().is_empty();
     let deco_shape_controls = if deco_has_source {
-        let heightmap_controls = format!(
-            r#"<div class="subcontrols mode-settings">
+        let heightmap_controls = if is_stl_deco {
+            String::new()
+        } else {
+            format!(
+                r#"<div class="subcontrols mode-settings">
         <label class="check"><input data-deco-bool="invert" type="checkbox" {invert}>{invert_label}</label>
         <label class="check"><input data-deco-bool="removeBg" type="checkbox" {remove_bg}>{remove_bg_label}</label>
         {res}{smooth}{bevel}{threshold}
       </div>"#,
-            invert = checked(active_deco.invert),
-            invert_label = html_escape(t(lang, "deco_invert")),
-            remove_bg = checked(active_deco.remove_bg),
-            remove_bg_label = html_escape(t(lang, "deco_remove_bg")),
-            res = deco_range_control(t(lang, "deco_resolution"), "resolution", 8.0, 256.0, 8.0, active_deco.resolution, 1.0),
-            smooth = deco_range_control(t(lang, "deco_smooth"), "smooth", 0.0, 100.0, 5.0, active_deco.smooth, 1.0),
-            bevel = deco_range_control(t(lang, "deco_bevel"), "bevel", 0.0, 100.0, 5.0, active_deco.bevel, 1.0),
-            threshold = deco_range_control(t(lang, "deco_threshold"), "threshold", 0.0, 60.0, 1.0, active_deco.threshold, 1.0),
-        );
+                invert = checked(active_deco.invert),
+                invert_label = html_escape(t(lang, "deco_invert")),
+                remove_bg = checked(active_deco.remove_bg),
+                remove_bg_label = html_escape(t(lang, "deco_remove_bg")),
+                res = deco_range_control(
+                    t(lang, "deco_resolution"),
+                    "resolution",
+                    8.0,
+                    256.0,
+                    8.0,
+                    active_deco.resolution,
+                    1.0
+                ),
+                smooth = deco_range_control(
+                    t(lang, "deco_smooth"),
+                    "smooth",
+                    0.0,
+                    100.0,
+                    5.0,
+                    active_deco.smooth,
+                    1.0
+                ),
+                bevel = deco_range_control(
+                    t(lang, "deco_bevel"),
+                    "bevel",
+                    0.0,
+                    100.0,
+                    5.0,
+                    active_deco.bevel,
+                    1.0
+                ),
+                threshold = deco_range_control(
+                    t(lang, "deco_threshold"),
+                    "threshold",
+                    0.0,
+                    60.0,
+                    1.0,
+                    active_deco.threshold,
+                    1.0
+                ),
+            )
+        };
+        let deco_note_key = if is_stl_deco {
+            "deco_stl_note"
+        } else {
+            "deco_heightmap_note"
+        };
         format!(
             r#"<div class="field-group deco-relief-controls">
       <p>{relief_label}</p>
       <p class="control-note">{deco_note}</p>
       <div class="subcontrols deco-settings">
-        {w}{h}{px}{py}{rot}{depth}
+        {w}{h}
+        <label class="check"><input data-deco-bool="lockProportions" type="checkbox" {lock_proportions}>{lock_proportions_label}</label>
+        {px}{py}{rot}{depth}
         {heightmap_controls}
         <label class="check"><input data-deco-bool="clipToPanel" type="checkbox" {clip}>{clip_label}</label>
       </div>
     </div>"#,
             relief_label = html_escape(t(lang, "deco_relief_settings")),
-            deco_note = html_escape(t(lang, "deco_heightmap_note")),
-            w = deco_length_control(t(lang, "width"), "w", 5.0, 400.0, 1.0, active_deco.w, &p.unit),
-            h = deco_length_control(t(lang, "height"), "h", 5.0, 400.0, 1.0, active_deco.h, &p.unit),
-            px = deco_range_control(t(lang, "door_x"), "posX", 0.0, 100.0, 1.0, active_deco.pos_x, 1.0),
-            py = deco_range_control(t(lang, "door_y"), "posY", 0.0, 100.0, 1.0, active_deco.pos_y, 1.0),
-            rot = deco_range_control(t(lang, "deco_rotation"), "rotation", 0.0, 360.0, 1.0, active_deco.rotation, 1.0),
-            depth = deco_length_control(t(lang, "deco_depth"), "depth", 0.2, 20.0, 0.1, active_deco.depth, &p.unit),
+            deco_note = html_escape(t(lang, deco_note_key)),
+            w = deco_length_control(
+                t(lang, "width"),
+                "w",
+                5.0,
+                400.0,
+                1.0,
+                active_deco.w,
+                &p.unit
+            ),
+            h = deco_length_control(
+                t(lang, "height"),
+                "h",
+                5.0,
+                400.0,
+                1.0,
+                active_deco.h,
+                &p.unit
+            ),
+            lock_proportions = checked(active_deco.lock_proportions),
+            lock_proportions_label = html_escape(t(lang, "deco_lock_proportions")),
+            px = deco_range_control(
+                t(lang, "door_x"),
+                "posX",
+                0.0,
+                100.0,
+                1.0,
+                active_deco.pos_x,
+                1.0
+            ),
+            py = deco_range_control(
+                t(lang, "door_y"),
+                "posY",
+                0.0,
+                100.0,
+                1.0,
+                active_deco.pos_y,
+                1.0
+            ),
+            rot = deco_range_control(
+                t(lang, "deco_rotation"),
+                "rotation",
+                0.0,
+                360.0,
+                1.0,
+                active_deco.rotation,
+                1.0
+            ),
+            depth = deco_length_control(
+                t(lang, "deco_depth"),
+                "depth",
+                0.2,
+                20.0,
+                0.1,
+                active_deco.depth,
+                &p.unit
+            ),
             heightmap_controls = heightmap_controls,
             clip = checked(active_deco.clip_to_panel),
             clip_label = html_escape(t(lang, "deco_clip")),
         )
     } else {
-        format!(r#"<p class="control-note">{}</p>"#, html_escape(t(lang, "choose_file_to_show_shape_settings")))
+        format!(
+            r#"<p class="control-note">{}</p>"#,
+            html_escape(t(lang, "choose_file_to_show_shape_settings"))
+        )
     };
     let deco_active_controls = format!(
         r#"<div class="deco-workflow" data-deco-workflow>
       <div class="deco-status" data-deco-status>{deco_status}</div>
       <label class="deco-dropzone {drop_state}" data-deco-dropzone>
-        <input data-deco-file type="file" accept=".svg,image/*">
+        <input data-deco-file type="file" accept=".svg,image/*,.stl">
         <span class="deco-drop-icon" aria-hidden="true">▧</span>
         <span class="deco-drop-copy">
           <strong>{upload_title}</strong>
@@ -5564,8 +7161,16 @@ pub fn render_app_html(input: &str) -> String {
       {shape_controls}
     </div>"#,
         deco_status = html_escape(&deco_status),
-        drop_state = if deco_has_source { "has-source" } else { "is-empty" },
-        preview_state = if deco_has_source { "has-source" } else { "is-empty" },
+        drop_state = if deco_has_source {
+            "has-source"
+        } else {
+            "is-empty"
+        },
+        preview_state = if deco_has_source {
+            "has-source"
+        } else {
+            "is-empty"
+        },
         upload_title = html_escape(t(lang, "deco_upload_title")),
         upload_body = html_escape(t(lang, "deco_upload_body")),
         preview_empty = html_escape(t(lang, "deco_preview_empty")),
@@ -5639,7 +7244,8 @@ pub fn render_app_html(input: &str) -> String {
         format_len(g.roof_ridge_cut, &p.unit),
         unit.label,
     );
-    let account_controls = format!(r#"
+    let account_controls = format!(
+        r#"
       <div class="account-summary">
         <div class="account-balance">
           <span>{account_balance}</span>
@@ -5766,13 +7372,26 @@ pub fn render_app_html(input: &str) -> String {
         choice_button(t(lang, "wireframe"), "mode", "wireframe", &p.mode),
         choice_button(t(lang, "xray"), "mode", "xray", &p.mode),
         choice_button(t(lang, "edges"), "mode", "edges", &p.mode),
-        range_control(t(lang, "explode"), "explode", 0.0, 100.0, 1.0, p.explode, "%"),
+        range_control(
+            t(lang, "explode"),
+            "explode",
+            0.0,
+            100.0,
+            1.0,
+            p.explode,
+            "%"
+        ),
     );
     let theme_toggle_content = format!(
         r#"<span class="theme-glyph" data-theme-icon aria-hidden="true">☼</span><span class="theme-label" data-theme-label>{}</span>"#,
         html_escape(t(lang, "theme_light"))
     );
-    let site_exit = icon_text("↗", "header-link-glyph", "header-link-label", t(lang, "back_to_site"));
+    let site_exit = icon_text(
+        "↗",
+        "header-link-glyph",
+        "header-link-label",
+        t(lang, "back_to_site"),
+    );
     let tab_dim = icon_text("◫", "tab-glyph", "tab-label", t(lang, "dim_tab"));
     let tab_decor = icon_text("✦", "tab-glyph", "tab-label", t(lang, "decor"));
     let tab_calcs = icon_text("∑", "tab-glyph", "tab-label", t(lang, "calcs"));
@@ -5786,19 +7405,34 @@ pub fn render_app_html(input: &str) -> String {
     let heading_pieces = icon_text("▤", "section-glyph", "section-label", t(lang, "pieces"));
     let heading_cut_plan = icon_text("✂", "section-glyph", "section-label", t(lang, "cut_plan"));
     let heading_downloads = icon_text("⇩", "section-glyph", "section-label", t(lang, "downloads"));
-    let heading_models = icon_text("◼", "group-glyph", "group-label", t(lang, "download_models_3d"));
+    let heading_models = icon_text(
+        "◼",
+        "group-glyph",
+        "group-label",
+        t(lang, "download_models_3d"),
+    );
     let heading_plans = icon_text("▧", "group-glyph", "group-label", t(lang, "download_plans"));
     let models_info = info_tip(t(lang, "models_3d_info"));
     let plans_info = info_tip(t(lang, "plans_info"));
     let heading_diagnostic = icon_text("◌", "group-glyph", "group-label", t(lang, "diagnostic"));
-    let calc_pdf_label = icon_text("∑", "button-glyph", "button-label", t(lang, "download_calcs_pdf"));
+    let calc_pdf_label = icon_text(
+        "∑",
+        "button-glyph",
+        "button-label",
+        t(lang, "download_calcs_pdf"),
+    );
     let export_house_label = icon_text("⌂", "button-glyph", "button-label", t(lang, "house"));
     let export_door_label = icon_text("▣", "button-glyph", "button-label", t(lang, "door"));
-    let export_wall_mount_label =
-        icon_text("▥", "button-glyph", "button-label", t(lang, "wall_mount_piece"));
+    let export_wall_mount_label = icon_text(
+        "▥",
+        "button-glyph",
+        "button-label",
+        t(lang, "wall_mount_piece"),
+    );
     let export_panel_label = icon_text("▤", "button-glyph", "button-label", t(lang, "panel_stls"));
     let export_plan_label = icon_text("▧", "button-glyph", "button-label", t(lang, "plan"));
-    let export_explosion_label = icon_text("✣", "button-glyph", "button-label", t(lang, "explosion"));
+    let export_explosion_label =
+        icon_text("✣", "button-glyph", "button-label", t(lang, "explosion"));
     let export_debug_label = icon_text("◈", "button-glyph", "button-label", t(lang, "debug"));
     let export_report_label = icon_text("≡", "button-glyph", "button-label", t(lang, "report"));
     let overlay_mode = icon_text("◩", "chip-glyph", "chip-label", &p.mode.to_uppercase());
@@ -6058,6 +7692,36 @@ pub fn render_app_html(input: &str) -> String {
 mod tests {
     use super::*;
 
+    fn test_vec3(x: f32, y: f32, z: f32) -> Vec3 {
+        Vec3 { x, y, z }
+    }
+
+    fn test_box_tris(min: Vec3, max: Vec3) -> Vec<Tri> {
+        let v000 = test_vec3(min.x, min.y, min.z);
+        let v100 = test_vec3(max.x, min.y, min.z);
+        let v110 = test_vec3(max.x, max.y, min.z);
+        let v010 = test_vec3(min.x, max.y, min.z);
+        let v001 = test_vec3(min.x, min.y, max.z);
+        let v101 = test_vec3(max.x, min.y, max.z);
+        let v111 = test_vec3(max.x, max.y, max.z);
+        let v011 = test_vec3(min.x, max.y, max.z);
+        let mut tris = Vec::new();
+        quad(&mut tris, v000, v100, v110, v010);
+        quad(&mut tris, v001, v011, v111, v101);
+        quad(&mut tris, v000, v001, v101, v100);
+        quad(&mut tris, v010, v110, v111, v011);
+        quad(&mut tris, v000, v010, v011, v001);
+        quad(&mut tris, v100, v101, v111, v110);
+        clean_tris(tris)
+    }
+
+    fn test_box_stl_base64(min: Vec3, max: Vec3) -> String {
+        use base64::Engine as _;
+
+        base64::engine::general_purpose::STANDARD
+            .encode(write_stl("test-box", &test_box_tris(min, max)))
+    }
+
     #[test]
     fn parse_input_clamps_extreme_numeric_values() {
         let input = r#"{
@@ -6175,7 +7839,26 @@ mod tests {
         assert!(html.contains("data-deco-dropzone"));
         assert!(html.contains("data-deco-preview"));
         assert!(html.contains(".svg,image/*"));
+        assert!(html.contains(".stl"));
         assert!(!html.contains("data-deco-choice=\"mode\""));
+    }
+
+    #[test]
+    fn render_app_html_exposes_decor_proportion_lock() {
+        let input = serde_json::json!({
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "png",
+                    "sourceData": "iVBORw0KGgo=",
+                    "mode": "heightmap"
+                }
+            }
+        })
+        .to_string();
+        let html = render_app_html(&input);
+
+        assert!(html.contains("data-deco-bool=\"lockProportions\""));
     }
 
     #[test]
@@ -6208,8 +7891,7 @@ mod tests {
         use image::ImageEncoder as _;
 
         let pixels = [
-            0u8, 0, 0, 255, 255, 255, 255, 255,
-            128, 128, 128, 255, 64, 64, 64, 255,
+            0u8, 0, 0, 255, 255, 255, 255, 255, 128, 128, 128, 255, 64, 64, 64, 255,
         ];
         let mut png = Vec::new();
         image::codecs::png::PngEncoder::new(&mut png)
@@ -6237,6 +7919,260 @@ mod tests {
         let tris = build_decor_tris_for_target(&p, &g, "front");
 
         assert!(!tris.is_empty());
+    }
+
+    #[test]
+    fn parse_input_preserves_stl_decor_source_data() {
+        let data = test_box_stl_base64(test_vec3(0.0, 0.0, 0.0), test_vec3(10.0, 10.0, 4.0));
+        let input = serde_json::json!({
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "stl",
+                    "sourceData": data,
+                    "mode": "stl",
+                    "w": 40,
+                    "h": 40,
+                    "depth": 6
+                }
+            }
+        })
+        .to_string();
+
+        let p = parse_input(&input).expect("valid JSON should parse");
+        let deco = p.decos.get("front").expect("front deco exists");
+
+        assert!(deco.enabled);
+        assert_eq!(deco.source_type, "stl");
+        assert_eq!(deco.mode, "stl");
+        assert!(deco.source_data.len() > 80);
+    }
+
+    #[test]
+    fn binary_stl_near_browser_size_limit_is_accepted() {
+        let tri_count = 78_881usize;
+        let mut bytes = Vec::with_capacity(84 + tri_count * 50);
+        bytes.extend_from_slice(&[0u8; 80]);
+        bytes.extend_from_slice(&(tri_count as u32).to_le_bytes());
+
+        for _ in 0..tri_count {
+            for value in [
+                0.0_f32, 0.0, 1.0, // normal
+                0.0, 0.0, 0.0, // a
+                1.0, 0.0, 0.0, // b
+                0.0, 1.0, 0.0, // c
+            ] {
+                bytes.extend_from_slice(&value.to_le_bytes());
+            }
+            bytes.extend_from_slice(&0u16.to_le_bytes());
+        }
+
+        assert_eq!(bytes.len(), 3_944_134);
+        let tris = parse_binary_stl(&bytes).expect("browser-size STL should parse");
+
+        assert_eq!(tris.len(), tri_count);
+    }
+
+    #[test]
+    fn imported_stl_decor_generates_front_panel_tris() {
+        let data = test_box_stl_base64(test_vec3(0.0, 0.0, 0.0), test_vec3(10.0, 10.0, 4.0));
+        let input = serde_json::json!({
+            "door": "none",
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "stl",
+                    "sourceData": data,
+                    "mode": "stl",
+                    "w": 40,
+                    "h": 40,
+                    "depth": 6,
+                    "clipToPanel": true
+                }
+            }
+        })
+        .to_string();
+
+        let p = parse_input(&input).expect("valid JSON should parse");
+        let g = GeometryPayload::from_p(&p);
+        let tris = build_decor_tris_for_target(&p, &g, "front");
+        let topology = mesh_topology(&tris);
+
+        assert_eq!(tris.len(), 12);
+        assert!(tris.iter().all(tri_is_finite));
+        assert!(topology.is_watertight());
+    }
+
+    #[test]
+    fn imported_stl_uses_thinnest_axis_as_panel_depth() {
+        let (u_axis, v_axis, depth_axis) = imported_stl_axes(
+            Vec3 {
+                x: -5.0,
+                y: -1.0,
+                z: -10.0,
+            },
+            Vec3 {
+                x: 5.0,
+                y: 1.0,
+                z: 10.0,
+            },
+        );
+
+        assert_eq!((u_axis, v_axis, depth_axis), (0, 2, 1));
+    }
+
+    #[test]
+    fn imported_z_up_stl_decor_generates_front_panel_tris() {
+        let data = test_box_stl_base64(test_vec3(-5.0, -1.0, -10.0), test_vec3(5.0, 1.0, 10.0));
+        let input = serde_json::json!({
+            "door": "none",
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "stl",
+                    "sourceData": data,
+                    "mode": "stl",
+                    "w": 40,
+                    "h": 80,
+                    "posY": 75,
+                    "depth": 6,
+                    "clipToPanel": true
+                }
+            }
+        })
+        .to_string();
+
+        let p = parse_input(&input).expect("valid JSON should parse");
+        let g = GeometryPayload::from_p(&p);
+        let tris = build_decor_tris_for_target(&p, &g, "front");
+
+        assert_eq!(tris.len(), 12);
+        assert!(tris.iter().all(tri_is_finite));
+        assert!(mesh_topology(&tris).is_watertight());
+    }
+
+    #[test]
+    fn imported_stl_decor_survives_front_gable_clip() {
+        let data = test_box_stl_base64(test_vec3(-5.0, -5.0, 0.0), test_vec3(5.0, 5.0, 1.0));
+        let input = serde_json::json!({
+            "door": "none",
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "stl",
+                    "sourceData": data,
+                    "mode": "stl",
+                    "w": 20,
+                    "h": 40,
+                    "posX": 50,
+                    "posY": 86,
+                    "depth": 4,
+                    "clipToPanel": true
+                }
+            }
+        })
+        .to_string();
+
+        let p = parse_input(&input).expect("valid JSON should parse");
+        let g = GeometryPayload::from_p(&p);
+        let tris = build_decor_tris_for_target(&p, &g, "front");
+        let max_y = tris
+            .iter()
+            .flat_map(|tri| [tri.a.y, tri.b.y, tri.c.y])
+            .fold(f32::NEG_INFINITY, f32::max);
+
+        assert_eq!(tris.len(), 12);
+        assert!(max_y > g.wall_h as f32);
+        assert!(mesh_topology(&tris).is_watertight());
+    }
+
+    #[test]
+    fn imported_stl_door_cutout_dominates_even_without_panel_clip() {
+        let data = test_box_stl_base64(test_vec3(-10.0, -10.0, 0.0), test_vec3(10.0, 10.0, 2.0));
+        let decor = serde_json::json!({
+            "enabled": true,
+            "sourceType": "stl",
+            "sourceData": data,
+            "mode": "stl",
+            "w": 100,
+            "h": 100,
+            "posX": 50,
+            "posY": 36.6666667,
+            "depth": 4,
+            "clipToPanel": false
+        });
+        let input = serde_json::json!({
+            "decos": {
+                "front": decor
+            }
+        })
+        .to_string();
+
+        let p = parse_input(&input).expect("valid JSON should parse");
+        let g = GeometryPayload::from_p(&p);
+        let tris = build_decor_tris_for_target(&p, &g, "front");
+
+        assert!(tris.is_empty());
+    }
+
+    #[test]
+    fn front_panel_and_door_exports_remain_watertight_for_door_shapes() {
+        for door in [DoorMode::Round, DoorMode::Square, DoorMode::Pentagon] {
+            let mut p = NichoirParams::default();
+            p.door = door;
+            p.door_panel = true;
+            p.perch = true;
+            let g = GeometryPayload::from_p(&p);
+
+            let front = front_panel_tris(&p, &g);
+            let front_topology = mesh_topology(&front);
+            assert!(
+                front_topology.is_watertight(),
+                "front panel topology failed for {:?}: open={}, non_manifold={}",
+                door,
+                front_topology.open_edges,
+                front_topology.non_manifold_edges
+            );
+
+            let door_tris = door_panel_tris(&p);
+            let door_topology = mesh_topology(&door_tris);
+            assert!(
+                door_topology.is_watertight(),
+                "door topology failed for {:?}: open={}, non_manifold={}",
+                door,
+                door_topology.open_edges,
+                door_topology.non_manifold_edges
+            );
+        }
+    }
+
+    #[test]
+    fn imported_stl_decor_that_survives_clipping_must_be_watertight() {
+        let data = test_box_stl_base64(test_vec3(0.0, 0.0, 0.0), test_vec3(20.0, 20.0, 4.0));
+        let input = serde_json::json!({
+            "door": "none",
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "stl",
+                    "sourceData": data,
+                    "mode": "stl",
+                    "w": 35,
+                    "h": 35,
+                    "depth": 6,
+                    "clipToPanel": true
+                }
+            }
+        })
+        .to_string();
+
+        let p = parse_input(&input).expect("valid JSON should parse");
+        let g = GeometryPayload::from_p(&p);
+        let tris = build_decor_tris_for_target(&p, &g, "front");
+        let topology = mesh_topology(&tris);
+
+        assert!(!tris.is_empty());
+        assert!(topology.is_watertight());
     }
 
     #[test]
@@ -6268,7 +8204,11 @@ mod tests {
         assert!(p.wall_mount);
         assert_eq!(wall_mount_depth(&p), 36.0);
         assert_eq!(wall_mount_holes(&p, &g).len(), 2);
-        assert!(parts.iter().any(|(name, tris)| name == "bloc_fixation_mur" && !tris.is_empty()));
+        assert!(
+            parts
+                .iter()
+                .any(|(name, tris)| name == "bloc_fixation_mur" && !tris.is_empty())
+        );
     }
 
     #[test]

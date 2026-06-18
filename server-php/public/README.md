@@ -63,7 +63,8 @@ API/webhook:
 - Keep only public assets and the front controller here.
 - Do not place SQLite databases, DB configs, secrets, migrations, source modules, install locks, dumps or logs in this folder.
 - In production, `/api/health` should report `env=production` and `db_driver=mysql`; `db_driver=sqlite` is a failed production configuration.
-- `GET /api/admin/session` should return only the current admin-session boolean used by the static app for admin-only diagnostics.
+- `GET /api/admin/session` should return only the current admin-session boolean used by the static app for admin-only diagnostics and zero-cost admin export access.
+- Export quote/authorize/consume routes must support both client credit-backed authorizations and admin session-backed zero-cost authorizations. Admin tokens stay in PHP session, expire, and are consumed once.
 - API routes should return through `json_response()`.
 - HTML pages should use `page_response()` from `src/layout.php`.
 - New shared visual styling should go in `site.css`, not page-local inline styles.

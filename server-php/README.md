@@ -29,8 +29,10 @@ Useful pages:
 When the static WASM app runs separately on `8016`, open it with:
 
 ```text
-http://127.0.0.1:8016/app/index.html?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021
+http://127.0.0.1:8016/app/
 ```
+
+The app auto-detects this local split-port setup and sends API calls to `127.0.0.1:8021`. The `php_base` query parameter remains available for local-only override tests.
 
 ## Current routes
 
@@ -87,6 +89,7 @@ API and webhook:
 - `{NICHOIR_ADMIN_PATH}` manages users, profiles, passwords, credits, statuses, manual subscriptions, support tickets, logs, database export, DB settings, Stripe settings, SMTP settings and test email.
 - `{NICHOIR_ADMIN_PATH}/login` uses `NICHOIR_ADMIN_PASSWORD_HASH`, PHP session cookies, `password_verify()` and `session_regenerate_id(true)`.
 - `/api/admin/session` returns whether the current PHP session is admin-authenticated so the static app can reveal admin-only diagnostics without exposing the configured admin path.
+- The same admin session can authorize premium WASM downloads without client credits. Export quote/authorize/consume still run, but they return `admin=true`, `cost=0`, store the authorization in `$_SESSION`, consume it once, and do not write `credit_ledger`.
 - `NICHOIR_ADMIN_PATH` defaults to `/gestion-nichoir`; `/admin` and `/administration` are reserved/interdicted and must not expose the back-office.
 - Public responses must not inject the configured admin path into shared HTML/JavaScript; only admin responses may render it.
 - Admin POST actions use CSRF tokens and write audit/app logs for important changes.
@@ -102,9 +105,9 @@ API and webhook:
 - Valid server-billed export type identifiers are `svg`, `png`, `pdf`, `stl` and `zip`.
 - `server-php/src/credits.php` owns the WASM app registry, configured export cost and partial-credit bonus policy.
 - `/api/apps` returns the server-known WASM apps. The current app id is `nichoir`.
-- `/api/exports/quote` checks `app_id`, account, export type, current balance and optional partial-balance bonus without creating a token or debiting credits.
-- `/api/exports/authorize` checks active account status, `app_id`, export type, current balance and optional partial-balance bonus, then creates a short-lived token.
-- `/api/exports/consume` revalidates the account and `app_id`, atomically claims the authorization, applies any configured top-up, debits credits, writes `credit_ledger`, and logs/audits the event.
+- `/api/exports/quote` checks `app_id`, export type and, for clients, current balance plus optional partial-balance bonus without creating a token or debiting credits. Admin sessions get `cost=0`.
+- `/api/exports/authorize` checks `app_id`, export type and, for clients, active account status/current balance/bonus eligibility, then creates a short-lived token. Client tokens are stored in `export_authorizations`; admin tokens are stored in PHP session.
+- `/api/exports/consume` revalidates the account or admin session and `app_id`, atomically claims the authorization, applies any configured client top-up, debits client credits, writes `credit_ledger`, and logs/audits the event. Admin consumption is one-shot, logged, and does not debit or create ledger rows.
 - The browser generates the actual file locally after authorization. PHP never generates STL, PDF, ZIP or mesh data.
 - The current app only bills house STL and plan-section SVG/PNG/PDF exports. Door STL, wall-mount STL, panels ZIP, calculations PDF and diagnostic exports are local/free unless the browser wiring is intentionally changed.
 
@@ -201,7 +204,8 @@ Manual checks:
 5. Test auth/register/activate or login with a known local account.
 6. Test one export quote/authorize/consume success.
 7. Repeat the same consume and confirm no second debit.
-8. If Stripe code changed, test checkout, portal and webhook signature handling in Stripe test mode.
+8. Test admin export quote/authorize/consume with no account session: it should return `admin=true`, `cost=0`, then reject a second consume of the same token.
+9. If Stripe code changed, test checkout, portal and webhook signature handling in Stripe test mode.
 
 ## Open risks
 

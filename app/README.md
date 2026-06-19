@@ -34,8 +34,8 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 - Current local/free downloads: door STL, wall-mount STL, panels ZIP, calculations PDF, debug OBJ and mesh report JSON.
 - Diagnostic downloads are rendered by WASM but hidden by default with `data-admin-only`; `app.js` unhides them only when `/api/admin/session` confirms an admin PHP session.
 - Admin export access: when `/api/admin/session` returns `admin=true`, premium downloads still go through quote/authorize/consume but PHP returns `cost=0`, stores the token in the admin PHP session, and consumes it once without touching credits.
-- Client-side decoration file intake: SVG/raster images are capped at 2 MiB and converted to WASM heightmaps; local STL imports are capped at 4 MiB and sent to WASM as base64 mesh data.
-- Library decor remains a server/PHP download flow: the client spends credits on `/library`, receives an STL or image file on their computer, then imports that local file through the existing decoration uploader. `app.js` does not fetch private library files directly into WASM.
+- Client-side decoration file intake: SVG/raster images are capped at 2 MiB and converted to WASM heightmaps; local STL imports are capped at 25 MiB and sent to WASM as base64 mesh data.
+- Library decor remains a server/PHP download flow: the Decor panel lists active library files and can authorize/download them with credits, but the client still receives the STL/image file on their computer and imports that local file through the decoration uploader. `app.js` does not fetch private library files directly into WASM.
 - Decoration controls support panel target selection, width/height proportion lock, rotation, depth, heightmap smoothing/threshold and clipping to panel/hole geometry. Door/perch holes dominate front-panel decor in the WASM geometry.
 - STL decor preview is permissive so imported meshes remain visible while the user places them. Strict export/report generation can still omit a decor if clipping makes it open or non-manifold; `app.js` logs the strict `deco_*` export report after import and shows a warning when that happens.
 

@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260618-stl-import-v9';
+} from '../wasm/pkg/wasm.js?v=20260618-library-panel-v1';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260618-stl-import-v9';
+const APP_BUILD_ID = '20260618-library-panel-v1';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -46,7 +46,7 @@ const PHP_BASE = detectPhpBase();
 localStorage.removeItem('nichoir-auth-token');
 const MESH_REPORT_STORAGE_KEY = 'nichoir-last-mesh-report';
 const MAX_DECO_FILE_BYTES = 2 * 1024 * 1024;
-const MAX_DECO_STL_FILE_BYTES = 4 * 1024 * 1024;
+const MAX_DECO_STL_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_DECO_STL_TRIANGLES_HINT = 120_000;
 const DECO_SIZE_MIN_MM = 5;
 const DECO_SIZE_MAX_MM = 400;
@@ -202,7 +202,7 @@ const I18N = {
     pricing_info: 'Credits: le serveur PHP confirme le cout reel avant chaque telechargement premium.',
     decor_load_supported: 'Decor: charge un SVG, STL ou une image prise en charge par ton navigateur.',
     decor_too_large: 'Decor: fichier trop lourd. Limite actuelle: 2 Mo.',
-    decor_stl_too_large: 'Decor: STL trop lourd. Limite actuelle: 4 Mo.',
+    decor_stl_too_large: 'Decor: STL trop lourd. Limite actuelle: 25 Mo.',
     decor_processing: 'Decor: conversion en heightmap...',
     decor_stl_processing: 'Decor: chargement du STL...',
     decor_svg_heightmap: 'Decor: SVG rasterise en heightmap et envoye au WASM.',
@@ -216,6 +216,17 @@ const I18N = {
     decor_preview_empty: 'Apercu apres chargement',
     decor_stl_preview: 'STL importe',
     decor_preview_alt: 'Apercu du decor charge',
+    decor_library_title: 'Librairie de decors',
+    decor_library_body: 'Telecharge un fichier de la librairie avec credits, puis importe le STL telecharge dans la zone ci-dessus.',
+    decor_library_open: 'Ouvrir librairie',
+    decor_library_refresh: 'Actualiser',
+    decor_library_download: 'Telecharger',
+    decor_library_empty: 'Aucun decor actif dans la librairie.',
+    decor_library_loading: 'Chargement de la librairie...',
+    decor_library_error: 'Librairie: {error}',
+    decor_library_ready: 'Librairie: {count} fichier(s) disponible(s).',
+    decor_library_started: 'Telechargement lance. Importe ensuite le fichier depuis ton ordinateur.',
+    decor_library_insufficient: 'Credits insuffisants pour ce decor.',
     export_house_empty: 'Export maison vide: le modele n a genere aucun triangle.',
     export_door_empty: 'Pas de porte STL: choisis une porte et active "Creer le panneau de porte".',
     export_wall_mount_empty: 'Pas de STL fixation murale: active "Fixation murale" dans Dimensions.',
@@ -350,7 +361,7 @@ const I18N = {
     pricing_info: 'Credits: the PHP server confirms the real cost before each premium download.',
     decor_load_supported: 'Decor: load an SVG, STL, or image supported by your browser.',
     decor_too_large: 'Decor: file too large. Current limit: 2 MB.',
-    decor_stl_too_large: 'Decor: STL file too large. Current limit: 4 MB.',
+    decor_stl_too_large: 'Decor: STL file too large. Current limit: 25 MB.',
     decor_processing: 'Decor: converting to heightmap...',
     decor_stl_processing: 'Decor: loading STL...',
     decor_svg_heightmap: 'Decor: SVG rasterized to a heightmap and sent to WASM.',
@@ -364,6 +375,17 @@ const I18N = {
     decor_preview_empty: 'Preview after upload',
     decor_stl_preview: 'Imported STL',
     decor_preview_alt: 'Uploaded decoration preview',
+    decor_library_title: 'Decor library',
+    decor_library_body: 'Download a library file with credits, then import the downloaded STL in the drop zone above.',
+    decor_library_open: 'Open library',
+    decor_library_refresh: 'Refresh',
+    decor_library_download: 'Download',
+    decor_library_empty: 'No active decor file is in the library.',
+    decor_library_loading: 'Loading library...',
+    decor_library_error: 'Library: {error}',
+    decor_library_ready: 'Library: {count} file(s) available.',
+    decor_library_started: 'Download started. Then import the file from your computer.',
+    decor_library_insufficient: 'Not enough credits for this decor.',
     export_house_empty: 'House export is empty: the model generated no triangles.',
     export_door_empty: 'No STL door: choose a door and enable "Create door panel".',
     export_wall_mount_empty: 'No wall mount STL: enable "Wall mount" in Dimensions.',
@@ -488,6 +510,13 @@ function formatDisplayDate(value) {
 
 function formatCountText(value) {
   return formatNumber(value, { maximumFractionDigits: 0 });
+}
+
+function formatFileSize(bytes) {
+  const value = Number(bytes || 0);
+  if (value >= 1048576) return `${formatNumber(value / 1048576, { maximumFractionDigits: 1 })} Mo`;
+  if (value >= 1024) return `${formatCountText(value / 1024)} Ko`;
+  return `${formatCountText(value)} o`;
 }
 
 function formatCreditText(value) {
@@ -1019,6 +1048,95 @@ async function apiRequest(path, options = {}) {
     throw new ApiError(payload.error || `api_${response.status}`, payload, response.status);
   }
   return payload;
+}
+
+function renderDecorLibraryItems(items = []) {
+  if (!items.length) {
+    return `<p class="control-note">${escapeHtml(tr('decor_library_empty'))}</p>`;
+  }
+  return items.map((item) => `
+    <article class="deco-library-item">
+      <img src="${escapeHtml(phpUrl(item.thumbnail_url || `/api/library/thumbnail?item_id=${item.id}`))}" alt="Preview ${escapeHtml(item.title || item.original_filename || '')}" loading="lazy">
+      <div class="deco-library-copy">
+        <strong>${escapeHtml(item.title || item.original_filename || '')}</strong>
+        ${item.description ? `<span>${escapeHtml(item.description)}</span>` : ''}
+        <small>${escapeHtml(item.original_filename || '')} · ${formatFileSize(item.file_size_bytes)} · ${formatCreditText(item.cost)}</small>
+      </div>
+      <button class="tool-button" type="button" data-library-download="${escapeHtml(item.id)}">${escapeHtml(tr('decor_library_download'))}</button>
+    </article>
+  `).join('');
+}
+
+async function loadDecorLibraryPanel() {
+  const panel = root.querySelector('[data-deco-library-panel]');
+  if (!panel) return;
+  const list = panel.querySelector('[data-deco-library-list]');
+  const status = panel.querySelector('[data-deco-library-status]');
+  if (!list || !status) return;
+  status.textContent = tr('decor_library_loading');
+  list.innerHTML = '';
+  try {
+    const payload = await apiRequest('/api/library');
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    list.innerHTML = renderDecorLibraryItems(items);
+    status.textContent = items.length ? tr('decor_library_ready', { count: items.length }) : tr('decor_library_empty');
+    debugStlLog('decor library loaded in WASM panel', {
+      count: items.length,
+      items: items.map((item) => ({ id: item.id, name: item.original_filename, cost: item.cost })),
+    });
+  } catch (err) {
+    list.innerHTML = '';
+    status.textContent = tr('decor_library_error', { error: err?.message || err });
+    debugStlLog('decor library load failed in WASM panel', { error: err?.message || String(err) });
+  }
+}
+
+async function authorizeLibraryDownload(itemId) {
+  const payload = await apiRequest('/api/library/authorize', {
+    method: 'POST',
+    body: JSON.stringify({ item_id: Number(itemId || 0) }),
+  });
+  if (!payload.download_url) throw new Error('library_download_url_missing');
+  return payload;
+}
+
+function attachDecorLibraryPanel() {
+  const panel = root.querySelector('[data-deco-library-panel]');
+  if (!panel) return;
+  panel.querySelector('[data-deco-library-open]')?.setAttribute('href', phpUrl('/library'));
+  panel.querySelector('[data-deco-library-refresh]')?.addEventListener('click', () => {
+    loadDecorLibraryPanel();
+  });
+  panel.querySelector('[data-deco-library-list]')?.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-library-download]');
+    if (!button) return;
+    const status = panel.querySelector('[data-deco-library-status]');
+    button.disabled = true;
+    try {
+      const payload = await authorizeLibraryDownload(button.dataset.libraryDownload);
+      if (status) status.textContent = tr('decor_library_started');
+      debugStlLog('decor library download authorized from WASM panel', {
+        itemId: payload.item_id,
+        cost: payload.cost,
+        admin: Boolean(payload.admin),
+      });
+      window.location.href = phpUrl(payload.download_url);
+    } catch (err) {
+      if (status) {
+        status.textContent = err?.status === 402
+          ? tr('decor_library_insufficient')
+          : tr('decor_library_error', { error: err?.message || err });
+      }
+      debugStlLog('decor library download failed from WASM panel', {
+        itemId: button.dataset.libraryDownload,
+        status: err?.status || 0,
+        error: err?.message || String(err),
+      });
+    } finally {
+      button.disabled = false;
+    }
+  });
+  loadDecorLibraryPanel();
 }
 
 function applyAdminVisibility() {
@@ -2945,6 +3063,7 @@ function render() {
   ensureDecos();
   root.innerHTML = render_app_html(JSON.stringify(params));
   applyTheme();
+  attachDecorLibraryPanel();
 
   const accountModal = root.querySelector('[data-account-modal]');
   const accountOpenButton = root.querySelector('[data-action="account-modal-open"]');

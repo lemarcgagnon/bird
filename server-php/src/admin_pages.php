@@ -674,55 +674,35 @@ function render_admin_library_panel(PDO $pdo): string
     $phpUploadLimits = library_ini_upload_limit_label();
     $stlUploadMaxMb = library_stl_upload_max_mb($pdo);
     $itemRows = '';
-    $imageCards = '';
-    $stlCards = '';
     foreach ($items as $item) {
         $typeLabel = library_is_image_item($item) ? 'Image' : 'STL';
-        if (library_is_image_item($item)) {
-            $imageCards .= '
-              <article class="library-preview-card">
-                <img src="/api/library/preview?item_id=' . (int) $item['id'] . '" alt="' . h((string) ($item['title'] ?: $item['original_filename'])) . '" loading="lazy">
-                <div>
-                  <strong>' . h((string) ($item['title'] ?: $item['original_filename'])) . '</strong>
-                  ' . ((string) ($item['description'] ?? '') !== '' ? '<span>' . h((string) $item['description']) . '</span>' : '') . '
-                  <span>' . h((string) $item['original_filename']) . '</span>
-                </div>
-              </article>
-            ';
-        } elseif (library_is_stl_item($item)) {
-            $stlCards .= '
-              <article class="library-preview-card library-stl-preview-card">
-                <canvas width="260" height="260" data-admin-stl-preview="' . (int) $item['id'] . '" aria-label="Preview STL ' . h((string) ($item['title'] ?: $item['original_filename'])) . '"></canvas>
-                <div>
-                  <strong>' . h((string) ($item['title'] ?: $item['original_filename'])) . '</strong>
-                  ' . ((string) ($item['description'] ?? '') !== '' ? '<span>' . h((string) $item['description']) . '</span>' : '') . '
-                  <span>' . h((string) $item['original_filename']) . '</span>
-                </div>
-              </article>
-            ';
-        }
         $itemRows .= '
           <tr>
             <td>#' . (int) $item['id'] . '</td>
             <td>' . h($typeLabel) . '</td>
             <td>
-              <form class="inline-form library-item-form" method="post" action="' . h(admin_base_path()) . '">
-                ' . admin_csrf_input() . '
-                <input type="hidden" name="action" value="update_library_item">
-                <input type="hidden" name="library_item_id" value="' . (int) $item['id'] . '">
-                <label><span>Titre</span><input type="text" name="title" maxlength="140" value="' . h((string) $item['title']) . '"></label>
-                <label><span>Description</span><textarea name="description" maxlength="1000" rows="2">' . h((string) ($item['description'] ?? '')) . '</textarea></label>
-                <label><span>Cout</span><input type="number" name="cost" min="1" step="1" value="' . (int) $item['cost'] . '"></label>
-                <label class="checkbox-label"><input type="checkbox" name="is_active" value="1"' . ((int) $item['is_active'] === 1 ? ' checked' : '') . '> Actif</label>
-                <button type="submit">Enregistrer</button>
-              </form>
-              <form class="inline-form library-item-delete-form" method="post" action="' . h(admin_base_path()) . '" onsubmit="return confirm(\'Supprimer definitivement ce fichier de la librairie ?\');">
-                ' . admin_csrf_input() . '
-                <input type="hidden" name="action" value="delete_library_item">
-                <input type="hidden" name="library_item_id" value="' . (int) $item['id'] . '">
-                <button type="submit" class="secondary">Supprimer</button>
-              </form>
-              <p class="control-note">' . h((string) $item['original_filename']) . ' · ' . h(admin_format_bytes((int) $item['file_size_bytes'])) . '</p>
+              <div class="library-admin-item">
+                <img class="library-thumbnail" src="/api/library/thumbnail?item_id=' . (int) $item['id'] . '" alt="Preview ' . h((string) ($item['title'] ?: $item['original_filename'])) . '" loading="lazy">
+                <div class="library-admin-item-body">
+                  <form class="inline-form library-item-form" method="post" action="' . h(admin_base_path()) . '">
+                    ' . admin_csrf_input() . '
+                    <input type="hidden" name="action" value="update_library_item">
+                    <input type="hidden" name="library_item_id" value="' . (int) $item['id'] . '">
+                    <label><span>Titre</span><input type="text" name="title" maxlength="140" value="' . h((string) $item['title']) . '"></label>
+                    <label><span>Description</span><textarea name="description" maxlength="1000" rows="2">' . h((string) ($item['description'] ?? '')) . '</textarea></label>
+                    <label><span>Cout</span><input type="number" name="cost" min="1" step="1" value="' . (int) $item['cost'] . '"></label>
+                    <label class="checkbox-label"><input type="checkbox" name="is_active" value="1"' . ((int) $item['is_active'] === 1 ? ' checked' : '') . '> Actif</label>
+                    <button type="submit">Enregistrer</button>
+                  </form>
+                  <form class="inline-form library-item-delete-form" method="post" action="' . h(admin_base_path()) . '" onsubmit="return confirm(\'Supprimer definitivement ce fichier de la librairie ?\');">
+                    ' . admin_csrf_input() . '
+                    <input type="hidden" name="action" value="delete_library_item">
+                    <input type="hidden" name="library_item_id" value="' . (int) $item['id'] . '">
+                    <button type="submit" class="secondary">Supprimer</button>
+                  </form>
+                  <p class="control-note">' . h((string) $item['original_filename']) . ' · ' . h(admin_format_bytes((int) $item['file_size_bytes'])) . '</p>
+                </div>
+              </div>
             </td>
             <td>' . h(admin_format_bytes((int) $item['file_size_bytes'])) . '</td>
             <td>' . (int) $item['download_count'] . '</td>
@@ -732,12 +712,6 @@ function render_admin_library_panel(PDO $pdo): string
     }
     if ($itemRows === '') {
         $itemRows = '<tr><td colspan="6">Aucun fichier dans la librairie.</td></tr>';
-    }
-    if ($imageCards === '') {
-        $imageCards = '<p class="control-note">Aucune image uploadee pour le moment.</p>';
-    }
-    if ($stlCards === '') {
-        $stlCards = '<p class="control-note">Aucun STL uploade pour le moment.</p>';
     }
 
     $downloads = $pdo->query(
@@ -777,14 +751,6 @@ function render_admin_library_panel(PDO $pdo): string
         <div class="library-preview-grid" data-library-admin-selected-preview></div>
         <p class="control-note" data-library-admin-debug>Aucun fichier selectionne.</p>
         <div class="table-wrap"><table><thead><tr><th>ID</th><th>Type</th><th>Fichier</th><th>Taille</th><th>Telechargements</th><th>MAJ</th></tr></thead><tbody>' . $itemRows . '</tbody></table></div>
-      </section>
-      <section class="panel">
-        <h2>Visualiseur STL</h2>
-        <div class="library-preview-grid">' . $stlCards . '</div>
-      </section>
-      <section class="panel">
-        <h2>Visualiseur images</h2>
-        <div class="library-preview-grid">' . $imageCards . '</div>
       </section>
       <section class="panel">
         <h2>Telechargements librairie recents</h2>

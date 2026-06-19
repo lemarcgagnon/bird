@@ -418,19 +418,41 @@ article strong,
 
 .library-card {
   display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 0.38fr);
   gap: 16px;
-  align-content: space-between;
-  min-height: 260px;
+  align-items: start;
+  min-height: 0;
 }
 
 .library-card h3 {
-  margin: 10px 0 4px;
+  margin: 8px 0 4px;
   font-size: 22px;
   line-height: 1.1;
 }
 
 .library-card p {
+  margin: 0;
   overflow-wrap: anywhere;
+}
+
+.library-card-main,
+.library-admin-item {
+  display: grid;
+  grid-template-columns: 148px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.library-card-copy,
+.library-admin-item-body {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.library-card-side {
+  display: grid;
+  gap: 12px;
 }
 
 .library-card dl {
@@ -494,12 +516,16 @@ article strong,
 
 .library-thumbnail {
   width: 100%;
+  max-width: 180px;
   aspect-ratio: 1;
   object-fit: contain;
-  margin-top: 12px;
   border: 1px solid var(--line);
   border-radius: 7px;
   background: #fffdf8;
+}
+
+.library-admin-item .library-thumbnail {
+  max-width: 148px;
 }
 
 .library-preview-card div {
@@ -1095,8 +1121,16 @@ footer {
   .admin-modal-header,
   .ticket-admin-forms,
   .ticket-detail-header,
-  .client-summary {
+  .client-summary,
+  .library-card,
+  .library-card-main,
+  .library-admin-item {
     grid-template-columns: 1fr;
+  }
+
+  .library-thumbnail,
+  .library-admin-item .library-thumbnail {
+    max-width: 100%;
   }
 
   .about-hero {

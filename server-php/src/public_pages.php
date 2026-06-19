@@ -217,19 +217,23 @@ function render_library_page(): void
               message.textContent = items.length ? "" : labels.empty;
               grid.innerHTML = items.map((item) => `
                 <article class="library-card">
-                  <div>
-                    <span class="plan-badge">${esc((item.media_type || item.file_ext || "file").toUpperCase())}</span>
-                    <h3>${esc(item.title || item.original_filename)}</h3>
-                    ${item.description ? `<p>${esc(item.description)}</p>` : ``}
-                    <p>${esc(item.original_filename)}</p>
+                  <div class="library-card-main">
                     <img class="library-thumbnail" src="${esc(item.thumbnail_url)}" alt="Preview ${esc(item.title || item.original_filename)}" loading="lazy">
+                    <div class="library-card-copy">
+                      <span class="plan-badge">${esc((item.media_type || item.file_ext || "file").toUpperCase())}</span>
+                      <h3>${esc(item.title || item.original_filename)}</h3>
+                      ${item.description ? `<p>${esc(item.description)}</p>` : ``}
+                      <p>${esc(item.original_filename)}</p>
+                    </div>
                   </div>
-                  <dl>
-                    <div><dt>${labels.size}</dt><dd>${fmtBytes(item.file_size_bytes)}</dd></div>
-                    <div><dt>${labels.downloads}</dt><dd>${esc(item.download_count)}</dd></div>
-                    <div><dt>${labels.cost}</dt><dd>${esc(item.cost)} ${labels.credits}</dd></div>
-                  </dl>
-                  <button type="button" data-library-download="${esc(item.id)}">${labels.download}</button>
+                  <div class="library-card-side">
+                    <dl>
+                      <div><dt>${labels.size}</dt><dd>${fmtBytes(item.file_size_bytes)}</dd></div>
+                      <div><dt>${labels.downloads}</dt><dd>${esc(item.download_count)}</dd></div>
+                      <div><dt>${labels.cost}</dt><dd>${esc(item.cost)} ${labels.credits}</dd></div>
+                    </dl>
+                    <button type="button" data-library-download="${esc(item.id)}">${labels.download}</button>
+                  </div>
                 </article>
               `).join("");
               log("library_thumbnails_rendered", { count: items.length });

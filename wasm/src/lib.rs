@@ -919,6 +919,13 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "deco_upload_body") => {
             "SVG, image, or STL from your drive. Images become relief heightmaps; STL files are attached to the selected panel mesh."
         }
+        ("en", "deco_library_title") => "Decor library",
+        ("en", "deco_library_body") => {
+            "Download a credited decor file, then import the downloaded STL from your computer."
+        }
+        ("en", "deco_library_open") => "Open library",
+        ("en", "deco_library_refresh") => "Refresh",
+        ("en", "deco_library_loading") => "Loading library...",
         ("en", "deco_preview_empty") => "Preview after upload",
         ("en", "deco_relief_settings") => "Relief settings",
         ("en", "deco_heightmap_note") => {
@@ -1193,6 +1200,13 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "deco_upload_body") => {
             "SVG, image ou STL depuis ton disque. Les images deviennent des heightmaps; les STL sont attaches au mesh du panneau cible."
         }
+        (_, "deco_library_title") => "Librairie de decors",
+        (_, "deco_library_body") => {
+            "Telecharge un decor avec credits, puis importe le STL telecharge depuis ton ordinateur."
+        }
+        (_, "deco_library_open") => "Ouvrir librairie",
+        (_, "deco_library_refresh") => "Actualiser",
+        (_, "deco_library_loading") => "Chargement de la librairie...",
         (_, "deco_preview_empty") => "Apercu apres chargement",
         (_, "deco_relief_settings") => "Reglages du relief",
         (_, "deco_heightmap_note") => {
@@ -7165,6 +7179,20 @@ pub fn render_app_html(input: &str) -> String {
           <span>{upload_body}</span>
         </span>
       </label>
+      <section class="deco-library-panel" data-deco-library-panel aria-labelledby="deco-library-title">
+        <div class="deco-library-head">
+          <div>
+            <h3 id="deco-library-title">{library_title}</h3>
+            <p>{library_body}</p>
+          </div>
+          <div class="deco-library-actions">
+            <a class="tool-button" data-deco-library-open href="/library" target="_blank" rel="noreferrer">{library_open}</a>
+            <button class="tool-button" data-deco-library-refresh type="button">{library_refresh}</button>
+          </div>
+        </div>
+        <p class="deco-status" data-deco-library-status>{library_loading}</p>
+        <div class="deco-library-list" data-deco-library-list></div>
+      </section>
       <div class="deco-preview {preview_state}" data-deco-preview aria-live="polite"><span>{preview_empty}</span></div>
       <div class="deco-file-summary">
         <span data-deco-file-name></span>
@@ -7190,6 +7218,11 @@ pub fn render_app_html(input: &str) -> String {
         },
         upload_title = html_escape(t(lang, "deco_upload_title")),
         upload_body = html_escape(t(lang, "deco_upload_body")),
+        library_title = html_escape(t(lang, "deco_library_title")),
+        library_body = html_escape(t(lang, "deco_library_body")),
+        library_open = html_escape(t(lang, "deco_library_open")),
+        library_refresh = html_escape(t(lang, "deco_library_refresh")),
+        library_loading = html_escape(t(lang, "deco_library_loading")),
         preview_empty = html_escape(t(lang, "deco_preview_empty")),
         replace_label = html_escape(t(lang, "deco_replace_image")),
         clear_label = html_escape(t(lang, "deco_clear")),
@@ -7854,6 +7887,8 @@ mod tests {
 
         assert!(html.contains("data-deco-workflow"));
         assert!(html.contains("data-deco-dropzone"));
+        assert!(html.contains("data-deco-library-panel"));
+        assert!(html.contains("data-deco-library-list"));
         assert!(html.contains("data-deco-preview"));
         assert!(html.contains(".svg,image/*"));
         assert!(html.contains(".stl"));

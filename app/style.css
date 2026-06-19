@@ -515,6 +515,12 @@ input[type="range"] {
   color: var(--accent);
 }
 
+.tool-button.primary-action {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
 .download-groups {
   display: grid;
   gap: 14px;
@@ -1173,9 +1179,18 @@ input[type="range"] {
   }
 
   .deco-library-item img,
-  .deco-library-stl-viewer {
+  .deco-library-stl-viewer,
+  .deco-library-thumbnail-fallback {
     width: 100%;
     max-width: 160px;
+  }
+
+  .deco-library-preview-stage {
+    min-height: 260px;
+  }
+
+  .deco-library-preview-actions {
+    grid-template-columns: 1fr;
   }
 
   .compact-buttons {
@@ -1337,7 +1352,7 @@ input[type="range"] {
 
 .deco-library-item {
   display: grid;
-  grid-template-columns: 58px minmax(0, 1fr) max-content;
+  grid-template-columns: 58px minmax(0, 1fr) minmax(86px, max-content);
   gap: 10px;
   align-items: center;
   padding: 8px;
@@ -1421,6 +1436,90 @@ input[type="range"] {
   color: var(--muted);
   font-size: 10px;
   line-height: 1.25;
+}
+
+.deco-library-item-actions {
+  display: grid;
+  gap: 6px;
+}
+
+.deco-library-item-actions .tool-button {
+  min-height: 34px;
+  padding: 6px 8px;
+}
+
+.deco-library-preview-modal[hidden] {
+  display: none;
+}
+
+.deco-library-preview-modal {
+  position: fixed;
+  z-index: 50;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background: color-mix(in srgb, var(--bg) 40%, rgba(0, 0, 0, 0.62));
+}
+
+.deco-library-preview-dialog {
+  width: min(620px, 100%);
+  max-height: min(780px, 94vh);
+  display: grid;
+  gap: 12px;
+  overflow: auto;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.34);
+}
+
+.deco-library-preview-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  gap: 10px;
+  align-items: start;
+}
+
+.deco-library-preview-head h3 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.deco-library-preview-head p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.deco-library-preview-stage {
+  width: 100%;
+  min-height: 320px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.deco-library-preview-stage canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.deco-library-preview-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
 .deco-preview {

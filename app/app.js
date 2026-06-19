@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260619-wasm-library-images';
+} from '../wasm/pkg/wasm.js?v=20260619-wasm-library-preview-modal';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260619-wasm-library-images';
+const APP_BUILD_ID = '20260619-wasm-library-preview-modal';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -70,6 +70,7 @@ const DECO_RASTER_MIME_TYPES = {
   'image/gif': 'gif',
   'image/webp': 'webp',
 };
+let decorLibraryItemsById = new Map();
 const DECO_PREVIEW_MIME_TYPES = {
   svg: 'image/png',
   png: 'image/png',
@@ -221,6 +222,10 @@ const I18N = {
     decor_library_open: 'Ouvrir librairie',
     decor_library_refresh: 'Actualiser',
     decor_library_download: 'Telecharger',
+    decor_library_preview: 'Apercu 3D',
+    decor_library_preview_title: 'Apercu avant telechargement',
+    decor_library_preview_loading: 'Chargement de l apercu 3D...',
+    decor_library_preview_close: 'Fermer',
     decor_library_empty: 'Aucun decor actif dans la librairie.',
     decor_library_loading: 'Chargement de la librairie...',
     decor_library_error: 'Librairie: {error}',
@@ -380,6 +385,10 @@ const I18N = {
     decor_library_open: 'Open library',
     decor_library_refresh: 'Refresh',
     decor_library_download: 'Download',
+    decor_library_preview: '3D preview',
+    decor_library_preview_title: 'Preview before download',
+    decor_library_preview_loading: 'Loading 3D preview...',
+    decor_library_preview_close: 'Close',
     decor_library_empty: 'No active decor file is in the library.',
     decor_library_loading: 'Loading library...',
     decor_library_error: 'Library: {error}',
@@ -1066,7 +1075,7 @@ function buildLibraryPreviewGeometry(triangles = []) {
   return geometry;
 }
 
-function renderDecorLibraryStlPayload(target, payload) {
+function renderDecorLibraryStlPayload(target, payload, options = {}) {
   const geometry = buildLibraryPreviewGeometry(payload.mesh_triangles || []);
   if (!geometry) {
     target.textContent = tr('decor_library_error', { error: 'preview' });
@@ -1075,8 +1084,8 @@ function renderDecorLibraryStlPayload(target, payload) {
   }
   target.textContent = '';
   target.classList.remove('deco-library-stl-error');
-  const width = Math.max(64, target.clientWidth || 72);
-  const height = Math.max(64, target.clientHeight || 72);
+  const width = Math.max(options.minWidth || 64, target.clientWidth || options.width || 72);
+  const height = Math.max(options.minHeight || 64, target.clientHeight || options.height || 72);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#fffaf1');
   const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100000);
@@ -1199,7 +1208,12 @@ function renderDecorLibraryItems(items = []) {
         ${item.description ? `<span>${escapeHtml(item.description)}</span>` : ''}
         <small>${escapeHtml(item.original_filename || '')} · ${formatFileSize(item.file_size_bytes)} · ${formatCreditText(item.cost)}</small>
       </div>
-      <button class="tool-button" type="button" data-library-download="${escapeHtml(item.id)}">${escapeHtml(tr('decor_library_download'))}</button>
+      <div class="deco-library-item-actions">
+        ${String(item.media_type || item.file_ext || '').toLowerCase() === 'stl'
+          ? `<button class="tool-button" type="button" data-library-preview="${escapeHtml(item.id)}">${escapeHtml(tr('decor_library_preview'))}</button>`
+          : ''}
+        <button class="tool-button" type="button" data-library-download="${escapeHtml(item.id)}">${escapeHtml(tr('decor_library_download'))}</button>
+      </div>
     </article>
   `).join('');
 }
@@ -1217,6 +1231,121 @@ function attachDecorLibraryThumbnailFallbacks(container) {
   });
 }
 
+function ensureDecorLibraryPreviewModal(panel) {
+  let modal = root.querySelector('[data-deco-library-preview-modal]');
+  if (modal) return modal;
+  modal = document.createElement('div');
+  modal.className = 'deco-library-preview-modal';
+  modal.hidden = true;
+  modal.dataset.decoLibraryPreviewModal = '1';
+  modal.innerHTML = `
+    <div class="deco-library-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="deco-library-preview-title">
+      <div class="deco-library-preview-head">
+        <div>
+          <h3 id="deco-library-preview-title">${escapeHtml(tr('decor_library_preview_title'))}</h3>
+          <p data-deco-library-preview-meta></p>
+        </div>
+        <button class="tool-button" type="button" data-deco-library-preview-close>${escapeHtml(tr('decor_library_preview_close'))}</button>
+      </div>
+      <div class="deco-library-preview-stage" data-deco-library-preview-stage></div>
+      <div class="deco-library-preview-actions">
+        <button class="tool-button" type="button" data-deco-library-preview-close>${escapeHtml(tr('decor_library_preview_close'))}</button>
+        <button class="tool-button primary-action" type="button" data-deco-library-preview-download>${escapeHtml(tr('decor_library_download'))}</button>
+      </div>
+      <p class="deco-status" data-deco-library-preview-status></p>
+    </div>
+  `;
+  const close = () => {
+    modal.hidden = true;
+    modal.dataset.itemId = '';
+    modal.querySelector('[data-deco-library-preview-stage]')?.replaceChildren();
+    const status = modal.querySelector('[data-deco-library-preview-status]');
+    if (status) status.textContent = '';
+  };
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal || event.target.closest('[data-deco-library-preview-close]')) {
+      close();
+    }
+  });
+  modal.querySelector('[data-deco-library-preview-download]')?.addEventListener('click', async (event) => {
+    const itemId = Number(modal.dataset.itemId || 0);
+    if (!itemId) return;
+    const status = modal.querySelector('[data-deco-library-preview-status]');
+    event.currentTarget.disabled = true;
+    try {
+      const payload = await authorizeLibraryDownload(itemId);
+      if (status) status.textContent = tr('decor_library_started');
+      const panelStatus = panel.querySelector('[data-deco-library-status]');
+      if (panelStatus) panelStatus.textContent = tr('decor_library_started');
+      debugStlLog('decor library download authorized from preview modal', {
+        itemId: payload.item_id,
+        cost: payload.cost,
+        admin: Boolean(payload.admin),
+      });
+      window.location.href = phpUrl(payload.download_url);
+    } catch (err) {
+      const message = err?.status === 402
+        ? tr('decor_library_insufficient')
+        : tr('decor_library_error', { error: err?.message || err });
+      if (status) status.textContent = message;
+      debugStlLog('decor library download failed from preview modal', {
+        itemId,
+        status: err?.status || 0,
+        error: err?.message || String(err),
+      });
+    } finally {
+      event.currentTarget.disabled = false;
+    }
+  });
+  root.appendChild(modal);
+  return modal;
+}
+
+async function openDecorLibraryPreviewModal(panel, itemId) {
+  const item = decorLibraryItemsById.get(Number(itemId));
+  if (!item) return;
+  const modal = ensureDecorLibraryPreviewModal(panel);
+  const stage = modal.querySelector('[data-deco-library-preview-stage]');
+  const status = modal.querySelector('[data-deco-library-preview-status]');
+  const meta = modal.querySelector('[data-deco-library-preview-meta]');
+  const title = modal.querySelector('#deco-library-preview-title');
+  modal.dataset.itemId = String(item.id);
+  modal.hidden = false;
+  if (title) title.textContent = item.title || item.original_filename || tr('decor_library_preview_title');
+  if (meta) {
+    meta.textContent = `${item.original_filename || ''} · ${formatFileSize(item.file_size_bytes)} · ${formatCreditText(item.cost)}`;
+  }
+  if (stage) {
+    stage.classList.remove('deco-library-stl-error');
+    stage.replaceChildren();
+    stage.textContent = tr('decor_library_preview_loading');
+  }
+  if (status) status.textContent = '';
+  debugStlLog('decor library preview modal opened', { itemId: item.id });
+  try {
+    const payload = await apiRequest(`/api/library/stl-preview?item_id=${encodeURIComponent(item.id)}`);
+    if (stage) {
+      stage.replaceChildren();
+      renderDecorLibraryStlPayload(stage, payload, { minWidth: 280, minHeight: 280 });
+    }
+    debugStlLog('decor library preview modal rendered', {
+      itemId: item.id,
+      sampled_triangles: payload.sampled_triangles,
+      bbox: payload.bbox,
+    });
+  } catch (err) {
+    if (stage) {
+      stage.textContent = tr('decor_library_error', { error: 'preview' });
+      stage.classList.add('deco-library-stl-error');
+    }
+    if (status) status.textContent = tr('decor_library_error', { error: err?.message || err });
+    debugStlLog('decor library preview modal failed', {
+      itemId: item.id,
+      error: err?.message || String(err),
+    });
+  }
+}
+
 async function loadDecorLibraryPanel() {
   const panel = root.querySelector('[data-deco-library-panel]');
   if (!panel) return;
@@ -1228,6 +1357,7 @@ async function loadDecorLibraryPanel() {
   try {
     const payload = await apiRequest('/api/library');
     const items = Array.isArray(payload.items) ? payload.items : [];
+    decorLibraryItemsById = new Map(items.map((item) => [Number(item.id), item]));
     list.innerHTML = renderDecorLibraryItems(items);
     attachDecorLibraryThumbnailFallbacks(list);
     status.textContent = items.length ? tr('decor_library_ready', { count: items.length }) : tr('decor_library_empty');
@@ -1254,11 +1384,17 @@ async function authorizeLibraryDownload(itemId) {
 function attachDecorLibraryPanel() {
   const panel = root.querySelector('[data-deco-library-panel]');
   if (!panel) return;
+  ensureDecorLibraryPreviewModal(panel);
   panel.querySelector('[data-deco-library-open]')?.setAttribute('href', phpUrl('/library'));
   panel.querySelector('[data-deco-library-refresh]')?.addEventListener('click', () => {
     loadDecorLibraryPanel();
   });
   panel.querySelector('[data-deco-library-list]')?.addEventListener('click', async (event) => {
+    const previewButton = event.target.closest('[data-library-preview]');
+    if (previewButton) {
+      openDecorLibraryPreviewModal(panel, previewButton.dataset.libraryPreview);
+      return;
+    }
     const button = event.target.closest('[data-library-download]');
     if (!button) return;
     const status = panel.querySelector('[data-deco-library-status]');

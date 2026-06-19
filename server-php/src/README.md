@@ -40,7 +40,7 @@ This folder contains the backend code included by `server-php/public/index.php`.
 - Credit policy belongs in `credits.php`; do not reintroduce per-export hardcoded costs in routes or UI copy.
 - Client debit flows must write `credit_ledger` rows and app/audit logs.
 - `/api/exports/consume` must atomically claim an authorization before debit or admin completion. Client authorizations live in the database; admin zero-cost authorizations live in PHP session and must still be one-shot.
-- `/api/library/download` is the debit point for library STL/image files. Authorizing a library download alone must not consume credits, library files must remain outside the public web root, and `/api/library/preview` must remain admin-only.
+- `/api/library/download` is the debit point for library STL/image files. Authorizing a library download alone must not consume credits, library files must remain outside the public web root, and `/api/library/preview` serves public image preview assets while `/api/admin/library/stl-file` remains admin-only.
 - Contact handling must keep CSRF, honeypot, rate limit, input limits, SMTP failure handling and flash messages.
 - Stripe secrets and SMTP passwords should prefer environment variables or private config in production.
 - Admin write actions require a logged-in PHP session and CSRF; keep them auditable.

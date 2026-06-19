@@ -28,7 +28,7 @@ Useful pages:
 - Librairie publique: `http://127.0.0.1:8021/library?lang=fr`
 - Admin librairie: `http://127.0.0.1:8021/gestion-nichoir#admin-library`
 
-En local, le mot de passe admin de test est `admin` si la configuration n'a pas été changée.
+En local, le mot de passe admin dépend de `NICHOIR_ADMIN_PASSWORD_HASH` et doit être configuré côté serveur.
 
 When the static WASM app runs separately on `8016`, open it with:
 

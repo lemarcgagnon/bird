@@ -71,7 +71,7 @@ URLs de référence:
 - Login admin (local): `http://127.0.0.1:8021/gestion-nichoir/login`
 - App WASM : `http://127.0.0.1:8016/app/?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021`
 
-Mot de passe d'accès admin local utilisé actuellement: `admin`.
+Mot de passe d'accès admin local: à configurer dans `NICHOIR_ADMIN_PASSWORD_HASH` (pas de mot de passe magique dans le code).
 
 Ouvrir le site:
 

@@ -778,8 +778,6 @@ function render_admin_library_panel(PDO $pdo): string
             </div>
             <div class="library-thumbnail-editor-viewer" data-library-thumbnail-stage></div>
             <div class="library-thumbnail-editor-actions">
-              <button type="button" class="secondary" data-library-thumbnail-view="front">Face</button>
-              <button type="button" class="secondary" data-library-thumbnail-view="iso">Iso</button>
               <button type="button" data-library-thumbnail-save>Enregistrer PNG</button>
             </div>
             <p class="control-note" data-library-thumbnail-status></p>
@@ -790,7 +788,7 @@ function render_admin_library_panel(PDO $pdo): string
         <h2>Telechargements librairie recents</h2>
         <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Fichier</th><th>Date</th></tr></thead><tbody>' . $downloadRows . '</tbody></table></div>
       </section>
-      <script type="module" src="/library-preview.js?v=20260619-admin-original-stl-viewer"></script>
+      <script type="module" src="/library-preview.js?v=20260619-stl-viewer-controls"></script>
       <script>
         (() => {
           const prefix = "[nichoir library admin]";
@@ -851,7 +849,7 @@ function render_admin_library_panel(PDO $pdo): string
                 viewer.className = "library-thumbnail library-stl-viewer";
                 viewer.textContent = "Chargement preview STL...";
                 card.appendChild(viewer);
-                import("/library-preview.js?v=20260619-admin-original-stl-viewer")
+                import("/library-preview.js?v=20260619-stl-viewer-controls")
                   .then((module) => module.renderLocalStlFilePreview(viewer, file))
                   .catch((error) => {
                     viewer.textContent = "Preview STL indisponible";
@@ -882,7 +880,7 @@ function render_admin_library_panel(PDO $pdo): string
               active: form.querySelector("[name=is_active]")?.checked
             });
           });
-          import("/library-preview.js?v=20260619-admin-original-stl-viewer")
+          import("/library-preview.js?v=20260619-stl-viewer-controls")
             .then((module) => {
               module.renderAdminOriginalStlViewers(document);
               module.attachLibraryThumbnailEditor(document);

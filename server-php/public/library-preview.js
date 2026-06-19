@@ -4,6 +4,25 @@ const DEFAULT_PREVIEW_LABEL = 'Preview STL';
 const MAX_PREVIEW_TRIANGLES = 1800;
 const ALL_TRIANGLES = 0;
 const EDGE_VERTEX_LIMIT = 180000;
+const DEFAULT_VIEW = 'iso';
+const VIEW_DIRECTIONS = {
+  iso: new THREE.Vector3(0.7, -0.95, 1.45).normalize(),
+  front: new THREE.Vector3(0, -0.02, 1).normalize(),
+  top: new THREE.Vector3(0, 1, 0.02).normalize(),
+  side: new THREE.Vector3(1, -0.02, 0).normalize(),
+};
+const DEFAULT_CONTROL_LABELS = {
+  viewIso: 'Iso',
+  viewFront: 'Face',
+  viewTop: 'Haut',
+  viewSide: 'Cote',
+  rotate: 'Tourner',
+  pan: 'Deplacer',
+  zoomIn: '+',
+  zoomOut: '-',
+  fit: 'Fit',
+  reset: 'Reset',
+};
 
 function log(message, details = {}) {
   console.log('[nichoir library preview]', message, details);
@@ -89,6 +108,78 @@ function renderError(target, label) {
   target.classList.add('library-stl-viewer-error');
 }
 
+function viewerControlLabels(options = {}) {
+  return {
+    ...DEFAULT_CONTROL_LABELS,
+    ...(options.controlLabels || {}),
+  };
+}
+
+function createViewerButton(label, title, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = label;
+  button.title = title;
+  button.setAttribute('aria-label', title);
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+function createViewerToolbar(controller, options = {}) {
+  const labels = viewerControlLabels(options);
+  const toolbar = document.createElement('div');
+  toolbar.className = 'library-viewer-toolbar';
+  toolbar.setAttribute('aria-label', 'Commandes apercu STL');
+
+  const viewGroup = document.createElement('div');
+  viewGroup.className = 'library-viewer-toolbar-group';
+  const viewButtons = new Map();
+  [
+    ['iso', labels.viewIso],
+    ['front', labels.viewFront],
+    ['top', labels.viewTop],
+    ['side', labels.viewSide],
+  ].forEach(([view, label]) => {
+    const button = createViewerButton(label, label, () => controller.setView(view));
+    viewButtons.set(view, button);
+    viewGroup.appendChild(button);
+  });
+
+  const modeGroup = document.createElement('div');
+  modeGroup.className = 'library-viewer-toolbar-group';
+  const modeButtons = new Map();
+  [
+    ['rotate', labels.rotate],
+    ['pan', labels.pan],
+  ].forEach(([mode, label]) => {
+    const button = createViewerButton(label, label, () => controller.setMode(mode));
+    modeButtons.set(mode, button);
+    modeGroup.appendChild(button);
+  });
+
+  const zoomGroup = document.createElement('div');
+  zoomGroup.className = 'library-viewer-toolbar-group';
+  zoomGroup.appendChild(createViewerButton(labels.zoomIn, 'Zoom avant', () => controller.zoom(0.84)));
+  zoomGroup.appendChild(createViewerButton(labels.zoomOut, 'Zoom arriere', () => controller.zoom(1.16)));
+
+  const actionGroup = document.createElement('div');
+  actionGroup.className = 'library-viewer-toolbar-group';
+  actionGroup.appendChild(createViewerButton(labels.fit, labels.fit, () => controller.fit()));
+  actionGroup.appendChild(createViewerButton(labels.reset, labels.reset, () => controller.reset()));
+
+  toolbar.append(viewGroup, modeGroup, zoomGroup, actionGroup);
+  controller.onStateChange((state) => {
+    viewButtons.forEach((button, view) => {
+      button.setAttribute('aria-pressed', state.view === view ? 'true' : 'false');
+    });
+    modeButtons.forEach((button, mode) => {
+      button.setAttribute('aria-pressed', state.mode === mode ? 'true' : 'false');
+    });
+  });
+  controller.emitState();
+  return toolbar;
+}
+
 function renderGeometry(target, geometry, options = {}) {
   if (!geometry) {
     renderError(target, 'Preview STL indisponible');
@@ -97,6 +188,7 @@ function renderGeometry(target, geometry, options = {}) {
 
   target.textContent = '';
   target.classList.remove('library-stl-viewer-error');
+  target.classList.toggle('has-viewer-controls', Boolean(options.controls));
   const width = Math.max(120, options.width || target.clientWidth || 180);
   const height = Math.max(120, options.height || target.clientHeight || 180);
   const scene = new THREE.Scene();
@@ -111,8 +203,19 @@ function renderGeometry(target, geometry, options = {}) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(width, height);
   renderer.domElement.setAttribute('aria-label', DEFAULT_PREVIEW_LABEL);
-  renderer.domElement.setAttribute('title', 'Glisser pour tourner, molette pour zoomer');
-  target.appendChild(renderer.domElement);
+  renderer.domElement.setAttribute('title', 'Glisser pour tourner/deplacer, molette pour zoomer');
+
+  let canvasHost = target;
+  let shell = null;
+  if (options.controls) {
+    shell = document.createElement('div');
+    shell.className = 'library-viewer-shell';
+    canvasHost = document.createElement('div');
+    canvasHost.className = 'library-viewer-stage';
+    shell.appendChild(canvasHost);
+    target.appendChild(shell);
+  }
+  canvasHost.appendChild(renderer.domElement);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.62));
   const key = new THREE.DirectionalLight(0xfff0d6, 1.0);
@@ -149,15 +252,25 @@ function renderGeometry(target, geometry, options = {}) {
   const radius = Math.max(size.x, size.y, size.z, 1);
   group.position.sub(center);
 
-  let distance = radius * (options.distanceMultiplier || 2.0);
-  const cameraDir = new THREE.Vector3(0.7, -0.95, 1.45).normalize();
+  const baseDistance = radius * (options.distanceMultiplier || 2.0);
+  const minDistance = radius * 0.35;
+  const maxDistance = radius * 10;
+  let distance = baseDistance;
+  let activeView = DEFAULT_VIEW;
+  let interactionMode = 'rotate';
+  const cameraDir = VIEW_DIRECTIONS[DEFAULT_VIEW].clone();
+  const panOffset = new THREE.Vector3();
+  const stateListeners = new Set();
+  const emitState = () => {
+    stateListeners.forEach((listener) => listener({ view: activeView, mode: interactionMode }));
+  };
   const render = () => {
-    camera.position.copy(cameraDir).multiplyScalar(distance);
-    camera.lookAt(0, 0, 0);
+    camera.position.copy(cameraDir).multiplyScalar(distance).add(panOffset);
+    camera.lookAt(panOffset);
     renderer.render(scene, camera);
   };
   camera.near = Math.max(radius / 1000, 0.01);
-  camera.far = radius * 20;
+  camera.far = radius * 40;
   camera.updateProjectionMatrix();
 
   let dragging = false;
@@ -168,7 +281,7 @@ function renderGeometry(target, geometry, options = {}) {
     lastX = event.clientX;
     lastY = event.clientY;
     renderer.domElement.setPointerCapture(event.pointerId);
-    target.classList.add('is-dragging');
+    canvasHost.classList.add('is-dragging');
   });
   renderer.domElement.addEventListener('pointermove', (event) => {
     if (!dragging) return;
@@ -176,13 +289,24 @@ function renderGeometry(target, geometry, options = {}) {
     const dy = event.clientY - lastY;
     lastX = event.clientX;
     lastY = event.clientY;
-    group.rotation.z += dx * 0.01;
-    group.rotation.x += dy * 0.01;
+    if (interactionMode === 'pan') {
+      camera.updateMatrixWorld();
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+      const panScale = distance / Math.max(width, height) * 1.65;
+      panOffset.addScaledVector(right, -dx * panScale);
+      panOffset.addScaledVector(up, dy * panScale);
+    } else {
+      group.rotation.z += dx * 0.01;
+      group.rotation.x += dy * 0.01;
+      activeView = 'custom';
+    }
     render();
+    emitState();
   });
   renderer.domElement.addEventListener('pointerup', (event) => {
     dragging = false;
-    target.classList.remove('is-dragging');
+    canvasHost.classList.remove('is-dragging');
     try {
       renderer.domElement.releasePointerCapture(event.pointerId);
     } catch (_) {
@@ -191,33 +315,73 @@ function renderGeometry(target, geometry, options = {}) {
   });
   renderer.domElement.addEventListener('wheel', (event) => {
     event.preventDefault();
-    distance = Math.min(radius * 8, Math.max(radius * 0.6, distance * (event.deltaY > 0 ? 1.12 : 0.88)));
+    distance = Math.min(maxDistance, Math.max(minDistance, distance * (event.deltaY > 0 ? 1.12 : 0.88)));
     render();
   }, { passive: false });
 
-  render();
-  return {
+  const setMode = (mode) => {
+    interactionMode = mode === 'pan' ? 'pan' : 'rotate';
+    canvasHost.classList.toggle('is-pan-mode', interactionMode === 'pan');
+    emitState();
+  };
+  const setView = (name) => {
+    const nextView = VIEW_DIRECTIONS[name] ? name : DEFAULT_VIEW;
+    activeView = nextView;
+    cameraDir.copy(VIEW_DIRECTIONS[nextView]);
+    distance = nextView === 'front' ? radius * 1.9 : baseDistance;
+    panOffset.set(0, 0, 0);
+    group.rotation.set(0, 0, 0);
+    render();
+    emitState();
+  };
+  const fit = () => {
+    distance = baseDistance;
+    panOffset.set(0, 0, 0);
+    render();
+  };
+  const reset = () => {
+    group.rotation.set(0, 0, 0);
+    activeView = DEFAULT_VIEW;
+    cameraDir.copy(VIEW_DIRECTIONS[DEFAULT_VIEW]);
+    distance = baseDistance;
+    panOffset.set(0, 0, 0);
+    setMode('rotate');
+    render();
+    emitState();
+  };
+  const controller = {
     render,
-    setView(name) {
-      group.rotation.set(0, 0, 0);
-      if (name === 'front') {
-        cameraDir.set(0, -0.02, 1).normalize();
-        distance = radius * 1.9;
-      } else {
-        cameraDir.set(0.7, -0.95, 1.45).normalize();
-        distance = radius * 2.0;
-      }
+    setMode,
+    setView,
+    fit,
+    reset,
+    zoom(factor) {
+      const value = Number(factor);
+      distance = Math.min(maxDistance, Math.max(minDistance, distance * (Number.isFinite(value) ? value : 1)));
       render();
+    },
+    onStateChange(listener) {
+      if (typeof listener === 'function') stateListeners.add(listener);
+    },
+    emitState,
+    state() {
+      return { view: activeView, mode: interactionMode };
     },
     snapshot() {
       render();
       return renderer.domElement.toDataURL('image/png');
     },
   };
+  if (shell && options.controls) {
+    shell.insertBefore(createViewerToolbar(controller, options), canvasHost);
+  }
+  setMode(options.mode || 'rotate');
+  render();
+  return controller;
 }
 
-function renderStlPayload(target, payload) {
-  renderGeometry(target, trianglesToGeometry(payload.mesh_triangles));
+function renderStlPayload(target, payload, options = {}) {
+  return renderGeometry(target, trianglesToGeometry(payload.mesh_triangles), options);
 }
 
 export async function renderLocalStlFilePreview(target, file) {
@@ -259,6 +423,7 @@ export async function renderAdminOriginalStlViewers(root = document) {
         height: Math.max(240, target.clientHeight || 280),
         distanceMultiplier: 2.0,
         showEdges: triangles.length <= 60000,
+        controls: true,
       });
       log('admin_original_stl_rendered', {
         itemId,
@@ -329,6 +494,7 @@ export function attachLibraryThumbnailEditor(root = document) {
           width: Math.max(360, stage.clientWidth || 512),
           height: Math.max(360, stage.clientHeight || 512),
           distanceMultiplier: 2.0,
+          controls: true,
         });
         currentController?.setView('iso');
         setStatus(`${triangles.length} triangles originaux`);
@@ -399,6 +565,39 @@ export async function renderLibraryStlPreviews(root = document) {
       renderError(target, 'Preview STL indisponible');
     }
   }));
+}
+
+export async function renderPublicLibraryStlPreview(target, itemId, options = {}) {
+  if (!target || !itemId) return null;
+  target.textContent = options.loadingLabel || 'Chargement STL...';
+  target.classList.remove('library-stl-viewer-error');
+  log('public_stl_preview_request', { itemId });
+  try {
+    const detail = options.detail || 'high';
+    const response = await fetch(`/api/library/stl-preview?item_id=${encodeURIComponent(itemId)}&detail=${encodeURIComponent(detail)}`, {
+      credentials: 'same-origin',
+    });
+    const payload = await response.json();
+    if (!response.ok || payload.ok === false) throw new Error(payload.error || response.statusText);
+    target.replaceChildren();
+    const controller = renderStlPayload(target, payload, {
+      controls: true,
+      width: Math.max(280, target.clientWidth || 360),
+      height: Math.max(280, target.clientHeight || 360),
+      distanceMultiplier: 2.0,
+      ...(options.viewerOptions || {}),
+    });
+    log('public_stl_preview_rendered', {
+      itemId,
+      sampled_triangles: payload.sampled_triangles,
+      bbox: payload.bbox,
+    });
+    return controller;
+  } catch (error) {
+    warn('public_stl_preview_failed', { itemId, error: error.message || String(error) });
+    renderError(target, options.errorLabel || 'Preview STL indisponible');
+    return null;
+  }
 }
 
 renderLibraryStlPreviews();

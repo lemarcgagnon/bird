@@ -1385,6 +1385,13 @@ input[type="range"] {
   touch-action: none;
 }
 
+.deco-library-stl-viewer.has-viewer-controls,
+.deco-library-preview-stage.has-viewer-controls {
+  display: block;
+  cursor: default;
+  touch-action: auto;
+}
+
 .deco-library-thumbnail-fallback {
   display: grid;
   place-items: center;
@@ -1401,6 +1408,12 @@ input[type="range"] {
   height: 100% !important;
 }
 
+.deco-library-preview-stage canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
 .deco-library-stl-error {
   padding: 4px;
   text-align: center;
@@ -1409,8 +1422,61 @@ input[type="range"] {
   touch-action: auto;
 }
 
-.deco-library-stl-viewer.is-dragging {
+.deco-library-stl-viewer.is-dragging,
+.deco-library-viewer-stage.is-dragging {
   cursor: grabbing;
+}
+
+.deco-library-viewer-shell {
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.deco-library-viewer-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  padding: 6px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+}
+
+.deco-library-viewer-toolbar-group {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.deco-library-viewer-toolbar .tool-button {
+  min-width: 31px;
+  min-height: 30px;
+  padding: 4px 7px;
+  font-size: 10px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.deco-library-viewer-toolbar .tool-button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--panel);
+}
+
+.deco-library-viewer-stage {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+
+.deco-library-viewer-stage.is-pan-mode {
+  cursor: move;
 }
 
 .deco-library-copy {

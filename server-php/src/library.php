@@ -142,7 +142,7 @@ function library_delete_app_image_assets(array $item): void
 
 function library_public_item(array $item): array
 {
-    return [
+    $public = [
         'id' => (int) $item['id'],
         'title' => (string) $item['title'],
         'description' => (string) ($item['description'] ?? ''),
@@ -155,6 +155,17 @@ function library_public_item(array $item): array
         'created_at' => (string) $item['created_at'],
         'thumbnail_url' => '/api/library/thumbnail?item_id=' . (int) $item['id'] . '&v=' . rawurlencode((string) ($item['updated_at'] ?? $item['created_at'] ?? '')),
     ];
+    $filename = (string) ($item['filename'] ?? '');
+    if ($filename !== '' && !app_is_production()) {
+        try {
+            if (is_file(library_app_image_path($filename))) {
+                $public['app_original_url'] = 'images/library/' . rawurlencode(library_safe_filename($filename));
+            }
+        } catch (Throwable) {
+            // Local mirror preview is optional; credit-protected PHP download remains authoritative.
+        }
+    }
+    return $public;
 }
 
 function library_is_image_item(array $item): bool

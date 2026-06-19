@@ -12,7 +12,7 @@ import init, {
 } from '../wasm/pkg/wasm.js?v=20260619-intact-stl-decor-import';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260619-intact-stl-decor-import';
+const APP_BUILD_ID = '20260619-stl-viewer-controls';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -226,6 +226,16 @@ const I18N = {
     decor_library_preview_title: 'Apercu avant telechargement',
     decor_library_preview_loading: 'Chargement de l apercu 3D...',
     decor_library_preview_close: 'Fermer',
+    decor_library_view_iso: 'Iso',
+    decor_library_view_front: 'Face',
+    decor_library_view_top: 'Haut',
+    decor_library_view_side: 'Cote',
+    decor_library_rotate: 'Tourner',
+    decor_library_move: 'Deplacer',
+    decor_library_zoom_in: '+',
+    decor_library_zoom_out: '-',
+    decor_library_fit: 'Fit',
+    decor_library_reset: 'Reset',
     decor_library_empty: 'Aucun decor actif dans la librairie.',
     decor_library_loading: 'Chargement de la librairie...',
     decor_library_error: 'Librairie: {error}',
@@ -389,6 +399,16 @@ const I18N = {
     decor_library_preview_title: 'Preview before download',
     decor_library_preview_loading: 'Loading 3D preview...',
     decor_library_preview_close: 'Close',
+    decor_library_view_iso: 'Iso',
+    decor_library_view_front: 'Front',
+    decor_library_view_top: 'Top',
+    decor_library_view_side: 'Side',
+    decor_library_rotate: 'Rotate',
+    decor_library_move: 'Move',
+    decor_library_zoom_in: '+',
+    decor_library_zoom_out: '-',
+    decor_library_fit: 'Fit',
+    decor_library_reset: 'Reset',
     decor_library_empty: 'No active decor file is in the library.',
     decor_library_loading: 'Loading library...',
     decor_library_error: 'Library: {error}',
@@ -1061,6 +1081,72 @@ async function apiRequest(path, options = {}) {
   return payload;
 }
 
+const DECO_LIBRARY_ALL_TRIANGLES = 0;
+const DECO_LIBRARY_EDGE_VERTEX_LIMIT = 180000;
+const DECO_LIBRARY_DEFAULT_VIEW = 'iso';
+const DECO_LIBRARY_VIEW_DIRECTIONS = {
+  iso: new THREE.Vector3(0.7, -0.95, 1.45).normalize(),
+  front: new THREE.Vector3(0, -0.02, 1).normalize(),
+  top: new THREE.Vector3(0, 1, 0.02).normalize(),
+  side: new THREE.Vector3(1, -0.02, 0).normalize(),
+};
+
+function decorLibraryTriangleReadStep(triangleCount, maxTriangles) {
+  const limit = Number(maxTriangles);
+  if (!Number.isFinite(limit) || limit <= 0 || limit >= triangleCount) return 1;
+  return Math.max(1, Math.ceil(triangleCount / Math.max(1, limit)));
+}
+
+function parseDecorLibraryBinaryStl(bytes, maxTriangles = DECO_LIBRARY_ALL_TRIANGLES) {
+  if (bytes.byteLength < 84) return [];
+  const view = new DataView(bytes);
+  const triCount = view.getUint32(80, true);
+  const expected = 84 + (triCount * 50);
+  if (triCount <= 0 || expected > bytes.byteLength) return [];
+  const step = decorLibraryTriangleReadStep(triCount, maxTriangles);
+  const triangles = [];
+  for (let i = 0; i < triCount; i += step) {
+    const base = 84 + (i * 50) + 12;
+    const tri = [];
+    for (let v = 0; v < 3; v += 1) {
+      const offset = base + (v * 12);
+      tri.push([
+        view.getFloat32(offset, true),
+        view.getFloat32(offset + 4, true),
+        view.getFloat32(offset + 8, true),
+      ]);
+    }
+    triangles.push(tri);
+  }
+  return triangles;
+}
+
+function parseDecorLibraryAsciiStl(bytes, maxTriangles = DECO_LIBRARY_ALL_TRIANGLES) {
+  const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+  const matches = [...text.matchAll(/vertex\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)/g)];
+  const triCount = Math.floor(matches.length / 3);
+  if (triCount <= 0) return [];
+  const step = decorLibraryTriangleReadStep(triCount, maxTriangles);
+  const triangles = [];
+  for (let i = 0; i < triCount; i += step) {
+    const tri = [];
+    for (let v = 0; v < 3; v += 1) {
+      const row = matches[(i * 3) + v];
+      if (!row) break;
+      tri.push([Number(row[1]) || 0, Number(row[2]) || 0, Number(row[3]) || 0]);
+    }
+    if (tri.length === 3) triangles.push(tri);
+  }
+  return triangles;
+}
+
+function parseDecorLibraryStlBytes(bytes, maxTriangles = DECO_LIBRARY_ALL_TRIANGLES) {
+  const buffer = bytes instanceof ArrayBuffer ? bytes : bytes.buffer;
+  const binary = parseDecorLibraryBinaryStl(buffer, maxTriangles);
+  if (binary.length) return binary;
+  return parseDecorLibraryAsciiStl(buffer, maxTriangles);
+}
+
 function buildLibraryPreviewGeometry(triangles = []) {
   const positions = [];
   triangles.forEach((tri) => {
@@ -1077,15 +1163,76 @@ function buildLibraryPreviewGeometry(triangles = []) {
   return geometry;
 }
 
-function renderDecorLibraryStlPayload(target, payload, options = {}) {
-  const geometry = buildLibraryPreviewGeometry(payload.mesh_triangles || []);
+function decorLibraryButton(label, title, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'tool-button';
+  button.textContent = label;
+  button.title = title;
+  button.setAttribute('aria-label', title);
+  button.addEventListener('click', onClick);
+  return button;
+}
+
+function createDecorLibraryViewerToolbar(controller) {
+  const toolbar = document.createElement('div');
+  toolbar.className = 'deco-library-viewer-toolbar';
+  toolbar.setAttribute('aria-label', tr('decor_library_preview_title'));
+
+  const viewGroup = document.createElement('div');
+  viewGroup.className = 'deco-library-viewer-toolbar-group';
+  const viewButtons = new Map();
+  [
+    ['iso', tr('decor_library_view_iso')],
+    ['front', tr('decor_library_view_front')],
+    ['top', tr('decor_library_view_top')],
+    ['side', tr('decor_library_view_side')],
+  ].forEach(([view, label]) => {
+    const button = decorLibraryButton(label, label, () => controller.setView(view));
+    viewButtons.set(view, button);
+    viewGroup.appendChild(button);
+  });
+
+  const modeGroup = document.createElement('div');
+  modeGroup.className = 'deco-library-viewer-toolbar-group';
+  const modeButtons = new Map();
+  [
+    ['rotate', tr('decor_library_rotate')],
+    ['pan', tr('decor_library_move')],
+  ].forEach(([mode, label]) => {
+    const button = decorLibraryButton(label, label, () => controller.setMode(mode));
+    modeButtons.set(mode, button);
+    modeGroup.appendChild(button);
+  });
+
+  const zoomGroup = document.createElement('div');
+  zoomGroup.className = 'deco-library-viewer-toolbar-group';
+  zoomGroup.appendChild(decorLibraryButton(tr('decor_library_zoom_in'), tr('decor_library_zoom_in'), () => controller.zoom(0.84)));
+  zoomGroup.appendChild(decorLibraryButton(tr('decor_library_zoom_out'), tr('decor_library_zoom_out'), () => controller.zoom(1.16)));
+
+  const actionGroup = document.createElement('div');
+  actionGroup.className = 'deco-library-viewer-toolbar-group';
+  actionGroup.appendChild(decorLibraryButton(tr('decor_library_fit'), tr('decor_library_fit'), () => controller.fit()));
+  actionGroup.appendChild(decorLibraryButton(tr('decor_library_reset'), tr('decor_library_reset'), () => controller.reset()));
+
+  toolbar.append(viewGroup, modeGroup, zoomGroup, actionGroup);
+  controller.onStateChange((state) => {
+    viewButtons.forEach((button, view) => button.setAttribute('aria-pressed', state.view === view ? 'true' : 'false'));
+    modeButtons.forEach((button, mode) => button.setAttribute('aria-pressed', state.mode === mode ? 'true' : 'false'));
+  });
+  controller.emitState();
+  return toolbar;
+}
+
+function renderDecorLibraryStlGeometry(target, geometry, options = {}) {
   if (!geometry) {
     target.textContent = tr('decor_library_error', { error: 'preview' });
     target.classList.add('deco-library-stl-error');
-    return;
+    return null;
   }
   target.textContent = '';
   target.classList.remove('deco-library-stl-error');
+  target.classList.toggle('has-viewer-controls', Boolean(options.controls));
   const width = Math.max(options.minWidth || 64, target.clientWidth || options.width || 72);
   const height = Math.max(options.minHeight || 64, target.clientHeight || options.height || 72);
   const scene = new THREE.Scene();
@@ -1094,8 +1241,18 @@ function renderDecorLibraryStlPayload(target, payload, options = {}) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(width, height);
-  renderer.domElement.setAttribute('title', 'Glisser pour tourner, molette pour zoomer');
-  target.appendChild(renderer.domElement);
+  renderer.domElement.setAttribute('title', `${tr('decor_library_rotate')} / ${tr('decor_library_move')}`);
+  let canvasHost = target;
+  let shell = null;
+  if (options.controls) {
+    shell = document.createElement('div');
+    shell.className = 'deco-library-viewer-shell';
+    canvasHost = document.createElement('div');
+    canvasHost.className = 'deco-library-viewer-stage';
+    shell.appendChild(canvasHost);
+    target.appendChild(shell);
+  }
+  canvasHost.appendChild(renderer.domElement);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.62));
   const key = new THREE.DirectionalLight(0xfff0d6, 1.0);
@@ -1112,13 +1269,16 @@ function renderDecorLibraryStlPayload(target, payload, options = {}) {
     shininess: 28,
     side: THREE.DoubleSide,
   }));
-  const edges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(geometry, 20),
-    new THREE.LineBasicMaterial({ color: 0x5f3b16, transparent: true, opacity: 0.55 })
-  );
   const group = new THREE.Group();
   group.add(mesh);
-  group.add(edges);
+  const vertexCount = geometry.getAttribute('position')?.count || 0;
+  if (options.showEdges !== false && vertexCount <= DECO_LIBRARY_EDGE_VERTEX_LIMIT) {
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geometry, 20),
+      new THREE.LineBasicMaterial({ color: 0x5f3b16, transparent: true, opacity: 0.55 })
+    );
+    group.add(edges);
+  }
   scene.add(group);
 
   const box = new THREE.Box3().setFromObject(group);
@@ -1126,15 +1286,23 @@ function renderDecorLibraryStlPayload(target, payload, options = {}) {
   const size = box.getSize(new THREE.Vector3());
   const radius = Math.max(size.x, size.y, size.z, 1);
   group.position.sub(center);
-  let distance = radius * 2.0;
-  const cameraDir = new THREE.Vector3(0.7, -0.95, 1.45).normalize();
+  const baseDistance = radius * (options.distanceMultiplier || 2.0);
+  const minDistance = radius * 0.35;
+  const maxDistance = radius * 10;
+  let distance = baseDistance;
+  let activeView = DECO_LIBRARY_DEFAULT_VIEW;
+  let interactionMode = 'rotate';
+  const cameraDir = DECO_LIBRARY_VIEW_DIRECTIONS[DECO_LIBRARY_DEFAULT_VIEW].clone();
+  const panOffset = new THREE.Vector3();
+  const stateListeners = new Set();
+  const emitState = () => stateListeners.forEach((listener) => listener({ view: activeView, mode: interactionMode }));
   const render = () => {
-    camera.position.copy(cameraDir).multiplyScalar(distance);
-    camera.lookAt(0, 0, 0);
+    camera.position.copy(cameraDir).multiplyScalar(distance).add(panOffset);
+    camera.lookAt(panOffset);
     renderer.render(scene, camera);
   };
   camera.near = Math.max(radius / 1000, 0.01);
-  camera.far = radius * 20;
+  camera.far = radius * 40;
   camera.updateProjectionMatrix();
   let dragging = false;
   let lastX = 0;
@@ -1144,7 +1312,7 @@ function renderDecorLibraryStlPayload(target, payload, options = {}) {
     lastX = event.clientX;
     lastY = event.clientY;
     renderer.domElement.setPointerCapture(event.pointerId);
-    target.classList.add('is-dragging');
+    canvasHost.classList.add('is-dragging');
   });
   renderer.domElement.addEventListener('pointermove', (event) => {
     if (!dragging) return;
@@ -1152,13 +1320,24 @@ function renderDecorLibraryStlPayload(target, payload, options = {}) {
     const dy = event.clientY - lastY;
     lastX = event.clientX;
     lastY = event.clientY;
-    group.rotation.z += dx * 0.01;
-    group.rotation.x += dy * 0.01;
+    if (interactionMode === 'pan') {
+      camera.updateMatrixWorld();
+      const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+      const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+      const panScale = distance / Math.max(width, height) * 1.65;
+      panOffset.addScaledVector(right, -dx * panScale);
+      panOffset.addScaledVector(up, dy * panScale);
+    } else {
+      group.rotation.z += dx * 0.01;
+      group.rotation.x += dy * 0.01;
+      activeView = 'custom';
+    }
     render();
+    emitState();
   });
   renderer.domElement.addEventListener('pointerup', (event) => {
     dragging = false;
-    target.classList.remove('is-dragging');
+    canvasHost.classList.remove('is-dragging');
     try {
       renderer.domElement.releasePointerCapture(event.pointerId);
     } catch (_) {
@@ -1167,10 +1346,88 @@ function renderDecorLibraryStlPayload(target, payload, options = {}) {
   });
   renderer.domElement.addEventListener('wheel', (event) => {
     event.preventDefault();
-    distance = Math.min(radius * 8, Math.max(radius * 0.6, distance * (event.deltaY > 0 ? 1.12 : 0.88)));
+    distance = Math.min(maxDistance, Math.max(minDistance, distance * (event.deltaY > 0 ? 1.12 : 0.88)));
     render();
   }, { passive: false });
+  const setMode = (mode) => {
+    interactionMode = mode === 'pan' ? 'pan' : 'rotate';
+    canvasHost.classList.toggle('is-pan-mode', interactionMode === 'pan');
+    emitState();
+  };
+  const setView = (name) => {
+    const nextView = DECO_LIBRARY_VIEW_DIRECTIONS[name] ? name : DECO_LIBRARY_DEFAULT_VIEW;
+    activeView = nextView;
+    cameraDir.copy(DECO_LIBRARY_VIEW_DIRECTIONS[nextView]);
+    distance = nextView === 'front' ? radius * 1.9 : baseDistance;
+    panOffset.set(0, 0, 0);
+    group.rotation.set(0, 0, 0);
+    render();
+    emitState();
+  };
+  const fit = () => {
+    distance = baseDistance;
+    panOffset.set(0, 0, 0);
+    render();
+  };
+  const reset = () => {
+    group.rotation.set(0, 0, 0);
+    activeView = DECO_LIBRARY_DEFAULT_VIEW;
+    cameraDir.copy(DECO_LIBRARY_VIEW_DIRECTIONS[DECO_LIBRARY_DEFAULT_VIEW]);
+    distance = baseDistance;
+    panOffset.set(0, 0, 0);
+    setMode('rotate');
+    render();
+    emitState();
+  };
+  const controller = {
+    render,
+    setMode,
+    setView,
+    fit,
+    reset,
+    zoom(factor) {
+      const value = Number(factor);
+      distance = Math.min(maxDistance, Math.max(minDistance, distance * (Number.isFinite(value) ? value : 1)));
+      render();
+    },
+    onStateChange(listener) {
+      if (typeof listener === 'function') stateListeners.add(listener);
+    },
+    emitState,
+  };
+  if (shell && options.controls) {
+    shell.insertBefore(createDecorLibraryViewerToolbar(controller), canvasHost);
+  }
+  setMode(options.mode || 'rotate');
   render();
+  return controller;
+}
+
+function renderDecorLibraryStlPayload(target, payload, options = {}) {
+  return renderDecorLibraryStlGeometry(target, buildLibraryPreviewGeometry(payload.mesh_triangles || []), options);
+}
+
+async function renderDecorLibraryOriginalStl(target, item, options = {}) {
+  if (!item?.app_original_url) return false;
+  const url = new URL(item.app_original_url, window.location.href).toString();
+  const response = await fetch(url, { credentials: 'same-origin' });
+  if (!response.ok) throw new Error(response.statusText || 'local_stl_load_failed');
+  const bytes = await response.arrayBuffer();
+  const triangles = parseDecorLibraryStlBytes(bytes, DECO_LIBRARY_ALL_TRIANGLES);
+  const geometry = buildLibraryPreviewGeometry(triangles);
+  if (!geometry) throw new Error('local_stl_parse_failed');
+  renderDecorLibraryStlGeometry(target, geometry, {
+    ...options,
+    showEdges: triangles.length <= 60000,
+  });
+  debugStlLog('decor library original STL rendered in WASM preview', {
+    itemId: item.id,
+    bytes: bytes.byteLength,
+    triangles: triangles.length,
+    url,
+    untouched: true,
+  });
+  return true;
 }
 
 async function renderDecorLibraryStlPreviews(container) {
@@ -1325,15 +1582,42 @@ async function openDecorLibraryPreviewModal(panel, itemId) {
   if (status) status.textContent = '';
   debugStlLog('decor library preview modal opened', { itemId: item.id });
   try {
-    const payload = await apiRequest(`/api/library/stl-preview?item_id=${encodeURIComponent(item.id)}&detail=high`);
-    if (stage) {
-      stage.replaceChildren();
-      renderDecorLibraryStlPayload(stage, payload, { minWidth: 280, minHeight: 280 });
+    let renderedOriginal = false;
+    if (stage && item.app_original_url) {
+      try {
+        stage.replaceChildren();
+        renderedOriginal = await renderDecorLibraryOriginalStl(stage, item, {
+          controls: true,
+          minWidth: 280,
+          minHeight: 320,
+          distanceMultiplier: 2.0,
+        });
+      } catch (originalErr) {
+        debugStlLog('decor library original STL preview failed, falling back to API mesh', {
+          itemId: item.id,
+          url: item.app_original_url,
+          error: originalErr?.message || String(originalErr),
+        });
+      }
+    }
+    let payload = null;
+    if (!renderedOriginal) {
+      payload = await apiRequest(`/api/library/stl-preview?item_id=${encodeURIComponent(item.id)}&detail=high`);
+      if (stage) {
+        stage.replaceChildren();
+        renderDecorLibraryStlPayload(stage, payload, {
+          controls: true,
+          minWidth: 280,
+          minHeight: 320,
+          distanceMultiplier: 2.0,
+        });
+      }
     }
     debugStlLog('decor library preview modal rendered', {
       itemId: item.id,
-      sampled_triangles: payload.sampled_triangles,
-      bbox: payload.bbox,
+      source: renderedOriginal ? 'local_original_stl' : 'api_preview_mesh',
+      sampled_triangles: payload?.sampled_triangles || null,
+      bbox: payload?.bbox || null,
     });
   } catch (err) {
     if (stage) {

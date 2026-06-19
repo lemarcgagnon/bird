@@ -154,6 +154,22 @@ function render_library_page(): void
         <p class="notice" data-library-message>' . h(page_t('library_loading', $lang)) . '</p>
         <div class="library-grid" data-library-grid></div>
       </section>
+      <div class="library-user-preview-modal" hidden data-library-preview-modal>
+        <div class="library-user-preview-dialog" role="dialog" aria-modal="true" aria-labelledby="library-user-preview-title">
+          <div class="library-user-preview-head">
+            <div>
+              <h3 id="library-user-preview-title">' . h(page_t('library_preview_title', $lang)) . '</h3>
+              <p data-library-preview-meta></p>
+            </div>
+            <button type="button" class="secondary" data-library-preview-close>' . h(page_t('library_preview_close', $lang)) . '</button>
+          </div>
+          <div class="library-user-preview-stage library-stl-viewer" data-library-preview-stage></div>
+          <div class="library-user-preview-actions">
+            <button type="button" class="secondary" data-library-preview-close>' . h(page_t('library_preview_close', $lang)) . '</button>
+            <button type="button" data-library-preview-download>' . h(page_t('library_download', $lang)) . '</button>
+          </div>
+        </div>
+      </div>
       <script>
         (() => {
           const prefix = "[nichoir library user]";
@@ -170,7 +186,10 @@ function render_library_page(): void
                 downloads: "Downloads",
                 authorize_error: "Download refused",
                 insufficient: "Not enough credits. Open your account to add credits.",
-                started: "Download started. Import the STL from your computer in the app decoration panel."
+                started: "Download started. Import the STL from your computer in the app decoration panel.",
+                preview: "3D preview",
+                preview_loading: "Loading 3D preview...",
+                preview_error: "3D preview unavailable"
               }
             : {
                 empty: "Aucun STL de librairie disponible pour le moment.",
@@ -182,10 +201,20 @@ function render_library_page(): void
                 downloads: "Telechargements",
                 authorize_error: "Telechargement refuse",
                 insufficient: "Credits insuffisants. Ouvre ton compte pour ajouter des credits.",
-                started: "Telechargement lance. Importe ensuite le STL depuis ton ordinateur dans le panneau Decor de l app."
+                started: "Telechargement lance. Importe ensuite le STL depuis ton ordinateur dans le panneau Decor de l app.",
+                preview: "Apercu 3D",
+                preview_loading: "Chargement de l apercu 3D...",
+                preview_error: "Apercu 3D indisponible"
               };
           const grid = document.querySelector("[data-library-grid]");
           const message = document.querySelector("[data-library-message]");
+          const modal = document.querySelector("[data-library-preview-modal]");
+          const modalStage = document.querySelector("[data-library-preview-stage]");
+          const modalTitle = document.querySelector("#library-user-preview-title");
+          const modalMeta = document.querySelector("[data-library-preview-meta]");
+          const modalDownload = document.querySelector("[data-library-preview-download]");
+          const libraryItems = new Map();
+          let previewModulePromise = null;
           const esc = (value) => String(value ?? "").replace(/[&<>"\']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\'": "&#39;" }[ch]));
           const fmtBytes = (bytes) => {
             const value = Number(bytes || 0);
@@ -193,6 +222,12 @@ function render_library_page(): void
             if (value >= 1024) return `${Math.round(value / 1024)} Ko`;
             return `${value} o`;
           };
+          function previewModule() {
+            if (!previewModulePromise) {
+              previewModulePromise = import("/library-preview.js?v=20260619-stl-viewer-controls");
+            }
+            return previewModulePromise;
+          }
           async function api(path, options = {}) {
             const res = await fetch(path, {
               credentials: "same-origin",
@@ -213,6 +248,8 @@ function render_library_page(): void
               log("library_load_start");
               const payload = await api("/api/library");
               const items = payload.items || [];
+              libraryItems.clear();
+              items.forEach((item) => libraryItems.set(Number(item.id), item));
               log("library_load_success", { count: items.length, items: items.map((item) => ({ id: item.id, type: item.media_type, cost: item.cost, name: item.original_filename })) });
               message.textContent = items.length ? "" : labels.empty;
               const previewHtml = (item) => {
@@ -236,6 +273,9 @@ function render_library_page(): void
                       <div><dt>${labels.downloads}</dt><dd>${esc(item.download_count)}</dd></div>
                       <div><dt>${labels.cost}</dt><dd>${esc(item.cost)} ${labels.credits}</dd></div>
                     </dl>
+                    ${String(item.media_type || item.file_ext || "").toLowerCase() === "stl"
+                      ? `<button type="button" class="secondary" data-library-preview="${esc(item.id)}">${labels.preview}</button>`
+                      : ``}
                     <button type="button" data-library-download="${esc(item.id)}">${labels.download}</button>
                   </div>
                 </article>
@@ -246,26 +286,70 @@ function render_library_page(): void
               message.textContent = labels.load_error;
             }
           }
-          grid.addEventListener("click", async (event) => {
-            const button = event.target.closest("[data-library-download]");
-            if (!button) return;
+          function closePreview() {
+            if (!modal) return;
+            modal.hidden = true;
+            modal.dataset.itemId = "";
+            modalStage?.replaceChildren();
+          }
+          async function openPreview(itemId) {
+            const item = libraryItems.get(Number(itemId));
+            if (!item || !modal || !modalStage) return;
+            modal.dataset.itemId = String(item.id);
+            modal.hidden = false;
+            if (modalTitle) modalTitle.textContent = item.title || item.original_filename || labels.preview;
+            if (modalMeta) modalMeta.textContent = `${item.original_filename || ""} · ${fmtBytes(item.file_size_bytes)} · ${item.cost} ${labels.credits}`;
+            modalStage.replaceChildren();
+            modalStage.textContent = labels.preview_loading;
+            log("preview_modal_open", { itemId: item.id });
+            try {
+              const module = await previewModule();
+              await module.renderPublicLibraryStlPreview(modalStage, item.id, {
+                loadingLabel: labels.preview_loading,
+                errorLabel: labels.preview_error
+              });
+            } catch (err) {
+              modalStage.textContent = labels.preview_error;
+              log("preview_modal_failed", { itemId: item.id, error: err.message || String(err) });
+            }
+          }
+          async function startDownload(itemId, button, source) {
+            if (!itemId) return;
             button.disabled = true;
             try {
-              log("download_authorize_start", { itemId: Number(button.dataset.libraryDownload || 0) });
+              log("download_authorize_start", { itemId: Number(itemId || 0), source });
               const payload = await api("/api/library/authorize", {
                 method: "POST",
-                body: JSON.stringify({ item_id: Number(button.dataset.libraryDownload || 0) })
+                body: JSON.stringify({ item_id: Number(itemId || 0) })
               });
               log("download_authorize_success", { itemId: payload.item_id, cost: payload.cost, expires_at: payload.expires_at, admin: Boolean(payload.admin) });
               message.textContent = labels.started;
               log("download_redirect", { itemId: payload.item_id, download_url: payload.download_url });
               window.location.href = payload.download_url;
             } catch (err) {
-              log("download_authorize_failed", { itemId: Number(button.dataset.libraryDownload || 0), status: err.status || 0, error: err.message || String(err) });
+              log("download_authorize_failed", { itemId: Number(itemId || 0), source, status: err.status || 0, error: err.message || String(err) });
               message.textContent = err.status === 402 ? labels.insufficient : `${labels.authorize_error}: ${err.message}`;
             } finally {
               button.disabled = false;
             }
+          }
+          grid.addEventListener("click", async (event) => {
+            const previewButton = event.target.closest("[data-library-preview]");
+            if (previewButton) {
+              openPreview(previewButton.dataset.libraryPreview);
+              return;
+            }
+            const button = event.target.closest("[data-library-download]");
+            if (!button) return;
+            await startDownload(button.dataset.libraryDownload, button, "grid");
+          });
+          modal?.addEventListener("click", (event) => {
+            if (event.target === modal || event.target.closest("[data-library-preview-close]")) {
+              closePreview();
+            }
+          });
+          modalDownload?.addEventListener("click", async (event) => {
+            await startDownload(modal?.dataset.itemId || 0, event.currentTarget, "preview");
           });
           load();
         })();

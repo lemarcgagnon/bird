@@ -70,6 +70,54 @@ if ($method === 'OPTIONS') {
     exit;
 }
 
+if ($method === 'GET' && $path === '/assets/three.module.min.js') {
+    $threePath = dirname(__DIR__, 2) . '/app/vendor/three.module.min.js';
+    if (!is_file($threePath) || !is_readable($threePath)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo "three.js asset not found\n";
+        exit;
+    }
+    header('Content-Type: application/javascript; charset=utf-8');
+    header('Content-Length: ' . (string) filesize($threePath));
+    header('Cache-Control: public, max-age=86400');
+    header('X-Content-Type-Options: nosniff');
+    readfile($threePath);
+    exit;
+}
+
+if ($method === 'GET' && $path === '/library-preview.js') {
+    $previewPath = __DIR__ . '/library-preview.js';
+    if (!is_file($previewPath) || !is_readable($previewPath)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo "library preview asset not found\n";
+        exit;
+    }
+    header('Content-Type: application/javascript; charset=utf-8');
+    header('Content-Length: ' . (string) filesize($previewPath));
+    header('Cache-Control: public, max-age=600');
+    header('X-Content-Type-Options: nosniff');
+    readfile($previewPath);
+    exit;
+}
+
+if ($method === 'GET' && $path === '/site.css') {
+    $cssPath = __DIR__ . '/site.css';
+    if (!is_file($cssPath) || !is_readable($cssPath)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo "site stylesheet not found\n";
+        exit;
+    }
+    header('Content-Type: text/css; charset=utf-8');
+    header('Content-Length: ' . (string) filesize($cssPath));
+    header('Cache-Control: public, max-age=600');
+    header('X-Content-Type-Options: nosniff');
+    readfile($cssPath);
+    exit;
+}
+
 if ($method === 'GET' && $path === '/') {
     render_landing_page();
     exit;

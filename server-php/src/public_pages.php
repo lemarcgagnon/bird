@@ -215,10 +215,17 @@ function render_library_page(): void
               const items = payload.items || [];
               log("library_load_success", { count: items.length, items: items.map((item) => ({ id: item.id, type: item.media_type, cost: item.cost, name: item.original_filename })) });
               message.textContent = items.length ? "" : labels.empty;
+              const previewHtml = (item) => {
+                const label = esc(item.title || item.original_filename);
+                if ((item.media_type || item.file_ext || "").toLowerCase() === "stl") {
+                  return `<div class="library-thumbnail library-stl-viewer" data-library-stl-preview="${esc(item.id)}" aria-label="Preview STL ${label}">Preview STL...</div>`;
+                }
+                return `<img class="library-thumbnail" src="${esc(item.thumbnail_url)}" alt="Preview ${label}" loading="lazy">`;
+              };
               grid.innerHTML = items.map((item) => `
                 <article class="library-card">
                   <div class="library-card-main">
-                    <img class="library-thumbnail" src="${esc(item.thumbnail_url)}" alt="Preview ${esc(item.title || item.original_filename)}" loading="lazy">
+                    ${previewHtml(item)}
                     <div class="library-card-copy">
                       <span class="plan-badge">${esc((item.media_type || item.file_ext || "file").toUpperCase())}</span>
                       <h3>${esc(item.title || item.original_filename)}</h3>
@@ -236,7 +243,10 @@ function render_library_page(): void
                   </div>
                 </article>
               `).join("");
-              log("library_thumbnails_rendered", { count: items.length });
+              import("/library-preview.js?v=20260619-three-stl-preview")
+                .then((module) => module.renderLibraryStlPreviews(grid))
+                .catch((error) => log("library_three_preview_module_failed", { error: error.message || String(error) }));
+              log("library_previews_rendered", { count: items.length });
             } catch (err) {
               log("library_load_failed", { error: err.message || String(err) });
               message.textContent = labels.load_error;

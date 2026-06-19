@@ -676,13 +676,16 @@ function render_admin_library_panel(PDO $pdo): string
     $itemRows = '';
     foreach ($items as $item) {
         $typeLabel = library_is_image_item($item) ? 'Image' : 'STL';
+        $previewHtml = library_is_stl_item($item)
+            ? '<div class="library-thumbnail library-stl-viewer" data-library-stl-preview="' . (int) $item['id'] . '" aria-label="Preview STL ' . h((string) ($item['title'] ?: $item['original_filename'])) . '">Chargement preview STL...</div>'
+            : '<img class="library-thumbnail" src="/api/library/thumbnail?item_id=' . (int) $item['id'] . '" alt="Preview ' . h((string) ($item['title'] ?: $item['original_filename'])) . '" loading="lazy">';
         $itemRows .= '
           <tr>
             <td>#' . (int) $item['id'] . '</td>
             <td>' . h($typeLabel) . '</td>
             <td>
               <div class="library-admin-item">
-                <img class="library-thumbnail" src="/api/library/thumbnail?item_id=' . (int) $item['id'] . '" alt="Preview ' . h((string) ($item['title'] ?: $item['original_filename'])) . '" loading="lazy">
+                ' . $previewHtml . '
                 <div class="library-admin-item-body">
                   <form class="inline-form library-item-form" method="post" action="' . h(admin_base_path()) . '">
                     ' . admin_csrf_input() . '
@@ -756,6 +759,7 @@ function render_admin_library_panel(PDO $pdo): string
         <h2>Telechargements librairie recents</h2>
         <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Fichier</th><th>Date</th></tr></thead><tbody>' . $downloadRows . '</tbody></table></div>
       </section>
+      <script type="module" src="/library-preview.js?v=20260619-three-stl-preview"></script>
       <script>
         (() => {
           const prefix = "[nichoir library admin]";
@@ -782,53 +786,6 @@ function render_admin_library_panel(PDO $pdo): string
             if (value >= 1024) return `${Math.round(value / 1024)} Ko`;
             return `${value} o`;
           };
-          function renderStlPreview(canvas, payload) {
-            const ctx = canvas.getContext("2d");
-            const w = canvas.width;
-            const h = canvas.height;
-            ctx.clearRect(0, 0, w, h);
-            ctx.fillStyle = "#fffdf8";
-            ctx.fillRect(0, 0, w, h);
-            const triangles = payload.triangles || [];
-            if (!triangles.length) {
-              ctx.fillStyle = "#6e665b";
-              ctx.fillText("Preview indisponible", 18, h / 2);
-              return;
-            }
-            const pts = triangles.flat();
-            const xs = pts.map((p) => p[0]);
-            const ys = pts.map((p) => p[1]);
-            const minX = Math.min(...xs), maxX = Math.max(...xs);
-            const minY = Math.min(...ys), maxY = Math.max(...ys);
-            const scale = Math.min((w - 32) / Math.max(maxX - minX, 0.001), (h - 32) / Math.max(maxY - minY, 0.001));
-            const map = (p) => [16 + (p[0] - minX) * scale, h - 16 - (p[1] - minY) * scale];
-            ctx.lineWidth = 0.7;
-            ctx.strokeStyle = "rgba(36,33,29,0.28)";
-            ctx.fillStyle = "rgba(181,111,24,0.12)";
-            triangles.forEach((tri) => {
-              const a = map(tri[0]), b = map(tri[1]), c = map(tri[2]);
-              ctx.beginPath();
-              ctx.moveTo(a[0], a[1]);
-              ctx.lineTo(b[0], b[1]);
-              ctx.lineTo(c[0], c[1]);
-              ctx.closePath();
-              ctx.fill();
-              ctx.stroke();
-            });
-          }
-          document.querySelectorAll("[data-admin-stl-preview]").forEach(async (canvas) => {
-            const itemId = Number(canvas.dataset.adminStlPreview || 0);
-            log("stl_preview_request", { itemId });
-            try {
-              const res = await fetch(`/api/library/stl-preview?item_id=${encodeURIComponent(itemId)}`, { credentials: "same-origin" });
-              const payload = await res.json();
-              if (!res.ok || payload.ok === false) throw new Error(payload.error || res.statusText);
-              renderStlPreview(canvas, payload);
-              log("stl_preview_loaded", { itemId, sampled_triangles: payload.sampled_triangles, bbox: payload.bbox });
-            } catch (error) {
-              log("stl_preview_failed", { itemId, error: error.message || String(error) });
-            }
-          });
           const form = document.querySelector("[data-library-admin-upload-form]");
           const input = form?.querySelector("input[type=file]");
           const selectedPreview = document.querySelector("[data-library-admin-selected-preview]");

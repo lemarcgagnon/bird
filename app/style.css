@@ -1172,7 +1172,8 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 
-  .deco-library-item img {
+  .deco-library-item img,
+  .deco-library-stl-viewer {
     width: 100%;
     max-width: 160px;
   }
@@ -1345,13 +1346,37 @@ input[type="range"] {
   background: var(--panel);
 }
 
-.deco-library-item img {
+.deco-library-item img,
+.deco-library-stl-viewer {
   width: 58px;
   aspect-ratio: 1;
-  object-fit: contain;
   border: 1px solid var(--line);
   border-radius: 5px;
   background: var(--input-bg);
+}
+
+.deco-library-item img {
+  object-fit: contain;
+}
+
+.deco-library-stl-viewer {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.deco-library-stl-viewer canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.deco-library-stl-error {
+  padding: 4px;
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 .deco-library-copy {

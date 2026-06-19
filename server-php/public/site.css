@@ -524,6 +524,26 @@ article strong,
   background: #fffdf8;
 }
 
+.library-stl-viewer {
+  display: grid;
+  place-items: center;
+  min-height: 148px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.library-stl-viewer canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.library-stl-viewer-error {
+  padding: 12px;
+  text-align: center;
+}
+
 .library-admin-item .library-thumbnail {
   max-width: 148px;
 }

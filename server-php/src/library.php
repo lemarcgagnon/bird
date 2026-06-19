@@ -441,6 +441,7 @@ function library_stl_preview_payload(array $item): array
         'item' => library_public_item($item),
         'sampled_triangles' => count($preview['triangles']),
         'bbox' => $preview['bbox'],
+        'mesh_triangles' => $triangles,
         'triangles' => $preview['triangles'],
     ];
 }

@@ -193,54 +193,6 @@ function render_library_page(): void
             if (value >= 1024) return `${Math.round(value / 1024)} Ko`;
             return `${value} o`;
           };
-          function renderStlPreview(canvas, payload) {
-            const ctx = canvas.getContext("2d");
-            const w = canvas.width;
-            const h = canvas.height;
-            ctx.clearRect(0, 0, w, h);
-            ctx.fillStyle = "#fffdf8";
-            ctx.fillRect(0, 0, w, h);
-            const triangles = payload.triangles || [];
-            if (!triangles.length) {
-              ctx.fillStyle = "#6e665b";
-              ctx.fillText("Preview indisponible", 18, h / 2);
-              return;
-            }
-            const pts = triangles.flat();
-            const xs = pts.map((p) => p[0]);
-            const ys = pts.map((p) => p[1]);
-            const minX = Math.min(...xs), maxX = Math.max(...xs);
-            const minY = Math.min(...ys), maxY = Math.max(...ys);
-            const scale = Math.min((w - 32) / Math.max(maxX - minX, 0.001), (h - 32) / Math.max(maxY - minY, 0.001));
-            const map = (p) => [16 + (p[0] - minX) * scale, h - 16 - (p[1] - minY) * scale];
-            ctx.lineWidth = 0.7;
-            ctx.strokeStyle = "rgba(36,33,29,0.28)";
-            ctx.fillStyle = "rgba(181,111,24,0.12)";
-            triangles.forEach((tri) => {
-              const a = map(tri[0]), b = map(tri[1]), c = map(tri[2]);
-              ctx.beginPath();
-              ctx.moveTo(a[0], a[1]);
-              ctx.lineTo(b[0], b[1]);
-              ctx.lineTo(c[0], c[1]);
-              ctx.closePath();
-              ctx.fill();
-              ctx.stroke();
-            });
-          }
-          async function loadStlPreviews() {
-            const canvases = Array.from(document.querySelectorAll("[data-library-stl-preview]"));
-            for (const canvas of canvases) {
-              const itemId = Number(canvas.dataset.libraryStlPreview || 0);
-              log("stl_preview_request", { itemId });
-              try {
-                const payload = await api(`/api/library/stl-preview?item_id=${encodeURIComponent(itemId)}`, { headers: {} });
-                renderStlPreview(canvas, payload);
-                log("stl_preview_loaded", { itemId, sampled_triangles: payload.sampled_triangles, bbox: payload.bbox });
-              } catch (err) {
-                log("stl_preview_failed", { itemId, error: err.message || String(err) });
-              }
-            }
-          }
           async function api(path, options = {}) {
             const res = await fetch(path, {
               credentials: "same-origin",
@@ -270,7 +222,7 @@ function render_library_page(): void
                     <h3>${esc(item.title || item.original_filename)}</h3>
                     ${item.description ? `<p>${esc(item.description)}</p>` : ``}
                     <p>${esc(item.original_filename)}</p>
-                    ${item.media_type === "stl" ? `<canvas class="library-stl-canvas" width="260" height="260" data-library-stl-preview="${esc(item.id)}" aria-label="Preview STL ${esc(item.title || item.original_filename)}"></canvas>` : ``}
+                    <img class="library-thumbnail" src="${esc(item.thumbnail_url)}" alt="Preview ${esc(item.title || item.original_filename)}" loading="lazy">
                   </div>
                   <dl>
                     <div><dt>${labels.size}</dt><dd>${fmtBytes(item.file_size_bytes)}</dd></div>
@@ -280,7 +232,7 @@ function render_library_page(): void
                   <button type="button" data-library-download="${esc(item.id)}">${labels.download}</button>
                 </article>
               `).join("");
-              await loadStlPreviews();
+              log("library_thumbnails_rendered", { count: items.length });
             } catch (err) {
               log("library_load_failed", { error: err.message || String(err) });
               message.textContent = labels.load_error;

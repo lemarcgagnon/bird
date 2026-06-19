@@ -78,6 +78,7 @@ function library_public_item(array $item): array
         'cost' => (int) $item['cost'],
         'download_count' => (int) $item['download_count'],
         'created_at' => (string) $item['created_at'],
+        'thumbnail_url' => '/api/library/thumbnail?item_id=' . (int) $item['id'],
     ];
 }
 
@@ -442,4 +443,126 @@ function library_stl_preview_payload(array $item): array
         'bbox' => $preview['bbox'],
         'triangles' => $preview['triangles'],
     ];
+}
+
+function library_create_preview_canvas(int $size): GdImage
+{
+    if (!extension_loaded('gd')) {
+        throw new RuntimeException('gd_unavailable');
+    }
+    $size = max(128, min(1024, $size));
+    $image = imagecreatetruecolor($size, $size);
+    imageantialias($image, true);
+    $background = imagecolorallocate($image, 255, 253, 248);
+    imagefilledrectangle($image, 0, 0, $size, $size, $background);
+    return $image;
+}
+
+function library_image_to_png_thumbnail(array $item, int $size = 512): string
+{
+    $path = library_item_path($item);
+    $bytes = is_file($path) ? file_get_contents($path) : false;
+    if (!is_string($bytes) || $bytes === '') {
+        throw new RuntimeException('library_file_missing');
+    }
+    $source = @imagecreatefromstring($bytes);
+    if (!$source instanceof GdImage) {
+        throw new RuntimeException('invalid_library_image_preview');
+    }
+    $thumb = library_create_preview_canvas($size);
+    $size = imagesx($thumb);
+    $sourceW = imagesx($source);
+    $sourceH = imagesy($source);
+    if ($sourceW <= 0 || $sourceH <= 0) {
+        imagedestroy($source);
+        imagedestroy($thumb);
+        throw new RuntimeException('invalid_library_image_preview');
+    }
+    $scale = min(($size - 32) / $sourceW, ($size - 32) / $sourceH);
+    $targetW = max(1, (int) round($sourceW * $scale));
+    $targetH = max(1, (int) round($sourceH * $scale));
+    $targetX = (int) floor(($size - $targetW) / 2);
+    $targetY = (int) floor(($size - $targetH) / 2);
+    imagecopyresampled($thumb, $source, $targetX, $targetY, 0, 0, $targetW, $targetH, $sourceW, $sourceH);
+    imagedestroy($source);
+    ob_start();
+    imagepng($thumb);
+    $png = ob_get_clean();
+    imagedestroy($thumb);
+    if (!is_string($png) || $png === '') {
+        throw new RuntimeException('thumbnail_render_failed');
+    }
+    return $png;
+}
+
+function library_stl_to_png_thumbnail(array $item, int $size = 512): string
+{
+    $payload = library_stl_preview_payload($item);
+    $triangles = $payload['triangles'] ?? [];
+    if (!is_array($triangles) || $triangles === []) {
+        throw new RuntimeException('invalid_stl_preview');
+    }
+    $image = library_create_preview_canvas($size);
+    $size = imagesx($image);
+    $border = max(18, (int) round($size * 0.08));
+    $points = [];
+    foreach ($triangles as $tri) {
+        if (!is_array($tri)) {
+            continue;
+        }
+        foreach ($tri as $point) {
+            if (is_array($point) && count($point) >= 2) {
+                $points[] = [(float) $point[0], (float) $point[1]];
+            }
+        }
+    }
+    if ($points === []) {
+        imagedestroy($image);
+        throw new RuntimeException('invalid_stl_preview');
+    }
+    $xs = array_column($points, 0);
+    $ys = array_column($points, 1);
+    $minX = min($xs);
+    $maxX = max($xs);
+    $minY = min($ys);
+    $maxY = max($ys);
+    $scale = min(($size - ($border * 2)) / max($maxX - $minX, 0.001), ($size - ($border * 2)) / max($maxY - $minY, 0.001));
+    $map = static function (array $point) use ($border, $size, $scale, $minX, $minY): array {
+        return [
+            (int) round($border + (((float) $point[0] - $minX) * $scale)),
+            (int) round($size - $border - (((float) $point[1] - $minY) * $scale)),
+        ];
+    };
+    $line = imagecolorallocatealpha($image, 36, 33, 29, 70);
+    $fill = imagecolorallocatealpha($image, 181, 111, 24, 94);
+    foreach ($triangles as $tri) {
+        if (!is_array($tri) || count($tri) < 3) {
+            continue;
+        }
+        $a = $map($tri[0]);
+        $b = $map($tri[1]);
+        $c = $map($tri[2]);
+        $poly = [$a[0], $a[1], $b[0], $b[1], $c[0], $c[1]];
+        imagefilledpolygon($image, $poly, 3, $fill);
+        imagepolygon($image, $poly, 3, $line);
+    }
+    ob_start();
+    imagepng($image);
+    $png = ob_get_clean();
+    imagedestroy($image);
+    if (!is_string($png) || $png === '') {
+        throw new RuntimeException('thumbnail_render_failed');
+    }
+    return $png;
+}
+
+function library_thumbnail_png(array $item, int $size = 512): string
+{
+    if (library_is_stl_item($item)) {
+        return library_stl_to_png_thumbnail($item, $size);
+    }
+    if (library_is_image_item($item)) {
+        return library_image_to_png_thumbnail($item, $size);
+    }
+    throw new RuntimeException('unsupported_library_thumbnail');
 }

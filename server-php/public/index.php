@@ -253,6 +253,28 @@ if ($method === 'GET' && $path === '/api/library') {
     exit;
 }
 
+if ($method === 'GET' && $path === '/api/library/thumbnail') {
+    $itemId = (int) ($_GET['item_id'] ?? 0);
+    $item = $itemId > 0 ? library_find_item(db(), $itemId, !admin_logged_in()) : null;
+    if ($item === null) {
+        json_response(['ok' => false, 'error' => 'library_thumbnail_not_found'], 404);
+        exit;
+    }
+    try {
+        $png = library_thumbnail_png($item);
+        header('Content-Type: image/png');
+        header('Content-Length: ' . strlen($png));
+        header('Content-Disposition: inline; filename="library-preview-' . (int) $item['id'] . '.png"');
+        header('Cache-Control: public, max-age=600');
+        header('X-Content-Type-Options: nosniff');
+        echo $png;
+    } catch (Throwable $e) {
+        app_log(db(), 'warning', 'api', 'library_thumbnail_failed', 'Miniature librairie refusee', ['item_id' => $itemId, 'error' => $e->getMessage()], null, 422);
+        json_response(['ok' => false, 'error' => 'library_thumbnail_failed'], 422);
+    }
+    exit;
+}
+
 if ($method === 'GET' && $path === '/api/library/preview') {
     if (!admin_logged_in()) {
         json_response(['ok' => false, 'error' => 'admin_required'], 403);

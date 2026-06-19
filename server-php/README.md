@@ -72,6 +72,12 @@ API and webhook:
 - `POST /api/exports/quote`
 - `POST /api/exports/authorize`
 - `POST /api/exports/consume`
+- `GET /api/library`
+- `GET /api/library/thumbnail`
+- `GET /api/library/preview`
+- `GET /api/library/stl-preview`
+- `POST /api/library/authorize`
+- `GET /api/library/download`
 - `GET /api/tickets`
 - `POST /api/tickets`
 - `GET /api/tickets/{id}`
@@ -111,7 +117,7 @@ API and webhook:
 - The browser generates the actual file locally after authorization. PHP never generates STL, PDF, ZIP or mesh data.
 - The current app only bills house STL and plan-section SVG/PNG/PDF exports. Door STL, wall-mount STL, panels ZIP, calculations PDF and diagnostic exports are local/free unless the browser wiring is intentionally changed.
 - `/library` is the public decor file library. Clients download a server-hosted STL or image to their computer, then import it manually into the WASM decoration uploader.
-- `/api/library` returns active file metadata. `/api/library/stl-preview` returns a lightweight sampled STL preview JSON without serving the source STL. `/api/library/authorize` checks the active account and current credit balance, then creates a short-lived token. `/api/library/download` claims that token, debits client credits, writes `credit_ledger` with reason `library_download`, records `library_downloads`, then streams the private file.
+- `/api/library` returns active file metadata and a PNG thumbnail URL. `/api/library/thumbnail` returns a public low-resolution PNG preview without serving the source STL/image file. `/api/library/stl-preview` returns a lightweight sampled STL preview JSON for admin/debug rendering. `/api/library/authorize` checks the active account and current credit balance, then creates a short-lived token. `/api/library/download` claims that token, debits client credits, writes `credit_ledger` with reason `library_download`, records `library_downloads`, then streams the private file.
 - Admins manage library STL/image files from the back-office Librairie tab, including title, description, credit cost, active/inactive state and permanent deletion. STL uploads are capped by the admin `library_stl_upload_max_mb` setting up to 25 MiB, images are capped at 2 MiB, and files are stored in `server-php/data/library`, outside `public_html`. Admin sessions can preview images through `/api/library/preview` and authorize/download library files at cost zero through one-shot PHP-session tokens.
 - Browser console prefixes: `[nichoir library admin]` for back-office file selection, upload submit and STL preview loading; `[nichoir library user]` for public library loading, STL preview, authorization and download redirect.
 

@@ -30,7 +30,7 @@ function page_response(string $title, string $body, string $active = '', int $st
     echo '<link rel="alternate" hreflang="en" href="' . h(page_path_with_lang($path, 'en')) . '">';
     echo '<link rel="alternate" hreflang="x-default" href="' . h(page_path_with_lang($path, 'fr')) . '">';
     echo '<link rel="icon" href="/favicon.svg" type="image/svg+xml">';
-    echo '<link rel="stylesheet" href="/site.css?v=20260619-stl-viewer-smooth-orbit"></head><body>';
+    echo '<link rel="stylesheet" href="/site.css?v=20260619-stl-viewer-horizon-default"></head><body>';
     echo '<header class="site-header"><a class="brand" href="' . h(page_path_with_lang('/', $lang)) . '">Nichoir</a><nav class="site-nav" aria-label="' . h(page_t('aria_main_navigation', $lang)) . '">';
     foreach ($nav as $href => $label) {
         $class = $active === $href ? ' class="active"' : '';

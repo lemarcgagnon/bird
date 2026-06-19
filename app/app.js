@@ -12,7 +12,7 @@ import init, {
 } from '../wasm/pkg/wasm.js?v=20260619-intact-stl-decor-import';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260619-stl-viewer-smooth-orbit';
+const APP_BUILD_ID = '20260619-stl-viewer-horizon-default';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -1460,7 +1460,7 @@ function renderDecorLibraryStlGeometry(target, geometry, options = {}) {
   if (shell && options.controls) {
     shell.insertBefore(createDecorLibraryViewerToolbar(controller), canvasHost);
   }
-  setMode(options.mode || 'rotate');
+  setMode(options.mode || 'horizon');
   render(true);
   return controller;
 }

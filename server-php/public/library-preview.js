@@ -436,7 +436,7 @@ function renderGeometry(target, geometry, options = {}) {
   if (shell && options.controls) {
     shell.insertBefore(createViewerToolbar(controller, options), canvasHost);
   }
-  setMode(options.mode || 'rotate');
+  setMode(options.mode || 'horizon');
   render(true);
   return controller;
 }

@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260619-three-stl-preview';
+} from '../wasm/pkg/wasm.js?v=20260619-interactive-stl-preview';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260619-three-stl-preview';
+const APP_BUILD_ID = '20260619-interactive-stl-preview';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -1083,6 +1083,7 @@ function renderDecorLibraryStlPayload(target, payload) {
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(width, height);
+  renderer.domElement.setAttribute('title', 'Glisser pour tourner, molette pour zoomer');
   target.appendChild(renderer.domElement);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.62));
@@ -1114,12 +1115,51 @@ function renderDecorLibraryStlPayload(target, payload) {
   const size = box.getSize(new THREE.Vector3());
   const radius = Math.max(size.x, size.y, size.z, 1);
   group.position.sub(center);
-  camera.position.set(radius * 0.7, radius * -0.95, radius * 1.45);
-  camera.lookAt(0, 0, 0);
+  let distance = radius * 2.0;
+  const cameraDir = new THREE.Vector3(0.7, -0.95, 1.45).normalize();
+  const render = () => {
+    camera.position.copy(cameraDir).multiplyScalar(distance);
+    camera.lookAt(0, 0, 0);
+    renderer.render(scene, camera);
+  };
   camera.near = Math.max(radius / 1000, 0.01);
   camera.far = radius * 20;
   camera.updateProjectionMatrix();
-  renderer.render(scene, camera);
+  let dragging = false;
+  let lastX = 0;
+  let lastY = 0;
+  renderer.domElement.addEventListener('pointerdown', (event) => {
+    dragging = true;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    renderer.domElement.setPointerCapture(event.pointerId);
+    target.classList.add('is-dragging');
+  });
+  renderer.domElement.addEventListener('pointermove', (event) => {
+    if (!dragging) return;
+    const dx = event.clientX - lastX;
+    const dy = event.clientY - lastY;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    group.rotation.z += dx * 0.01;
+    group.rotation.x += dy * 0.01;
+    render();
+  });
+  renderer.domElement.addEventListener('pointerup', (event) => {
+    dragging = false;
+    target.classList.remove('is-dragging');
+    try {
+      renderer.domElement.releasePointerCapture(event.pointerId);
+    } catch (_) {
+      // Pointer capture can already be released by the browser.
+    }
+  });
+  renderer.domElement.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    distance = Math.min(radius * 8, Math.max(radius * 0.6, distance * (event.deltaY > 0 ? 1.12 : 0.88)));
+    render();
+  }, { passive: false });
+  render();
 }
 
 async function renderDecorLibraryStlPreviews(container) {

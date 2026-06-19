@@ -1,6 +1,7 @@
 import * as THREE from '/assets/three.module.min.js';
 
 const DEFAULT_PREVIEW_LABEL = 'Preview STL';
+const MAX_PREVIEW_TRIANGLES = 1800;
 
 function log(message, details = {}) {
   console.log('[nichoir library preview]', message, details);
@@ -26,13 +27,61 @@ function trianglesToGeometry(triangles) {
   return geometry;
 }
 
+function parseBinaryStl(bytes) {
+  if (bytes.byteLength < 84) return [];
+  const view = new DataView(bytes);
+  const triCount = view.getUint32(80, true);
+  const expected = 84 + (triCount * 50);
+  if (triCount <= 0 || expected > bytes.byteLength) return [];
+  const step = Math.max(1, Math.ceil(triCount / MAX_PREVIEW_TRIANGLES));
+  const triangles = [];
+  for (let i = 0; i < triCount; i += step) {
+    const base = 84 + (i * 50) + 12;
+    const tri = [];
+    for (let v = 0; v < 3; v += 1) {
+      const offset = base + (v * 12);
+      tri.push([
+        view.getFloat32(offset, true),
+        view.getFloat32(offset + 4, true),
+        view.getFloat32(offset + 8, true),
+      ]);
+    }
+    triangles.push(tri);
+  }
+  return triangles;
+}
+
+function parseAsciiStl(bytes) {
+  const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+  const matches = [...text.matchAll(/vertex\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)/g)];
+  const triCount = Math.floor(matches.length / 3);
+  if (triCount <= 0) return [];
+  const step = Math.max(1, Math.ceil(triCount / MAX_PREVIEW_TRIANGLES));
+  const triangles = [];
+  for (let i = 0; i < triCount; i += step) {
+    const tri = [];
+    for (let v = 0; v < 3; v += 1) {
+      const row = matches[(i * 3) + v];
+      if (!row) break;
+      tri.push([Number(row[1]) || 0, Number(row[2]) || 0, Number(row[3]) || 0]);
+    }
+    if (tri.length === 3) triangles.push(tri);
+  }
+  return triangles;
+}
+
+function parseStlBytes(bytes) {
+  const binary = parseBinaryStl(bytes);
+  if (binary.length) return binary;
+  return parseAsciiStl(bytes);
+}
+
 function renderError(target, label) {
   target.textContent = label || DEFAULT_PREVIEW_LABEL;
   target.classList.add('library-stl-viewer-error');
 }
 
-function renderStlPayload(target, payload) {
-  const geometry = trianglesToGeometry(payload.mesh_triangles);
+function renderGeometry(target, geometry) {
   if (!geometry) {
     renderError(target, 'Preview STL indisponible');
     return;
@@ -50,6 +99,7 @@ function renderStlPayload(target, payload) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(width, height);
   renderer.domElement.setAttribute('aria-label', DEFAULT_PREVIEW_LABEL);
+  renderer.domElement.setAttribute('title', 'Glisser pour tourner, molette pour zoomer');
   target.appendChild(renderer.domElement);
 
   scene.add(new THREE.AmbientLight(0xffffff, 0.62));
@@ -83,13 +133,71 @@ function renderStlPayload(target, payload) {
   const radius = Math.max(size.x, size.y, size.z, 1);
   group.position.sub(center);
 
-  camera.position.set(radius * 0.7, radius * -0.95, radius * 1.45);
-  camera.lookAt(0, 0, 0);
+  let distance = radius * 2.0;
+  const cameraDir = new THREE.Vector3(0.7, -0.95, 1.45).normalize();
+  const render = () => {
+    camera.position.copy(cameraDir).multiplyScalar(distance);
+    camera.lookAt(0, 0, 0);
+    renderer.render(scene, camera);
+  };
   camera.near = Math.max(radius / 1000, 0.01);
   camera.far = radius * 20;
   camera.updateProjectionMatrix();
 
-  renderer.render(scene, camera);
+  let dragging = false;
+  let lastX = 0;
+  let lastY = 0;
+  renderer.domElement.addEventListener('pointerdown', (event) => {
+    dragging = true;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    renderer.domElement.setPointerCapture(event.pointerId);
+    target.classList.add('is-dragging');
+  });
+  renderer.domElement.addEventListener('pointermove', (event) => {
+    if (!dragging) return;
+    const dx = event.clientX - lastX;
+    const dy = event.clientY - lastY;
+    lastX = event.clientX;
+    lastY = event.clientY;
+    group.rotation.z += dx * 0.01;
+    group.rotation.x += dy * 0.01;
+    render();
+  });
+  renderer.domElement.addEventListener('pointerup', (event) => {
+    dragging = false;
+    target.classList.remove('is-dragging');
+    try {
+      renderer.domElement.releasePointerCapture(event.pointerId);
+    } catch (_) {
+      // Pointer capture may already be released by the browser.
+    }
+  });
+  renderer.domElement.addEventListener('wheel', (event) => {
+    event.preventDefault();
+    distance = Math.min(radius * 8, Math.max(radius * 0.6, distance * (event.deltaY > 0 ? 1.12 : 0.88)));
+    render();
+  }, { passive: false });
+
+  render();
+}
+
+function renderStlPayload(target, payload) {
+  renderGeometry(target, trianglesToGeometry(payload.mesh_triangles));
+}
+
+export async function renderLocalStlFilePreview(target, file) {
+  target.textContent = 'Chargement preview STL...';
+  target.classList.remove('library-stl-viewer-error');
+  try {
+    const bytes = await file.arrayBuffer();
+    const triangles = parseStlBytes(bytes);
+    renderGeometry(target, trianglesToGeometry(triangles));
+    log('local_stl_preview_rendered', { name: file.name, sampled_triangles: triangles.length });
+  } catch (error) {
+    warn('local_stl_preview_failed', { name: file?.name || '', error: error.message || String(error) });
+    renderError(target, 'Preview STL indisponible');
+  }
 }
 
 export async function renderLibraryStlPreviews(root = document) {

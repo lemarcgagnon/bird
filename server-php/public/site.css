@@ -531,6 +531,8 @@ article strong,
   overflow: hidden;
   color: var(--muted);
   font-size: 12px;
+  cursor: grab;
+  touch-action: none;
 }
 
 .library-stl-viewer canvas {
@@ -539,9 +541,15 @@ article strong,
   height: 100% !important;
 }
 
+.library-stl-viewer.is-dragging {
+  cursor: grabbing;
+}
+
 .library-stl-viewer-error {
   padding: 12px;
   text-align: center;
+  cursor: default;
+  touch-action: auto;
 }
 
 .library-admin-item .library-thumbnail {

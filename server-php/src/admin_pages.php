@@ -759,7 +759,7 @@ function render_admin_library_panel(PDO $pdo): string
         <h2>Telechargements librairie recents</h2>
         <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Fichier</th><th>Date</th></tr></thead><tbody>' . $downloadRows . '</tbody></table></div>
       </section>
-      <script type="module" src="/library-preview.js?v=20260619-three-stl-preview"></script>
+      <script type="module" src="/library-preview.js?v=20260619-interactive-stl-preview"></script>
       <script>
         (() => {
           const prefix = "[nichoir library admin]";
@@ -816,18 +816,16 @@ function render_admin_library_panel(PDO $pdo): string
                 img.dataset.objectUrl = url;
                 card.appendChild(img);
               } else {
-                const canvas = document.createElement("canvas");
-                canvas.width = 260;
-                canvas.height = 260;
-                canvas.className = "library-stl-canvas";
-                const ctx = canvas.getContext("2d");
-                ctx.fillStyle = "#fffdf8";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.fillStyle = "#6e665b";
-                ctx.font = "14px sans-serif";
-                ctx.fillText("STL selectionne", 22, 120);
-                ctx.fillText("Preview apres upload", 22, 145);
-                card.appendChild(canvas);
+                const viewer = document.createElement("div");
+                viewer.className = "library-thumbnail library-stl-viewer";
+                viewer.textContent = "Chargement preview STL...";
+                card.appendChild(viewer);
+                import("/library-preview.js?v=20260619-interactive-stl-preview")
+                  .then((module) => module.renderLocalStlFilePreview(viewer, file))
+                  .catch((error) => {
+                    viewer.textContent = "Preview STL indisponible";
+                    log("local_stl_preview_module_failed", { name: file.name, error: error.message || String(error) });
+                  });
               }
               const details = document.createElement("div");
               const name = document.createElement("strong");

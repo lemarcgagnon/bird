@@ -1365,6 +1365,8 @@ input[type="range"] {
   overflow: hidden;
   color: var(--muted);
   font-size: 10px;
+  cursor: grab;
+  touch-action: none;
 }
 
 .deco-library-stl-viewer canvas {
@@ -1377,6 +1379,12 @@ input[type="range"] {
   padding: 4px;
   text-align: center;
   overflow-wrap: anywhere;
+  cursor: default;
+  touch-action: auto;
+}
+
+.deco-library-stl-viewer.is-dragging {
+  cursor: grabbing;
 }
 
 .deco-library-copy {

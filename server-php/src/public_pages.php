@@ -243,7 +243,7 @@ function render_library_page(): void
                   </div>
                 </article>
               `).join("");
-              import("/library-preview.js?v=20260619-three-stl-preview")
+              import("/library-preview.js?v=20260619-interactive-stl-preview")
                 .then((module) => module.renderLibraryStlPreviews(grid))
                 .catch((error) => log("library_three_preview_module_failed", { error: error.message || String(error) }));
               log("library_previews_rendered", { count: items.length });

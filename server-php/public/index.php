@@ -70,6 +70,21 @@ if ($method === 'OPTIONS') {
     exit;
 }
 
+if ($method === 'GET' && ($path === '/favicon.svg' || $path === '/favicon.ico')) {
+    $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">'
+        . '<rect width="64" height="64" rx="12" fill="#c27612"/>'
+        . '<path d="M14 32 32 16l18 16v22H14z" fill="#fff8ec"/>'
+        . '<path d="M22 54V35h20v19" fill="#2b2118"/>'
+        . '<circle cx="32" cy="39" r="5" fill="#c27612"/>'
+        . '</svg>';
+    header('Content-Type: image/svg+xml; charset=utf-8');
+    header('Content-Length: ' . (string) strlen($svg));
+    header('Cache-Control: public, max-age=86400');
+    header('X-Content-Type-Options: nosniff');
+    echo $svg;
+    exit;
+}
+
 if ($method === 'GET' && $path === '/assets/three.module.min.js') {
     $threePath = dirname(__DIR__, 2) . '/app/vendor/three.module.min.js';
     if (!is_file($threePath) || !is_readable($threePath)) {

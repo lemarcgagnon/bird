@@ -5,6 +5,11 @@ const MAX_PREVIEW_TRIANGLES = 1800;
 const ALL_TRIANGLES = 0;
 const EDGE_VERTEX_LIMIT = 180000;
 const DEFAULT_VIEW = 'iso';
+const VIEW_UP = new THREE.Vector3(0, 1, 0);
+const ROTATE_DAMPING = 0.18;
+const ROTATE_SPEED = 0.0048;
+const PAN_SPEED = 0.95;
+const MAX_VERTICAL_DOT = 0.965;
 const VIEW_DIRECTIONS = {
   iso: new THREE.Vector3(0.7, -0.95, 1.45).normalize(),
   front: new THREE.Vector3(0, -0.02, 1).normalize(),
@@ -17,6 +22,7 @@ const DEFAULT_CONTROL_LABELS = {
   viewTop: 'Haut',
   viewSide: 'Cote',
   rotate: 'Tourner',
+  horizon: 'Horizon',
   pan: 'Deplacer',
   zoomIn: '+',
   zoomOut: '-',
@@ -150,6 +156,7 @@ function createViewerToolbar(controller, options = {}) {
   const modeButtons = new Map();
   [
     ['rotate', labels.rotate],
+    ['horizon', labels.horizon],
     ['pan', labels.pan],
   ].forEach(([mode, label]) => {
     const button = createViewerButton(label, label, () => controller.setMode(mode));
@@ -195,6 +202,7 @@ function renderGeometry(target, geometry, options = {}) {
   scene.background = new THREE.Color('#fffdf8');
 
   const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100000);
+  camera.up.copy(VIEW_UP);
   const renderer = new THREE.WebGLRenderer({
     antialias: true,
     alpha: false,
@@ -255,19 +263,69 @@ function renderGeometry(target, geometry, options = {}) {
   const baseDistance = radius * (options.distanceMultiplier || 2.0);
   const minDistance = radius * 0.35;
   const maxDistance = radius * 10;
-  let distance = baseDistance;
+  let targetDistance = baseDistance;
+  let renderedDistance = baseDistance;
   let activeView = DEFAULT_VIEW;
   let interactionMode = 'rotate';
-  const cameraDir = VIEW_DIRECTIONS[DEFAULT_VIEW].clone();
-  const panOffset = new THREE.Vector3();
+  const targetCameraDir = VIEW_DIRECTIONS[DEFAULT_VIEW].clone();
+  const renderedCameraDir = targetCameraDir.clone();
+  const targetPanOffset = new THREE.Vector3();
+  const renderedPanOffset = new THREE.Vector3();
   const stateListeners = new Set();
+  let animationFrame = 0;
   const emitState = () => {
     stateListeners.forEach((listener) => listener({ view: activeView, mode: interactionMode }));
   };
-  const render = () => {
-    camera.position.copy(cameraDir).multiplyScalar(distance).add(panOffset);
-    camera.lookAt(panOffset);
+  const renderNow = () => {
+    camera.up.copy(VIEW_UP);
+    camera.position.copy(renderedCameraDir).multiplyScalar(renderedDistance).add(renderedPanOffset);
+    camera.lookAt(renderedPanOffset);
     renderer.render(scene, camera);
+  };
+  const settleRenderTargets = () => {
+    renderedCameraDir.copy(targetCameraDir);
+    renderedPanOffset.copy(targetPanOffset);
+    renderedDistance = targetDistance;
+  };
+  const animateRender = () => {
+    animationFrame = 0;
+    renderedCameraDir.lerp(targetCameraDir, ROTATE_DAMPING).normalize();
+    renderedPanOffset.lerp(targetPanOffset, ROTATE_DAMPING);
+    renderedDistance += (targetDistance - renderedDistance) * ROTATE_DAMPING;
+    renderNow();
+    const settled =
+      renderedCameraDir.angleTo(targetCameraDir) < 0.001 &&
+      renderedPanOffset.distanceToSquared(targetPanOffset) < Math.max(radius * radius * 0.000001, 0.000001) &&
+      Math.abs(renderedDistance - targetDistance) < Math.max(radius * 0.001, 0.001);
+    if (!settled) {
+      animationFrame = window.requestAnimationFrame(animateRender);
+    } else {
+      settleRenderTargets();
+      renderNow();
+    }
+  };
+  const render = (immediate = false) => {
+    if (immediate) {
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+        animationFrame = 0;
+      }
+      settleRenderTargets();
+      renderNow();
+      return;
+    }
+    if (!animationFrame) animationFrame = window.requestAnimationFrame(animateRender);
+  };
+  const orbitCamera = (dx, dy) => {
+    const yaw = -dx * ROTATE_SPEED;
+    if (yaw) targetCameraDir.applyAxisAngle(VIEW_UP, yaw).normalize();
+    if (interactionMode !== 'horizon') {
+      const right = new THREE.Vector3().crossVectors(VIEW_UP, targetCameraDir);
+      if (right.lengthSq() < 0.000001) right.set(1, 0, 0);
+      right.normalize();
+      const candidate = targetCameraDir.clone().applyAxisAngle(right, -dy * ROTATE_SPEED).normalize();
+      if (Math.abs(candidate.dot(VIEW_UP)) < MAX_VERTICAL_DOT) targetCameraDir.copy(candidate);
+    }
   };
   camera.near = Math.max(radius / 1000, 0.01);
   camera.far = radius * 40;
@@ -277,6 +335,7 @@ function renderGeometry(target, geometry, options = {}) {
   let lastX = 0;
   let lastY = 0;
   renderer.domElement.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
     dragging = true;
     lastX = event.clientX;
     lastY = event.clientY;
@@ -293,18 +352,17 @@ function renderGeometry(target, geometry, options = {}) {
       camera.updateMatrixWorld();
       const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
       const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
-      const panScale = distance / Math.max(width, height) * 1.65;
-      panOffset.addScaledVector(right, -dx * panScale);
-      panOffset.addScaledVector(up, dy * panScale);
+      const panScale = targetDistance / Math.max(width, height) * PAN_SPEED;
+      targetPanOffset.addScaledVector(right, -dx * panScale);
+      targetPanOffset.addScaledVector(up, dy * panScale);
     } else {
-      group.rotation.z += dx * 0.01;
-      group.rotation.x += dy * 0.01;
+      orbitCamera(dx, dy);
       activeView = 'custom';
     }
     render();
     emitState();
   });
-  renderer.domElement.addEventListener('pointerup', (event) => {
+  const finishDrag = (event) => {
     dragging = false;
     canvasHost.classList.remove('is-dragging');
     try {
@@ -312,39 +370,42 @@ function renderGeometry(target, geometry, options = {}) {
     } catch (_) {
       // Pointer capture may already be released by the browser.
     }
-  });
+  };
+  renderer.domElement.addEventListener('pointerup', finishDrag);
+  renderer.domElement.addEventListener('pointercancel', finishDrag);
   renderer.domElement.addEventListener('wheel', (event) => {
     event.preventDefault();
-    distance = Math.min(maxDistance, Math.max(minDistance, distance * (event.deltaY > 0 ? 1.12 : 0.88)));
+    targetDistance = Math.min(maxDistance, Math.max(minDistance, targetDistance * (event.deltaY > 0 ? 1.08 : 0.92)));
     render();
   }, { passive: false });
 
   const setMode = (mode) => {
-    interactionMode = mode === 'pan' ? 'pan' : 'rotate';
+    interactionMode = mode === 'pan' || mode === 'horizon' ? mode : 'rotate';
     canvasHost.classList.toggle('is-pan-mode', interactionMode === 'pan');
+    canvasHost.classList.toggle('is-horizon-mode', interactionMode === 'horizon');
     emitState();
   };
   const setView = (name) => {
     const nextView = VIEW_DIRECTIONS[name] ? name : DEFAULT_VIEW;
     activeView = nextView;
-    cameraDir.copy(VIEW_DIRECTIONS[nextView]);
-    distance = nextView === 'front' ? radius * 1.9 : baseDistance;
-    panOffset.set(0, 0, 0);
+    targetCameraDir.copy(VIEW_DIRECTIONS[nextView]);
+    targetDistance = nextView === 'front' ? radius * 1.9 : baseDistance;
+    targetPanOffset.set(0, 0, 0);
     group.rotation.set(0, 0, 0);
     render();
     emitState();
   };
   const fit = () => {
-    distance = baseDistance;
-    panOffset.set(0, 0, 0);
+    targetDistance = baseDistance;
+    targetPanOffset.set(0, 0, 0);
     render();
   };
   const reset = () => {
     group.rotation.set(0, 0, 0);
     activeView = DEFAULT_VIEW;
-    cameraDir.copy(VIEW_DIRECTIONS[DEFAULT_VIEW]);
-    distance = baseDistance;
-    panOffset.set(0, 0, 0);
+    targetCameraDir.copy(VIEW_DIRECTIONS[DEFAULT_VIEW]);
+    targetDistance = baseDistance;
+    targetPanOffset.set(0, 0, 0);
     setMode('rotate');
     render();
     emitState();
@@ -357,7 +418,7 @@ function renderGeometry(target, geometry, options = {}) {
     reset,
     zoom(factor) {
       const value = Number(factor);
-      distance = Math.min(maxDistance, Math.max(minDistance, distance * (Number.isFinite(value) ? value : 1)));
+      targetDistance = Math.min(maxDistance, Math.max(minDistance, targetDistance * (Number.isFinite(value) ? value : 1)));
       render();
     },
     onStateChange(listener) {
@@ -368,7 +429,7 @@ function renderGeometry(target, geometry, options = {}) {
       return { view: activeView, mode: interactionMode };
     },
     snapshot() {
-      render();
+      render(true);
       return renderer.domElement.toDataURL('image/png');
     },
   };
@@ -376,7 +437,7 @@ function renderGeometry(target, geometry, options = {}) {
     shell.insertBefore(createViewerToolbar(controller, options), canvasHost);
   }
   setMode(options.mode || 'rotate');
-  render();
+  render(true);
   return controller;
 }
 

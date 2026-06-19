@@ -620,6 +620,10 @@ article strong,
   cursor: move;
 }
 
+.library-viewer-stage.is-horizon-mode {
+  cursor: ew-resize;
+}
+
 .library-stl-viewer-error {
   padding: 12px;
   text-align: center;

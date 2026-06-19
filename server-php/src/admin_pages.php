@@ -788,7 +788,7 @@ function render_admin_library_panel(PDO $pdo): string
         <h2>Telechargements librairie recents</h2>
         <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Fichier</th><th>Date</th></tr></thead><tbody>' . $downloadRows . '</tbody></table></div>
       </section>
-      <script type="module" src="/library-preview.js?v=20260619-stl-viewer-controls"></script>
+      <script type="module" src="/library-preview.js?v=20260619-stl-viewer-smooth-orbit"></script>
       <script>
         (() => {
           const prefix = "[nichoir library admin]";
@@ -849,7 +849,7 @@ function render_admin_library_panel(PDO $pdo): string
                 viewer.className = "library-thumbnail library-stl-viewer";
                 viewer.textContent = "Chargement preview STL...";
                 card.appendChild(viewer);
-                import("/library-preview.js?v=20260619-stl-viewer-controls")
+                import("/library-preview.js?v=20260619-stl-viewer-smooth-orbit")
                   .then((module) => module.renderLocalStlFilePreview(viewer, file))
                   .catch((error) => {
                     viewer.textContent = "Preview STL indisponible";
@@ -880,7 +880,7 @@ function render_admin_library_panel(PDO $pdo): string
               active: form.querySelector("[name=is_active]")?.checked
             });
           });
-          import("/library-preview.js?v=20260619-stl-viewer-controls")
+          import("/library-preview.js?v=20260619-stl-viewer-smooth-orbit")
             .then((module) => {
               module.renderAdminOriginalStlViewers(document);
               module.attachLibraryThumbnailEditor(document);

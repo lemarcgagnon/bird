@@ -12,7 +12,7 @@ import init, {
 } from '../wasm/pkg/wasm.js?v=20260619-intact-stl-decor-import';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260619-stl-viewer-controls';
+const APP_BUILD_ID = '20260619-stl-viewer-smooth-orbit';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -231,6 +231,7 @@ const I18N = {
     decor_library_view_top: 'Haut',
     decor_library_view_side: 'Cote',
     decor_library_rotate: 'Tourner',
+    decor_library_horizon: 'Horizon',
     decor_library_move: 'Deplacer',
     decor_library_zoom_in: '+',
     decor_library_zoom_out: '-',
@@ -404,6 +405,7 @@ const I18N = {
     decor_library_view_top: 'Top',
     decor_library_view_side: 'Side',
     decor_library_rotate: 'Rotate',
+    decor_library_horizon: 'Horizon',
     decor_library_move: 'Move',
     decor_library_zoom_in: '+',
     decor_library_zoom_out: '-',
@@ -1084,6 +1086,11 @@ async function apiRequest(path, options = {}) {
 const DECO_LIBRARY_ALL_TRIANGLES = 0;
 const DECO_LIBRARY_EDGE_VERTEX_LIMIT = 180000;
 const DECO_LIBRARY_DEFAULT_VIEW = 'iso';
+const DECO_LIBRARY_VIEW_UP = new THREE.Vector3(0, 1, 0);
+const DECO_LIBRARY_ROTATE_DAMPING = 0.18;
+const DECO_LIBRARY_ROTATE_SPEED = 0.0048;
+const DECO_LIBRARY_PAN_SPEED = 0.95;
+const DECO_LIBRARY_MAX_VERTICAL_DOT = 0.965;
 const DECO_LIBRARY_VIEW_DIRECTIONS = {
   iso: new THREE.Vector3(0.7, -0.95, 1.45).normalize(),
   front: new THREE.Vector3(0, -0.02, 1).normalize(),
@@ -1198,6 +1205,7 @@ function createDecorLibraryViewerToolbar(controller) {
   const modeButtons = new Map();
   [
     ['rotate', tr('decor_library_rotate')],
+    ['horizon', tr('decor_library_horizon')],
     ['pan', tr('decor_library_move')],
   ].forEach(([mode, label]) => {
     const button = decorLibraryButton(label, label, () => controller.setMode(mode));
@@ -1238,6 +1246,7 @@ function renderDecorLibraryStlGeometry(target, geometry, options = {}) {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#fffaf1');
   const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100000);
+  camera.up.copy(DECO_LIBRARY_VIEW_UP);
   const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(width, height);
@@ -1289,17 +1298,67 @@ function renderDecorLibraryStlGeometry(target, geometry, options = {}) {
   const baseDistance = radius * (options.distanceMultiplier || 2.0);
   const minDistance = radius * 0.35;
   const maxDistance = radius * 10;
-  let distance = baseDistance;
+  let targetDistance = baseDistance;
+  let renderedDistance = baseDistance;
   let activeView = DECO_LIBRARY_DEFAULT_VIEW;
   let interactionMode = 'rotate';
-  const cameraDir = DECO_LIBRARY_VIEW_DIRECTIONS[DECO_LIBRARY_DEFAULT_VIEW].clone();
-  const panOffset = new THREE.Vector3();
+  const targetCameraDir = DECO_LIBRARY_VIEW_DIRECTIONS[DECO_LIBRARY_DEFAULT_VIEW].clone();
+  const renderedCameraDir = targetCameraDir.clone();
+  const targetPanOffset = new THREE.Vector3();
+  const renderedPanOffset = new THREE.Vector3();
   const stateListeners = new Set();
+  let animationFrame = 0;
   const emitState = () => stateListeners.forEach((listener) => listener({ view: activeView, mode: interactionMode }));
-  const render = () => {
-    camera.position.copy(cameraDir).multiplyScalar(distance).add(panOffset);
-    camera.lookAt(panOffset);
+  const renderNow = () => {
+    camera.up.copy(DECO_LIBRARY_VIEW_UP);
+    camera.position.copy(renderedCameraDir).multiplyScalar(renderedDistance).add(renderedPanOffset);
+    camera.lookAt(renderedPanOffset);
     renderer.render(scene, camera);
+  };
+  const settleRenderTargets = () => {
+    renderedCameraDir.copy(targetCameraDir);
+    renderedPanOffset.copy(targetPanOffset);
+    renderedDistance = targetDistance;
+  };
+  const animateRender = () => {
+    animationFrame = 0;
+    renderedCameraDir.lerp(targetCameraDir, DECO_LIBRARY_ROTATE_DAMPING).normalize();
+    renderedPanOffset.lerp(targetPanOffset, DECO_LIBRARY_ROTATE_DAMPING);
+    renderedDistance += (targetDistance - renderedDistance) * DECO_LIBRARY_ROTATE_DAMPING;
+    renderNow();
+    const settled =
+      renderedCameraDir.angleTo(targetCameraDir) < 0.001 &&
+      renderedPanOffset.distanceToSquared(targetPanOffset) < Math.max(radius * radius * 0.000001, 0.000001) &&
+      Math.abs(renderedDistance - targetDistance) < Math.max(radius * 0.001, 0.001);
+    if (!settled) {
+      animationFrame = window.requestAnimationFrame(animateRender);
+    } else {
+      settleRenderTargets();
+      renderNow();
+    }
+  };
+  const render = (immediate = false) => {
+    if (immediate) {
+      if (animationFrame) {
+        window.cancelAnimationFrame(animationFrame);
+        animationFrame = 0;
+      }
+      settleRenderTargets();
+      renderNow();
+      return;
+    }
+    if (!animationFrame) animationFrame = window.requestAnimationFrame(animateRender);
+  };
+  const orbitCamera = (dx, dy) => {
+    const yaw = -dx * DECO_LIBRARY_ROTATE_SPEED;
+    if (yaw) targetCameraDir.applyAxisAngle(DECO_LIBRARY_VIEW_UP, yaw).normalize();
+    if (interactionMode !== 'horizon') {
+      const right = new THREE.Vector3().crossVectors(DECO_LIBRARY_VIEW_UP, targetCameraDir);
+      if (right.lengthSq() < 0.000001) right.set(1, 0, 0);
+      right.normalize();
+      const candidate = targetCameraDir.clone().applyAxisAngle(right, -dy * DECO_LIBRARY_ROTATE_SPEED).normalize();
+      if (Math.abs(candidate.dot(DECO_LIBRARY_VIEW_UP)) < DECO_LIBRARY_MAX_VERTICAL_DOT) targetCameraDir.copy(candidate);
+    }
   };
   camera.near = Math.max(radius / 1000, 0.01);
   camera.far = radius * 40;
@@ -1308,6 +1367,7 @@ function renderDecorLibraryStlGeometry(target, geometry, options = {}) {
   let lastX = 0;
   let lastY = 0;
   renderer.domElement.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
     dragging = true;
     lastX = event.clientX;
     lastY = event.clientY;
@@ -1324,18 +1384,17 @@ function renderDecorLibraryStlGeometry(target, geometry, options = {}) {
       camera.updateMatrixWorld();
       const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
       const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
-      const panScale = distance / Math.max(width, height) * 1.65;
-      panOffset.addScaledVector(right, -dx * panScale);
-      panOffset.addScaledVector(up, dy * panScale);
+      const panScale = targetDistance / Math.max(width, height) * DECO_LIBRARY_PAN_SPEED;
+      targetPanOffset.addScaledVector(right, -dx * panScale);
+      targetPanOffset.addScaledVector(up, dy * panScale);
     } else {
-      group.rotation.z += dx * 0.01;
-      group.rotation.x += dy * 0.01;
+      orbitCamera(dx, dy);
       activeView = 'custom';
     }
     render();
     emitState();
   });
-  renderer.domElement.addEventListener('pointerup', (event) => {
+  const finishDrag = (event) => {
     dragging = false;
     canvasHost.classList.remove('is-dragging');
     try {
@@ -1343,38 +1402,41 @@ function renderDecorLibraryStlGeometry(target, geometry, options = {}) {
     } catch (_) {
       // Pointer capture can already be released by the browser.
     }
-  });
+  };
+  renderer.domElement.addEventListener('pointerup', finishDrag);
+  renderer.domElement.addEventListener('pointercancel', finishDrag);
   renderer.domElement.addEventListener('wheel', (event) => {
     event.preventDefault();
-    distance = Math.min(maxDistance, Math.max(minDistance, distance * (event.deltaY > 0 ? 1.12 : 0.88)));
+    targetDistance = Math.min(maxDistance, Math.max(minDistance, targetDistance * (event.deltaY > 0 ? 1.08 : 0.92)));
     render();
   }, { passive: false });
   const setMode = (mode) => {
-    interactionMode = mode === 'pan' ? 'pan' : 'rotate';
+    interactionMode = mode === 'pan' || mode === 'horizon' ? mode : 'rotate';
     canvasHost.classList.toggle('is-pan-mode', interactionMode === 'pan');
+    canvasHost.classList.toggle('is-horizon-mode', interactionMode === 'horizon');
     emitState();
   };
   const setView = (name) => {
     const nextView = DECO_LIBRARY_VIEW_DIRECTIONS[name] ? name : DECO_LIBRARY_DEFAULT_VIEW;
     activeView = nextView;
-    cameraDir.copy(DECO_LIBRARY_VIEW_DIRECTIONS[nextView]);
-    distance = nextView === 'front' ? radius * 1.9 : baseDistance;
-    panOffset.set(0, 0, 0);
+    targetCameraDir.copy(DECO_LIBRARY_VIEW_DIRECTIONS[nextView]);
+    targetDistance = nextView === 'front' ? radius * 1.9 : baseDistance;
+    targetPanOffset.set(0, 0, 0);
     group.rotation.set(0, 0, 0);
     render();
     emitState();
   };
   const fit = () => {
-    distance = baseDistance;
-    panOffset.set(0, 0, 0);
+    targetDistance = baseDistance;
+    targetPanOffset.set(0, 0, 0);
     render();
   };
   const reset = () => {
     group.rotation.set(0, 0, 0);
     activeView = DECO_LIBRARY_DEFAULT_VIEW;
-    cameraDir.copy(DECO_LIBRARY_VIEW_DIRECTIONS[DECO_LIBRARY_DEFAULT_VIEW]);
-    distance = baseDistance;
-    panOffset.set(0, 0, 0);
+    targetCameraDir.copy(DECO_LIBRARY_VIEW_DIRECTIONS[DECO_LIBRARY_DEFAULT_VIEW]);
+    targetDistance = baseDistance;
+    targetPanOffset.set(0, 0, 0);
     setMode('rotate');
     render();
     emitState();
@@ -1387,7 +1449,7 @@ function renderDecorLibraryStlGeometry(target, geometry, options = {}) {
     reset,
     zoom(factor) {
       const value = Number(factor);
-      distance = Math.min(maxDistance, Math.max(minDistance, distance * (Number.isFinite(value) ? value : 1)));
+      targetDistance = Math.min(maxDistance, Math.max(minDistance, targetDistance * (Number.isFinite(value) ? value : 1)));
       render();
     },
     onStateChange(listener) {
@@ -1399,7 +1461,7 @@ function renderDecorLibraryStlGeometry(target, geometry, options = {}) {
     shell.insertBefore(createDecorLibraryViewerToolbar(controller), canvasHost);
   }
   setMode(options.mode || 'rotate');
-  render();
+  render(true);
   return controller;
 }
 

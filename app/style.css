@@ -1479,6 +1479,10 @@ input[type="range"] {
   cursor: move;
 }
 
+.deco-library-viewer-stage.is-horizon-mode {
+  cursor: ew-resize;
+}
+
 .deco-library-copy {
   min-width: 0;
   display: grid;

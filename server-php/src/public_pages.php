@@ -224,7 +224,7 @@ function render_library_page(): void
           };
           function previewModule() {
             if (!previewModulePromise) {
-              previewModulePromise = import("/library-preview.js?v=20260619-stl-viewer-controls");
+              previewModulePromise = import("/library-preview.js?v=20260619-stl-viewer-smooth-orbit");
             }
             return previewModulePromise;
           }

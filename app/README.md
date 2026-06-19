@@ -20,6 +20,12 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 - Legacy key `nichoir-auth-token` is removed on load. Current account auth relies on the PHP HttpOnly cookie `nichoir_account_session` and `fetch(..., { credentials: 'include' })`.
 - `nichoir-last-mesh-report` stores only a diagnostic geometry snapshot so the user does not lose the report after leaving the screen. It is not a credit, account or authorization source.
 
+URLs usuelles en local:
+
+- WASM direct: `http://127.0.0.1:8016/app/?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021`
+- API PHP locale: `http://127.0.0.1:8021/`
+- Librairie publique: `http://127.0.0.1:8021/library?lang=fr`
+
 ## What `app.js` owns
 
 - Loading `../wasm/pkg/wasm.js`.

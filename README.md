@@ -63,6 +63,16 @@ cd /home/marc/Documents/nichoir16
 php -S 127.0.0.1:8016 -t .
 ```
 
+URLs de référence:
+
+- Homepage: `http://127.0.0.1:8021/`
+- Librairie (public) : `http://127.0.0.1:8021/library?lang=fr`
+- Admin librairie : `http://127.0.0.1:8021/gestion-nichoir#admin-library`
+- Login admin (local): `http://127.0.0.1:8021/gestion-nichoir/login`
+- App WASM : `http://127.0.0.1:8016/app/?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021`
+
+Mot de passe d'accès admin local utilisé actuellement: `admin`.
+
 Ouvrir le site:
 
 ```text
@@ -73,6 +83,10 @@ Ouvrir l'app directement avec l'API PHP separee:
 
 ```text
 http://127.0.0.1:8016/app/
+```
+
+```text
+http://127.0.0.1:8021/gestion-nichoir/login
 ```
 
 Sur `localhost`/`127.0.0.1`, l'app servie sur le port `8016` pointe automatiquement l'API vers `8021`. L'override local `?php_base=http://127.0.0.1:8021` reste accepte pour tester une autre origine locale. Hors hote local, `php_base` est ignore et l'app utilise `window.location.origin`, ce qui correspond a l'artifact production ou `public_html/app/` et le wrapper PHP partagent la meme origine.

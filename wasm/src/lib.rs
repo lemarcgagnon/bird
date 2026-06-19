@@ -3398,9 +3398,14 @@ fn add_imported_stl_basis(
     let bd = (bounds_max[depth_src_axis] - bounds_min[depth_src_axis]).abs();
     let cx = (bounds_min[u_src_axis] + bounds_max[u_src_axis]) * 0.5;
     let cy = (bounds_min[v_src_axis] + bounds_max[v_src_axis]) * 0.5;
-    let sx = d.w.max(1.0) / bw;
-    let sy = d.h.max(1.0) / bh;
-    let sz = if bd > 0.001 {
+    let raw_sx = d.w.max(1.0) / bw;
+    let raw_sy = d.h.max(1.0) / bh;
+    let fit_scale = raw_sx.min(raw_sy).max(0.001);
+    let sx = if d.lock_proportions { fit_scale } else { raw_sx };
+    let sy = if d.lock_proportions { fit_scale } else { raw_sy };
+    let sz = if d.lock_proportions {
+        fit_scale
+    } else if bd > 0.001 {
         d.depth.max(0.1) / bd
     } else {
         1.0
@@ -6077,7 +6082,11 @@ fn build_decor_tris_for_target_with_topology_guard(
         } else {
             None
         };
-        let clip_holes = deco_panel_clip_holes(p, g, key, origin, u, v);
+        let clip_holes = if d.clip_to_panel {
+            deco_panel_clip_holes(p, g, key, origin, u, v)
+        } else {
+            Vec::new()
+        };
         imported_stl_stats = Some(add_imported_stl_basis(
             &mut tris,
             d,
@@ -8139,7 +8148,7 @@ mod tests {
     }
 
     #[test]
-    fn imported_stl_door_cutout_dominates_even_without_panel_clip() {
+    fn imported_stl_stays_intact_without_panel_clip() {
         let data = test_box_stl_base64(test_vec3(-10.0, -10.0, 0.0), test_vec3(10.0, 10.0, 2.0));
         let decor = serde_json::json!({
             "enabled": true,
@@ -8165,11 +8174,43 @@ mod tests {
         let tris = build_decor_tris_for_target(&p, &g, "front");
         let preview_tris = build_decor_preview_tris_for_target(&p, &g, "front");
 
-        assert!(tris.is_empty());
-        assert!(
-            !preview_tris.is_empty(),
-            "preview should still show clipped STL triangles even when strict export rejects them"
-        );
+        assert_eq!(tris.len(), 12);
+        assert_eq!(preview_tris.len(), 12);
+        assert!(mesh_topology(&tris).is_watertight());
+    }
+
+    #[test]
+    fn imported_stl_lock_proportions_preserves_3d_ratio() {
+        let data = test_box_stl_base64(test_vec3(0.0, 0.0, 0.0), test_vec3(10.0, 20.0, 2.0));
+        let input = serde_json::json!({
+            "door": "none",
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "stl",
+                    "sourceData": data,
+                    "mode": "stl",
+                    "w": 100,
+                    "h": 100,
+                    "depth": 20,
+                    "clipToPanel": false,
+                    "lockProportions": true
+                }
+            }
+        })
+        .to_string();
+
+        let p = parse_input(&input).expect("valid JSON should parse");
+        let g = GeometryPayload::from_p(&p);
+        let tris = build_decor_preview_tris_for_target(&p, &g, "front");
+        let (min, max) = stl_bounds(&tris).expect("preview STL bounds");
+        let width = (max.x - min.x).abs();
+        let height = (max.y - min.y).abs();
+        let depth = (max.z - min.z).abs();
+
+        assert!((width - 50.0).abs() < 0.01, "width={width}");
+        assert!((height - 100.0).abs() < 0.01, "height={height}");
+        assert!((depth - 10.0).abs() < 0.01, "depth={depth}");
     }
 
     #[test]

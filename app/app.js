@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260619-high-detail-library-preview';
+} from '../wasm/pkg/wasm.js?v=20260619-intact-stl-decor-import';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260619-high-detail-library-preview';
+const APP_BUILD_ID = '20260619-intact-stl-decor-import';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -717,7 +717,8 @@ function applyDecoStlSource(deco, source) {
   deco.sourceBytes = Number(source.sourceBytes || 0);
   deco.mode = 'stl';
   deco.enabled = true;
-  deco.clipToPanel = true;
+  deco.clipToPanel = false;
+  deco.lockProportions = true;
   debugStlLog('state updated from imported STL', {
     target: params?.decorActive,
     sourceName: deco.sourceName,
@@ -732,6 +733,7 @@ function applyDecoStlSource(deco, source) {
     posY: deco.posY,
     rotation: deco.rotation,
     clipToPanel: deco.clipToPanel,
+    lockProportions: deco.lockProportions,
   });
 }
 

@@ -19,6 +19,13 @@ Current release baseline: use the currently checked out hardened PHP/WASM codeba
 - Billed exports use server `app_id`, quote, short authorization and atomic consume before debit. The current WASM app id is `nichoir`; billed app downloads are house STL, cut-plan SVG, cut-plan PNG, exploded assembly PNG and cut-plan PDF.
 - Door STL, wall-mount STL, panels ZIP, calculations PDF, debug OBJ and mesh report JSON are currently local/free app downloads.
 - The mesh report JSON may be stored in browser local storage as diagnostic state only; account credit truth stays server-side.
+- Public library endpoint flow:
+  - `/library`: lists active items (label, description, size) and renders one public PNG thumbnail via `/api/library/thumbnail`.
+  - `/api/library/thumbnail?item_id=<id>`: returns a generated PNG thumbnail (no STL payload).
+  - `/api/library/preview` is admin-only and returns the source image for an item.
+  - `/api/library/stl-preview?item_id=<id>`: returns simplified STL metadata for viewer rendering.
+  - `/api/library/authorize` then `/api/library/download`: creates short authorization, then decrements credits at serve time.
+  - `/api/admin/library/stl-file` is admin-only and returns the original STL file for admin download.
 - Account auth now uses the HttpOnly SameSite `nichoir_account_session` cookie. The browser app clears the old `nichoir-auth-token` local-storage key and relies on credentialed same-origin requests.
 - PHP, JS and Rust/WASM each still have their own i18n tables; ownership is not centralized.
 - PHP page scripts are still inline in `src/layout.php`, `src/account_pages.php` and `src/admin_pages.php`; CSP hardening depends on moving them into `server-php/public/site.js`.

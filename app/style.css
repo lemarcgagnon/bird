@@ -1347,7 +1347,8 @@ input[type="range"] {
 }
 
 .deco-library-item img,
-.deco-library-stl-viewer {
+.deco-library-stl-viewer,
+.deco-library-thumbnail-fallback {
   width: 58px;
   aspect-ratio: 1;
   border: 1px solid var(--line);
@@ -1367,6 +1368,16 @@ input[type="range"] {
   font-size: 10px;
   cursor: grab;
   touch-action: none;
+}
+
+.deco-library-thumbnail-fallback {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.15;
+  text-align: center;
 }
 
 .deco-library-stl-viewer canvas {

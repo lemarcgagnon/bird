@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' http://127.0.0.1:* http://localhost:*; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: http://127.0.0.1:* http://localhost:*; connect-src 'self' http://127.0.0.1:* http://localhost:*; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'">
   <title>Nichoir WASM</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="./style.css?v=20260619-library-png-thumbnails">
+  <link rel="stylesheet" href="./style.css?v=20260619-wasm-library-images">
 </head>
 <body>
   <div id="app" class="app-shell">
@@ -28,6 +28,6 @@
       }
     }());
   </script>
-  <script type="module" src="./app.js?v=20260619-library-png-thumbnails"></script>
+  <script type="module" src="./app.js?v=20260619-wasm-library-images"></script>
 </body>
 </html>

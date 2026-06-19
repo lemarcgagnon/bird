@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260619-library-png-thumbnails';
+} from '../wasm/pkg/wasm.js?v=20260619-wasm-library-images';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260619-library-png-thumbnails';
+const APP_BUILD_ID = '20260619-wasm-library-images';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -1193,7 +1193,7 @@ function renderDecorLibraryItems(items = []) {
   }
   return items.map((item) => `
     <article class="deco-library-item">
-      <img src="${escapeHtml(phpUrl(item.thumbnail_url || `/api/library/thumbnail?item_id=${item.id}`))}" alt="Preview ${escapeHtml(item.title || item.original_filename || '')}" loading="lazy">
+      <img src="${escapeHtml(phpUrl(item.thumbnail_url || `/api/library/thumbnail?item_id=${item.id}`))}" alt="Preview ${escapeHtml(item.title || item.original_filename || '')}" loading="lazy" data-deco-library-thumbnail="${escapeHtml(item.id)}">
       <div class="deco-library-copy">
         <strong>${escapeHtml(item.title || item.original_filename || '')}</strong>
         ${item.description ? `<span>${escapeHtml(item.description)}</span>` : ''}
@@ -1202,6 +1202,19 @@ function renderDecorLibraryItems(items = []) {
       <button class="tool-button" type="button" data-library-download="${escapeHtml(item.id)}">${escapeHtml(tr('decor_library_download'))}</button>
     </article>
   `).join('');
+}
+
+function attachDecorLibraryThumbnailFallbacks(container) {
+  container.querySelectorAll('[data-deco-library-thumbnail]').forEach((img) => {
+    img.addEventListener('error', () => {
+      const itemId = Number(img.dataset.decoLibraryThumbnail || 0);
+      const fallback = document.createElement('div');
+      fallback.className = 'deco-library-thumbnail-fallback';
+      fallback.textContent = 'PNG indisponible';
+      img.replaceWith(fallback);
+      debugStlLog('decor library thumbnail failed in WASM panel', { itemId, src: img.currentSrc || img.src });
+    }, { once: true });
+  });
 }
 
 async function loadDecorLibraryPanel() {
@@ -1216,6 +1229,7 @@ async function loadDecorLibraryPanel() {
     const payload = await apiRequest('/api/library');
     const items = Array.isArray(payload.items) ? payload.items : [];
     list.innerHTML = renderDecorLibraryItems(items);
+    attachDecorLibraryThumbnailFallbacks(list);
     status.textContent = items.length ? tr('decor_library_ready', { count: items.length }) : tr('decor_library_empty');
     debugStlLog('decor library loaded in WASM panel', {
       count: items.length,

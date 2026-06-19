@@ -676,10 +676,25 @@ function render_admin_library_panel(PDO $pdo): string
     $itemRows = '';
     foreach ($items as $item) {
         $typeLabel = library_is_image_item($item) ? 'Image' : 'STL';
-        $previewHtml = '<img class="library-thumbnail" src="/api/library/thumbnail?item_id=' . (int) $item['id'] . '&v=' . rawurlencode((string) ($item['updated_at'] ?? '')) . '" alt="Preview ' . h((string) ($item['title'] ?: $item['original_filename'])) . '" loading="lazy">';
+        $itemId = (int) $item['id'];
+        $itemLabel = (string) ($item['title'] ?: $item['original_filename']);
+        $previewHtml = '<img class="library-thumbnail" data-library-thumbnail-img="' . $itemId . '" src="/api/library/thumbnail?item_id=' . $itemId . '&v=' . rawurlencode((string) ($item['updated_at'] ?? '')) . '" alt="Preview ' . h($itemLabel) . '" loading="lazy">';
+        $thumbnailActions = '';
+        if (library_is_stl_item($item)) {
+            $thumbnailActions = '
+                  <div class="library-thumbnail-actions">
+                    <form class="inline-form" method="post" action="' . h(admin_base_path()) . '">
+                      ' . admin_csrf_input() . '
+                      <input type="hidden" name="action" value="regenerate_library_thumbnail">
+                      <input type="hidden" name="library_item_id" value="' . $itemId . '">
+                      <button type="submit" class="secondary">Regenerer auto</button>
+                    </form>
+                    <button type="button" class="secondary" data-library-thumbnail-editor="' . $itemId . '" data-library-thumbnail-title="' . h($itemLabel) . '">Outil PNG</button>
+                  </div>';
+        }
         $itemRows .= '
           <tr>
-            <td>#' . (int) $item['id'] . '</td>
+            <td>#' . $itemId . '</td>
             <td>' . h($typeLabel) . '</td>
             <td>
               <div class="library-admin-item">
@@ -688,17 +703,18 @@ function render_admin_library_panel(PDO $pdo): string
                   <form class="inline-form library-item-form" method="post" action="' . h(admin_base_path()) . '">
                     ' . admin_csrf_input() . '
                     <input type="hidden" name="action" value="update_library_item">
-                    <input type="hidden" name="library_item_id" value="' . (int) $item['id'] . '">
+                    <input type="hidden" name="library_item_id" value="' . $itemId . '">
                     <label><span>Titre</span><input type="text" name="title" maxlength="140" value="' . h((string) $item['title']) . '"></label>
                     <label><span>Description</span><textarea name="description" maxlength="1000" rows="2">' . h((string) ($item['description'] ?? '')) . '</textarea></label>
                     <label><span>Cout</span><input type="number" name="cost" min="1" step="1" value="' . (int) $item['cost'] . '"></label>
                     <label class="checkbox-label"><input type="checkbox" name="is_active" value="1"' . ((int) $item['is_active'] === 1 ? ' checked' : '') . '> Actif</label>
                     <button type="submit">Enregistrer</button>
                   </form>
+                  ' . $thumbnailActions . '
                   <form class="inline-form library-item-delete-form" method="post" action="' . h(admin_base_path()) . '" onsubmit="return confirm(\'Supprimer definitivement ce fichier de la librairie ?\');">
                     ' . admin_csrf_input() . '
                     <input type="hidden" name="action" value="delete_library_item">
-                    <input type="hidden" name="library_item_id" value="' . (int) $item['id'] . '">
+                    <input type="hidden" name="library_item_id" value="' . $itemId . '">
                     <button type="submit" class="secondary">Supprimer</button>
                   </form>
                   <p class="control-note">' . h((string) $item['original_filename']) . ' · ' . h(admin_format_bytes((int) $item['file_size_bytes'])) . '</p>
@@ -752,12 +768,27 @@ function render_admin_library_panel(PDO $pdo): string
         <div class="library-preview-grid" data-library-admin-selected-preview></div>
         <p class="control-note" data-library-admin-debug>Aucun fichier selectionne.</p>
         <div class="table-wrap"><table><thead><tr><th>ID</th><th>Type</th><th>Fichier</th><th>Taille</th><th>Telechargements</th><th>MAJ</th></tr></thead><tbody>' . $itemRows . '</tbody></table></div>
+        <div class="library-thumbnail-modal" hidden data-library-thumbnail-modal data-csrf="' . h(admin_csrf_token()) . '">
+          <div class="library-thumbnail-dialog" role="dialog" aria-modal="true" aria-labelledby="library-thumbnail-title">
+            <div class="library-thumbnail-dialog-head">
+              <h3 id="library-thumbnail-title">Vignette STL</h3>
+              <button type="button" class="secondary" data-library-thumbnail-close>Fermer</button>
+            </div>
+            <div class="library-thumbnail-editor-viewer" data-library-thumbnail-stage></div>
+            <div class="library-thumbnail-editor-actions">
+              <button type="button" class="secondary" data-library-thumbnail-view="front">Face</button>
+              <button type="button" class="secondary" data-library-thumbnail-view="iso">Iso</button>
+              <button type="button" data-library-thumbnail-save>Enregistrer PNG</button>
+            </div>
+            <p class="control-note" data-library-thumbnail-status></p>
+          </div>
+        </div>
       </section>
       <section class="panel">
         <h2>Telechargements librairie recents</h2>
         <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Fichier</th><th>Date</th></tr></thead><tbody>' . $downloadRows . '</tbody></table></div>
       </section>
-      <script type="module" src="/library-preview.js?v=20260619-interactive-stl-preview"></script>
+      <script type="module" src="/library-preview.js?v=20260619-thumbnail-editor"></script>
       <script>
         (() => {
           const prefix = "[nichoir library admin]";
@@ -818,7 +849,7 @@ function render_admin_library_panel(PDO $pdo): string
                 viewer.className = "library-thumbnail library-stl-viewer";
                 viewer.textContent = "Chargement preview STL...";
                 card.appendChild(viewer);
-                import("/library-preview.js?v=20260619-interactive-stl-preview")
+                import("/library-preview.js?v=20260619-thumbnail-editor")
                   .then((module) => module.renderLocalStlFilePreview(viewer, file))
                   .catch((error) => {
                     viewer.textContent = "Preview STL indisponible";
@@ -849,6 +880,9 @@ function render_admin_library_panel(PDO $pdo): string
               active: form.querySelector("[name=is_active]")?.checked
             });
           });
+          import("/library-preview.js?v=20260619-thumbnail-editor")
+            .then((module) => module.attachLibraryThumbnailEditor(document))
+            .catch((error) => log("thumbnail_editor_module_failed", { error: error.message || String(error) }));
         })();
       </script>
     ';
@@ -1059,6 +1093,8 @@ function admin_notice_message(string $notice): string
         'library_deleted_file_missing' => 'Entree librairie supprimee. Le fichier prive etait deja absent.',
         'library_delete_error' => 'Suppression du fichier librairie refusee.',
         'library_settings_updated' => 'Reglages librairie mis a jour.',
+        'library_thumbnail_regenerated' => 'Miniature STL regeneree.',
+        'library_thumbnail_error' => 'Miniature STL refusee.',
     ];
     return $messages[$notice] ?? $notice;
 }

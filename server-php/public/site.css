@@ -585,6 +585,77 @@ article strong,
   font-size: 13px;
 }
 
+.library-thumbnail-actions,
+.library-thumbnail-editor-actions,
+.library-thumbnail-dialog-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.library-thumbnail-actions {
+  margin-top: 2px;
+}
+
+.library-thumbnail-actions form {
+  margin: 0;
+}
+
+.library-thumbnail-modal[hidden] {
+  display: none;
+}
+
+.library-thumbnail-modal {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(36, 33, 29, 0.42);
+}
+
+.library-thumbnail-dialog {
+  width: min(720px, 100%);
+  max-height: min(900px, 94vh);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 24px 80px rgba(36, 33, 29, 0.24);
+}
+
+.library-thumbnail-dialog-head {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.library-thumbnail-dialog h3 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.library-thumbnail-editor-viewer {
+  width: 100%;
+  min-height: 420px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.library-thumbnail-editor-viewer canvas {
+  display: block;
+  width: 100% !important;
+  height: auto !important;
+}
+
+.library-thumbnail-editor-actions {
+  margin-top: 12px;
+}
+
 .pricing-rules {
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(280px, 1fr);
@@ -1173,6 +1244,10 @@ footer {
   .library-thumbnail,
   .library-admin-item .library-thumbnail {
     max-width: 100%;
+  }
+
+  .library-thumbnail-editor-viewer {
+    min-height: 300px;
   }
 
   .about-hero {

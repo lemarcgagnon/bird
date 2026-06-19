@@ -379,6 +379,69 @@ if ($method === 'GET' && $path === '/api/library/stl-preview') {
     exit;
 }
 
+if ($method === 'GET' && $path === '/api/admin/library/stl-file') {
+    if (!admin_logged_in()) {
+        json_response(['ok' => false, 'error' => 'admin_required'], 403);
+        exit;
+    }
+    $itemId = (int) ($_GET['item_id'] ?? 0);
+    $item = $itemId > 0 ? library_find_item(db(), $itemId, false) : null;
+    if ($item === null || !library_is_stl_item($item)) {
+        json_response(['ok' => false, 'error' => 'library_stl_not_found'], 404);
+        exit;
+    }
+    $filePath = library_item_path($item);
+    if (!is_file($filePath) || !is_readable($filePath)) {
+        json_response(['ok' => false, 'error' => 'library_file_missing'], 404);
+        exit;
+    }
+    header('Content-Type: model/stl');
+    header('Content-Length: ' . (string) filesize($filePath));
+    header('Content-Disposition: inline; filename="' . (preg_replace('/[^A-Za-z0-9_.-]+/', '_', (string) $item['original_filename']) ?: 'decor.stl') . '"');
+    header('Cache-Control: private, max-age=60');
+    header('X-Content-Type-Options: nosniff');
+    readfile($filePath);
+    exit;
+}
+
+if ($method === 'POST' && $path === '/api/admin/library/thumbnail') {
+    if (!admin_logged_in()) {
+        json_response(['ok' => false, 'error' => 'admin_required'], 403);
+        exit;
+    }
+    $data = read_json_body(3145728);
+    if (!admin_csrf_valid((string) ($data['csrf_token'] ?? ''))) {
+        json_response(['ok' => false, 'error' => 'csrf_invalid'], 403);
+        exit;
+    }
+    $itemId = (int) ($data['item_id'] ?? 0);
+    $item = $itemId > 0 ? library_find_item(db(), $itemId, false) : null;
+    $dataUrl = (string) ($data['png_data_url'] ?? '');
+    if ($item === null || !library_is_stl_item($item) || !preg_match('/^data:image\/png;base64,([A-Za-z0-9+\/=]+)$/', $dataUrl, $matches)) {
+        json_response(['ok' => false, 'error' => 'invalid_thumbnail_request'], 400);
+        exit;
+    }
+    $pngBytes = base64_decode($matches[1], true);
+    if (!is_string($pngBytes)) {
+        json_response(['ok' => false, 'error' => 'invalid_thumbnail_png'], 400);
+        exit;
+    }
+    try {
+        library_save_custom_png_thumbnail($item, $pngBytes);
+        library_touch_item_thumbnail(db(), $itemId);
+        app_log(db(), 'info', 'admin', 'library_thumbnail_saved', 'Miniature STL librairie sauvegardee', ['item_id' => $itemId], null);
+        json_response([
+            'ok' => true,
+            'item_id' => $itemId,
+            'thumbnail_url' => '/api/library/thumbnail?item_id=' . $itemId . '&v=' . rawurlencode((string) time()),
+        ]);
+    } catch (Throwable $e) {
+        app_log(db(), 'warning', 'admin', 'library_thumbnail_save_failed', 'Miniature STL librairie refusee', ['item_id' => $itemId, 'error' => $e->getMessage()], null, 422);
+        json_response(['ok' => false, 'error' => 'thumbnail_save_failed'], 422);
+    }
+    exit;
+}
+
 if ($method === 'POST' && $path === '/api/library/authorize') {
     $data = read_json_body();
     $itemId = (int) ($data['item_id'] ?? 0);

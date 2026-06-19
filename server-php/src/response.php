@@ -19,13 +19,13 @@ function json_response(array $payload, int $status = 200): void
     echo json_encode($payload, JSON_UNESCAPED_SLASHES);
 }
 
-function read_json_body(): array
+function read_json_body(int $maxBytes = MAX_JSON_BODY_BYTES): array
 {
     $raw = file_get_contents('php://input');
     if ($raw === false || trim($raw) === '') {
         return [];
     }
-    if (strlen($raw) > MAX_JSON_BODY_BYTES) {
+    if (strlen($raw) > $maxBytes) {
         json_response(['ok' => false, 'error' => 'payload_too_large'], 413);
         exit;
     }

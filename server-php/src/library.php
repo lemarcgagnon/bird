@@ -629,6 +629,48 @@ function library_write_stl_png_thumbnail(array $item, int $size = 512): void
     @chmod($thumbnailPath, 0664);
 }
 
+function library_save_custom_png_thumbnail(array $item, string $pngBytes, int $size = 512): void
+{
+    if (!library_is_stl_item($item)) {
+        throw new RuntimeException('not_stl_thumbnail');
+    }
+    if ($pngBytes === '' || strlen($pngBytes) > 2097152) {
+        throw new RuntimeException('invalid_thumbnail_png');
+    }
+    $source = @imagecreatefromstring($pngBytes);
+    if (!$source instanceof GdImage) {
+        throw new RuntimeException('invalid_thumbnail_png');
+    }
+    $thumb = library_create_preview_canvas($size);
+    $srcW = imagesx($source);
+    $srcH = imagesy($source);
+    $scale = min($size / max($srcW, 1), $size / max($srcH, 1));
+    $dstW = max(1, (int) round($srcW * $scale));
+    $dstH = max(1, (int) round($srcH * $scale));
+    $dstX = (int) round(($size - $dstW) / 2);
+    $dstY = (int) round(($size - $dstH) / 2);
+    imagecopyresampled($thumb, $source, $dstX, $dstY, 0, 0, $dstW, $dstH, $srcW, $srcH);
+    imagedestroy($source);
+
+    ob_start();
+    imagepng($thumb);
+    $cleanPng = ob_get_clean();
+    imagedestroy($thumb);
+    if (!is_string($cleanPng) || $cleanPng === '') {
+        throw new RuntimeException('thumbnail_render_failed');
+    }
+    $thumbnailPath = library_thumbnail_path($item);
+    if (file_put_contents($thumbnailPath, $cleanPng, LOCK_EX) === false) {
+        throw new RuntimeException('thumbnail_write_failed');
+    }
+    @chmod($thumbnailPath, 0664);
+}
+
+function library_touch_item_thumbnail(PDO $pdo, int $itemId): void
+{
+    $pdo->prepare('UPDATE library_items SET updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$itemId]);
+}
+
 function library_thumbnail_png(array $item, int $size = 512): string
 {
     if (library_is_stl_item($item)) {

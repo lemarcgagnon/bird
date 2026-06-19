@@ -2,6 +2,7 @@ import * as THREE from '/assets/three.module.min.js';
 
 const DEFAULT_PREVIEW_LABEL = 'Preview STL';
 const MAX_PREVIEW_TRIANGLES = 1800;
+const MAX_EDITOR_TRIANGLES = 18000;
 
 function log(message, details = {}) {
   console.log('[nichoir library preview]', message, details);
@@ -27,13 +28,13 @@ function trianglesToGeometry(triangles) {
   return geometry;
 }
 
-function parseBinaryStl(bytes) {
+function parseBinaryStl(bytes, maxTriangles = MAX_PREVIEW_TRIANGLES) {
   if (bytes.byteLength < 84) return [];
   const view = new DataView(bytes);
   const triCount = view.getUint32(80, true);
   const expected = 84 + (triCount * 50);
   if (triCount <= 0 || expected > bytes.byteLength) return [];
-  const step = Math.max(1, Math.ceil(triCount / MAX_PREVIEW_TRIANGLES));
+  const step = Math.max(1, Math.ceil(triCount / Math.max(1, maxTriangles)));
   const triangles = [];
   for (let i = 0; i < triCount; i += step) {
     const base = 84 + (i * 50) + 12;
@@ -51,12 +52,12 @@ function parseBinaryStl(bytes) {
   return triangles;
 }
 
-function parseAsciiStl(bytes) {
+function parseAsciiStl(bytes, maxTriangles = MAX_PREVIEW_TRIANGLES) {
   const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
   const matches = [...text.matchAll(/vertex\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)/g)];
   const triCount = Math.floor(matches.length / 3);
   if (triCount <= 0) return [];
-  const step = Math.max(1, Math.ceil(triCount / MAX_PREVIEW_TRIANGLES));
+  const step = Math.max(1, Math.ceil(triCount / Math.max(1, maxTriangles)));
   const triangles = [];
   for (let i = 0; i < triCount; i += step) {
     const tri = [];
@@ -70,10 +71,10 @@ function parseAsciiStl(bytes) {
   return triangles;
 }
 
-function parseStlBytes(bytes) {
-  const binary = parseBinaryStl(bytes);
+function parseStlBytes(bytes, maxTriangles = MAX_PREVIEW_TRIANGLES) {
+  const binary = parseBinaryStl(bytes, maxTriangles);
   if (binary.length) return binary;
-  return parseAsciiStl(bytes);
+  return parseAsciiStl(bytes, maxTriangles);
 }
 
 function renderError(target, label) {
@@ -81,21 +82,25 @@ function renderError(target, label) {
   target.classList.add('library-stl-viewer-error');
 }
 
-function renderGeometry(target, geometry) {
+function renderGeometry(target, geometry, options = {}) {
   if (!geometry) {
     renderError(target, 'Preview STL indisponible');
-    return;
+    return null;
   }
 
   target.textContent = '';
   target.classList.remove('library-stl-viewer-error');
-  const width = Math.max(120, target.clientWidth || 180);
-  const height = Math.max(120, target.clientHeight || 180);
+  const width = Math.max(120, options.width || target.clientWidth || 180);
+  const height = Math.max(120, options.height || target.clientHeight || 180);
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#fffdf8');
 
   const camera = new THREE.PerspectiveCamera(38, width / height, 0.1, 100000);
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  const renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    alpha: false,
+    preserveDrawingBuffer: Boolean(options.preserveDrawingBuffer),
+  });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(width, height);
   renderer.domElement.setAttribute('aria-label', DEFAULT_PREVIEW_LABEL);
@@ -133,7 +138,7 @@ function renderGeometry(target, geometry) {
   const radius = Math.max(size.x, size.y, size.z, 1);
   group.position.sub(center);
 
-  let distance = radius * 2.0;
+  let distance = radius * (options.distanceMultiplier || 2.0);
   const cameraDir = new THREE.Vector3(0.7, -0.95, 1.45).normalize();
   const render = () => {
     camera.position.copy(cameraDir).multiplyScalar(distance);
@@ -180,6 +185,24 @@ function renderGeometry(target, geometry) {
   }, { passive: false });
 
   render();
+  return {
+    render,
+    setView(name) {
+      group.rotation.set(0, 0, 0);
+      if (name === 'front') {
+        cameraDir.set(0, -0.02, 1).normalize();
+        distance = radius * 1.9;
+      } else {
+        cameraDir.set(0.7, -0.95, 1.45).normalize();
+        distance = radius * 2.0;
+      }
+      render();
+    },
+    snapshot() {
+      render();
+      return renderer.domElement.toDataURL('image/png');
+    },
+  };
 }
 
 function renderStlPayload(target, payload) {
@@ -198,6 +221,107 @@ export async function renderLocalStlFilePreview(target, file) {
     warn('local_stl_preview_failed', { name: file?.name || '', error: error.message || String(error) });
     renderError(target, 'Preview STL indisponible');
   }
+}
+
+export function attachLibraryThumbnailEditor(root = document) {
+  const modal = root.querySelector('[data-library-thumbnail-modal]');
+  if (!modal || modal.dataset.thumbnailEditorAttached === '1') return;
+  modal.dataset.thumbnailEditorAttached = '1';
+  const csrfToken = modal.dataset.csrf || '';
+  const stage = modal.querySelector('[data-library-thumbnail-stage]');
+  const title = modal.querySelector('#library-thumbnail-title');
+  const status = modal.querySelector('[data-library-thumbnail-status]');
+  const saveButton = modal.querySelector('[data-library-thumbnail-save]');
+  let currentItemId = 0;
+  let currentController = null;
+
+  const setStatus = (message) => {
+    if (status) status.textContent = message || '';
+  };
+  const close = () => {
+    modal.hidden = true;
+    currentItemId = 0;
+    currentController = null;
+    if (stage) stage.replaceChildren();
+    setStatus('');
+  };
+  modal.querySelector('[data-library-thumbnail-close]')?.addEventListener('click', close);
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) close();
+  });
+  modal.querySelectorAll('[data-library-thumbnail-view]').forEach((button) => {
+    button.addEventListener('click', () => {
+      currentController?.setView(button.dataset.libraryThumbnailView || 'iso');
+    });
+  });
+
+  root.querySelectorAll('[data-library-thumbnail-editor]').forEach((button) => {
+    button.addEventListener('click', async () => {
+      currentItemId = Number(button.dataset.libraryThumbnailEditor || 0);
+      if (!currentItemId || !stage) return;
+      modal.hidden = false;
+      if (title) title.textContent = button.dataset.libraryThumbnailTitle || 'Vignette STL';
+      stage.replaceChildren();
+      stage.textContent = 'Chargement STL...';
+      setStatus('');
+      log('thumbnail_editor_open', { itemId: currentItemId });
+      try {
+        const response = await fetch(`/api/admin/library/stl-file?item_id=${encodeURIComponent(currentItemId)}`, {
+          credentials: 'same-origin',
+        });
+        if (!response.ok) throw new Error(response.statusText || 'stl_load_failed');
+        const bytes = await response.arrayBuffer();
+        const triangles = parseStlBytes(bytes, MAX_EDITOR_TRIANGLES);
+        const geometry = trianglesToGeometry(triangles);
+        stage.replaceChildren();
+        currentController = renderGeometry(stage, geometry, {
+          preserveDrawingBuffer: true,
+          width: Math.max(360, stage.clientWidth || 512),
+          height: Math.max(360, stage.clientHeight || 512),
+          distanceMultiplier: 2.0,
+        });
+        currentController?.setView('iso');
+        setStatus(`${triangles.length} triangles echantillonnes`);
+        log('thumbnail_editor_loaded', { itemId: currentItemId, sampled_triangles: triangles.length });
+      } catch (error) {
+        warn('thumbnail_editor_load_failed', { itemId: currentItemId, error: error.message || String(error) });
+        renderError(stage, 'STL indisponible');
+        setStatus('Chargement refuse');
+      }
+    });
+  });
+
+  saveButton?.addEventListener('click', async () => {
+    if (!currentItemId || !currentController) return;
+    saveButton.disabled = true;
+    setStatus('Enregistrement...');
+    try {
+      const pngDataUrl = currentController.snapshot();
+      const response = await fetch('/api/admin/library/thumbnail', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csrf_token: csrfToken,
+          item_id: currentItemId,
+          png_data_url: pngDataUrl,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || payload.ok === false) throw new Error(payload.error || response.statusText);
+      const url = payload.thumbnail_url || `/api/library/thumbnail?item_id=${encodeURIComponent(currentItemId)}&v=${Date.now()}`;
+      root.querySelectorAll(`[data-library-thumbnail-img="${currentItemId}"]`).forEach((img) => {
+        img.src = url;
+      });
+      setStatus('PNG sauvegarde');
+      log('thumbnail_editor_saved', { itemId: currentItemId });
+    } catch (error) {
+      warn('thumbnail_editor_save_failed', { itemId: currentItemId, error: error.message || String(error) });
+      setStatus('Enregistrement refuse');
+    } finally {
+      saveButton.disabled = false;
+    }
+  });
 }
 
 export async function renderLibraryStlPreviews(root = document) {
@@ -228,3 +352,4 @@ export async function renderLibraryStlPreviews(root = document) {
 }
 
 renderLibraryStlPreviews();
+attachLibraryThumbnailEditor();

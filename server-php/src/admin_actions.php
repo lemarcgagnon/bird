@@ -507,6 +507,29 @@ function admin_delete_library_item(PDO $pdo): void
     }
 }
 
+function admin_regenerate_library_thumbnail(PDO $pdo): void
+{
+    $itemId = (int) ($_POST['library_item_id'] ?? 0);
+    if ($itemId <= 0) {
+        header('Location: ' . admin_redirect_url(['notice' => 'library_item_invalid']) . '#admin-library');
+        return;
+    }
+    try {
+        $item = library_find_item($pdo, $itemId, false);
+        if ($item === null || !library_is_stl_item($item)) {
+            throw new RuntimeException('library_stl_not_found');
+        }
+        library_write_stl_png_thumbnail($item);
+        library_touch_item_thumbnail($pdo, $itemId);
+        audit_admin_action($pdo, null, 'regenerate_library_thumbnail', null, 'library_item:' . $itemId);
+        header('Location: ' . admin_redirect_url(['notice' => 'library_thumbnail_regenerated']) . '#admin-library');
+    } catch (Throwable $e) {
+        audit_admin_action($pdo, null, 'regenerate_library_thumbnail_failed', null, 'library_item:' . $itemId);
+        app_log($pdo, 'warning', 'admin', 'library_thumbnail_regeneration_failed', 'Regeneration miniature STL refusee', ['item_id' => $itemId, 'error' => $e->getMessage()], null, 422);
+        header('Location: ' . admin_redirect_url(['notice' => 'library_thumbnail_error']) . '#admin-library');
+    }
+}
+
 function admin_database_config_from_post(): array
 {
     $local = db_local_config();
@@ -621,6 +644,10 @@ function handle_admin_post(): void
     }
     if ($action === 'delete_library_item') {
         admin_delete_library_item($pdo);
+        return;
+    }
+    if ($action === 'regenerate_library_thumbnail') {
+        admin_regenerate_library_thumbnail($pdo);
         return;
     }
     if ($action === 'test_database_settings') {

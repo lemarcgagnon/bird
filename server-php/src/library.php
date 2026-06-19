@@ -50,6 +50,11 @@ function library_storage_dir(): string
     return rtrim(app_config_value('NICHOIR_LIBRARY_DIR', dirname(__DIR__) . '/data/library'), '/');
 }
 
+function library_app_image_dir(): string
+{
+    return rtrim(app_config_value('NICHOIR_LIBRARY_APP_IMAGE_DIR', dirname(__DIR__, 2) . '/app/images/library'), '/');
+}
+
 function library_ensure_storage_dir(): void
 {
     $dir = library_storage_dir();
@@ -58,22 +63,81 @@ function library_ensure_storage_dir(): void
     }
 }
 
-function library_item_path(array $item): string
+function library_ensure_app_image_dir(): void
 {
-    $filename = (string) ($item['filename'] ?? '');
+    $dir = library_app_image_dir();
+    if (!is_dir($dir) && !mkdir($dir, 0775, true) && !is_dir($dir)) {
+        throw new RuntimeException('library_app_image_dir_unavailable');
+    }
+}
+
+function library_safe_filename(string $filename): string
+{
     if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $filename)) {
         throw new RuntimeException('invalid_library_filename');
     }
+    return $filename;
+}
+
+function library_item_path(array $item): string
+{
+    $filename = library_safe_filename((string) ($item['filename'] ?? ''));
     return library_storage_dir() . '/' . $filename;
 }
 
 function library_thumbnail_path(array $item): string
 {
-    $filename = (string) ($item['filename'] ?? '');
-    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $filename)) {
-        throw new RuntimeException('invalid_library_filename');
-    }
+    $filename = library_safe_filename((string) ($item['filename'] ?? ''));
     return library_storage_dir() . '/' . preg_replace('/\.[^.]+$/', '', $filename) . '.preview.png';
+}
+
+function library_app_image_path(string $filename): string
+{
+    return library_app_image_dir() . '/' . library_safe_filename($filename);
+}
+
+function library_app_image_thumbnail_filename(array $item): string
+{
+    $filename = library_safe_filename((string) ($item['filename'] ?? ''));
+    return preg_replace('/\.[^.]+$/', '', $filename) . '.preview.png';
+}
+
+function library_copy_to_app_image_folder(string $sourcePath, string $filename): void
+{
+    if (!is_file($sourcePath) || !is_readable($sourcePath)) {
+        throw new RuntimeException('library_source_file_missing');
+    }
+    library_ensure_app_image_dir();
+    $target = library_app_image_path($filename);
+    if (!copy($sourcePath, $target)) {
+        throw new RuntimeException('library_app_image_copy_failed');
+    }
+    @chmod($target, 0664);
+}
+
+function library_mirror_item_to_app_images(array $item): void
+{
+    library_copy_to_app_image_folder(library_item_path($item), (string) $item['filename']);
+}
+
+function library_mirror_thumbnail_to_app_images(array $item): void
+{
+    library_copy_to_app_image_folder(library_thumbnail_path($item), library_app_image_thumbnail_filename($item));
+}
+
+function library_delete_app_image_assets(array $item): void
+{
+    $filename = (string) ($item['filename'] ?? '');
+    if ($filename !== '') {
+        $path = library_app_image_path($filename);
+        if (is_file($path)) {
+            @unlink($path);
+        }
+    }
+    $thumbnail = library_app_image_path(library_app_image_thumbnail_filename($item));
+    if (is_file($thumbnail)) {
+        @unlink($thumbnail);
+    }
 }
 
 function library_public_item(array $item): array
@@ -212,6 +276,12 @@ function library_admin_upload(PDO $pdo, array $file, string $title, string $desc
         throw new RuntimeException('library_store_failed');
     }
     @chmod($target, 0664);
+    try {
+        library_copy_to_app_image_folder($target, $stored);
+    } catch (Throwable $e) {
+        @unlink($target);
+        throw $e;
+    }
 
     $stmt = $pdo->prepare(
         'INSERT INTO library_items (filename, original_filename, title, description, media_type, mime_type, file_ext, file_size_bytes, cost, is_active)
@@ -294,6 +364,7 @@ function library_admin_delete(PDO $pdo, int $itemId): array
     if (is_file($thumbnailPath)) {
         @unlink($thumbnailPath);
     }
+    library_delete_app_image_assets($item);
     return ['item' => $item, 'deleted_file' => $deletedFile];
 }
 
@@ -631,6 +702,7 @@ function library_write_stl_png_thumbnail(array $item, int $size = 512): void
         throw new RuntimeException('thumbnail_write_failed');
     }
     @chmod($thumbnailPath, 0664);
+    library_mirror_thumbnail_to_app_images($item);
 }
 
 function library_save_custom_png_thumbnail(array $item, string $pngBytes, int $size = 512): void
@@ -668,6 +740,7 @@ function library_save_custom_png_thumbnail(array $item, string $pngBytes, int $s
         throw new RuntimeException('thumbnail_write_failed');
     }
     @chmod($thumbnailPath, 0664);
+    library_mirror_thumbnail_to_app_images($item);
 }
 
 function library_touch_item_thumbnail(PDO $pdo, int $itemId): void

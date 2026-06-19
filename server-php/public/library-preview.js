@@ -2,7 +2,8 @@ import * as THREE from '/assets/three.module.min.js';
 
 const DEFAULT_PREVIEW_LABEL = 'Preview STL';
 const MAX_PREVIEW_TRIANGLES = 1800;
-const MAX_EDITOR_TRIANGLES = 18000;
+const ALL_TRIANGLES = 0;
+const EDGE_VERTEX_LIMIT = 180000;
 
 function log(message, details = {}) {
   console.log('[nichoir library preview]', message, details);
@@ -28,13 +29,19 @@ function trianglesToGeometry(triangles) {
   return geometry;
 }
 
+function triangleReadStep(triangleCount, maxTriangles) {
+  const limit = Number(maxTriangles);
+  if (!Number.isFinite(limit) || limit <= 0 || limit >= triangleCount) return 1;
+  return Math.max(1, Math.ceil(triangleCount / Math.max(1, limit)));
+}
+
 function parseBinaryStl(bytes, maxTriangles = MAX_PREVIEW_TRIANGLES) {
   if (bytes.byteLength < 84) return [];
   const view = new DataView(bytes);
   const triCount = view.getUint32(80, true);
   const expected = 84 + (triCount * 50);
   if (triCount <= 0 || expected > bytes.byteLength) return [];
-  const step = Math.max(1, Math.ceil(triCount / Math.max(1, maxTriangles)));
+  const step = triangleReadStep(triCount, maxTriangles);
   const triangles = [];
   for (let i = 0; i < triCount; i += step) {
     const base = 84 + (i * 50) + 12;
@@ -57,7 +64,7 @@ function parseAsciiStl(bytes, maxTriangles = MAX_PREVIEW_TRIANGLES) {
   const matches = [...text.matchAll(/vertex\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)/g)];
   const triCount = Math.floor(matches.length / 3);
   if (triCount <= 0) return [];
-  const step = Math.max(1, Math.ceil(triCount / Math.max(1, maxTriangles)));
+  const step = triangleReadStep(triCount, maxTriangles);
   const triangles = [];
   for (let i = 0; i < triCount; i += step) {
     const tri = [];
@@ -123,13 +130,17 @@ function renderGeometry(target, geometry, options = {}) {
     side: THREE.DoubleSide,
   });
   const mesh = new THREE.Mesh(geometry, material);
-  const edges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(geometry, 20),
-    new THREE.LineBasicMaterial({ color: 0x5f3b16, transparent: true, opacity: 0.55 })
-  );
   const group = new THREE.Group();
   group.add(mesh);
-  group.add(edges);
+  const vertexCount = geometry.getAttribute('position')?.count || 0;
+  const edgeLimit = Number(options.edgeVertexLimit || EDGE_VERTEX_LIMIT);
+  if (options.showEdges !== false && vertexCount <= edgeLimit) {
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geometry, 20),
+      new THREE.LineBasicMaterial({ color: 0x5f3b16, transparent: true, opacity: 0.55 })
+    );
+    group.add(edges);
+  }
   scene.add(group);
 
   const box = new THREE.Box3().setFromObject(group);
@@ -214,13 +225,52 @@ export async function renderLocalStlFilePreview(target, file) {
   target.classList.remove('library-stl-viewer-error');
   try {
     const bytes = await file.arrayBuffer();
-    const triangles = parseStlBytes(bytes);
-    renderGeometry(target, trianglesToGeometry(triangles));
-    log('local_stl_preview_rendered', { name: file.name, sampled_triangles: triangles.length });
+    const triangles = parseStlBytes(bytes, ALL_TRIANGLES);
+    renderGeometry(target, trianglesToGeometry(triangles), { showEdges: triangles.length <= 60000 });
+    log('local_stl_preview_rendered', { name: file.name, triangles: triangles.length, untouched: true });
   } catch (error) {
     warn('local_stl_preview_failed', { name: file?.name || '', error: error.message || String(error) });
     renderError(target, 'Preview STL indisponible');
   }
+}
+
+export async function renderAdminOriginalStlViewers(root = document) {
+  const targets = Array.from(root.querySelectorAll('[data-library-admin-stl-viewer]'));
+  if (!targets.length) return;
+  await Promise.all(targets.map(async (target) => {
+    const itemId = Number(target.dataset.libraryAdminStlViewer || 0);
+    if (!itemId || target.dataset.originalRendered === '1') return;
+    target.dataset.originalRendered = '1';
+    target.textContent = 'Chargement STL original...';
+    target.classList.remove('library-stl-viewer-error');
+    log('admin_original_stl_request', { itemId });
+    try {
+      const response = await fetch(`/api/admin/library/stl-file?item_id=${encodeURIComponent(itemId)}`, {
+        credentials: 'same-origin',
+      });
+      if (!response.ok) throw new Error(response.statusText || 'stl_load_failed');
+      const bytes = await response.arrayBuffer();
+      const triangles = parseStlBytes(bytes, ALL_TRIANGLES);
+      const geometry = trianglesToGeometry(triangles);
+      if (!geometry) throw new Error('stl_parse_failed');
+      target.replaceChildren();
+      renderGeometry(target, geometry, {
+        width: Math.max(240, target.clientWidth || 280),
+        height: Math.max(240, target.clientHeight || 280),
+        distanceMultiplier: 2.0,
+        showEdges: triangles.length <= 60000,
+      });
+      log('admin_original_stl_rendered', {
+        itemId,
+        bytes: bytes.byteLength,
+        triangles: triangles.length,
+        untouched: true,
+      });
+    } catch (error) {
+      warn('admin_original_stl_failed', { itemId, error: error.message || String(error) });
+      renderError(target, 'STL original indisponible');
+    }
+  }));
 }
 
 export function attachLibraryThumbnailEditor(root = document) {
@@ -271,7 +321,7 @@ export function attachLibraryThumbnailEditor(root = document) {
         });
         if (!response.ok) throw new Error(response.statusText || 'stl_load_failed');
         const bytes = await response.arrayBuffer();
-        const triangles = parseStlBytes(bytes, MAX_EDITOR_TRIANGLES);
+        const triangles = parseStlBytes(bytes, ALL_TRIANGLES);
         const geometry = trianglesToGeometry(triangles);
         stage.replaceChildren();
         currentController = renderGeometry(stage, geometry, {
@@ -281,8 +331,8 @@ export function attachLibraryThumbnailEditor(root = document) {
           distanceMultiplier: 2.0,
         });
         currentController?.setView('iso');
-        setStatus(`${triangles.length} triangles echantillonnes`);
-        log('thumbnail_editor_loaded', { itemId: currentItemId, sampled_triangles: triangles.length });
+        setStatus(`${triangles.length} triangles originaux`);
+        log('thumbnail_editor_loaded', { itemId: currentItemId, triangles: triangles.length, untouched: true });
       } catch (error) {
         warn('thumbnail_editor_load_failed', { itemId: currentItemId, error: error.message || String(error) });
         renderError(stage, 'STL indisponible');
@@ -352,4 +402,5 @@ export async function renderLibraryStlPreviews(root = document) {
 }
 
 renderLibraryStlPreviews();
+renderAdminOriginalStlViewers();
 attachLibraryThumbnailEditor();

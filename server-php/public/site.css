@@ -447,7 +447,7 @@ article strong,
 
 .library-admin-item {
   display: grid;
-  grid-template-columns: 148px minmax(0, 1fr);
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
@@ -567,7 +567,15 @@ article strong,
 }
 
 .library-admin-item .library-thumbnail {
-  max-width: 148px;
+  max-width: 320px;
+}
+
+.library-admin-stl-viewer {
+  width: 100%;
+  min-height: 280px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fffdf8;
 }
 
 .library-preview-card div {

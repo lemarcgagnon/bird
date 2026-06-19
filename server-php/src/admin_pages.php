@@ -678,7 +678,9 @@ function render_admin_library_panel(PDO $pdo): string
         $typeLabel = library_is_image_item($item) ? 'Image' : 'STL';
         $itemId = (int) $item['id'];
         $itemLabel = (string) ($item['title'] ?: $item['original_filename']);
-        $previewHtml = '<img class="library-thumbnail" data-library-thumbnail-img="' . $itemId . '" src="/api/library/thumbnail?item_id=' . $itemId . '&v=' . rawurlencode((string) ($item['updated_at'] ?? '')) . '" alt="Preview ' . h($itemLabel) . '" loading="lazy">';
+        $previewHtml = library_is_stl_item($item)
+            ? '<div class="library-admin-stl-viewer library-stl-viewer" data-library-admin-stl-viewer="' . $itemId . '">Chargement STL original...</div>'
+            : '<img class="library-thumbnail" data-library-thumbnail-img="' . $itemId . '" src="/api/library/thumbnail?item_id=' . $itemId . '&v=' . rawurlencode((string) ($item['updated_at'] ?? '')) . '" alt="Preview ' . h($itemLabel) . '" loading="lazy">';
         $thumbnailActions = '';
         if (library_is_stl_item($item)) {
             $thumbnailActions = '
@@ -689,7 +691,7 @@ function render_admin_library_panel(PDO $pdo): string
                       <input type="hidden" name="library_item_id" value="' . $itemId . '">
                       <button type="submit" class="secondary">Regenerer auto</button>
                     </form>
-                    <button type="button" class="secondary" data-library-thumbnail-editor="' . $itemId . '" data-library-thumbnail-title="' . h($itemLabel) . '">Outil PNG</button>
+                    <button type="button" class="secondary" data-library-thumbnail-editor="' . $itemId . '" data-library-thumbnail-title="' . h($itemLabel) . '">PNG client</button>
                   </div>';
         }
         $itemRows .= '
@@ -764,7 +766,7 @@ function render_admin_library_panel(PDO $pdo): string
           <label class="checkbox-label"><input type="checkbox" name="is_active" value="1" checked> Publier dans la librairie</label>
           <button type="submit">Ajouter fichiers</button>
         </form>
-        <p class="control-note">Limites applicatives: ' . $stlUploadMaxMb . ' Mo par STL, 2 Mo par image PNG/JPEG/GIF/WEBP. Limites PHP actives: ' . h($phpUploadLimits) . '. Les fichiers restent dans <code>server-php/data/library</code>, hors racine publique.</p>
+        <p class="control-note">Limites applicatives: ' . $stlUploadMaxMb . ' Mo par STL, 2 Mo par image PNG/JPEG/GIF/WEBP. Limites PHP actives: ' . h($phpUploadLimits) . '. Les originaux restent dans <code>server-php/data/library</code> et sont aussi copies localement dans <code>app/images/library</code> pour les apercus locaux.</p>
         <div class="library-preview-grid" data-library-admin-selected-preview></div>
         <p class="control-note" data-library-admin-debug>Aucun fichier selectionne.</p>
         <div class="table-wrap"><table><thead><tr><th>ID</th><th>Type</th><th>Fichier</th><th>Taille</th><th>Telechargements</th><th>MAJ</th></tr></thead><tbody>' . $itemRows . '</tbody></table></div>
@@ -788,7 +790,7 @@ function render_admin_library_panel(PDO $pdo): string
         <h2>Telechargements librairie recents</h2>
         <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Fichier</th><th>Date</th></tr></thead><tbody>' . $downloadRows . '</tbody></table></div>
       </section>
-      <script type="module" src="/library-preview.js?v=20260619-thumbnail-editor"></script>
+      <script type="module" src="/library-preview.js?v=20260619-admin-original-stl-viewer"></script>
       <script>
         (() => {
           const prefix = "[nichoir library admin]";
@@ -849,7 +851,7 @@ function render_admin_library_panel(PDO $pdo): string
                 viewer.className = "library-thumbnail library-stl-viewer";
                 viewer.textContent = "Chargement preview STL...";
                 card.appendChild(viewer);
-                import("/library-preview.js?v=20260619-thumbnail-editor")
+                import("/library-preview.js?v=20260619-admin-original-stl-viewer")
                   .then((module) => module.renderLocalStlFilePreview(viewer, file))
                   .catch((error) => {
                     viewer.textContent = "Preview STL indisponible";
@@ -880,9 +882,12 @@ function render_admin_library_panel(PDO $pdo): string
               active: form.querySelector("[name=is_active]")?.checked
             });
           });
-          import("/library-preview.js?v=20260619-thumbnail-editor")
-            .then((module) => module.attachLibraryThumbnailEditor(document))
-            .catch((error) => log("thumbnail_editor_module_failed", { error: error.message || String(error) }));
+          import("/library-preview.js?v=20260619-admin-original-stl-viewer")
+            .then((module) => {
+              module.renderAdminOriginalStlViewers(document);
+              module.attachLibraryThumbnailEditor(document);
+            })
+            .catch((error) => log("library_preview_module_failed", { error: error.message || String(error) }));
         })();
       </script>
     ';

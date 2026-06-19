@@ -19,5 +19,7 @@ server-php/data/db-config.php
 server-php/data/installed.lock.php
 server-php/data/*.php
 server-php/data/library/
+app/images/library/*
+!app/images/library/.gitkeep
 config/production.php
 deployment/namecheap/config/production.php

@@ -268,6 +268,7 @@ function render_library_page(): void
                   <div>
                     <span class="plan-badge">${esc((item.media_type || item.file_ext || "file").toUpperCase())}</span>
                     <h3>${esc(item.title || item.original_filename)}</h3>
+                    ${item.description ? `<p>${esc(item.description)}</p>` : ``}
                     <p>${esc(item.original_filename)}</p>
                     ${item.media_type === "stl" ? `<canvas class="library-stl-canvas" width="260" height="260" data-library-stl-preview="${esc(item.id)}" aria-label="Preview STL ${esc(item.title || item.original_filename)}"></canvas>` : ``}
                   </div>

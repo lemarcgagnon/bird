@@ -412,6 +412,14 @@ function admin_update_credit_policy_settings(PDO $pdo): void
     header('Location: ' . admin_redirect_url(['notice' => 'credits_regles']) . '#admin-settings');
 }
 
+function admin_update_library_settings(PDO $pdo): void
+{
+    $maxMb = max(1, min(LIBRARY_MAX_STL_MB, (int) ($_POST['library_stl_upload_max_mb'] ?? LIBRARY_DEFAULT_MAX_STL_MB)));
+    setting_set($pdo, 'library_stl_upload_max_mb', (string) $maxMb);
+    audit_admin_action($pdo, null, 'update_library_settings', $maxMb, 'stl_upload_max_mb');
+    header('Location: ' . admin_redirect_url(['notice' => 'library_settings_updated']) . '#admin-settings');
+}
+
 function admin_upload_library_item(PDO $pdo): void
 {
     $files = $_FILES['library_files'] ?? ($_FILES['library_file'] ?? []);
@@ -419,6 +427,7 @@ function admin_upload_library_item(PDO $pdo): void
         $pdo,
         is_array($files) ? $files : [],
         (string) ($_POST['title'] ?? ''),
+        (string) ($_POST['description'] ?? ''),
         (int) ($_POST['cost'] ?? 1),
         isset($_POST['is_active'])
     );
@@ -467,6 +476,7 @@ function admin_update_library_item(PDO $pdo): void
             $pdo,
             $itemId,
             (string) ($_POST['title'] ?? ''),
+            (string) ($_POST['description'] ?? ''),
             (int) ($_POST['cost'] ?? 1),
             isset($_POST['is_active'])
         );
@@ -475,6 +485,25 @@ function admin_update_library_item(PDO $pdo): void
     } catch (Throwable $e) {
         audit_admin_action($pdo, null, 'update_library_item_failed', null, 'library_item:' . $itemId);
         header('Location: ' . admin_redirect_url(['notice' => 'library_update_error']) . '#admin-library');
+    }
+}
+
+function admin_delete_library_item(PDO $pdo): void
+{
+    $itemId = (int) ($_POST['library_item_id'] ?? 0);
+    if ($itemId <= 0) {
+        header('Location: ' . admin_redirect_url(['notice' => 'library_item_invalid']) . '#admin-library');
+        return;
+    }
+    try {
+        $result = library_admin_delete($pdo, $itemId);
+        $fileDeleted = (bool) $result['deleted_file'];
+        audit_admin_action($pdo, null, 'delete_library_item', null, 'library_item:' . $itemId . ':file_deleted=' . ($fileDeleted ? '1' : '0'));
+        header('Location: ' . admin_redirect_url(['notice' => $fileDeleted ? 'library_deleted' : 'library_deleted_file_missing']) . '#admin-library');
+    } catch (Throwable $e) {
+        audit_admin_action($pdo, null, 'delete_library_item_failed', null, 'library_item:' . $itemId);
+        app_log($pdo, 'warning', 'admin', 'library_delete_failed', 'Suppression fichier librairie refusee', ['item_id' => $itemId, 'error' => $e->getMessage()], null, 422);
+        header('Location: ' . admin_redirect_url(['notice' => 'library_delete_error']) . '#admin-library');
     }
 }
 
@@ -578,12 +607,20 @@ function handle_admin_post(): void
         admin_update_credit_policy_settings($pdo);
         return;
     }
+    if ($action === 'update_library_settings') {
+        admin_update_library_settings($pdo);
+        return;
+    }
     if ($action === 'upload_library_item') {
         admin_upload_library_item($pdo);
         return;
     }
     if ($action === 'update_library_item') {
         admin_update_library_item($pdo);
+        return;
+    }
+    if ($action === 'delete_library_item') {
+        admin_delete_library_item($pdo);
         return;
     }
     if ($action === 'test_database_settings') {

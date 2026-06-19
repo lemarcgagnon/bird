@@ -9,7 +9,7 @@ This folder contains the backend code included by `server-php/public/index.php`.
 - `logger.php`: request IDs, hashed IP/email values, app logs, audit logs, Stripe event logs, slow request logging and fatal shutdown logging.
 - `auth.php`: account session cookie creation/deletion, legacy bearer-token fallback, current-user lookup, public user projection, activation codes, auth rate limits, email quotas and client IP helper.
 - `credits.php`: valid premium export types, WASM app registry, configured export credit cost and positive-partial-balance bonus calculation.
-- `library.php`: private decor library storage helpers for STL/images, public item projection, admin upload/update helpers and short-lived library download authorization helpers.
+- `library.php`: private decor library storage helpers for STL/images, public item projection, admin upload/update/delete helpers, configurable STL upload limit and short-lived library download authorization helpers.
 - `mail.php`: SMTP settings, header sanitization, raw SMTP sending, activation email support, contact email support and ticket notification queue/send helpers.
 - `stripe.php`: Stripe settings, API request helper, Checkout session creation, billing portal creation and webhook signature verification.
 - `stripe_webhook.php`: Stripe event idempotence, event logs, checkout completion handling, invoice/payment sync and subscription sync.

@@ -169,7 +169,7 @@ function admin_redirect_url(array $params = []): string
 
 function admin_tab_value(string $value, string $fallback = 'admin-clients'): string
 {
-    $allowed = ['admin-support', 'admin-clients', 'admin-billing', 'admin-exports', 'admin-logs', 'admin-settings'];
+    $allowed = ['admin-support', 'admin-clients', 'admin-library', 'admin-billing', 'admin-exports', 'admin-logs', 'admin-settings'];
     return in_array($value, $allowed, true) ? $value : $fallback;
 }
 

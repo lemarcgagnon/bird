@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS library_items (
   filename TEXT NOT NULL UNIQUE,
   original_filename TEXT NOT NULL,
   title TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
   media_type TEXT NOT NULL DEFAULT 'stl',
   mime_type TEXT NOT NULL DEFAULT 'model/stl',
   file_ext TEXT NOT NULL DEFAULT 'stl',

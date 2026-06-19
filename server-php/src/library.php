@@ -8,10 +8,21 @@ require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/logger.php';
 require_once __DIR__ . '/auth.php';
 
-const LIBRARY_MAX_STL_BYTES = 4194304;
+const LIBRARY_DEFAULT_MAX_STL_MB = 25;
+const LIBRARY_MAX_STL_MB = 25;
 const LIBRARY_MAX_IMAGE_BYTES = 2097152;
 const LIBRARY_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 const LIBRARY_STL_PREVIEW_MAX_TRIANGLES = 700;
+
+function library_stl_upload_max_mb(PDO $pdo): int
+{
+    return max(1, min(LIBRARY_MAX_STL_MB, (int) setting_get($pdo, 'library_stl_upload_max_mb', (string) LIBRARY_DEFAULT_MAX_STL_MB)));
+}
+
+function library_stl_upload_max_bytes(PDO $pdo): int
+{
+    return library_stl_upload_max_mb($pdo) * 1024 * 1024;
+}
 
 function library_ini_upload_limit_label(): string
 {
@@ -59,6 +70,7 @@ function library_public_item(array $item): array
     return [
         'id' => (int) $item['id'],
         'title' => (string) $item['title'],
+        'description' => (string) ($item['description'] ?? ''),
         'original_filename' => (string) $item['original_filename'],
         'media_type' => (string) $item['media_type'],
         'file_ext' => (string) $item['file_ext'],
@@ -101,11 +113,11 @@ function library_normalize_upload_files(array $files): array
     return $normalized;
 }
 
-function library_file_kind(string $original, string $tmpName, int $size): array
+function library_file_kind(PDO $pdo, string $original, string $tmpName, int $size): array
 {
     $ext = strtolower(pathinfo($original, PATHINFO_EXTENSION));
     if ($ext === 'stl') {
-        if ($size <= 84 || $size > LIBRARY_MAX_STL_BYTES) {
+        if ($size <= 84 || $size > library_stl_upload_max_bytes($pdo)) {
             throw new RuntimeException('invalid_library_stl');
         }
         return ['media_type' => 'stl', 'mime_type' => 'model/stl', 'file_ext' => 'stl'];
@@ -167,7 +179,7 @@ function library_clean_title(string $title, string $fallback): string
     return substr($title, 0, 140);
 }
 
-function library_admin_upload(PDO $pdo, array $file, string $title, int $cost, bool $active): int
+function library_admin_upload(PDO $pdo, array $file, string $title, string $description, int $cost, bool $active): int
 {
     $uploadError = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
     if ($uploadError !== UPLOAD_ERR_OK) {
@@ -179,7 +191,7 @@ function library_admin_upload(PDO $pdo, array $file, string $title, int $cost, b
     if ($tmpName === '' || !is_uploaded_file($tmpName)) {
         throw new RuntimeException('invalid_library_upload');
     }
-    $kind = library_file_kind($original, $tmpName, $size);
+    $kind = library_file_kind($pdo, $original, $tmpName, $size);
 
     library_ensure_storage_dir();
     $stored = 'library_' . bin2hex(random_bytes(16)) . '.' . $kind['file_ext'];
@@ -190,13 +202,14 @@ function library_admin_upload(PDO $pdo, array $file, string $title, int $cost, b
     @chmod($target, 0664);
 
     $stmt = $pdo->prepare(
-        'INSERT INTO library_items (filename, original_filename, title, media_type, mime_type, file_ext, file_size_bytes, cost, is_active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO library_items (filename, original_filename, title, description, media_type, mime_type, file_ext, file_size_bytes, cost, is_active)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     );
     $stmt->execute([
         $stored,
         substr($original, 0, 190),
         library_clean_title($title, $original),
+        substr(trim($description), 0, 1000),
         $kind['media_type'],
         $kind['mime_type'],
         $kind['file_ext'],
@@ -207,13 +220,13 @@ function library_admin_upload(PDO $pdo, array $file, string $title, int $cost, b
     return (int) $pdo->lastInsertId();
 }
 
-function library_admin_upload_many(PDO $pdo, array $files, string $title, int $cost, bool $active): array
+function library_admin_upload_many(PDO $pdo, array $files, string $title, string $description, int $cost, bool $active): array
 {
     $uploaded = [];
     $failed = [];
     foreach (library_normalize_upload_files($files) as $file) {
         try {
-            $uploaded[] = library_admin_upload($pdo, $file, $title, $cost, $active);
+            $uploaded[] = library_admin_upload($pdo, $file, $title, $description, $cost, $active);
         } catch (Throwable $e) {
             $failed[] = [
                 'name' => (string) ($file['name'] ?? ''),
@@ -224,14 +237,35 @@ function library_admin_upload_many(PDO $pdo, array $files, string $title, int $c
     return ['uploaded' => $uploaded, 'failed' => $failed];
 }
 
-function library_admin_update(PDO $pdo, int $itemId, string $title, int $cost, bool $active): void
+function library_admin_update(PDO $pdo, int $itemId, string $title, string $description, int $cost, bool $active): void
 {
     $item = library_find_item($pdo, $itemId, false);
     if ($item === null) {
         throw new RuntimeException('library_item_not_found');
     }
-    $stmt = $pdo->prepare('UPDATE library_items SET title = ?, cost = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-    $stmt->execute([library_clean_title($title, (string) $item['original_filename']), max(1, $cost), $active ? 1 : 0, $itemId]);
+    $stmt = $pdo->prepare('UPDATE library_items SET title = ?, description = ?, cost = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+    $stmt->execute([library_clean_title($title, (string) $item['original_filename']), substr(trim($description), 0, 1000), max(1, $cost), $active ? 1 : 0, $itemId]);
+}
+
+function library_admin_delete(PDO $pdo, int $itemId): array
+{
+    $item = library_find_item($pdo, $itemId, false);
+    if ($item === null) {
+        throw new RuntimeException('library_item_not_found');
+    }
+    $path = library_item_path($item);
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare('DELETE FROM library_downloads WHERE library_item_id = ?')->execute([$itemId]);
+        $pdo->prepare('DELETE FROM library_download_authorizations WHERE library_item_id = ?')->execute([$itemId]);
+        $pdo->prepare('DELETE FROM library_items WHERE id = ?')->execute([$itemId]);
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+    $deletedFile = !is_file($path) || @unlink($path);
+    return ['item' => $item, 'deleted_file' => $deletedFile];
 }
 
 function library_create_authorization(PDO $pdo, array $user, array $item): array

@@ -368,6 +368,9 @@ function ensure_runtime_schema(PDO $pdo): void
         }
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_export_authorizations_app_id ON export_authorizations(app_id)');
     }
+    if (table_has_column($pdo, 'library_items', 'id') && !table_has_column($pdo, 'library_items', 'description')) {
+        $pdo->exec("ALTER TABLE library_items ADD COLUMN description TEXT NOT NULL DEFAULT ''");
+    }
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS auth_rate_limits (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -723,6 +726,7 @@ function ensure_mysql_schema(PDO $pdo): void
         filename VARCHAR(191) NOT NULL UNIQUE,
         original_filename VARCHAR(191) NOT NULL,
         title VARCHAR(140) NOT NULL DEFAULT \'\',
+        description TEXT NOT NULL,
         media_type VARCHAR(32) NOT NULL DEFAULT \'stl\',
         mime_type VARCHAR(120) NOT NULL DEFAULT \'model/stl\',
         file_ext VARCHAR(16) NOT NULL DEFAULT \'stl\',
@@ -902,6 +906,7 @@ function ensure_mysql_schema(PDO $pdo): void
     mysql_add_column_if_missing($pdo, 'payments', 'invoice_url', 'invoice_url VARCHAR(2048) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'payments', 'invoice_pdf', 'invoice_pdf VARCHAR(2048) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'stripe_events', 'error', 'error VARCHAR(500) NOT NULL DEFAULT \'\'');
+    mysql_add_column_if_missing($pdo, 'library_items', 'description', 'description TEXT NOT NULL AFTER title');
     mysql_add_column_if_missing($pdo, 'tickets', 'priority', 'priority VARCHAR(32) NOT NULL DEFAULT \'normal\'');
     mysql_add_column_if_missing($pdo, 'tickets', 'assigned_to', 'assigned_to VARCHAR(120) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'tickets', 'closed_at', 'closed_at DATETIME NULL');

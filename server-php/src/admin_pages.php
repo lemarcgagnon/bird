@@ -548,6 +548,35 @@ function render_credit_policy_settings_panel(PDO $pdo): string
     ';
 }
 
+function render_library_settings_panel(PDO $pdo): string
+{
+    $maxMb = library_stl_upload_max_mb($pdo);
+    return '
+      <section class="panel">
+        <h2>Reglages librairie</h2>
+        <p>Controle les limites applicatives des fichiers de decor. Le serveur PHP doit aussi avoir upload_max_filesize et post_max_size assez hauts.</p>
+        <form class="admin-library-settings-form" method="post" action="' . h(admin_base_path()) . '">
+          ' . admin_csrf_input() . '
+          <input type="hidden" name="action" value="update_library_settings">
+          <label><span>Limite upload STL (Mo)</span><input type="number" name="library_stl_upload_max_mb" min="1" max="' . LIBRARY_MAX_STL_MB . '" step="1" value="' . $maxMb . '"></label>
+          <p class="control-note">Maximum autorise par l application: ' . LIBRARY_MAX_STL_MB . ' Mo. Limites PHP actives: ' . h(library_ini_upload_limit_label()) . '.</p>
+          <button type="submit">Enregistrer reglages librairie</button>
+        </form>
+      </section>
+    ';
+}
+
+function admin_format_bytes(int $bytes): string
+{
+    if ($bytes >= 1048576) {
+        return number_format($bytes / 1048576, 1, ',', ' ') . ' Mo';
+    }
+    if ($bytes >= 1024) {
+        return number_format($bytes / 1024, 0, ',', ' ') . ' Ko';
+    }
+    return $bytes . ' o';
+}
+
 function render_database_settings_panel(): string
 {
     $config = db_config();
@@ -643,6 +672,7 @@ function render_admin_library_panel(PDO $pdo): string
 {
     $items = library_list_items($pdo, false);
     $phpUploadLimits = library_ini_upload_limit_label();
+    $stlUploadMaxMb = library_stl_upload_max_mb($pdo);
     $itemRows = '';
     $imageCards = '';
     $stlCards = '';
@@ -654,6 +684,7 @@ function render_admin_library_panel(PDO $pdo): string
                 <img src="/api/library/preview?item_id=' . (int) $item['id'] . '" alt="' . h((string) ($item['title'] ?: $item['original_filename'])) . '" loading="lazy">
                 <div>
                   <strong>' . h((string) ($item['title'] ?: $item['original_filename'])) . '</strong>
+                  ' . ((string) ($item['description'] ?? '') !== '' ? '<span>' . h((string) $item['description']) . '</span>' : '') . '
                   <span>' . h((string) $item['original_filename']) . '</span>
                 </div>
               </article>
@@ -664,6 +695,7 @@ function render_admin_library_panel(PDO $pdo): string
                 <canvas width="260" height="260" data-admin-stl-preview="' . (int) $item['id'] . '" aria-label="Preview STL ' . h((string) ($item['title'] ?: $item['original_filename'])) . '"></canvas>
                 <div>
                   <strong>' . h((string) ($item['title'] ?: $item['original_filename'])) . '</strong>
+                  ' . ((string) ($item['description'] ?? '') !== '' ? '<span>' . h((string) $item['description']) . '</span>' : '') . '
                   <span>' . h((string) $item['original_filename']) . '</span>
                 </div>
               </article>
@@ -679,19 +711,27 @@ function render_admin_library_panel(PDO $pdo): string
                 <input type="hidden" name="action" value="update_library_item">
                 <input type="hidden" name="library_item_id" value="' . (int) $item['id'] . '">
                 <label><span>Titre</span><input type="text" name="title" maxlength="140" value="' . h((string) $item['title']) . '"></label>
+                <label><span>Description</span><textarea name="description" maxlength="1000" rows="2">' . h((string) ($item['description'] ?? '')) . '</textarea></label>
                 <label><span>Cout</span><input type="number" name="cost" min="1" step="1" value="' . (int) $item['cost'] . '"></label>
                 <label class="checkbox-label"><input type="checkbox" name="is_active" value="1"' . ((int) $item['is_active'] === 1 ? ' checked' : '') . '> Actif</label>
                 <button type="submit">Enregistrer</button>
               </form>
-              <p class="control-note">' . h((string) $item['original_filename']) . ' · ' . number_format(((int) $item['file_size_bytes']) / 1024, 0, ',', ' ') . ' Ko</p>
+              <form class="inline-form library-item-delete-form" method="post" action="' . h(admin_base_path()) . '" onsubmit="return confirm(\'Supprimer definitivement ce fichier de la librairie ?\');">
+                ' . admin_csrf_input() . '
+                <input type="hidden" name="action" value="delete_library_item">
+                <input type="hidden" name="library_item_id" value="' . (int) $item['id'] . '">
+                <button type="submit" class="secondary">Supprimer</button>
+              </form>
+              <p class="control-note">' . h((string) $item['original_filename']) . ' · ' . h(admin_format_bytes((int) $item['file_size_bytes'])) . '</p>
             </td>
+            <td>' . h(admin_format_bytes((int) $item['file_size_bytes'])) . '</td>
             <td>' . (int) $item['download_count'] . '</td>
             <td>' . h((string) $item['updated_at']) . '</td>
           </tr>
         ';
     }
     if ($itemRows === '') {
-        $itemRows = '<tr><td colspan="5">Aucun fichier dans la librairie.</td></tr>';
+        $itemRows = '<tr><td colspan="6">Aucun fichier dans la librairie.</td></tr>';
     }
     if ($imageCards === '') {
         $imageCards = '<p class="control-note">Aucune image uploadee pour le moment.</p>';
@@ -728,14 +768,15 @@ function render_admin_library_panel(PDO $pdo): string
           <input type="hidden" name="action" value="upload_library_item">
           <label><span>Fichiers STL ou images</span><input type="file" name="library_files[]" accept=".stl,.png,.jpg,.jpeg,.gif,.webp,model/stl,image/png,image/jpeg,image/gif,image/webp" multiple required></label>
           <label><span>Titre commun optionnel</span><input type="text" name="title" maxlength="140" placeholder="Laisse vide pour utiliser les noms de fichiers"></label>
+          <label><span>Description</span><textarea name="description" maxlength="1000" rows="2" placeholder="Description affichee aux clients"></textarea></label>
           <label><span>Cout credits</span><input type="number" name="cost" min="1" step="1" value="1"></label>
           <label class="checkbox-label"><input type="checkbox" name="is_active" value="1" checked> Publier dans la librairie</label>
           <button type="submit">Ajouter fichiers</button>
         </form>
-        <p class="control-note">Limites applicatives: 4 Mo par STL, 2 Mo par image PNG/JPEG/GIF/WEBP. Limites PHP actives: ' . h($phpUploadLimits) . '. Les fichiers restent dans <code>server-php/data/library</code>, hors racine publique.</p>
+        <p class="control-note">Limites applicatives: ' . $stlUploadMaxMb . ' Mo par STL, 2 Mo par image PNG/JPEG/GIF/WEBP. Limites PHP actives: ' . h($phpUploadLimits) . '. Les fichiers restent dans <code>server-php/data/library</code>, hors racine publique.</p>
         <div class="library-preview-grid" data-library-admin-selected-preview></div>
         <p class="control-note" data-library-admin-debug>Aucun fichier selectionne.</p>
-        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Type</th><th>Fichier</th><th>Telechargements</th><th>MAJ</th></tr></thead><tbody>' . $itemRows . '</tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Type</th><th>Fichier</th><th>Taille</th><th>Telechargements</th><th>MAJ</th></tr></thead><tbody>' . $itemRows . '</tbody></table></div>
       </section>
       <section class="panel">
         <h2>Visualiseur STL</h2>
@@ -1095,6 +1136,10 @@ function admin_notice_message(string $notice): string
         'library_updated' => 'Fichier librairie mis a jour.',
         'library_update_error' => 'Mise a jour du fichier librairie refusee.',
         'library_item_invalid' => 'Fichier librairie invalide.',
+        'library_deleted' => 'Fichier librairie supprime.',
+        'library_deleted_file_missing' => 'Entree librairie supprimee. Le fichier prive etait deja absent.',
+        'library_delete_error' => 'Suppression du fichier librairie refusee.',
+        'library_settings_updated' => 'Reglages librairie mis a jour.',
     ];
     return $messages[$notice] ?? $notice;
 }
@@ -1207,6 +1252,7 @@ function render_admin_page(): void
         ' . render_database_settings_panel() . '
         ' . render_stripe_settings_panel($pdo) . '
         ' . render_credit_policy_settings_panel($pdo) . '
+        ' . render_library_settings_panel($pdo) . '
         ' . render_email_settings_panel($pdo) . '
       </section>
       ' . render_admin_modal($pdo, $selected) . '

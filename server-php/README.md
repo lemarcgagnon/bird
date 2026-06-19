@@ -16,7 +16,7 @@ The Rust/WASM app stays under `/app/` and generates geometry and fabrication fil
 
 ```bash
 cd /home/marc/Documents/nichoir16
-php -S 127.0.0.1:8021 -t server-php/public
+php -d upload_max_filesize=25M -d post_max_size=64M -S 127.0.0.1:8021 -t server-php/public
 ```
 
 Useful pages:

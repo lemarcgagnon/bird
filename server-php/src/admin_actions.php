@@ -424,12 +424,25 @@ function admin_upload_library_item(PDO $pdo): void
     );
     $uploadedCount = count($result['uploaded']);
     $failedCount = count($result['failed']);
+    app_log($pdo, $uploadedCount > 0 ? 'info' : 'warning', 'admin', 'library_upload_result', 'Resultat upload librairie admin', [
+        'uploaded' => $uploadedCount,
+        'failed' => $failedCount,
+        'failures' => array_slice($result['failed'], 0, 10),
+        'php_upload_max_filesize' => (string) ini_get('upload_max_filesize'),
+        'php_post_max_size' => (string) ini_get('post_max_size'),
+    ], null, $uploadedCount > 0 ? 200 : 422);
+    $failureReasons = array_values(array_unique(array_map(
+        static fn (array $failure): string => (string) ($failure['error'] ?? 'unknown_upload_error'),
+        $result['failed']
+    )));
+    $failureSummary = substr(implode(',', $failureReasons), 0, 180);
     if ($uploadedCount > 0) {
         audit_admin_action($pdo, null, 'upload_library_item', null, 'uploaded:' . $uploadedCount . ':failed:' . $failedCount);
         header('Location: ' . admin_redirect_url([
             'notice' => 'library_uploaded',
             'uploaded' => $uploadedCount,
             'failed' => $failedCount,
+            'errors' => $failureSummary,
         ]) . '#admin-library');
         return;
     }
@@ -438,6 +451,7 @@ function admin_upload_library_item(PDO $pdo): void
         'notice' => 'library_upload_error',
         'uploaded' => 0,
         'failed' => $failedCount,
+        'errors' => $failureSummary,
     ]) . '#admin-library');
 }
 

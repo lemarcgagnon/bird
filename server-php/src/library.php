@@ -13,6 +13,25 @@ const LIBRARY_MAX_IMAGE_BYTES = 2097152;
 const LIBRARY_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 const LIBRARY_STL_PREVIEW_MAX_TRIANGLES = 700;
 
+function library_ini_upload_limit_label(): string
+{
+    return 'upload_max_filesize=' . (string) ini_get('upload_max_filesize') . ', post_max_size=' . (string) ini_get('post_max_size');
+}
+
+function library_upload_error_message(int $error): string
+{
+    return match ($error) {
+        UPLOAD_ERR_INI_SIZE => 'upload_exceeds_php_upload_max_filesize:' . library_ini_upload_limit_label(),
+        UPLOAD_ERR_FORM_SIZE => 'upload_exceeds_form_limit',
+        UPLOAD_ERR_PARTIAL => 'upload_partial',
+        UPLOAD_ERR_NO_FILE => 'upload_no_file',
+        UPLOAD_ERR_NO_TMP_DIR => 'upload_missing_tmp_dir',
+        UPLOAD_ERR_CANT_WRITE => 'upload_cannot_write_tmp',
+        UPLOAD_ERR_EXTENSION => 'upload_blocked_by_php_extension',
+        default => 'upload_failed:error=' . $error,
+    };
+}
+
 function library_storage_dir(): string
 {
     return rtrim(app_config_value('NICHOIR_LIBRARY_DIR', dirname(__DIR__) . '/data/library'), '/');
@@ -150,8 +169,9 @@ function library_clean_title(string $title, string $fallback): string
 
 function library_admin_upload(PDO $pdo, array $file, string $title, int $cost, bool $active): int
 {
-    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-        throw new RuntimeException('library_upload_failed');
+    $uploadError = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($uploadError !== UPLOAD_ERR_OK) {
+        throw new RuntimeException(library_upload_error_message($uploadError));
     }
     $original = basename((string) ($file['name'] ?? 'decor.stl'));
     $size = (int) ($file['size'] ?? 0);

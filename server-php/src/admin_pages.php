@@ -642,6 +642,7 @@ function render_admin_database_export_panel(): string
 function render_admin_library_panel(PDO $pdo): string
 {
     $items = library_list_items($pdo, false);
+    $phpUploadLimits = library_ini_upload_limit_label();
     $itemRows = '';
     $imageCards = '';
     $stlCards = '';
@@ -731,7 +732,9 @@ function render_admin_library_panel(PDO $pdo): string
           <label class="checkbox-label"><input type="checkbox" name="is_active" value="1" checked> Publier dans la librairie</label>
           <button type="submit">Ajouter fichiers</button>
         </form>
-        <p class="control-note">Limites: 4 Mo par STL, 2 Mo par image PNG/JPEG/GIF/WEBP. Les fichiers restent dans <code>server-php/data/library</code>, hors racine publique.</p>
+        <p class="control-note">Limites applicatives: 4 Mo par STL, 2 Mo par image PNG/JPEG/GIF/WEBP. Limites PHP actives: ' . h($phpUploadLimits) . '. Les fichiers restent dans <code>server-php/data/library</code>, hors racine publique.</p>
+        <div class="library-preview-grid" data-library-admin-selected-preview></div>
+        <p class="control-note" data-library-admin-debug>Aucun fichier selectionne.</p>
         <div class="table-wrap"><table><thead><tr><th>ID</th><th>Type</th><th>Fichier</th><th>Telechargements</th><th>MAJ</th></tr></thead><tbody>' . $itemRows . '</tbody></table></div>
       </section>
       <section class="panel">
@@ -750,6 +753,28 @@ function render_admin_library_panel(PDO $pdo): string
         (() => {
           const prefix = "[nichoir library admin]";
           const log = (message, details = {}) => console.log(prefix, message, details);
+          const warn = (message, details = {}) => console.warn(prefix, message, details);
+          const params = new URLSearchParams(window.location.search);
+          log("script_loaded", {
+            hash: window.location.hash,
+            notice: params.get("notice") || "",
+            uploaded: params.get("uploaded") || "",
+            failed: params.get("failed") || "",
+            errors: params.get("errors") || "",
+            php_limits: "' . h($phpUploadLimits) . '"
+          });
+          if (params.get("notice") === "library_upload_error") {
+            warn("server_upload_refused", {
+              failed: Number(params.get("failed") || 0),
+              errors: params.get("errors") || "unknown_upload_error"
+            });
+          }
+          const fmtBytes = (bytes) => {
+            const value = Number(bytes || 0);
+            if (value >= 1048576) return `${(value / 1048576).toFixed(1)} Mo`;
+            if (value >= 1024) return `${Math.round(value / 1024)} Ko`;
+            return `${value} o`;
+          };
           function renderStlPreview(canvas, payload) {
             const ctx = canvas.getContext("2d");
             const w = canvas.width;
@@ -799,7 +824,59 @@ function render_admin_library_panel(PDO $pdo): string
           });
           const form = document.querySelector("[data-library-admin-upload-form]");
           const input = form?.querySelector("input[type=file]");
+          const selectedPreview = document.querySelector("[data-library-admin-selected-preview]");
+          const debug = document.querySelector("[data-library-admin-debug]");
+          const clearSelectedPreview = () => {
+            selectedPreview?.querySelectorAll("img").forEach((img) => {
+              if (img.dataset.objectUrl) URL.revokeObjectURL(img.dataset.objectUrl);
+            });
+            if (selectedPreview) selectedPreview.innerHTML = "";
+          };
+          function renderSelectedFiles() {
+            const files = Array.from(input?.files || []);
+            clearSelectedPreview();
+            if (debug) {
+              debug.textContent = files.length
+                ? `${files.length} fichier(s) selectionne(s): ${files.map((file) => `${file.name} (${fmtBytes(file.size)})`).join(", ")}`
+                : "Aucun fichier selectionne.";
+            }
+            if (!selectedPreview || !files.length) return;
+            files.forEach((file) => {
+              const card = document.createElement("article");
+              card.className = "library-preview-card";
+              if (file.type.startsWith("image/")) {
+                const url = URL.createObjectURL(file);
+                const img = document.createElement("img");
+                img.src = url;
+                img.alt = file.name;
+                img.dataset.objectUrl = url;
+                card.appendChild(img);
+              } else {
+                const canvas = document.createElement("canvas");
+                canvas.width = 260;
+                canvas.height = 260;
+                canvas.className = "library-stl-canvas";
+                const ctx = canvas.getContext("2d");
+                ctx.fillStyle = "#fffdf8";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#6e665b";
+                ctx.font = "14px sans-serif";
+                ctx.fillText("STL selectionne", 22, 120);
+                ctx.fillText("Preview apres upload", 22, 145);
+                card.appendChild(canvas);
+              }
+              const details = document.createElement("div");
+              const name = document.createElement("strong");
+              name.textContent = file.name;
+              const meta = document.createElement("span");
+              meta.textContent = `${file.type || "type inconnu"} · ${fmtBytes(file.size)}`;
+              details.append(name, meta);
+              card.appendChild(details);
+              selectedPreview.appendChild(card);
+            });
+          }
           input?.addEventListener("change", () => {
+            renderSelectedFiles();
             log("upload_files_selected", {
               count: input.files.length,
               files: Array.from(input.files).map((file) => ({ name: file.name, type: file.type, size: file.size }))
@@ -1006,11 +1083,13 @@ function admin_notice_message(string $notice): string
     if ($notice === 'library_uploaded') {
         $uploaded = max(0, (int) ($_GET['uploaded'] ?? 0));
         $failed = max(0, (int) ($_GET['failed'] ?? 0));
-        return 'Librairie mise a jour: ' . $uploaded . ' fichier(s) ajoute(s)' . ($failed > 0 ? ', ' . $failed . ' fichier(s) refuse(s)' : '') . '.';
+        $errors = trim((string) ($_GET['errors'] ?? ''));
+        return 'Librairie mise a jour: ' . $uploaded . ' fichier(s) ajoute(s)' . ($failed > 0 ? ', ' . $failed . ' fichier(s) refuse(s)' : '') . ($errors !== '' ? ' Details: ' . $errors : '') . '.';
     }
     if ($notice === 'library_upload_error') {
         $failed = max(0, (int) ($_GET['failed'] ?? 0));
-        return 'Upload librairie refuse. Verifie le format, la taille ou la limite PHP upload_max_filesize/post_max_size' . ($failed > 0 ? ' (' . $failed . ' fichier(s) refuse(s))' : '') . '.';
+        $errors = trim((string) ($_GET['errors'] ?? ''));
+        return 'Upload librairie refuse' . ($failed > 0 ? ' (' . $failed . ' fichier(s) refuse(s))' : '') . ($errors !== '' ? ': ' . $errors : '. Verifie le format, la taille ou la limite PHP upload_max_filesize/post_max_size.');
     }
     $messages = [
         'library_updated' => 'Fichier librairie mis a jour.',

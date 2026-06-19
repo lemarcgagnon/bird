@@ -217,9 +217,6 @@ function render_library_page(): void
               message.textContent = items.length ? "" : labels.empty;
               const previewHtml = (item) => {
                 const label = esc(item.title || item.original_filename);
-                if ((item.media_type || item.file_ext || "").toLowerCase() === "stl") {
-                  return `<div class="library-thumbnail library-stl-viewer" data-library-stl-preview="${esc(item.id)}" aria-label="Preview STL ${label}">Preview STL...</div>`;
-                }
                 return `<img class="library-thumbnail" src="${esc(item.thumbnail_url)}" alt="Preview ${label}" loading="lazy">`;
               };
               grid.innerHTML = items.map((item) => `
@@ -243,9 +240,6 @@ function render_library_page(): void
                   </div>
                 </article>
               `).join("");
-              import("/library-preview.js?v=20260619-interactive-stl-preview")
-                .then((module) => module.renderLibraryStlPreviews(grid))
-                .catch((error) => log("library_three_preview_module_failed", { error: error.message || String(error) }));
               log("library_previews_rendered", { count: items.length });
             } catch (err) {
               log("library_load_failed", { error: err.message || String(err) });

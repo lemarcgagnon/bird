@@ -13,6 +13,7 @@ const LIBRARY_MAX_STL_MB = 25;
 const LIBRARY_MAX_IMAGE_BYTES = 2097152;
 const LIBRARY_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 const LIBRARY_STL_PREVIEW_MAX_TRIANGLES = 700;
+const LIBRARY_STL_THUMBNAIL_MAX_TRIANGLES = 24000;
 
 function library_stl_upload_max_mb(PDO $pdo): int
 {
@@ -65,6 +66,15 @@ function library_item_path(array $item): string
     return library_storage_dir() . '/' . $filename;
 }
 
+function library_thumbnail_path(array $item): string
+{
+    $filename = (string) ($item['filename'] ?? '');
+    if (!preg_match('/^[a-zA-Z0-9_.-]+$/', $filename)) {
+        throw new RuntimeException('invalid_library_filename');
+    }
+    return library_storage_dir() . '/' . preg_replace('/\.[^.]+$/', '', $filename) . '.preview.png';
+}
+
 function library_public_item(array $item): array
 {
     return [
@@ -78,7 +88,7 @@ function library_public_item(array $item): array
         'cost' => (int) $item['cost'],
         'download_count' => (int) $item['download_count'],
         'created_at' => (string) $item['created_at'],
-        'thumbnail_url' => '/api/library/thumbnail?item_id=' . (int) $item['id'],
+        'thumbnail_url' => '/api/library/thumbnail?item_id=' . (int) $item['id'] . '&v=' . rawurlencode((string) ($item['updated_at'] ?? $item['created_at'] ?? '')),
     ];
 }
 
@@ -218,7 +228,20 @@ function library_admin_upload(PDO $pdo, array $file, string $title, string $desc
         max(1, $cost),
         $active ? 1 : 0,
     ]);
-    return (int) $pdo->lastInsertId();
+    $itemId = (int) $pdo->lastInsertId();
+    if ($kind['media_type'] === 'stl') {
+        try {
+            library_write_stl_png_thumbnail([
+                'id' => $itemId,
+                'filename' => $stored,
+                'media_type' => 'stl',
+                'file_ext' => 'stl',
+            ]);
+        } catch (Throwable $e) {
+            app_log($pdo, 'warning', 'admin', 'library_thumbnail_generation_failed', 'Preview PNG STL non generee', ['item_id' => $itemId, 'error' => $e->getMessage()], null, 422);
+        }
+    }
+    return $itemId;
 }
 
 function library_admin_upload_many(PDO $pdo, array $files, string $title, string $description, int $cost, bool $active): array
@@ -265,7 +288,11 @@ function library_admin_delete(PDO $pdo, int $itemId): array
         $pdo->rollBack();
         throw $e;
     }
+    $thumbnailPath = library_thumbnail_path($item);
     $deletedFile = !is_file($path) || @unlink($path);
+    if (is_file($thumbnailPath)) {
+        @unlink($thumbnailPath);
+    }
     return ['item' => $item, 'deleted_file' => $deletedFile];
 }
 
@@ -331,7 +358,7 @@ function library_authorization_download_url(array $authorization): string
         . '&authorization=' . rawurlencode((string) $authorization['authorization']);
 }
 
-function library_stl_vertices_from_binary(string $bytes): array
+function library_stl_vertices_from_binary(string $bytes, int $maxTriangles = LIBRARY_STL_PREVIEW_MAX_TRIANGLES): array
 {
     if (strlen($bytes) < 84) {
         throw new RuntimeException('invalid_stl_preview');
@@ -341,7 +368,7 @@ function library_stl_vertices_from_binary(string $bytes): array
     if ($triCount <= 0 || $expected > strlen($bytes)) {
         throw new RuntimeException('invalid_stl_preview');
     }
-    $step = max(1, (int) ceil($triCount / LIBRARY_STL_PREVIEW_MAX_TRIANGLES));
+    $step = max(1, (int) ceil($triCount / max(1, $maxTriangles)));
     $triangles = [];
     for ($i = 0; $i < $triCount; $i += $step) {
         $offset = 84 + ($i * 50) + 12;
@@ -359,14 +386,14 @@ function library_stl_vertices_from_binary(string $bytes): array
     return $triangles;
 }
 
-function library_stl_vertices_from_ascii(string $bytes): array
+function library_stl_vertices_from_ascii(string $bytes, int $maxTriangles = LIBRARY_STL_PREVIEW_MAX_TRIANGLES): array
 {
     preg_match_all('/vertex\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)\s+([-+0-9.eE]+)/', $bytes, $matches, PREG_SET_ORDER);
     if (count($matches) < 3) {
         throw new RuntimeException('invalid_stl_preview');
     }
     $triCount = intdiv(count($matches), 3);
-    $step = max(1, (int) ceil($triCount / LIBRARY_STL_PREVIEW_MAX_TRIANGLES));
+    $step = max(1, (int) ceil($triCount / max(1, $maxTriangles)));
     $triangles = [];
     for ($i = 0; $i < $triCount; $i += $step) {
         $tri = [];
@@ -498,9 +525,21 @@ function library_image_to_png_thumbnail(array $item, int $size = 512): string
 
 function library_stl_to_png_thumbnail(array $item, int $size = 512): string
 {
-    $payload = library_stl_preview_payload($item);
-    $triangles = $payload['triangles'] ?? [];
-    if (!is_array($triangles) || $triangles === []) {
+    $path = library_item_path($item);
+    $bytes = is_file($path) ? file_get_contents($path) : false;
+    if (!is_string($bytes) || $bytes === '') {
+        throw new RuntimeException('library_file_missing');
+    }
+    $looksAscii = str_starts_with(ltrim(substr($bytes, 0, 256)), 'solid') && preg_match('/\bvertex\b/', substr($bytes, 0, 4096));
+    $triangles = $looksAscii
+        ? library_stl_vertices_from_ascii($bytes, LIBRARY_STL_THUMBNAIL_MAX_TRIANGLES)
+        : library_stl_vertices_from_binary($bytes, LIBRARY_STL_THUMBNAIL_MAX_TRIANGLES);
+    return library_render_stl_top_png($triangles, $size);
+}
+
+function library_render_stl_top_png(array $triangles, int $size = 512): string
+{
+    if ($triangles === []) {
         throw new RuntimeException('invalid_stl_preview');
     }
     $image = library_create_preview_canvas($size);
@@ -512,8 +551,8 @@ function library_stl_to_png_thumbnail(array $item, int $size = 512): string
             continue;
         }
         foreach ($tri as $point) {
-            if (is_array($point) && count($point) >= 2) {
-                $points[] = [(float) $point[0], (float) $point[1]];
+            if (is_array($point) && count($point) >= 3) {
+                $points[] = [(float) $point[0], (float) $point[1], (float) $point[2]];
             }
         }
     }
@@ -523,19 +562,31 @@ function library_stl_to_png_thumbnail(array $item, int $size = 512): string
     }
     $xs = array_column($points, 0);
     $ys = array_column($points, 1);
+    $zs = array_column($points, 2);
     $minX = min($xs);
     $maxX = max($xs);
     $minY = min($ys);
     $maxY = max($ys);
+    $minZ = min($zs);
+    $maxZ = max($zs);
+    $spanZ = max($maxZ - $minZ, 0.001);
     $scale = min(($size - ($border * 2)) / max($maxX - $minX, 0.001), ($size - ($border * 2)) / max($maxY - $minY, 0.001));
-    $map = static function (array $point) use ($border, $size, $scale, $minX, $minY): array {
+    $usedW = ($maxX - $minX) * $scale;
+    $usedH = ($maxY - $minY) * $scale;
+    $offsetX = (int) round(($size - $usedW) / 2);
+    $offsetY = (int) round(($size - $usedH) / 2);
+    $map = static function (array $point) use ($offsetX, $offsetY, $size, $scale, $minX, $minY): array {
         return [
-            (int) round($border + (((float) $point[0] - $minX) * $scale)),
-            (int) round($size - $border - (((float) $point[1] - $minY) * $scale)),
+            (int) round($offsetX + (((float) $point[0] - $minX) * $scale)),
+            (int) round($size - $offsetY - (((float) $point[1] - $minY) * $scale)),
         ];
     };
-    $line = imagecolorallocatealpha($image, 36, 33, 29, 70);
-    $fill = imagecolorallocatealpha($image, 181, 111, 24, 94);
+    usort($triangles, static function (array $a, array $b): int {
+        $za = (((float) ($a[0][2] ?? 0)) + ((float) ($a[1][2] ?? 0)) + ((float) ($a[2][2] ?? 0))) / 3.0;
+        $zb = (((float) ($b[0][2] ?? 0)) + ((float) ($b[1][2] ?? 0)) + ((float) ($b[2][2] ?? 0))) / 3.0;
+        return $za <=> $zb;
+    });
+    $line = imagecolorallocatealpha($image, 64, 46, 28, 82);
     foreach ($triangles as $tri) {
         if (!is_array($tri) || count($tri) < 3) {
             continue;
@@ -544,9 +595,17 @@ function library_stl_to_png_thumbnail(array $item, int $size = 512): string
         $b = $map($tri[1]);
         $c = $map($tri[2]);
         $poly = [$a[0], $a[1], $b[0], $b[1], $c[0], $c[1]];
+        $avgZ = (((float) ($tri[0][2] ?? 0)) + ((float) ($tri[1][2] ?? 0)) + ((float) ($tri[2][2] ?? 0))) / 3.0;
+        $shade = ($avgZ - $minZ) / $spanZ;
+        $r = (int) round(214 - ($shade * 84));
+        $g = (int) round(154 - ($shade * 72));
+        $bcol = (int) round(86 - ($shade * 48));
+        $fill = imagecolorallocatealpha($image, max(65, $r), max(48, $g), max(28, $bcol), 34);
         imagefilledpolygon($image, $poly, 3, $fill);
         imagepolygon($image, $poly, 3, $line);
     }
+    $frame = imagecolorallocatealpha($image, 180, 137, 89, 94);
+    imagerectangle($image, $offsetX, $offsetY, (int) round($offsetX + $usedW), (int) round($offsetY + $usedH), $frame);
     ob_start();
     imagepng($image);
     $png = ob_get_clean();
@@ -557,10 +616,31 @@ function library_stl_to_png_thumbnail(array $item, int $size = 512): string
     return $png;
 }
 
+function library_write_stl_png_thumbnail(array $item, int $size = 512): void
+{
+    if (!library_is_stl_item($item)) {
+        return;
+    }
+    $png = library_stl_to_png_thumbnail($item, $size);
+    $thumbnailPath = library_thumbnail_path($item);
+    if (file_put_contents($thumbnailPath, $png, LOCK_EX) === false) {
+        throw new RuntimeException('thumbnail_write_failed');
+    }
+    @chmod($thumbnailPath, 0664);
+}
+
 function library_thumbnail_png(array $item, int $size = 512): string
 {
     if (library_is_stl_item($item)) {
-        return library_stl_to_png_thumbnail($item, $size);
+        $thumbnailPath = library_thumbnail_path($item);
+        if (!is_file($thumbnailPath)) {
+            library_write_stl_png_thumbnail($item, $size);
+        }
+        $png = file_get_contents($thumbnailPath);
+        if (!is_string($png) || $png === '') {
+            throw new RuntimeException('thumbnail_read_failed');
+        }
+        return $png;
     }
     if (library_is_image_item($item)) {
         return library_image_to_png_thumbnail($item, $size);

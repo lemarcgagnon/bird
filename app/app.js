@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260619-interactive-stl-preview';
+} from '../wasm/pkg/wasm.js?v=20260619-library-png-thumbnails';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260619-interactive-stl-preview';
+const APP_BUILD_ID = '20260619-library-png-thumbnails';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -1193,9 +1193,7 @@ function renderDecorLibraryItems(items = []) {
   }
   return items.map((item) => `
     <article class="deco-library-item">
-      ${String(item.media_type || item.file_ext || '').toLowerCase() === 'stl'
-        ? `<div class="deco-library-stl-viewer" data-deco-library-stl-preview="${escapeHtml(item.id)}" aria-label="Preview STL ${escapeHtml(item.title || item.original_filename || '')}">STL</div>`
-        : `<img src="${escapeHtml(phpUrl(item.thumbnail_url || `/api/library/thumbnail?item_id=${item.id}`))}" alt="Preview ${escapeHtml(item.title || item.original_filename || '')}" loading="lazy">`}
+      <img src="${escapeHtml(phpUrl(item.thumbnail_url || `/api/library/thumbnail?item_id=${item.id}`))}" alt="Preview ${escapeHtml(item.title || item.original_filename || '')}" loading="lazy">
       <div class="deco-library-copy">
         <strong>${escapeHtml(item.title || item.original_filename || '')}</strong>
         ${item.description ? `<span>${escapeHtml(item.description)}</span>` : ''}
@@ -1218,7 +1216,6 @@ async function loadDecorLibraryPanel() {
     const payload = await apiRequest('/api/library');
     const items = Array.isArray(payload.items) ? payload.items : [];
     list.innerHTML = renderDecorLibraryItems(items);
-    await renderDecorLibraryStlPreviews(list);
     status.textContent = items.length ? tr('decor_library_ready', { count: items.length }) : tr('decor_library_empty');
     debugStlLog('decor library loaded in WASM panel', {
       count: items.length,

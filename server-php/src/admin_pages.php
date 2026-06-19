@@ -676,9 +676,7 @@ function render_admin_library_panel(PDO $pdo): string
     $itemRows = '';
     foreach ($items as $item) {
         $typeLabel = library_is_image_item($item) ? 'Image' : 'STL';
-        $previewHtml = library_is_stl_item($item)
-            ? '<div class="library-thumbnail library-stl-viewer" data-library-stl-preview="' . (int) $item['id'] . '" aria-label="Preview STL ' . h((string) ($item['title'] ?: $item['original_filename'])) . '">Chargement preview STL...</div>'
-            : '<img class="library-thumbnail" src="/api/library/thumbnail?item_id=' . (int) $item['id'] . '" alt="Preview ' . h((string) ($item['title'] ?: $item['original_filename'])) . '" loading="lazy">';
+        $previewHtml = '<img class="library-thumbnail" src="/api/library/thumbnail?item_id=' . (int) $item['id'] . '&v=' . rawurlencode((string) ($item['updated_at'] ?? '')) . '" alt="Preview ' . h((string) ($item['title'] ?: $item['original_filename'])) . '" loading="lazy">';
         $itemRows .= '
           <tr>
             <td>#' . (int) $item['id'] . '</td>

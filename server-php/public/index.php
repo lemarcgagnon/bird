@@ -13,6 +13,7 @@ require_once __DIR__ . '/../src/admin_core.php';
 require_once __DIR__ . '/../src/credits.php';
 require_once __DIR__ . '/../src/mail.php';
 require_once __DIR__ . '/../src/stripe.php';
+require_once __DIR__ . '/../src/library.php';
 require_once __DIR__ . '/../src/pages.php';
 require_once __DIR__ . '/../src/response.php';
 require_once __DIR__ . '/../src/stripe_webhook.php';
@@ -76,6 +77,11 @@ if ($method === 'GET' && $path === '/') {
 
 if ($method === 'GET' && $path === '/pricing') {
     render_pricing_page();
+    exit;
+}
+
+if ($method === 'GET' && $path === '/library') {
+    render_library_page();
     exit;
 }
 
@@ -238,6 +244,187 @@ if ($method === 'GET' && $path === '/api/admin/session') {
 
 if ($method === 'GET' && $path === '/api/apps') {
     json_response(['ok' => true, 'apps' => export_app_catalog(db())]);
+    exit;
+}
+
+if ($method === 'GET' && $path === '/api/library') {
+    $items = array_map('library_public_item', library_list_items(db(), true));
+    json_response(['ok' => true, 'items' => $items]);
+    exit;
+}
+
+if ($method === 'GET' && $path === '/api/library/preview') {
+    if (!admin_logged_in()) {
+        json_response(['ok' => false, 'error' => 'admin_required'], 403);
+        exit;
+    }
+    $itemId = (int) ($_GET['item_id'] ?? 0);
+    $item = $itemId > 0 ? library_find_item(db(), $itemId, false) : null;
+    if ($item === null || !library_is_image_item($item)) {
+        json_response(['ok' => false, 'error' => 'library_preview_not_found'], 404);
+        exit;
+    }
+    $filePath = library_item_path($item);
+    if (!is_file($filePath) || !is_readable($filePath)) {
+        json_response(['ok' => false, 'error' => 'library_file_missing'], 404);
+        exit;
+    }
+    header('Content-Type: ' . (string) $item['mime_type']);
+    header('Content-Length: ' . (string) filesize($filePath));
+    header('Content-Disposition: inline; filename="' . (preg_replace('/[^A-Za-z0-9_.-]+/', '_', (string) $item['original_filename']) ?: 'image') . '"');
+    header('Cache-Control: private, max-age=300');
+    header('X-Content-Type-Options: nosniff');
+    readfile($filePath);
+    exit;
+}
+
+if ($method === 'GET' && $path === '/api/library/stl-preview') {
+    $itemId = (int) ($_GET['item_id'] ?? 0);
+    $item = $itemId > 0 ? library_find_item(db(), $itemId, !admin_logged_in()) : null;
+    if ($item === null || !library_is_stl_item($item)) {
+        json_response(['ok' => false, 'error' => 'library_stl_preview_not_found'], 404);
+        exit;
+    }
+    try {
+        json_response(library_stl_preview_payload($item));
+    } catch (Throwable $e) {
+        app_log(db(), 'warning', 'api', 'library_stl_preview_failed', 'Preview STL librairie refuse', ['item_id' => $itemId, 'error' => $e->getMessage()], null, 422);
+        json_response(['ok' => false, 'error' => 'library_stl_preview_failed'], 422);
+    }
+    exit;
+}
+
+if ($method === 'POST' && $path === '/api/library/authorize') {
+    $data = read_json_body();
+    $itemId = (int) ($data['item_id'] ?? 0);
+    $item = $itemId > 0 ? library_find_item(db(), $itemId, true) : null;
+    if ($item === null) {
+        json_response(['ok' => false, 'error' => 'library_item_not_found'], 404);
+        exit;
+    }
+
+    if (admin_logged_in()) {
+        $authorization = library_create_admin_authorization($item);
+        app_log(db(), 'info', 'api', 'admin_library_authorized', 'Telechargement librairie admin autorise sans credit', ['item_id' => $itemId], null);
+        json_response($authorization + ['download_url' => library_authorization_download_url($authorization)]);
+        exit;
+    }
+
+    $user = require_user();
+    $authorization = library_create_authorization(db(), $user, $item);
+    if (($authorization['ok'] ?? false) !== true) {
+        $status = (int) ($authorization['status'] ?? 400);
+        unset($authorization['status']);
+        json_response($authorization, $status);
+        exit;
+    }
+    app_log(db(), 'info', 'api', 'library_authorized', 'Telechargement librairie autorise', ['item_id' => $itemId, 'cost' => (int) $authorization['cost']], (int) $user['id']);
+    json_response($authorization + ['download_url' => library_authorization_download_url($authorization)]);
+    exit;
+}
+
+if ($method === 'GET' && $path === '/api/library/download') {
+    $itemId = (int) ($_GET['item_id'] ?? 0);
+    $authorization = (string) ($_GET['authorization'] ?? '');
+    if ($itemId <= 0 || $authorization === '') {
+        json_response(['ok' => false, 'error' => 'invalid_authorization'], 400);
+        exit;
+    }
+    $item = library_find_item(db(), $itemId, true);
+    if ($item === null) {
+        json_response(['ok' => false, 'error' => 'library_item_not_found'], 404);
+        exit;
+    }
+    $filePath = library_item_path($item);
+    if (!is_file($filePath) || !is_readable($filePath)) {
+        app_log(db(), 'error', 'api', 'library_file_missing', 'Fichier librairie introuvable', ['item_id' => $itemId], null, 404);
+        json_response(['ok' => false, 'error' => 'library_file_missing'], 404);
+        exit;
+    }
+
+    if (admin_logged_in()) {
+        app_secure_session_start();
+        $hash = token_hash($authorization);
+        $authorizations = $_SESSION['nichoir_admin_library_authorizations'] ?? [];
+        $auth = is_array($authorizations) ? ($authorizations[$hash] ?? null) : null;
+        if (!is_array($auth) || (int) ($auth['item_id'] ?? 0) !== $itemId || (string) ($auth['expires_at'] ?? '') <= sql_utc_datetime()) {
+            json_response(['ok' => false, 'error' => 'invalid_authorization'], 400);
+            exit;
+        }
+        unset($_SESSION['nichoir_admin_library_authorizations'][$hash]);
+        db()->prepare('UPDATE library_items SET download_count = download_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$itemId]);
+        app_log(db(), 'info', 'api', 'admin_library_downloaded', 'Telechargement librairie admin sans debit', ['item_id' => $itemId], null);
+    } else {
+        $user = require_user();
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $stmt = $pdo->prepare(
+                'SELECT * FROM library_download_authorizations
+                 WHERE auth_token_hash = ? AND user_id = ? AND library_item_id = ? AND status = ? AND expires_at > ?'
+            );
+            $stmt->execute([token_hash($authorization), (int) $user['id'], $itemId, 'authorized', sql_utc_datetime()]);
+            $auth = $stmt->fetch();
+            if (!is_array($auth)) {
+                $pdo->rollBack();
+                json_response(['ok' => false, 'error' => 'invalid_authorization'], 400);
+                exit;
+            }
+            $claim = $pdo->prepare('UPDATE library_download_authorizations SET status = ? WHERE id = ? AND status = ?');
+            $claim->execute(['processing', (int) $auth['id'], 'authorized']);
+            if ($claim->rowCount() !== 1) {
+                $pdo->rollBack();
+                json_response(['ok' => false, 'error' => 'invalid_authorization'], 409);
+                exit;
+            }
+            $freshUserStmt = $pdo->prepare('SELECT * FROM users WHERE id = ?');
+            $freshUserStmt->execute([(int) $user['id']]);
+            $freshUser = $freshUserStmt->fetch();
+            if (!is_array($freshUser) || (string) ($freshUser['status'] ?? 'active') !== 'active') {
+                $pdo->rollBack();
+                json_response(['ok' => false, 'error' => 'account_suspended'], 403);
+                exit;
+            }
+            $cost = (int) $auth['credit_cost'];
+            $debit = $pdo->prepare('UPDATE users SET credits = credits - ? WHERE id = ? AND credits >= ?');
+            $debit->execute([$cost, (int) $user['id'], $cost]);
+            if ($debit->rowCount() !== 1) {
+                $pdo->rollBack();
+                json_response(['ok' => false, 'error' => 'insufficient_credits'], 402);
+                exit;
+            }
+            $pdo->prepare('UPDATE library_download_authorizations SET status = ?, consumed_at = CURRENT_TIMESTAMP, downloaded_at = CURRENT_TIMESTAMP WHERE id = ? AND status = ?')
+                ->execute(['downloaded', (int) $auth['id'], 'processing']);
+            $pdo->prepare('UPDATE library_items SET download_count = download_count + 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$itemId]);
+            $pdo->prepare('INSERT INTO library_downloads (user_id, library_item_id, library_download_authorization_id, ip_hash, user_agent, request_uri) VALUES (?, ?, ?, ?, ?, ?)')
+                ->execute([
+                    (int) $user['id'],
+                    $itemId,
+                    (int) $auth['id'],
+                    function_exists('log_client_ip_hash') ? (log_client_ip_hash() ?? '') : '',
+                    substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
+                    substr((string) ($_SERVER['REQUEST_URI'] ?? ''), 0, 255),
+                ]);
+            $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
+                ->execute([(int) $user['id'], -$cost, 'library_download', (string) $auth['id']]);
+            app_log($pdo, 'info', 'api', 'library_downloaded', 'Telechargement librairie consomme', ['item_id' => $itemId, 'cost' => $cost, 'authorization_id' => (int) $auth['id']], (int) $user['id']);
+            audit_log($pdo, (int) $user['id'], 'client', 'library_downloaded', 'library_item', (string) $itemId, 'success', '', ['cost' => $cost, 'authorization_id' => (int) $auth['id']]);
+            $pdo->commit();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            json_response(['ok' => false, 'error' => 'library_download_failed'], 500);
+            exit;
+        }
+    }
+
+    $downloadName = preg_replace('/[^A-Za-z0-9_.-]+/', '_', (string) $item['original_filename']) ?: 'decor.stl';
+    header('Content-Type: ' . (string) $item['mime_type']);
+    header('Content-Length: ' . (string) filesize($filePath));
+    header('Content-Disposition: attachment; filename="' . $downloadName . '"');
+    header('X-Content-Type-Options: nosniff');
+    readfile($filePath);
     exit;
 }
 

@@ -100,7 +100,7 @@ API and webhook:
 - `/api/client-log` is rate-limited to 10 logs/minute per user or IP and should not receive geometry or form payloads.
 - `/api/health` reports `env` and `db_driver`. In production it must never return `db_driver=sqlite`.
 
-## Credits and exports
+## Credits, exports and library
 
 - Valid server-billed export type identifiers are `svg`, `png`, `pdf`, `stl` and `zip`.
 - `server-php/src/credits.php` owns the WASM app registry, configured export cost and partial-credit bonus policy.
@@ -110,6 +110,10 @@ API and webhook:
 - `/api/exports/consume` revalidates the account or admin session and `app_id`, atomically claims the authorization, applies any configured client top-up, debits client credits, writes `credit_ledger`, and logs/audits the event. Admin consumption is one-shot, logged, and does not debit or create ledger rows.
 - The browser generates the actual file locally after authorization. PHP never generates STL, PDF, ZIP or mesh data.
 - The current app only bills house STL and plan-section SVG/PNG/PDF exports. Door STL, wall-mount STL, panels ZIP, calculations PDF and diagnostic exports are local/free unless the browser wiring is intentionally changed.
+- `/library` is the public decor file library. Clients download a server-hosted STL or image to their computer, then import it manually into the WASM decoration uploader.
+- `/api/library` returns active file metadata. `/api/library/stl-preview` returns a lightweight sampled STL preview JSON without serving the source STL. `/api/library/authorize` checks the active account and current credit balance, then creates a short-lived token. `/api/library/download` claims that token, debits client credits, writes `credit_ledger` with reason `library_download`, records `library_downloads`, then streams the private file.
+- Admins manage library STL/image files from the back-office Librairie tab. Uploads are capped at 4 MiB for STL and 2 MiB for images, stored in `server-php/data/library`, outside `public_html`. Admin sessions can preview images through `/api/library/preview` and authorize/download library files at cost zero through one-shot PHP-session tokens.
+- Browser console prefixes: `[nichoir library admin]` for back-office file selection, upload submit and STL preview loading; `[nichoir library user]` for public library loading, STL preview, authorization and download redirect.
 
 ## Stripe
 

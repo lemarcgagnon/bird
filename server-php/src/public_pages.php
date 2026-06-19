@@ -8,6 +8,7 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/helpers.php';
 require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/layout.php';
+require_once __DIR__ . '/library.php';
 require_once __DIR__ . '/mail.php';
 
 function render_landing_page(): void
@@ -120,6 +121,196 @@ function render_pricing_page(): void
 	        </ul>
 	      </section>
 	    ', '/pricing');
+}
+
+function render_library_page(): void
+{
+    $lang = page_lang();
+    $appUrl = h(dev_app_url($lang));
+    $body = '
+      <section class="page-title">
+        <p class="eyebrow">' . h(page_t('library_eyebrow', $lang)) . '</p>
+        <h1>' . h(page_t('library_title', $lang)) . '</h1>
+        <p>' . h(page_t('library_body', $lang)) . '</p>
+      </section>
+      <section class="panel feature-panel library-flow">
+        <div>
+          <p class="eyebrow">' . h(page_t('library_flow_label', $lang)) . '</p>
+          <h2>' . h(page_t('library_flow_title', $lang)) . '</h2>
+          <p>' . h(page_t('library_flow_body', $lang)) . '</p>
+        </div>
+        <div class="hero-actions">
+          <a class="primary" href="' . $appUrl . '">' . h(page_t('open_app', $lang)) . '</a>
+          <a class="secondary" href="' . h(page_path_with_lang('/account', $lang)) . '">' . h(page_t('nav_account', $lang)) . '</a>
+        </div>
+      </section>
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>' . h(page_t('library_items_title', $lang)) . '</h2>
+            <p>' . h(page_t('library_items_body', $lang)) . '</p>
+          </div>
+        </div>
+        <p class="notice" data-library-message>' . h(page_t('library_loading', $lang)) . '</p>
+        <div class="library-grid" data-library-grid></div>
+      </section>
+      <script>
+        (() => {
+          const prefix = "[nichoir library user]";
+          const log = (message, details = {}) => console.log(prefix, message, details);
+          const lang = ' . json_encode($lang) . ';
+          const labels = lang === "en"
+            ? {
+                empty: "No library STL is available yet.",
+                load_error: "Unable to load the library.",
+                download: "Download STL",
+                credits: "credits",
+                cost: "Cost",
+                size: "Size",
+                downloads: "Downloads",
+                authorize_error: "Download refused",
+                insufficient: "Not enough credits. Open your account to add credits.",
+                started: "Download started. Import the STL from your computer in the app decoration panel."
+              }
+            : {
+                empty: "Aucun STL de librairie disponible pour le moment.",
+                load_error: "Impossible de charger la librairie.",
+                download: "Telecharger STL",
+                credits: "credits",
+                cost: "Cout",
+                size: "Taille",
+                downloads: "Telechargements",
+                authorize_error: "Telechargement refuse",
+                insufficient: "Credits insuffisants. Ouvre ton compte pour ajouter des credits.",
+                started: "Telechargement lance. Importe ensuite le STL depuis ton ordinateur dans le panneau Decor de l app."
+              };
+          const grid = document.querySelector("[data-library-grid]");
+          const message = document.querySelector("[data-library-message]");
+          const esc = (value) => String(value ?? "").replace(/[&<>"\']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\'": "&#39;" }[ch]));
+          const fmtBytes = (bytes) => {
+            const value = Number(bytes || 0);
+            if (value >= 1048576) return `${(value / 1048576).toFixed(1)} Mo`;
+            if (value >= 1024) return `${Math.round(value / 1024)} Ko`;
+            return `${value} o`;
+          };
+          function renderStlPreview(canvas, payload) {
+            const ctx = canvas.getContext("2d");
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = "#fffdf8";
+            ctx.fillRect(0, 0, w, h);
+            const triangles = payload.triangles || [];
+            if (!triangles.length) {
+              ctx.fillStyle = "#6e665b";
+              ctx.fillText("Preview indisponible", 18, h / 2);
+              return;
+            }
+            const pts = triangles.flat();
+            const xs = pts.map((p) => p[0]);
+            const ys = pts.map((p) => p[1]);
+            const minX = Math.min(...xs), maxX = Math.max(...xs);
+            const minY = Math.min(...ys), maxY = Math.max(...ys);
+            const scale = Math.min((w - 32) / Math.max(maxX - minX, 0.001), (h - 32) / Math.max(maxY - minY, 0.001));
+            const map = (p) => [16 + (p[0] - minX) * scale, h - 16 - (p[1] - minY) * scale];
+            ctx.lineWidth = 0.7;
+            ctx.strokeStyle = "rgba(36,33,29,0.28)";
+            ctx.fillStyle = "rgba(181,111,24,0.12)";
+            triangles.forEach((tri) => {
+              const a = map(tri[0]), b = map(tri[1]), c = map(tri[2]);
+              ctx.beginPath();
+              ctx.moveTo(a[0], a[1]);
+              ctx.lineTo(b[0], b[1]);
+              ctx.lineTo(c[0], c[1]);
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
+            });
+          }
+          async function loadStlPreviews() {
+            const canvases = Array.from(document.querySelectorAll("[data-library-stl-preview]"));
+            for (const canvas of canvases) {
+              const itemId = Number(canvas.dataset.libraryStlPreview || 0);
+              log("stl_preview_request", { itemId });
+              try {
+                const payload = await api(`/api/library/stl-preview?item_id=${encodeURIComponent(itemId)}`, { headers: {} });
+                renderStlPreview(canvas, payload);
+                log("stl_preview_loaded", { itemId, sampled_triangles: payload.sampled_triangles, bbox: payload.bbox });
+              } catch (err) {
+                log("stl_preview_failed", { itemId, error: err.message || String(err) });
+              }
+            }
+          }
+          async function api(path, options = {}) {
+            const res = await fetch(path, {
+              credentials: "same-origin",
+              headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+              ...options
+            });
+            const payload = await res.json().catch(() => ({}));
+            if (!res.ok || payload.ok === false) {
+              const error = new Error(payload.error || res.statusText || "request_failed");
+              error.status = res.status;
+              error.payload = payload;
+              throw error;
+            }
+            return payload;
+          }
+          async function load() {
+            try {
+              log("library_load_start");
+              const payload = await api("/api/library");
+              const items = payload.items || [];
+              log("library_load_success", { count: items.length, items: items.map((item) => ({ id: item.id, type: item.media_type, cost: item.cost, name: item.original_filename })) });
+              message.textContent = items.length ? "" : labels.empty;
+              grid.innerHTML = items.map((item) => `
+                <article class="library-card">
+                  <div>
+                    <span class="plan-badge">${esc((item.media_type || item.file_ext || "file").toUpperCase())}</span>
+                    <h3>${esc(item.title || item.original_filename)}</h3>
+                    <p>${esc(item.original_filename)}</p>
+                    ${item.media_type === "stl" ? `<canvas class="library-stl-canvas" width="260" height="260" data-library-stl-preview="${esc(item.id)}" aria-label="Preview STL ${esc(item.title || item.original_filename)}"></canvas>` : ``}
+                  </div>
+                  <dl>
+                    <div><dt>${labels.size}</dt><dd>${fmtBytes(item.file_size_bytes)}</dd></div>
+                    <div><dt>${labels.downloads}</dt><dd>${esc(item.download_count)}</dd></div>
+                    <div><dt>${labels.cost}</dt><dd>${esc(item.cost)} ${labels.credits}</dd></div>
+                  </dl>
+                  <button type="button" data-library-download="${esc(item.id)}">${labels.download}</button>
+                </article>
+              `).join("");
+              await loadStlPreviews();
+            } catch (err) {
+              log("library_load_failed", { error: err.message || String(err) });
+              message.textContent = labels.load_error;
+            }
+          }
+          grid.addEventListener("click", async (event) => {
+            const button = event.target.closest("[data-library-download]");
+            if (!button) return;
+            button.disabled = true;
+            try {
+              log("download_authorize_start", { itemId: Number(button.dataset.libraryDownload || 0) });
+              const payload = await api("/api/library/authorize", {
+                method: "POST",
+                body: JSON.stringify({ item_id: Number(button.dataset.libraryDownload || 0) })
+              });
+              log("download_authorize_success", { itemId: payload.item_id, cost: payload.cost, expires_at: payload.expires_at, admin: Boolean(payload.admin) });
+              message.textContent = labels.started;
+              log("download_redirect", { itemId: payload.item_id, download_url: payload.download_url });
+              window.location.href = payload.download_url;
+            } catch (err) {
+              log("download_authorize_failed", { itemId: Number(button.dataset.libraryDownload || 0), status: err.status || 0, error: err.message || String(err) });
+              message.textContent = err.status === 402 ? labels.insufficient : `${labels.authorize_error}: ${err.message}`;
+            } finally {
+              button.disabled = false;
+            }
+          });
+          load();
+        })();
+      </script>
+    ';
+    page_response(page_t('library_title', $lang), $body, '/library');
 }
 
 function render_about_page(): void

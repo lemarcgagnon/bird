@@ -33,7 +33,7 @@ SQLite is local/development only. The cPanel artifact defaults to `NICHOIR_ENV=p
       src/
       migrations/
       data/
-        (empty at build time)
+        (empty at build time; runtime library uploads may create library/)
 ```
 
 ## Public files
@@ -55,7 +55,7 @@ Keep outside `public_html`:
 1. `server-php/public/index.php`.
 2. `server-php/src/`.
 3. Runtime migration SQL files in `server-php/migrations/`.
-4. Empty `server-php/data/` and `logs/` directories for generated runtime files.
+4. Empty `server-php/data/` and `logs/` directories for generated runtime files. Library STL/image uploads are runtime files under `server-php/data/library/` and must stay private.
 5. `config/production.php`.
 6. `logs/`.
 

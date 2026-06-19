@@ -718,6 +718,57 @@ function ensure_mysql_schema(PDO $pdo): void
         INDEX idx_export_authorizations_user_id (user_id),
         CONSTRAINT fk_export_authorizations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )' . $tableOptions);
+    $pdo->exec('CREATE TABLE IF NOT EXISTS library_items (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        filename VARCHAR(191) NOT NULL UNIQUE,
+        original_filename VARCHAR(191) NOT NULL,
+        title VARCHAR(140) NOT NULL DEFAULT \'\',
+        media_type VARCHAR(32) NOT NULL DEFAULT \'stl\',
+        mime_type VARCHAR(120) NOT NULL DEFAULT \'model/stl\',
+        file_ext VARCHAR(16) NOT NULL DEFAULT \'stl\',
+        file_size_bytes INT UNSIGNED NOT NULL DEFAULT 0,
+        cost INT NOT NULL DEFAULT 1,
+        is_active TINYINT(1) NOT NULL DEFAULT 1,
+        download_count INT UNSIGNED NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_library_items_is_active (is_active),
+        INDEX idx_library_items_media_type (media_type)
+    )' . $tableOptions);
+    $pdo->exec('CREATE TABLE IF NOT EXISTS library_download_authorizations (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        library_item_id INT UNSIGNED NOT NULL,
+        credit_cost INT NOT NULL,
+        auth_token_hash VARCHAR(128) NOT NULL UNIQUE,
+        status VARCHAR(32) NOT NULL DEFAULT \'authorized\',
+        expires_at DATETIME NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        consumed_at DATETIME NULL,
+        downloaded_at DATETIME NULL,
+        ip_hash VARCHAR(64) NOT NULL DEFAULT \'\',
+        user_agent VARCHAR(255) NOT NULL DEFAULT \'\',
+        INDEX idx_library_download_authorizations_user_id (user_id),
+        INDEX idx_library_download_authorizations_library_item_id (library_item_id),
+        INDEX idx_library_download_authorizations_status (status),
+        CONSTRAINT fk_library_download_authorizations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT fk_library_download_authorizations_item FOREIGN KEY (library_item_id) REFERENCES library_items(id) ON DELETE CASCADE
+    )' . $tableOptions);
+    $pdo->exec('CREATE TABLE IF NOT EXISTS library_downloads (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        library_item_id INT UNSIGNED NOT NULL,
+        library_download_authorization_id INT UNSIGNED NOT NULL,
+        downloaded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        ip_hash VARCHAR(64) NOT NULL DEFAULT \'\',
+        user_agent VARCHAR(255) NOT NULL DEFAULT \'\',
+        request_uri VARCHAR(255) NOT NULL DEFAULT \'\',
+        INDEX idx_library_downloads_user_id (user_id),
+        INDEX idx_library_downloads_library_item_id (library_item_id),
+        CONSTRAINT fk_library_downloads_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT fk_library_downloads_item FOREIGN KEY (library_item_id) REFERENCES library_items(id) ON DELETE CASCADE,
+        CONSTRAINT fk_library_downloads_authorization FOREIGN KEY (library_download_authorization_id) REFERENCES library_download_authorizations(id) ON DELETE CASCADE
+    )' . $tableOptions);
     $pdo->exec('CREATE TABLE IF NOT EXISTS credit_ledger (
         id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         user_id INT UNSIGNED NOT NULL,
@@ -860,6 +911,13 @@ function ensure_mysql_schema(PDO $pdo): void
     mysql_add_index_if_missing($pdo, 'sessions', 'idx_sessions_user_id', '(user_id)');
     mysql_add_index_if_missing($pdo, 'export_authorizations', 'idx_export_authorizations_app_id', '(app_id)');
     mysql_add_index_if_missing($pdo, 'export_authorizations', 'idx_export_authorizations_user_id', '(user_id)');
+    mysql_add_index_if_missing($pdo, 'library_items', 'idx_library_items_is_active', '(is_active)');
+    mysql_add_index_if_missing($pdo, 'library_items', 'idx_library_items_media_type', '(media_type)');
+    mysql_add_index_if_missing($pdo, 'library_download_authorizations', 'idx_library_download_authorizations_user_id', '(user_id)');
+    mysql_add_index_if_missing($pdo, 'library_download_authorizations', 'idx_library_download_authorizations_library_item_id', '(library_item_id)');
+    mysql_add_index_if_missing($pdo, 'library_download_authorizations', 'idx_library_download_authorizations_status', '(status)');
+    mysql_add_index_if_missing($pdo, 'library_downloads', 'idx_library_downloads_user_id', '(user_id)');
+    mysql_add_index_if_missing($pdo, 'library_downloads', 'idx_library_downloads_library_item_id', '(library_item_id)');
     mysql_add_index_if_missing($pdo, 'credit_ledger', 'idx_credit_ledger_user_id', '(user_id)');
     mysql_add_index_if_missing($pdo, 'credit_ledger', 'idx_credit_ledger_user_reason_reference', '(user_id, reason, reference)');
     mysql_add_index_if_missing($pdo, 'subscriptions', 'idx_subscriptions_user_id', '(user_id)');

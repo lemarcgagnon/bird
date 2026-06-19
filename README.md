@@ -105,6 +105,7 @@ Le package genere est `wasm/pkg/`; `app/app.js` importe `wasm/pkg/wasm.js`.
 - Viewer Three.js avec modes plein, filaire, rayons X, aretes et mode eclate.
 - Light/dark mode, langue FR/EN et liens de retour au site PHP.
 - Decorations SVG, PNG, JPG/JPEG, GIF fixe, WEBP et import STL local. Les images deviennent des reliefs heightmap; les STL sont attaches au panneau cible et inclus dans le mesh maison.
+- Librairie decors cote PHP: les clients telechargent un STL ou une image avec credits, le fichier arrive sur leur ordinateur, puis ils l'importent dans le panneau Decor de l'app WASM comme fichier local.
 - Largeur/hauteur de decor peuvent etre liees pour garder les proportions pendant le redimensionnement.
 - Clipping decor au panneau et aux trous: les trous de porte/perchoir dominent toujours le decor de facade. Le viewer affiche le STL importe en mode preview permissif pour permettre le placement. Si ce decor deviendrait ouvert ou non-manifold apres clipping, il est exclu des exports stricts au lieu de produire un fichier casse.
 - Rapport mesh avec comptage des triangles degeneres, valeurs non finies, aretes ouvertes, aretes non-manifold et indicateur `watertight`.
@@ -147,6 +148,7 @@ Etat actuel:
 - Les chemins evidents `/admin` et `/administration` sont reserves/interdits et ne doivent pas etre utilises en production.
 - Le chemin admin reel ne doit pas etre expose dans les pages publiques: il est seulement rendu cote admin, et les pages publiques ne doivent pas injecter `NICHOIR_ADMIN_PATH` dans leur HTML/JS.
 - L'admin gere clients, credits, statuts, abonnements manuels, tickets, logs, exports DB, reglages DB/Stripe/SMTP et tests email.
+- `/library` liste les fichiers actifs de la librairie et affiche un preview STL echantillonne sans donner le fichier source. `/api/library/authorize` cree une autorisation courte et `/api/library/download` debite les credits atomiquement au moment ou le fichier est servi. Les fichiers sont stockes hors webroot dans `server-php/data/library`; le preview image `/api/library/preview` est reserve a l'admin.
 - `/api/admin/session` ne renvoie que l'etat admin de la session PHP courante; l'app statique l'utilise pour afficher les telechargements diagnostiques admin-only et debloquer les exports premium a cout zero sans exposer le chemin admin configure.
 - `server-php/src/credits.php` est la source de verite pour le registre des apps WASM, les types d'export factures, le cout configure et le bonus de solde partiel.
 - `/api/apps` expose les apps WASM connues du backend. L'app actuelle utilise `app_id=nichoir`.

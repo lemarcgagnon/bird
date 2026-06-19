@@ -6,6 +6,7 @@ require_once __DIR__ . '/admin_core.php';
 require_once __DIR__ . '/admin_helpers.php';
 require_once __DIR__ . '/credits.php';
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/library.php';
 require_once __DIR__ . '/mail.php';
 require_once __DIR__ . '/stripe.php';
 
@@ -411,6 +412,58 @@ function admin_update_credit_policy_settings(PDO $pdo): void
     header('Location: ' . admin_redirect_url(['notice' => 'credits_regles']) . '#admin-settings');
 }
 
+function admin_upload_library_item(PDO $pdo): void
+{
+    $files = $_FILES['library_files'] ?? ($_FILES['library_file'] ?? []);
+    $result = library_admin_upload_many(
+        $pdo,
+        is_array($files) ? $files : [],
+        (string) ($_POST['title'] ?? ''),
+        (int) ($_POST['cost'] ?? 1),
+        isset($_POST['is_active'])
+    );
+    $uploadedCount = count($result['uploaded']);
+    $failedCount = count($result['failed']);
+    if ($uploadedCount > 0) {
+        audit_admin_action($pdo, null, 'upload_library_item', null, 'uploaded:' . $uploadedCount . ':failed:' . $failedCount);
+        header('Location: ' . admin_redirect_url([
+            'notice' => 'library_uploaded',
+            'uploaded' => $uploadedCount,
+            'failed' => $failedCount,
+        ]) . '#admin-library');
+        return;
+    }
+    audit_admin_action($pdo, null, 'upload_library_item_failed', null, 'failed:' . $failedCount);
+    header('Location: ' . admin_redirect_url([
+        'notice' => 'library_upload_error',
+        'uploaded' => 0,
+        'failed' => $failedCount,
+    ]) . '#admin-library');
+}
+
+function admin_update_library_item(PDO $pdo): void
+{
+    $itemId = (int) ($_POST['library_item_id'] ?? 0);
+    if ($itemId <= 0) {
+        header('Location: ' . admin_redirect_url(['notice' => 'library_item_invalid']) . '#admin-library');
+        return;
+    }
+    try {
+        library_admin_update(
+            $pdo,
+            $itemId,
+            (string) ($_POST['title'] ?? ''),
+            (int) ($_POST['cost'] ?? 1),
+            isset($_POST['is_active'])
+        );
+        audit_admin_action($pdo, null, 'update_library_item', null, 'library_item:' . $itemId);
+        header('Location: ' . admin_redirect_url(['notice' => 'library_updated']) . '#admin-library');
+    } catch (Throwable $e) {
+        audit_admin_action($pdo, null, 'update_library_item_failed', null, 'library_item:' . $itemId);
+        header('Location: ' . admin_redirect_url(['notice' => 'library_update_error']) . '#admin-library');
+    }
+}
+
 function admin_database_config_from_post(): array
 {
     $local = db_local_config();
@@ -509,6 +562,14 @@ function handle_admin_post(): void
     }
     if ($action === 'update_credit_policy_settings') {
         admin_update_credit_policy_settings($pdo);
+        return;
+    }
+    if ($action === 'upload_library_item') {
+        admin_upload_library_item($pdo);
+        return;
+    }
+    if ($action === 'update_library_item') {
+        admin_update_library_item($pdo);
         return;
     }
     if ($action === 'test_database_settings') {

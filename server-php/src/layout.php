@@ -17,6 +17,7 @@ function page_response(string $title, string $body, string $active = '', int $st
     $nav = [
         '/' => page_t('nav_home', $lang),
         '/pricing' => page_t('nav_pricing', $lang),
+        '/library' => page_t('nav_library', $lang),
         '/about' => page_t('nav_about', $lang),
         '/contact' => page_t('nav_contact', $lang),
         '/account' => page_t('nav_account', $lang),
@@ -28,7 +29,7 @@ function page_response(string $title, string $body, string $active = '', int $st
     echo '<link rel="alternate" hreflang="fr" href="' . h(page_path_with_lang($path, 'fr')) . '">';
     echo '<link rel="alternate" hreflang="en" href="' . h(page_path_with_lang($path, 'en')) . '">';
     echo '<link rel="alternate" hreflang="x-default" href="' . h(page_path_with_lang($path, 'fr')) . '">';
-    echo '<link rel="stylesheet" href="/site.css?v=20260616-web-shell"></head><body>';
+    echo '<link rel="stylesheet" href="/site.css?v=20260618-library-images"></head><body>';
     echo '<header class="site-header"><a class="brand" href="' . h(page_path_with_lang('/', $lang)) . '">Nichoir</a><nav class="site-nav" aria-label="' . h(page_t('aria_main_navigation', $lang)) . '">';
     foreach ($nav as $href => $label) {
         $class = $active === $href ? ' class="active"' : '';
@@ -43,7 +44,7 @@ function page_response(string $title, string $body, string $active = '', int $st
     echo '<main>' . $body . '</main>';
     echo '<footer class="site-footer">';
     echo '<div><a class="brand" href="' . h(page_path_with_lang('/', $lang)) . '">Nichoir</a><p>' . h(page_t('footer', $lang)) . '</p></div>';
-    echo '<nav aria-label="' . h(page_t('footer_product', $lang)) . '"><strong>' . h(page_t('footer_product', $lang)) . '</strong><a href="' . h(page_path_with_lang('/pricing', $lang)) . '">' . h(page_t('nav_pricing', $lang)) . '</a><a href="' . h(dev_app_url($lang)) . '">' . h(page_t('open_app', $lang)) . '</a></nav>';
+    echo '<nav aria-label="' . h(page_t('footer_product', $lang)) . '"><strong>' . h(page_t('footer_product', $lang)) . '</strong><a href="' . h(page_path_with_lang('/pricing', $lang)) . '">' . h(page_t('nav_pricing', $lang)) . '</a><a href="' . h(page_path_with_lang('/library', $lang)) . '">' . h(page_t('nav_library', $lang)) . '</a><a href="' . h(dev_app_url($lang)) . '">' . h(page_t('open_app', $lang)) . '</a></nav>';
     echo '<nav aria-label="' . h(page_t('footer_support', $lang)) . '"><strong>' . h(page_t('footer_support', $lang)) . '</strong><a href="' . h(page_path_with_lang('/contact', $lang)) . '">' . h(page_t('nav_contact', $lang)) . '</a><a href="' . h(page_path_with_lang('/account#account-support', $lang)) . '">' . h(page_t('footer_ticket', $lang)) . '</a></nav>';
     echo '<nav aria-label="' . h(page_t('footer_company', $lang)) . '"><strong>' . h(page_t('footer_company', $lang)) . '</strong><a href="' . h(page_path_with_lang('/about', $lang)) . '">' . h(page_t('nav_about', $lang)) . '</a><a href="' . h(page_path_with_lang('/terms', $lang)) . '">' . h(page_t('footer_terms', $lang)) . '</a><a href="' . h(page_path_with_lang('/legal', $lang)) . '">' . h(page_t('footer_legal', $lang)) . '</a></nav>';
     echo '</footer>';

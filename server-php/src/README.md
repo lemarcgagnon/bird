@@ -9,6 +9,7 @@ This folder contains the backend code included by `server-php/public/index.php`.
 - `logger.php`: request IDs, hashed IP/email values, app logs, audit logs, Stripe event logs, slow request logging and fatal shutdown logging.
 - `auth.php`: account session cookie creation/deletion, legacy bearer-token fallback, current-user lookup, public user projection, activation codes, auth rate limits, email quotas and client IP helper.
 - `credits.php`: valid premium export types, WASM app registry, configured export credit cost and positive-partial-balance bonus calculation.
+- `library.php`: private decor library storage helpers for STL/images, public item projection, admin upload/update helpers and short-lived library download authorization helpers.
 - `mail.php`: SMTP settings, header sanitization, raw SMTP sending, activation email support, contact email support and ticket notification queue/send helpers.
 - `stripe.php`: Stripe settings, API request helper, Checkout session creation, billing portal creation and webhook signature verification.
 - `stripe_webhook.php`: Stripe event idempotence, event logs, checkout completion handling, invoice/payment sync and subscription sync.
@@ -39,6 +40,7 @@ This folder contains the backend code included by `server-php/public/index.php`.
 - Credit policy belongs in `credits.php`; do not reintroduce per-export hardcoded costs in routes or UI copy.
 - Client debit flows must write `credit_ledger` rows and app/audit logs.
 - `/api/exports/consume` must atomically claim an authorization before debit or admin completion. Client authorizations live in the database; admin zero-cost authorizations live in PHP session and must still be one-shot.
+- `/api/library/download` is the debit point for library STL/image files. Authorizing a library download alone must not consume credits, library files must remain outside the public web root, and `/api/library/preview` must remain admin-only.
 - Contact handling must keep CSRF, honeypot, rate limit, input limits, SMTP failure handling and flash messages.
 - Stripe secrets and SMTP passwords should prefer environment variables or private config in production.
 - Admin write actions require a logged-in PHP session and CSRF; keep them auditable.

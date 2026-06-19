@@ -18,5 +18,6 @@
 server-php/data/db-config.php
 server-php/data/installed.lock.php
 server-php/data/*.php
+server-php/data/library/
 config/production.php
 deployment/namecheap/config/production.php

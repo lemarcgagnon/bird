@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/admin_actions.php';
+require_once __DIR__ . '/library.php';
 require_once __DIR__ . '/admin_core.php';
 require_once __DIR__ . '/admin_exports.php';
 require_once __DIR__ . '/admin_helpers.php';
@@ -612,6 +613,7 @@ function render_admin_database_export_panel(): string
         'support' => ['Support', 'Tickets, messages et notifications email.'],
         'credits' => ['Credits', 'Historique des mouvements de credits par client.'],
         'exports' => ['Autorisations', 'Demandes d exports, couts, et consommation.'],
+        'library' => ['Librairie', 'Fichiers STL de librairie, couts, activation et telechargements clients.'],
     ];
 
     $rows = '';
@@ -634,6 +636,184 @@ function render_admin_database_export_panel(): string
         </div>
         <div class="table-wrap export-scope-table"><table><thead><tr><th>Portee</th><th>Formats</th></tr></thead><tbody>' . $rows . '</tbody></table></div>
       </section>
+    ';
+}
+
+function render_admin_library_panel(PDO $pdo): string
+{
+    $items = library_list_items($pdo, false);
+    $itemRows = '';
+    $imageCards = '';
+    $stlCards = '';
+    foreach ($items as $item) {
+        $typeLabel = library_is_image_item($item) ? 'Image' : 'STL';
+        if (library_is_image_item($item)) {
+            $imageCards .= '
+              <article class="library-preview-card">
+                <img src="/api/library/preview?item_id=' . (int) $item['id'] . '" alt="' . h((string) ($item['title'] ?: $item['original_filename'])) . '" loading="lazy">
+                <div>
+                  <strong>' . h((string) ($item['title'] ?: $item['original_filename'])) . '</strong>
+                  <span>' . h((string) $item['original_filename']) . '</span>
+                </div>
+              </article>
+            ';
+        } elseif (library_is_stl_item($item)) {
+            $stlCards .= '
+              <article class="library-preview-card library-stl-preview-card">
+                <canvas width="260" height="260" data-admin-stl-preview="' . (int) $item['id'] . '" aria-label="Preview STL ' . h((string) ($item['title'] ?: $item['original_filename'])) . '"></canvas>
+                <div>
+                  <strong>' . h((string) ($item['title'] ?: $item['original_filename'])) . '</strong>
+                  <span>' . h((string) $item['original_filename']) . '</span>
+                </div>
+              </article>
+            ';
+        }
+        $itemRows .= '
+          <tr>
+            <td>#' . (int) $item['id'] . '</td>
+            <td>' . h($typeLabel) . '</td>
+            <td>
+              <form class="inline-form library-item-form" method="post" action="' . h(admin_base_path()) . '">
+                ' . admin_csrf_input() . '
+                <input type="hidden" name="action" value="update_library_item">
+                <input type="hidden" name="library_item_id" value="' . (int) $item['id'] . '">
+                <label><span>Titre</span><input type="text" name="title" maxlength="140" value="' . h((string) $item['title']) . '"></label>
+                <label><span>Cout</span><input type="number" name="cost" min="1" step="1" value="' . (int) $item['cost'] . '"></label>
+                <label class="checkbox-label"><input type="checkbox" name="is_active" value="1"' . ((int) $item['is_active'] === 1 ? ' checked' : '') . '> Actif</label>
+                <button type="submit">Enregistrer</button>
+              </form>
+              <p class="control-note">' . h((string) $item['original_filename']) . ' · ' . number_format(((int) $item['file_size_bytes']) / 1024, 0, ',', ' ') . ' Ko</p>
+            </td>
+            <td>' . (int) $item['download_count'] . '</td>
+            <td>' . h((string) $item['updated_at']) . '</td>
+          </tr>
+        ';
+    }
+    if ($itemRows === '') {
+        $itemRows = '<tr><td colspan="5">Aucun fichier dans la librairie.</td></tr>';
+    }
+    if ($imageCards === '') {
+        $imageCards = '<p class="control-note">Aucune image uploadee pour le moment.</p>';
+    }
+    if ($stlCards === '') {
+        $stlCards = '<p class="control-note">Aucun STL uploade pour le moment.</p>';
+    }
+
+    $downloads = $pdo->query(
+        'SELECT library_downloads.id, library_downloads.downloaded_at, users.email, library_items.title, library_items.original_filename
+         FROM library_downloads
+         JOIN users ON users.id = library_downloads.user_id
+         JOIN library_items ON library_items.id = library_downloads.library_item_id
+         ORDER BY library_downloads.id DESC LIMIT 20'
+    )->fetchAll();
+    $downloadRows = '';
+    foreach ($downloads as $download) {
+        $downloadRows .= '<tr><td>#' . (int) $download['id'] . '</td><td>' . h((string) $download['email']) . '</td><td>' . h((string) ($download['title'] ?: $download['original_filename'])) . '</td><td>' . h((string) $download['downloaded_at']) . '</td></tr>';
+    }
+    if ($downloadRows === '') {
+        $downloadRows = '<tr><td colspan="4">Aucun telechargement librairie.</td></tr>';
+    }
+
+    return '
+      <section class="panel">
+        <div class="section-heading">
+          <div>
+            <h2>Librairie decors</h2>
+            <p>Ajoute des fichiers STL ou images prives que les clients telechargent avec credits, puis importent localement dans le decor WASM.</p>
+          </div>
+        </div>
+        <form class="admin-directory-form" method="post" action="' . h(admin_base_path()) . '" enctype="multipart/form-data" data-library-admin-upload-form>
+          ' . admin_csrf_input() . '
+          <input type="hidden" name="action" value="upload_library_item">
+          <label><span>Fichiers STL ou images</span><input type="file" name="library_files[]" accept=".stl,.png,.jpg,.jpeg,.gif,.webp,model/stl,image/png,image/jpeg,image/gif,image/webp" multiple required></label>
+          <label><span>Titre commun optionnel</span><input type="text" name="title" maxlength="140" placeholder="Laisse vide pour utiliser les noms de fichiers"></label>
+          <label><span>Cout credits</span><input type="number" name="cost" min="1" step="1" value="1"></label>
+          <label class="checkbox-label"><input type="checkbox" name="is_active" value="1" checked> Publier dans la librairie</label>
+          <button type="submit">Ajouter fichiers</button>
+        </form>
+        <p class="control-note">Limites: 4 Mo par STL, 2 Mo par image PNG/JPEG/GIF/WEBP. Les fichiers restent dans <code>server-php/data/library</code>, hors racine publique.</p>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Type</th><th>Fichier</th><th>Telechargements</th><th>MAJ</th></tr></thead><tbody>' . $itemRows . '</tbody></table></div>
+      </section>
+      <section class="panel">
+        <h2>Visualiseur STL</h2>
+        <div class="library-preview-grid">' . $stlCards . '</div>
+      </section>
+      <section class="panel">
+        <h2>Visualiseur images</h2>
+        <div class="library-preview-grid">' . $imageCards . '</div>
+      </section>
+      <section class="panel">
+        <h2>Telechargements librairie recents</h2>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Fichier</th><th>Date</th></tr></thead><tbody>' . $downloadRows . '</tbody></table></div>
+      </section>
+      <script>
+        (() => {
+          const prefix = "[nichoir library admin]";
+          const log = (message, details = {}) => console.log(prefix, message, details);
+          function renderStlPreview(canvas, payload) {
+            const ctx = canvas.getContext("2d");
+            const w = canvas.width;
+            const h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+            ctx.fillStyle = "#fffdf8";
+            ctx.fillRect(0, 0, w, h);
+            const triangles = payload.triangles || [];
+            if (!triangles.length) {
+              ctx.fillStyle = "#6e665b";
+              ctx.fillText("Preview indisponible", 18, h / 2);
+              return;
+            }
+            const pts = triangles.flat();
+            const xs = pts.map((p) => p[0]);
+            const ys = pts.map((p) => p[1]);
+            const minX = Math.min(...xs), maxX = Math.max(...xs);
+            const minY = Math.min(...ys), maxY = Math.max(...ys);
+            const scale = Math.min((w - 32) / Math.max(maxX - minX, 0.001), (h - 32) / Math.max(maxY - minY, 0.001));
+            const map = (p) => [16 + (p[0] - minX) * scale, h - 16 - (p[1] - minY) * scale];
+            ctx.lineWidth = 0.7;
+            ctx.strokeStyle = "rgba(36,33,29,0.28)";
+            ctx.fillStyle = "rgba(181,111,24,0.12)";
+            triangles.forEach((tri) => {
+              const a = map(tri[0]), b = map(tri[1]), c = map(tri[2]);
+              ctx.beginPath();
+              ctx.moveTo(a[0], a[1]);
+              ctx.lineTo(b[0], b[1]);
+              ctx.lineTo(c[0], c[1]);
+              ctx.closePath();
+              ctx.fill();
+              ctx.stroke();
+            });
+          }
+          document.querySelectorAll("[data-admin-stl-preview]").forEach(async (canvas) => {
+            const itemId = Number(canvas.dataset.adminStlPreview || 0);
+            log("stl_preview_request", { itemId });
+            try {
+              const res = await fetch(`/api/library/stl-preview?item_id=${encodeURIComponent(itemId)}`, { credentials: "same-origin" });
+              const payload = await res.json();
+              if (!res.ok || payload.ok === false) throw new Error(payload.error || res.statusText);
+              renderStlPreview(canvas, payload);
+              log("stl_preview_loaded", { itemId, sampled_triangles: payload.sampled_triangles, bbox: payload.bbox });
+            } catch (error) {
+              log("stl_preview_failed", { itemId, error: error.message || String(error) });
+            }
+          });
+          const form = document.querySelector("[data-library-admin-upload-form]");
+          const input = form?.querySelector("input[type=file]");
+          input?.addEventListener("change", () => {
+            log("upload_files_selected", {
+              count: input.files.length,
+              files: Array.from(input.files).map((file) => ({ name: file.name, type: file.type, size: file.size }))
+            });
+          });
+          form?.addEventListener("submit", () => {
+            log("upload_submit", {
+              count: input?.files.length || 0,
+              cost: form.querySelector("[name=cost]")?.value,
+              active: form.querySelector("[name=is_active]")?.checked
+            });
+          });
+        })();
+      </script>
     ';
 }
 
@@ -821,6 +1001,25 @@ function render_admin_login_page(): void
     ', admin_login_path(), $configured ? 200 : 503);
 }
 
+function admin_notice_message(string $notice): string
+{
+    if ($notice === 'library_uploaded') {
+        $uploaded = max(0, (int) ($_GET['uploaded'] ?? 0));
+        $failed = max(0, (int) ($_GET['failed'] ?? 0));
+        return 'Librairie mise a jour: ' . $uploaded . ' fichier(s) ajoute(s)' . ($failed > 0 ? ', ' . $failed . ' fichier(s) refuse(s)' : '') . '.';
+    }
+    if ($notice === 'library_upload_error') {
+        $failed = max(0, (int) ($_GET['failed'] ?? 0));
+        return 'Upload librairie refuse. Verifie le format, la taille ou la limite PHP upload_max_filesize/post_max_size' . ($failed > 0 ? ' (' . $failed . ' fichier(s) refuse(s))' : '') . '.';
+    }
+    $messages = [
+        'library_updated' => 'Fichier librairie mis a jour.',
+        'library_update_error' => 'Mise a jour du fichier librairie refusee.',
+        'library_item_invalid' => 'Fichier librairie invalide.',
+    ];
+    return $messages[$notice] ?? $notice;
+}
+
 function render_admin_page(): void
 {
     if (!admin_allowed()) {
@@ -878,7 +1077,7 @@ function render_admin_page(): void
 	          <button type="submit">Se deconnecter</button>
 	        </form>
 	      </section>
-      ' . ($notice !== '' ? '<p class="notice">' . h($notice) . '</p>' : '') . '
+      ' . ($notice !== '' ? '<p class="notice">' . h(admin_notice_message($notice)) . '</p>' : '') . '
       <section class="metrics">
         <div><span>Clients</span><strong>' . $summary['users'] . '</strong></div>
         <div><span>Credits totaux</span><strong>' . $summary['credits'] . '</strong></div>
@@ -890,6 +1089,7 @@ function render_admin_page(): void
       <nav class="tab-nav" data-tab-nav role="tablist" aria-label="Sections admin">
         <a id="tab-admin-support" role="tab" aria-selected="true" aria-controls="admin-support" data-tab-target="admin-support" href="#admin-support">Support</a>
         <a id="tab-admin-clients" role="tab" aria-selected="false" aria-controls="admin-clients" data-tab-target="admin-clients" href="#admin-clients">Clients</a>
+        <a id="tab-admin-library" role="tab" aria-selected="false" aria-controls="admin-library" data-tab-target="admin-library" href="#admin-library">Librairie</a>
         <a id="tab-admin-billing" role="tab" aria-selected="false" aria-controls="admin-billing" data-tab-target="admin-billing" href="#admin-billing">Billing</a>
         <a id="tab-admin-exports" role="tab" aria-selected="false" aria-controls="admin-exports" data-tab-target="admin-exports" href="#admin-exports">Exports</a>
         <a id="tab-admin-logs" role="tab" aria-selected="false" aria-controls="admin-logs" data-tab-target="admin-logs" href="#admin-logs">Logs</a>
@@ -901,6 +1101,9 @@ function render_admin_page(): void
 	      <section class="tab-panel" id="admin-clients" data-tab-panel role="tabpanel" aria-labelledby="tab-admin-clients" hidden>
         ' . render_create_user_panel() . '
         ' . render_user_directory($pdo) . '
+      </section>
+	      <section class="tab-panel" id="admin-library" data-tab-panel role="tabpanel" aria-labelledby="tab-admin-library" hidden>
+        ' . render_admin_library_panel($pdo) . '
       </section>
 	      <section class="tab-panel" id="admin-billing" data-tab-panel role="tabpanel" aria-labelledby="tab-admin-billing" hidden>
         <section class="panel"><h2>Abonnements recents</h2><div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Plan</th><th>Etat</th><th>Fin periode</th><th>MAJ</th></tr></thead><tbody>' . $subscriptionRows . '</tbody></table></div></section>

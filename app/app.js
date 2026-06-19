@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260619-wasm-library-preview-modal';
+} from '../wasm/pkg/wasm.js?v=20260619-high-detail-library-preview';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260619-wasm-library-preview-modal';
+const APP_BUILD_ID = '20260619-high-detail-library-preview';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -1323,7 +1323,7 @@ async function openDecorLibraryPreviewModal(panel, itemId) {
   if (status) status.textContent = '';
   debugStlLog('decor library preview modal opened', { itemId: item.id });
   try {
-    const payload = await apiRequest(`/api/library/stl-preview?item_id=${encodeURIComponent(item.id)}`);
+    const payload = await apiRequest(`/api/library/stl-preview?item_id=${encodeURIComponent(item.id)}&detail=high`);
     if (stage) {
       stage.replaceChildren();
       renderDecorLibraryStlPayload(stage, payload, { minWidth: 280, minHeight: 280 });

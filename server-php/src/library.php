@@ -13,6 +13,7 @@ const LIBRARY_MAX_STL_MB = 25;
 const LIBRARY_MAX_IMAGE_BYTES = 2097152;
 const LIBRARY_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 const LIBRARY_STL_PREVIEW_MAX_TRIANGLES = 700;
+const LIBRARY_STL_PREVIEW_HIGH_MAX_TRIANGLES = 12000;
 const LIBRARY_STL_THUMBNAIL_MAX_TRIANGLES = 24000;
 
 function library_stl_upload_max_mb(PDO $pdo): int
@@ -450,7 +451,7 @@ function library_project_stl_preview(array $triangles): array
     ];
 }
 
-function library_stl_preview_payload(array $item): array
+function library_stl_preview_payload(array $item, int $maxTriangles = LIBRARY_STL_PREVIEW_MAX_TRIANGLES): array
 {
     if (!library_is_stl_item($item)) {
         throw new RuntimeException('not_stl_preview');
@@ -461,7 +462,10 @@ function library_stl_preview_payload(array $item): array
         throw new RuntimeException('library_file_missing');
     }
     $looksAscii = str_starts_with(ltrim(substr($bytes, 0, 256)), 'solid') && preg_match('/\bvertex\b/', substr($bytes, 0, 4096));
-    $triangles = $looksAscii ? library_stl_vertices_from_ascii($bytes) : library_stl_vertices_from_binary($bytes);
+    $maxTriangles = max(1, min(LIBRARY_STL_PREVIEW_HIGH_MAX_TRIANGLES, $maxTriangles));
+    $triangles = $looksAscii
+        ? library_stl_vertices_from_ascii($bytes, $maxTriangles)
+        : library_stl_vertices_from_binary($bytes, $maxTriangles);
     $preview = library_project_stl_preview($triangles);
     return [
         'ok' => true,

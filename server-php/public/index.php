@@ -371,7 +371,10 @@ if ($method === 'GET' && $path === '/api/library/stl-preview') {
         exit;
     }
     try {
-        json_response(library_stl_preview_payload($item));
+        $maxTriangles = (string) ($_GET['detail'] ?? '') === 'high'
+            ? LIBRARY_STL_PREVIEW_HIGH_MAX_TRIANGLES
+            : LIBRARY_STL_PREVIEW_MAX_TRIANGLES;
+        json_response(library_stl_preview_payload($item, $maxTriangles));
     } catch (Throwable $e) {
         app_log(db(), 'warning', 'api', 'library_stl_preview_failed', 'Preview STL librairie refuse', ['item_id' => $itemId, 'error' => $e->getMessage()], null, 422);
         json_response(['ok' => false, 'error' => 'library_stl_preview_failed'], 422);

@@ -371,6 +371,9 @@ function ensure_runtime_schema(PDO $pdo): void
     if (table_has_column($pdo, 'library_items', 'id') && !table_has_column($pdo, 'library_items', 'description')) {
         $pdo->exec("ALTER TABLE library_items ADD COLUMN description TEXT NOT NULL DEFAULT ''");
     }
+    if (table_has_column($pdo, 'library_items', 'id') && !table_has_column($pdo, 'library_items', 'deleted_at')) {
+        $pdo->exec("ALTER TABLE library_items ADD COLUMN deleted_at TEXT");
+    }
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS auth_rate_limits (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -736,6 +739,7 @@ function ensure_mysql_schema(PDO $pdo): void
         download_count INT UNSIGNED NOT NULL DEFAULT 0,
         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        deleted_at DATETIME NULL,
         INDEX idx_library_items_is_active (is_active),
         INDEX idx_library_items_media_type (media_type)
     )' . $tableOptions);
@@ -907,6 +911,7 @@ function ensure_mysql_schema(PDO $pdo): void
     mysql_add_column_if_missing($pdo, 'payments', 'invoice_pdf', 'invoice_pdf VARCHAR(2048) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'stripe_events', 'error', 'error VARCHAR(500) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'library_items', 'description', 'description TEXT NOT NULL AFTER title');
+    mysql_add_column_if_missing($pdo, 'library_items', 'deleted_at', 'deleted_at DATETIME NULL AFTER updated_at');
     mysql_add_column_if_missing($pdo, 'tickets', 'priority', 'priority VARCHAR(32) NOT NULL DEFAULT \'normal\'');
     mysql_add_column_if_missing($pdo, 'tickets', 'assigned_to', 'assigned_to VARCHAR(120) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'tickets', 'closed_at', 'closed_at DATETIME NULL');

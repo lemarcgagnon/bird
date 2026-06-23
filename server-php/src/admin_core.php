@@ -175,7 +175,7 @@ function admin_tab_value(string $value, string $fallback = 'admin-clients'): str
 
 function admin_client_panel_value(string $value): string
 {
-    $allowed = ['profile', 'credits', 'billing', 'exports'];
+    $allowed = ['profile', 'credits', 'billing', 'exports', 'library'];
     return in_array($value, $allowed, true) ? $value : 'profile';
 }
 

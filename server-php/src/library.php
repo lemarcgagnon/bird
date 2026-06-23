@@ -168,6 +168,11 @@ function library_public_item(array $item): array
     return $public;
 }
 
+function library_item_is_deleted(array $item): bool
+{
+    return trim((string) ($item['deleted_at'] ?? '')) !== '';
+}
+
 function library_is_image_item(array $item): bool
 {
     return (string) ($item['media_type'] ?? '') === 'image';
@@ -239,7 +244,7 @@ function library_list_items(PDO $pdo, bool $activeOnly = true): array
 {
     $sql = 'SELECT * FROM library_items';
     if ($activeOnly) {
-        $sql .= ' WHERE is_active = 1';
+        $sql .= ' WHERE is_active = 1 AND (deleted_at IS NULL OR deleted_at = \'\')';
     }
     $sql .= ' ORDER BY updated_at DESC, id DESC';
     return $pdo->query($sql)->fetchAll();
@@ -249,7 +254,7 @@ function library_find_item(PDO $pdo, int $itemId, bool $activeOnly = true): ?arr
 {
     $sql = 'SELECT * FROM library_items WHERE id = ?';
     if ($activeOnly) {
-        $sql .= ' AND is_active = 1';
+        $sql .= ' AND is_active = 1 AND (deleted_at IS NULL OR deleted_at = \'\')';
     }
     $stmt = $pdo->prepare($sql);
     $stmt->execute([$itemId]);
@@ -349,34 +354,41 @@ function library_admin_update(PDO $pdo, int $itemId, string $title, string $desc
     if ($item === null) {
         throw new RuntimeException('library_item_not_found');
     }
+    if (library_item_is_deleted($item)) {
+        throw new RuntimeException('library_item_archived');
+    }
     $stmt = $pdo->prepare('UPDATE library_items SET title = ?, description = ?, cost = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
     $stmt->execute([library_clean_title($title, (string) $item['original_filename']), substr(trim($description), 0, 1000), max(1, $cost), $active ? 1 : 0, $itemId]);
 }
 
-function library_admin_delete(PDO $pdo, int $itemId): array
+function library_admin_archive(PDO $pdo, int $itemId): array
 {
     $item = library_find_item($pdo, $itemId, false);
     if ($item === null) {
         throw new RuntimeException('library_item_not_found');
     }
     $path = library_item_path($item);
+    $thumbnailPath = library_thumbnail_path($item);
+    $alreadyDeleted = library_item_is_deleted($item);
     $pdo->beginTransaction();
     try {
-        $pdo->prepare('DELETE FROM library_downloads WHERE library_item_id = ?')->execute([$itemId]);
-        $pdo->prepare('DELETE FROM library_download_authorizations WHERE library_item_id = ?')->execute([$itemId]);
-        $pdo->prepare('DELETE FROM library_items WHERE id = ?')->execute([$itemId]);
+        if (!$alreadyDeleted) {
+            $pdo->prepare("UPDATE library_download_authorizations SET status = 'revoked' WHERE library_item_id = ? AND status = 'authorized'")
+                ->execute([$itemId]);
+            $pdo->prepare('UPDATE library_items SET is_active = 0, deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
+                ->execute([$itemId]);
+        }
         $pdo->commit();
     } catch (Throwable $e) {
         $pdo->rollBack();
         throw $e;
     }
-    $thumbnailPath = library_thumbnail_path($item);
     $deletedFile = !is_file($path) || @unlink($path);
     if (is_file($thumbnailPath)) {
         @unlink($thumbnailPath);
     }
     library_delete_app_image_assets($item);
-    return ['item' => $item, 'deleted_file' => $deletedFile];
+    return ['item' => $item, 'deleted_file' => $deletedFile, 'already_deleted' => $alreadyDeleted];
 }
 
 function library_create_authorization(PDO $pdo, array $user, array $item): array
@@ -439,6 +451,66 @@ function library_authorization_download_url(array $authorization): string
 {
     return '/api/library/download?item_id=' . (int) $authorization['item_id']
         . '&authorization=' . rawurlencode((string) $authorization['authorization']);
+}
+
+function library_download_request_reference(int $itemId): string
+{
+    return '/api/library/download?item_id=' . $itemId;
+}
+
+function library_user_downloads(PDO $pdo, int $userId, int $limit = 50): array
+{
+    $limit = max(1, min(200, $limit));
+    $stmt = $pdo->prepare(
+        'SELECT library_downloads.id,
+                library_downloads.downloaded_at,
+                library_downloads.library_item_id,
+                library_download_authorizations.id AS authorization_id,
+                library_download_authorizations.credit_cost,
+                library_items.title,
+                library_items.original_filename,
+                library_items.media_type,
+                library_items.file_ext,
+                library_items.file_size_bytes,
+                library_items.deleted_at
+         FROM library_downloads
+         JOIN library_download_authorizations ON library_download_authorizations.id = library_downloads.library_download_authorization_id
+         JOIN library_items ON library_items.id = library_downloads.library_item_id
+         WHERE library_downloads.user_id = ?
+         ORDER BY library_downloads.id DESC
+         LIMIT ?'
+    );
+    $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+    $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll();
+}
+
+function library_user_authorizations(PDO $pdo, int $userId, int $limit = 50): array
+{
+    $limit = max(1, min(200, $limit));
+    $stmt = $pdo->prepare(
+        'SELECT library_download_authorizations.id,
+                library_download_authorizations.library_item_id,
+                library_download_authorizations.credit_cost,
+                library_download_authorizations.status,
+                library_download_authorizations.created_at,
+                library_download_authorizations.expires_at,
+                library_download_authorizations.consumed_at,
+                library_download_authorizations.downloaded_at,
+                library_items.title,
+                library_items.original_filename,
+                library_items.deleted_at
+         FROM library_download_authorizations
+         LEFT JOIN library_items ON library_items.id = library_download_authorizations.library_item_id
+         WHERE library_download_authorizations.user_id = ?
+         ORDER BY library_download_authorizations.id DESC
+         LIMIT ?'
+    );
+    $stmt->bindValue(1, $userId, PDO::PARAM_INT);
+    $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll();
 }
 
 function library_stl_vertices_from_binary(string $bytes, int $maxTriangles = LIBRARY_STL_PREVIEW_MAX_TRIANGLES): array

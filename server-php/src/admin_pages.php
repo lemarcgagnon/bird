@@ -339,6 +339,36 @@ function render_client_exports_detail_panel(PDO $pdo, array $user): string
     return '<section class="modal-section"><h3>Exports client</h3><div class="table-wrap"><table><thead><tr><th>App</th><th>Type</th><th>Cout</th><th>Etat</th><th>Cree</th><th>Consomme</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
 }
 
+function render_client_library_detail_panel(PDO $pdo, array $user): string
+{
+    $downloads = library_user_downloads($pdo, (int) $user['id'], 50);
+    $downloadRows = '';
+    foreach ($downloads as $row) {
+        $fileStatus = trim((string) ($row['deleted_at'] ?? '')) !== ''
+            ? '<span class="status-pill status-archived">Archive</span>'
+            : '<span class="status-pill status-active">Actif</span>';
+        $downloadRows .= '<tr><td>#' . (int) $row['id'] . '</td><td>' . h((string) ($row['title'] ?: $row['original_filename'])) . '</td><td>' . h((string) $row['original_filename']) . '</td><td>' . (int) $row['credit_cost'] . '</td><td>' . $fileStatus . '</td><td>' . h((string) $row['downloaded_at']) . '</td></tr>';
+    }
+    $downloadRows = $downloadRows ?: '<tr><td colspan="6">Aucun telechargement librairie.</td></tr>';
+
+    $authorizationRows = '';
+    foreach (library_user_authorizations($pdo, (int) $user['id'], 50) as $row) {
+        $authorizationRows .= '<tr><td>#' . (int) $row['id'] . '</td><td>#' . (int) $row['library_item_id'] . '</td><td>' . h((string) ($row['title'] ?: $row['original_filename'] ?: '-')) . '</td><td>' . (int) $row['credit_cost'] . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) $row['created_at']) . '</td><td>' . h((string) ($row['downloaded_at'] ?: $row['consumed_at'] ?: '-')) . '</td></tr>';
+    }
+    $authorizationRows = $authorizationRows ?: '<tr><td colspan="7">Aucune autorisation librairie.</td></tr>';
+
+    return '
+      <section class="modal-section">
+        <h3>Telechargements librairie</h3>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Titre</th><th>Fichier</th><th>Cout</th><th>Etat fichier</th><th>Date</th></tr></thead><tbody>' . $downloadRows . '</tbody></table></div>
+      </section>
+      <section class="modal-section">
+        <h3>Autorisations librairie</h3>
+        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Item</th><th>Fichier</th><th>Cout</th><th>Etat</th><th>Cree</th><th>Consomme</th></tr></thead><tbody>' . $authorizationRows . '</tbody></table></div>
+      </section>
+    ';
+}
+
 function render_client_modal(PDO $pdo, array $user, string $closeHash, string $activePanel): string
 {
     $title = 'Client #' . (int) $user['id'] . ' - ' . (string) $user['email'];
@@ -346,11 +376,13 @@ function render_client_modal(PDO $pdo, array $user, string $closeHash, string $a
     $credits = render_client_credits_panel($pdo, $user);
     $billing = render_client_billing_detail_panel($pdo, $user);
     $exports = render_client_exports_detail_panel($pdo, $user);
+    $library = render_client_library_detail_panel($pdo, $user);
     $tabs = [
         'client-profile' => 'Profil',
         'client-credits' => 'Credits',
         'client-billing' => 'Billing',
         'client-exports' => 'Exports',
+        'client-library' => 'Librairie',
     ];
     if (!array_key_exists($activePanel, $tabs)) {
         $activePanel = 'client-profile';
@@ -368,6 +400,7 @@ function render_client_modal(PDO $pdo, array $user, string $closeHash, string $a
 	      <div id="client-credits" data-modal-panel="client-credits" role="tabpanel" aria-labelledby="tab-client-credits"' . ($activePanel === 'client-credits' ? '' : ' hidden') . '>' . $credits . '</div>
 	      <div id="client-billing" data-modal-panel="client-billing" role="tabpanel" aria-labelledby="tab-client-billing"' . ($activePanel === 'client-billing' ? '' : ' hidden') . '>' . $billing . '</div>
 	      <div id="client-exports" data-modal-panel="client-exports" role="tabpanel" aria-labelledby="tab-client-exports"' . ($activePanel === 'client-exports' ? '' : ' hidden') . '>' . $exports . '</div>
+	      <div id="client-library" data-modal-panel="client-library" role="tabpanel" aria-labelledby="tab-client-library"' . ($activePanel === 'client-library' ? '' : ' hidden') . '>' . $library . '</div>
     ');
 }
 
@@ -673,16 +706,24 @@ function render_admin_library_panel(PDO $pdo): string
     $items = library_list_items($pdo, false);
     $phpUploadLimits = library_ini_upload_limit_label();
     $stlUploadMaxMb = library_stl_upload_max_mb($pdo);
-    $itemRows = '';
+    $itemCards = '';
     foreach ($items as $item) {
+        $deleted = library_item_is_deleted($item);
         $typeLabel = library_is_image_item($item) ? 'Image' : 'STL';
         $itemId = (int) $item['id'];
         $itemLabel = (string) ($item['title'] ?: $item['original_filename']);
-        $previewHtml = library_is_stl_item($item)
+        $statusLabel = $deleted
+            ? '<span class="status-pill status-archived">Archive</span>'
+            : ((int) $item['is_active'] === 1
+                ? '<span class="status-pill status-active">Actif</span>'
+                : '<span class="status-pill status-inactive">Inactif</span>');
+        $previewHtml = $deleted
+            ? '<div class="library-thumbnail library-archived-file">Fichier archive</div>'
+            : (library_is_stl_item($item)
             ? '<div class="library-admin-stl-viewer library-stl-viewer" data-library-admin-stl-viewer="' . $itemId . '">Chargement STL original...</div>'
-            : '<img class="library-thumbnail" data-library-thumbnail-img="' . $itemId . '" src="/api/library/thumbnail?item_id=' . $itemId . '&v=' . rawurlencode((string) ($item['updated_at'] ?? '')) . '" alt="Preview ' . h($itemLabel) . '" loading="lazy">';
+            : '<img class="library-thumbnail" data-library-thumbnail-img="' . $itemId . '" src="/api/library/thumbnail?item_id=' . $itemId . '&v=' . rawurlencode((string) ($item['updated_at'] ?? '')) . '" alt="Preview ' . h($itemLabel) . '" loading="lazy">');
         $thumbnailActions = '';
-        if (library_is_stl_item($item)) {
+        if (!$deleted && library_is_stl_item($item)) {
             $thumbnailActions = '
                   <div class="library-thumbnail-actions">
                     <form class="inline-form" method="post" action="' . h(admin_base_path()) . '">
@@ -694,13 +735,16 @@ function render_admin_library_panel(PDO $pdo): string
                     <button type="button" class="secondary" data-library-thumbnail-editor="' . $itemId . '" data-library-thumbnail-title="' . h($itemLabel) . '">PNG client</button>
                   </div>';
         }
-        $itemRows .= '
-          <tr>
-            <td>#' . $itemId . '</td>
-            <td>' . h($typeLabel) . '</td>
-            <td>
-              <div class="library-admin-item">
-                ' . $previewHtml . '
+        $itemBody = '';
+        if ($deleted) {
+            $itemBody = '
+                <div class="library-admin-item-body">
+                  <strong>' . h($itemLabel) . '</strong>
+                  <p>' . h((string) ($item['description'] ?? '')) . '</p>
+                  <p class="control-note">' . h((string) $item['original_filename']) . ' · ' . h(admin_format_bytes((int) $item['file_size_bytes'])) . ' · archive le ' . h((string) ($item['deleted_at'] ?? '-')) . '. Historique comptable conserve.</p>
+                </div>';
+        } else {
+            $itemBody = '
                 <div class="library-admin-item-body">
                   <form class="inline-form library-item-form" method="post" action="' . h(admin_base_path()) . '">
                     ' . admin_csrf_input() . '
@@ -713,28 +757,48 @@ function render_admin_library_panel(PDO $pdo): string
                     <button type="submit">Enregistrer</button>
                   </form>
                   ' . $thumbnailActions . '
-                  <form class="inline-form library-item-delete-form" method="post" action="' . h(admin_base_path()) . '" onsubmit="return confirm(\'Supprimer definitivement ce fichier de la librairie ?\');">
+                  <form class="inline-form library-item-archive-form danger-form" method="post" action="' . h(admin_base_path()) . '" onsubmit="return confirm(\'Archiver ce fichier et supprimer l original prive ? L historique comptable sera conserve.\');">
                     ' . admin_csrf_input() . '
-                    <input type="hidden" name="action" value="delete_library_item">
+                    <input type="hidden" name="action" value="archive_library_item">
                     <input type="hidden" name="library_item_id" value="' . $itemId . '">
-                    <button type="submit" class="secondary">Supprimer</button>
+                    <button type="submit">Archiver fichier</button>
                   </form>
                   <p class="control-note">' . h((string) $item['original_filename']) . ' · ' . h(admin_format_bytes((int) $item['file_size_bytes'])) . '</p>
-                </div>
+                </div>';
+        }
+        $itemCards .= '
+          <article class="library-admin-card">
+            <header class="library-admin-card-head">
+              <div class="library-admin-card-title">
+                <span>#' . $itemId . '</span>
+                <h3>' . h($itemLabel) . '</h3>
+                <p>' . h((string) $item['original_filename']) . '</p>
               </div>
-            </td>
-            <td>' . h(admin_format_bytes((int) $item['file_size_bytes'])) . '</td>
-            <td>' . (int) $item['download_count'] . '</td>
-            <td>' . h((string) $item['updated_at']) . '</td>
-          </tr>
+              <div class="library-admin-card-badges">
+                <span class="plan-badge">' . h($typeLabel) . '</span>
+                ' . $statusLabel . '
+              </div>
+            </header>
+            <div class="library-admin-item">
+              <div class="library-admin-preview-block">
+                ' . $previewHtml . '
+              </div>
+              ' . $itemBody . '
+            </div>
+            <dl class="library-admin-card-meta">
+              <div><dt>Taille</dt><dd>' . h(admin_format_bytes((int) $item['file_size_bytes'])) . '</dd></div>
+              <div><dt>Telechargements</dt><dd>' . (int) $item['download_count'] . '</dd></div>
+              <div><dt>MAJ</dt><dd>' . h((string) $item['updated_at']) . '</dd></div>
+            </dl>
+          </article>
         ';
     }
-    if ($itemRows === '') {
-        $itemRows = '<tr><td colspan="6">Aucun fichier dans la librairie.</td></tr>';
+    if ($itemCards === '') {
+        $itemCards = '<p class="library-admin-empty">Aucun fichier dans la librairie.</p>';
     }
 
     $downloads = $pdo->query(
-        'SELECT library_downloads.id, library_downloads.downloaded_at, users.email, library_items.title, library_items.original_filename
+        'SELECT library_downloads.id, library_downloads.user_id, library_downloads.downloaded_at, users.email, library_items.title, library_items.original_filename
          FROM library_downloads
          JOIN users ON users.id = library_downloads.user_id
          JOIN library_items ON library_items.id = library_downloads.library_item_id
@@ -742,7 +806,8 @@ function render_admin_library_panel(PDO $pdo): string
     )->fetchAll();
     $downloadRows = '';
     foreach ($downloads as $download) {
-        $downloadRows .= '<tr><td>#' . (int) $download['id'] . '</td><td>' . h((string) $download['email']) . '</td><td>' . h((string) ($download['title'] ?: $download['original_filename'])) . '</td><td>' . h((string) $download['downloaded_at']) . '</td></tr>';
+        $clientHref = admin_client_modal_url((int) $download['user_id'], 'admin-library', 'library');
+        $downloadRows .= '<tr><td>#' . (int) $download['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $download['email']) . '</a></td><td>' . h((string) ($download['title'] ?: $download['original_filename'])) . '</td><td>' . h((string) $download['downloaded_at']) . '</td></tr>';
     }
     if ($downloadRows === '') {
         $downloadRows = '<tr><td colspan="4">Aucun telechargement librairie.</td></tr>';
@@ -769,7 +834,7 @@ function render_admin_library_panel(PDO $pdo): string
         <p class="control-note">Limites applicatives: ' . $stlUploadMaxMb . ' Mo par STL, 2 Mo par image PNG/JPEG/GIF/WEBP. Limites PHP actives: ' . h($phpUploadLimits) . '. Les originaux restent dans <code>server-php/data/library</code> et sont aussi copies localement dans <code>app/images/library</code> pour les apercus locaux.</p>
         <div class="library-preview-grid" data-library-admin-selected-preview></div>
         <p class="control-note" data-library-admin-debug>Aucun fichier selectionne.</p>
-        <div class="table-wrap"><table><thead><tr><th>ID</th><th>Type</th><th>Fichier</th><th>Taille</th><th>Telechargements</th><th>MAJ</th></tr></thead><tbody>' . $itemRows . '</tbody></table></div>
+        <div class="library-admin-list">' . $itemCards . '</div>
         <div class="library-thumbnail-modal" hidden data-library-thumbnail-modal data-csrf="' . h(admin_csrf_token()) . '">
           <div class="library-thumbnail-dialog" role="dialog" aria-modal="true" aria-labelledby="library-thumbnail-title">
             <div class="library-thumbnail-dialog-head">
@@ -1092,9 +1157,9 @@ function admin_notice_message(string $notice): string
         'library_updated' => 'Fichier librairie mis a jour.',
         'library_update_error' => 'Mise a jour du fichier librairie refusee.',
         'library_item_invalid' => 'Fichier librairie invalide.',
-        'library_deleted' => 'Fichier librairie supprime.',
-        'library_deleted_file_missing' => 'Entree librairie supprimee. Le fichier prive etait deja absent.',
-        'library_delete_error' => 'Suppression du fichier librairie refusee.',
+        'library_archived' => 'Fichier librairie archive. Historique comptable conserve.',
+        'library_archived_file_kept' => 'Fichier librairie archive, mais suppression de l original prive non confirmee. Verifie les logs systeme.',
+        'library_archive_error' => 'Archivage du fichier librairie refuse.',
         'library_settings_updated' => 'Reglages librairie mis a jour.',
         'library_thumbnail_regenerated' => 'Miniature STL regeneree.',
         'library_thumbnail_error' => 'Miniature STL refusee.',

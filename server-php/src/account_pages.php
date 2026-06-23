@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/helpers.php';
+require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/i18n.php';
 require_once __DIR__ . '/layout.php';
 require_once __DIR__ . '/stripe.php';
@@ -15,6 +16,7 @@ function render_account_page(): void
         'none' => page_t('none', $lang),
         'account_load_prompt' => page_t('account_load_prompt', $lang),
         'no_movement' => page_t('no_movement', $lang),
+        'no_library_download' => page_t('no_library_download', $lang),
         'no_payment' => page_t('no_payment', $lang),
         'no_ticket' => page_t('no_ticket', $lang),
         'no_message' => page_t('no_message', $lang),
@@ -42,6 +44,7 @@ function render_account_page(): void
         'reply_denied' => page_t('reply_denied', $lang),
         'status_denied' => page_t('status_denied', $lang),
         'status' => page_t('status', $lang),
+        'archived' => page_t('archived', $lang),
         'priority' => page_t('priority', $lang),
         'updated' => page_t('updated', $lang),
         'support' => page_t('support', $lang),
@@ -51,19 +54,59 @@ function render_account_page(): void
         'too_many_requests' => page_t('too_many_requests', $lang),
         'invalid_credentials' => page_t('invalid_credentials', $lang),
     ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    page_response(page_t('account_title', $lang), '
+    $accountUser = function_exists('current_user') ? current_user() : null;
+    $isAuthenticated = is_array($accountUser);
+    $accountTitleKey = $isAuthenticated ? 'account_title' : 'account_guest_title';
+    $accountBodyKey = $isAuthenticated ? 'account_body' : 'account_guest_body';
+    page_response(page_t($accountTitleKey, $lang), '
 	      <section class="page-title">
 	        <p class="eyebrow">' . h(page_t('account_eyebrow', $lang)) . '</p>
-	        <h1>' . h(page_t('account_title', $lang)) . '</h1>
-	        <p>' . h(page_t('account_body', $lang)) . '</p>
+	        <h1>' . h(page_t($accountTitleKey, $lang)) . '</h1>
+	        <p>' . h(page_t($accountBodyKey, $lang)) . '</p>
 	      </section>
-	      <section class="panel account-panel">
+	      <p class="notice account-status-message" data-account-message role="status">' . h(page_t('account_load_prompt', $lang)) . '</p>
+' . (!$isAuthenticated ? '
+	      <section class="account-guest" data-account-guest-shell>
+	        <section class="account-grid">
+	          <div class="panel">
+	            <h2>' . h(page_t('login', $lang)) . '</h2>
+	            <form class="client-form" data-login-form>
+		      <label><span>' . h(page_t('email', $lang)) . '</span><input name="email" type="email" autocomplete="username" required></label>
+		      <label><span>' . h(page_t('password', $lang)) . '</span><input name="password" type="password" autocomplete="current-password" required></label>
+	              <button type="submit">' . h(page_t('login', $lang)) . '</button>
+	            </form>
+	          </div>
+	          <div class="panel">
+	            <h2>' . h(page_t('create_account', $lang)) . '</h2>
+	            <form class="client-form" data-register-form>
+	              <label><span>' . h(page_t('name', $lang)) . '</span><input name="display_name" type="text" maxlength="120"></label>
+	              <label><span>' . h(page_t('email', $lang)) . '</span><input name="email" type="email" placeholder="client@example.com" required></label>
+	              <label><span>' . h(page_t('password', $lang)) . '</span><input name="password" type="password" minlength="8" maxlength="200" required></label>
+	              <button type="submit">' . h(page_t('create_account', $lang)) . '</button>
+	            </form>
+	          </div>
+	          <div class="panel">
+	            <h2>' . h(page_t('activation', $lang)) . '</h2>
+	            <form class="client-form" data-activation-form>
+	              <label><span>' . h(page_t('email', $lang)) . '</span><input name="email" type="email" placeholder="client@example.com" required></label>
+	              <label><span>' . h(page_t('code', $lang)) . '</span><input name="code" type="text" inputmode="numeric" minlength="6" maxlength="6" autocomplete="one-time-code" required></label>
+	              <div class="form-actions">
+	                <button type="submit">' . h(page_t('activate', $lang)) . '</button>
+	                <button type="button" data-resend-activation>' . h(page_t('resend_code', $lang)) . '</button>
+	              </div>
+	            </form>
+	          </div>
+	        </section>
+	      </section>
+' : '') . '
+' . ($isAuthenticated ? '
+	      <section class="panel account-panel" data-account-summary>
 	        <div class="stat"><span>' . h(page_t('status', $lang)) . '</span><strong data-account-state>' . h(page_t('not_connected', $lang)) . '</strong></div>
 	        <div class="stat"><span>' . h(page_t('email', $lang)) . '</span><strong data-account-email>-</strong></div>
 	        <div class="stat"><span>' . h(page_t('credits', $lang)) . '</span><strong data-account-credits>0</strong></div>
 	        <div class="stat"><span>' . h(page_t('subscription', $lang)) . '</span><strong data-account-plan>' . h(page_t('none', $lang)) . '</strong></div>
-	        <p data-account-message>' . h(page_t('account_load_prompt', $lang)) . '</p>
 	      </section>
+	      <div data-account-authenticated-shell>
 	      <nav class="tab-nav" data-tab-nav role="tablist" aria-label="' . h(page_t('account_sections', $lang)) . '">
 		        <a id="tab-account-profile" role="tab" aria-selected="true" aria-controls="account-profile" data-tab-target="account-profile" href="#account-profile">' . h(page_t('profile', $lang)) . '</a>
 		        <a id="tab-account-billing" role="tab" aria-selected="false" aria-controls="account-billing" data-tab-target="account-billing" href="#account-billing">' . h(page_t('billing', $lang)) . '</a>
@@ -78,49 +121,23 @@ function render_account_page(): void
 	            <label><span>' . h(page_t('name', $lang)) . '</span><input name="display_name" type="text" maxlength="120"></label>
 	            <label><span>' . h(page_t('email', $lang)) . '</span><input name="email" type="email" required></label>
 	            <label><span>' . h(page_t('new_password', $lang)) . '</span><input name="password" type="password" minlength="8" maxlength="200" placeholder="' . h(page_t('keep_password', $lang)) . '"></label>
-	            <button type="submit">' . h(page_t('save_profile', $lang)) . '</button>
-	          </form>
-        </section>
-
-        <section class="account-grid">
-        <div class="panel">
-	          <h2>' . h(page_t('login', $lang)) . '</h2>
-	          <form class="client-form" data-login-form>
-		            <label><span>' . h(page_t('email', $lang)) . '</span><input name="email" type="email" autocomplete="username" required></label>
-		            <label><span>' . h(page_t('password', $lang)) . '</span><input name="password" type="password" autocomplete="current-password" required></label>
 	            <div class="form-actions">
-	              <button type="submit">' . h(page_t('login', $lang)) . '</button>
+	              <button type="submit">' . h(page_t('save_profile', $lang)) . '</button>
 	              <button type="button" data-logout>' . h(page_t('logout', $lang)) . '</button>
 	            </div>
 	          </form>
-	        </div>
-	        <div class="panel">
-	          <h2>' . h(page_t('create_account', $lang)) . '</h2>
-	          <form class="client-form" data-register-form>
-	            <label><span>' . h(page_t('name', $lang)) . '</span><input name="display_name" type="text" maxlength="120"></label>
-	            <label><span>' . h(page_t('email', $lang)) . '</span><input name="email" type="email" placeholder="client@example.com" required></label>
-	            <label><span>' . h(page_t('password', $lang)) . '</span><input name="password" type="password" minlength="8" maxlength="200" required></label>
-	            <button type="submit">' . h(page_t('create_account', $lang)) . '</button>
-	          </form>
-	        </div>
-	        <div class="panel">
-	          <h2>' . h(page_t('activation', $lang)) . '</h2>
-	          <form class="client-form" data-activation-form>
-	            <label><span>' . h(page_t('email', $lang)) . '</span><input name="email" type="email" placeholder="client@example.com" required></label>
-	            <label><span>' . h(page_t('code', $lang)) . '</span><input name="code" type="text" inputmode="numeric" minlength="6" maxlength="6" autocomplete="one-time-code" required></label>
-	            <div class="form-actions">
-	              <button type="submit">' . h(page_t('activate', $lang)) . '</button>
-	              <button type="button" data-resend-activation>' . h(page_t('resend_code', $lang)) . '</button>
-	            </div>
-	          </form>
-        </div>
-      </section>
+        </section>
       </section>
 
 	      <section class="tab-panel" id="account-billing" data-tab-panel role="tabpanel" aria-labelledby="tab-account-billing" hidden>
         <section class="panel">
 	          <h2>' . h(page_t('credit_history', $lang)) . '</h2>
 	          <div class="table-wrap"><table><thead><tr><th>' . h(page_t('delta', $lang)) . '</th><th>' . h(page_t('reason', $lang)) . '</th><th>' . h(page_t('reference', $lang)) . '</th><th>' . h(page_t('date', $lang)) . '</th></tr></thead><tbody data-ledger-rows><tr><td colspan="4">' . h(page_t('not_connected', $lang)) . '.</td></tr></tbody></table></div>
+        </section>
+
+        <section class="panel">
+	          <h2>' . h(page_t('library_download_history', $lang)) . '</h2>
+	          <div class="table-wrap"><table><thead><tr><th>ID</th><th>' . h(page_t('file', $lang)) . '</th><th>' . h(page_t('cost', $lang)) . '</th><th>' . h(page_t('status', $lang)) . '</th><th>' . h(page_t('date', $lang)) . '</th></tr></thead><tbody data-library-download-rows><tr><td colspan="5">' . h(page_t('not_connected', $lang)) . '.</td></tr></tbody></table></div>
         </section>
 
         <section class="account-grid">
@@ -192,6 +209,8 @@ function render_account_page(): void
 	        <article><h2>' . h(page_t('master_server', $lang)) . '</h2><p>' . h(page_t('master_server_body', $lang)) . '</p></article>
 	        <article><h2>Stripe</h2><p>' . h(page_t('stripe_webhook_body', $lang)) . '</p></article>
 	      </section>
+	      </div>
+' : '') . '
 
 	      <script>
 	      const I18N = ' . ($clientI18n ?: '{}') . ';
@@ -200,7 +219,14 @@ function render_account_page(): void
 	      localStorage.removeItem("nichoir-auth-token");
 	      let selectedTicketId = null;
 	      let selectedTicket = null;
-	      const setText = (selector, value) => document.querySelector(selector).textContent = value;
+	      const setText = (selector, value) => {
+	        const element = document.querySelector(selector);
+	        if (element) element.textContent = value;
+	      };
+	      const setHtml = (selector, value) => {
+	        const element = document.querySelector(selector);
+	        if (element) element.innerHTML = value;
+	      };
 	      const esc = (value) => String(value ?? "").replace(/[&<>"\x27]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "\x27": "&#39;" }[c]));
 	      const row = (cells) => `<tr>${cells.map((cell) => `<td>${esc(cell)}</td>`).join("")}</tr>`;
 	      const locale = LANG === "en" ? "en-CA" : "fr-CA";
@@ -222,20 +248,35 @@ function render_account_page(): void
         return payload;
       }
 
+      function setAccountDashboardVisible(isConnected) {
+        const guestShell = document.querySelector("[data-account-guest-shell]");
+        const authenticatedShell = document.querySelector("[data-account-authenticated-shell]");
+        const accountSummary = document.querySelector("[data-account-summary]");
+        if (guestShell) guestShell.hidden = isConnected;
+        if (authenticatedShell) authenticatedShell.hidden = !isConnected;
+        if (accountSummary) accountSummary.hidden = !isConnected;
+      }
+
       function renderLoggedOut(messageText = t("account_load_prompt")) {
+        if (!document.querySelector("[data-account-guest-shell]") && document.querySelector("[data-account-authenticated-shell]")) {
+          window.location.reload();
+          return;
+        }
+        setAccountDashboardVisible(false);
         selectedTicketId = null;
         selectedTicket = null;
         setText("[data-account-state]", t("not_connected"));
         setText("[data-account-email]", "-");
         setText("[data-account-credits]", "0");
         setText("[data-account-plan]", t("none"));
-        document.querySelector("[data-profile-form]").reset();
+        document.querySelector("[data-profile-form]")?.reset();
         setText("[data-billing-plan]", t("none"));
         setText("[data-billing-status]", t("none"));
         setText("[data-billing-period]", "-");
-        document.querySelector("[data-ledger-rows]").innerHTML = `<tr><td colspan="4">${esc(t("not_connected"))}.</td></tr>`;
-        document.querySelector("[data-payment-rows]").innerHTML = `<tr><td colspan="6">${esc(t("not_connected"))}.</td></tr>`;
-        document.querySelector("[data-ticket-rows]").innerHTML = `<tr><td colspan="6">${esc(t("not_connected"))}.</td></tr>`;
+        setHtml("[data-ledger-rows]", `<tr><td colspan="4">${esc(t("not_connected"))}.</td></tr>`);
+        setHtml("[data-library-download-rows]", `<tr><td colspan="5">${esc(t("not_connected"))}.</td></tr>`);
+        setHtml("[data-payment-rows]", `<tr><td colspan="6">${esc(t("not_connected"))}.</td></tr>`);
+        setHtml("[data-ticket-rows]", `<tr><td colspan="6">${esc(t("not_connected"))}.</td></tr>`);
         renderTicketDetail(null);
         document.querySelector("[data-account-message]").textContent = messageText;
       }
@@ -255,6 +296,11 @@ function render_account_page(): void
         const message = document.querySelector("[data-account-message]");
         try {
           const account = await api("/api/me");
+          if (!document.querySelector("[data-account-authenticated-shell]")) {
+            window.location.reload();
+            return;
+          }
+          setAccountDashboardVisible(true);
           setText("[data-account-state]", account.user.status || "active");
           setText("[data-account-email]", account.user.email);
           setText("[data-account-credits]", account.user.credits);
@@ -265,6 +311,10 @@ function render_account_page(): void
 	          document.querySelector("[data-ledger-rows]").innerHTML = ledger.ledger.length
 	            ? ledger.ledger.map((item) => row([item.delta, item.reason, item.reference || "-", fmtDate(item.created_at)])).join("")
 	            : `<tr><td colspan="4">${esc(t("no_movement"))}</td></tr>`;
+          const libraryDownloads = await api("/api/library/downloads");
+	          document.querySelector("[data-library-download-rows]").innerHTML = (libraryDownloads.downloads || []).length
+	            ? libraryDownloads.downloads.map((item) => row([`#${item.id}`, item.original_filename || item.title || "-", item.credit_cost, item.archived ? t("archived") : (item.media_type || "-"), fmtDate(item.downloaded_at)])).join("")
+	            : `<tr><td colspan="5">${esc(t("no_library_download"))}</td></tr>`;
           const billing = await api("/api/billing/summary");
           setText("[data-billing-plan]", billing.subscription.plan || "none");
           setText("[data-billing-status]", billing.subscription.status || "none");
@@ -293,6 +343,7 @@ function render_account_page(): void
 
       function renderTicketDetail(payload) {
         const box = document.querySelector("[data-ticket-detail]");
+        if (!box) return;
         if (!payload || !payload.ticket) {
           box.hidden = true;
           selectedTicket = null;
@@ -327,7 +378,7 @@ function render_account_page(): void
         await loadAccount();
       }
 
-      document.querySelector("[data-login-form]").addEventListener("submit", async (event) => {
+      document.querySelector("[data-login-form]")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
 	        try {
@@ -337,7 +388,7 @@ function render_account_page(): void
 	        }
       });
 
-      document.querySelector("[data-register-form]").addEventListener("submit", async (event) => {
+      document.querySelector("[data-register-form]")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
         try {
@@ -357,7 +408,7 @@ function render_account_page(): void
 	        }
       });
 
-      document.querySelector("[data-activation-form]").addEventListener("submit", async (event) => {
+      document.querySelector("[data-activation-form]")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
         try {
@@ -373,7 +424,7 @@ function render_account_page(): void
 	        }
       });
 
-      document.querySelector("[data-resend-activation]").addEventListener("click", async () => {
+      document.querySelector("[data-resend-activation]")?.addEventListener("click", async () => {
         const email = document.querySelector("[data-activation-form] [name=email]").value || document.querySelector("[data-register-form] [name=email]").value;
         try {
           await api("/api/auth/resend-activation", {
@@ -386,7 +437,7 @@ function render_account_page(): void
 	        }
       });
 
-      document.querySelector("[data-profile-form]").addEventListener("submit", async (event) => {
+      document.querySelector("[data-profile-form]")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
         try {
@@ -421,7 +472,7 @@ function render_account_page(): void
 	          }
         });
       });
-      document.querySelector("[data-billing-portal]").addEventListener("click", async () => {
+      document.querySelector("[data-billing-portal]")?.addEventListener("click", async () => {
         try {
           const payload = await api("/api/billing/portal", { method: "POST" });
 	          document.querySelector("[data-checkout-message]").textContent = t("portal_redirect");
@@ -430,12 +481,12 @@ function render_account_page(): void
 	          document.querySelector("[data-checkout-message]").textContent = `${t("portal_denied")}: ${err.message || err}`;
 	        }
       });
-      document.querySelector("[data-logout]").addEventListener("click", async () => {
+      document.querySelector("[data-logout]")?.addEventListener("click", async () => {
         try { await api("/api/auth/logout", { method: "POST" }); } catch {}
-        await loadAccount();
+        window.location.reload();
       });
 
-      document.querySelector("[data-ticket-form]").addEventListener("submit", async (event) => {
+      document.querySelector("[data-ticket-form]")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
         try {
@@ -451,14 +502,14 @@ function render_account_page(): void
 	        }
       });
 
-      document.querySelector("[data-ticket-rows]").addEventListener("click", async (event) => {
+      document.querySelector("[data-ticket-rows]")?.addEventListener("click", async (event) => {
         const button = event.target.closest("[data-open-ticket]");
         if (!button) return;
         await loadTicketDetail(button.dataset.openTicket);
         await loadAccount();
       });
 
-      document.querySelector("[data-ticket-reply-form]").addEventListener("submit", async (event) => {
+      document.querySelector("[data-ticket-reply-form]")?.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (!selectedTicketId) return;
         const data = new FormData(event.currentTarget);
@@ -475,7 +526,7 @@ function render_account_page(): void
 	        }
       });
 
-      document.querySelector("[data-ticket-toggle-status]").addEventListener("click", async () => {
+      document.querySelector("[data-ticket-toggle-status]")?.addEventListener("click", async () => {
         if (!selectedTicketId || !selectedTicket) return;
         const status = selectedTicket.status === "open" ? "closed" : "open";
         try {

@@ -8,7 +8,7 @@ require_once __DIR__ . '/helpers.php';
 
 function admin_export_scope_value(string $value): string
 {
-    $allowed = ['all', 'clients', 'billing', 'support', 'credits', 'exports'];
+    $allowed = ['all', 'clients', 'billing', 'support', 'credits', 'exports', 'library', 'system'];
     return in_array($value, $allowed, true) ? $value : 'exports';
 }
 
@@ -94,7 +94,7 @@ function admin_export_data(PDO $pdo): array
                 NULL AS user_id, '' AS email, library_items.id AS library_item_id, library_items.title, library_items.description,
                 library_items.original_filename, library_items.cost AS credit_cost, library_items.is_active,
                 library_items.download_count, '' AS authorization_id, '' AS status, library_items.created_at,
-                library_items.updated_at, '' AS downloaded_at
+                library_items.updated_at, library_items.deleted_at, '' AS downloaded_at
          FROM library_items
          UNION ALL
          SELECT 'download' AS library_type, library_downloads.id AS record_id, library_downloads.downloaded_at AS date,
@@ -102,7 +102,7 @@ function admin_export_data(PDO $pdo): array
                 library_items.original_filename, library_download_authorizations.credit_cost, library_items.is_active,
                 library_items.download_count, library_download_authorizations.id AS authorization_id,
                 library_download_authorizations.status, library_items.created_at, library_items.updated_at,
-                library_downloads.downloaded_at
+                library_items.deleted_at, library_downloads.downloaded_at
          FROM library_downloads
          JOIN users ON users.id = library_downloads.user_id
          JOIN library_items ON library_items.id = library_downloads.library_item_id
@@ -155,7 +155,7 @@ function admin_export_data(PDO $pdo): array
         'billing' => admin_export_dataset('Billing', ['billing_type', 'record_id', 'date', 'user_id', 'email', 'provider', 'plan', 'status', 'amount_cents', 'currency', 'description', 'stripe_customer_id', 'stripe_subscription_id', 'stripe_price_id', 'stripe_checkout_session_id', 'stripe_payment_intent_id', 'stripe_invoice_id', 'invoice_url', 'invoice_pdf', 'current_period_end', 'cancel_at_period_end', 'created_at', 'updated_at'], $billing),
         'credits' => admin_export_dataset('Credits', ['date', 'record_id', 'user_id', 'email', 'delta', 'reason', 'reference', 'created_at'], $credits),
         'exports' => admin_export_dataset('Autorisations exports', ['date', 'record_id', 'user_id', 'email', 'app_id', 'export_type', 'credit_cost', 'status', 'expires_at', 'created_at', 'consumed_at'], $exports),
-        'library' => admin_export_dataset('Librairie decors', ['library_type', 'record_id', 'date', 'user_id', 'email', 'library_item_id', 'title', 'description', 'original_filename', 'credit_cost', 'is_active', 'download_count', 'authorization_id', 'status', 'created_at', 'updated_at', 'downloaded_at'], $library),
+        'library' => admin_export_dataset('Librairie decors', ['library_type', 'record_id', 'date', 'user_id', 'email', 'library_item_id', 'title', 'description', 'original_filename', 'credit_cost', 'is_active', 'download_count', 'authorization_id', 'status', 'created_at', 'updated_at', 'deleted_at', 'downloaded_at'], $library),
         'support' => admin_export_dataset('Support', ['support_type', 'record_id', 'date', 'ticket_id', 'user_id', 'email', 'subject', 'status', 'priority', 'assigned_to', 'author_role', 'body', 'recipient', 'notification_status', 'error', 'created_at', 'updated_at', 'closed_at'], $support),
         'system' => admin_export_dataset('Systeme', ['system_type', 'record_id', 'date', 'user_id', 'email', 'reference', 'action', 'status', 'error', 'created_at', 'processed_at'], $system),
     ];

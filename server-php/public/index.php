@@ -316,6 +316,28 @@ if ($method === 'GET' && $path === '/api/library') {
     exit;
 }
 
+if ($method === 'GET' && $path === '/api/library/downloads') {
+    $user = require_user();
+    $rows = [];
+    foreach (library_user_downloads(db(), (int) $user['id'], 50) as $download) {
+        $rows[] = [
+            'id' => (int) $download['id'],
+            'item_id' => (int) $download['library_item_id'],
+            'authorization_id' => (int) $download['authorization_id'],
+            'title' => (string) ($download['title'] ?: $download['original_filename']),
+            'original_filename' => (string) $download['original_filename'],
+            'media_type' => (string) $download['media_type'],
+            'file_ext' => (string) $download['file_ext'],
+            'file_size_bytes' => (int) $download['file_size_bytes'],
+            'credit_cost' => (int) $download['credit_cost'],
+            'downloaded_at' => (string) $download['downloaded_at'],
+            'archived' => trim((string) ($download['deleted_at'] ?? '')) !== '',
+        ];
+    }
+    json_response(['ok' => true, 'downloads' => $rows]);
+    exit;
+}
+
 if ($method === 'GET' && $path === '/api/library/thumbnail') {
     $itemId = (int) ($_GET['item_id'] ?? 0);
     $item = $itemId > 0 ? library_find_item(db(), $itemId, !admin_logged_in()) : null;
@@ -379,6 +401,27 @@ if ($method === 'GET' && $path === '/api/library/stl-preview') {
         app_log(db(), 'warning', 'api', 'library_stl_preview_failed', 'Preview STL librairie refuse', ['item_id' => $itemId, 'error' => $e->getMessage()], null, 422);
         json_response(['ok' => false, 'error' => 'library_stl_preview_failed'], 422);
     }
+    exit;
+}
+
+if ($method === 'GET' && $path === '/api/library/stl-original-preview') {
+    $itemId = (int) ($_GET['item_id'] ?? 0);
+    $item = $itemId > 0 ? library_find_item(db(), $itemId, true) : null;
+    if ($item === null || !library_is_stl_item($item)) {
+        json_response(['ok' => false, 'error' => 'library_stl_not_found'], 404);
+        exit;
+    }
+    $filePath = library_item_path($item);
+    if (!is_file($filePath) || !is_readable($filePath)) {
+        json_response(['ok' => false, 'error' => 'library_file_missing'], 404);
+        exit;
+    }
+    header('Content-Type: model/stl');
+    header('Content-Length: ' . (string) filesize($filePath));
+    header('Content-Disposition: inline; filename="' . (preg_replace('/[^A-Za-z0-9_.-]+/', '_', (string) $item['original_filename']) ?: 'decor.stl') . '"');
+    header('Cache-Control: private, max-age=60');
+    header('X-Content-Type-Options: nosniff');
+    readfile($filePath);
     exit;
 }
 
@@ -462,6 +505,11 @@ if ($method === 'POST' && $path === '/api/library/authorize') {
     }
 
     $user = require_user();
+    if (!auth_rate_limit_hit(db(), 'library_authorize:user', 'user:' . (int) $user['id'], 30, 60)) {
+        app_log(db(), 'security', 'api', 'rate_limit_triggered', 'Rate limit autorisation librairie atteint', ['scope' => 'user'], (int) $user['id'], 429);
+        json_response(['ok' => false, 'error' => 'too_many_requests'], 429);
+        exit;
+    }
     $authorization = library_create_authorization(db(), $user, $item);
     if (($authorization['ok'] ?? false) !== true) {
         $status = (int) ($authorization['status'] ?? 400);
@@ -554,10 +602,10 @@ if ($method === 'GET' && $path === '/api/library/download') {
                     (int) $auth['id'],
                     function_exists('log_client_ip_hash') ? (log_client_ip_hash() ?? '') : '',
                     substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
-                    substr((string) ($_SERVER['REQUEST_URI'] ?? ''), 0, 255),
+                    library_download_request_reference($itemId),
                 ]);
             $pdo->prepare('INSERT INTO credit_ledger (user_id, delta, reason, reference) VALUES (?, ?, ?, ?)')
-                ->execute([(int) $user['id'], -$cost, 'library_download', (string) $auth['id']]);
+                ->execute([(int) $user['id'], -$cost, 'library_download', 'library:' . $itemId . ':auth:' . (int) $auth['id']]);
             app_log($pdo, 'info', 'api', 'library_downloaded', 'Telechargement librairie consomme', ['item_id' => $itemId, 'cost' => $cost, 'authorization_id' => (int) $auth['id']], (int) $user['id']);
             audit_log($pdo, (int) $user['id'], 'client', 'library_downloaded', 'library_item', (string) $itemId, 'success', '', ['cost' => $cost, 'authorization_id' => (int) $auth['id']]);
             $pdo->commit();

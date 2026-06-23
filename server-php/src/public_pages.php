@@ -16,8 +16,28 @@ function render_landing_page(): void
     $lang = page_lang();
     $appUrl = h(dev_app_url($lang));
     page_response(page_t('home_title', $lang), '
-	      <section class="hero marketing-hero">
-	        <div>
+	      <section class="hero landing-hero">
+	        <div class="landing-hero-scene" aria-hidden="true">
+	          <div class="landing-workbench-image landing-image-slot">
+	            <div class="landing-wood-sheet"></div>
+	            <div class="landing-wood-sheet small"></div>
+	            <div class="landing-cut-line"></div>
+	          </div>
+	          <div class="landing-app-preview landing-image-slot">
+	            <div class="landing-window-bar"><span></span><span></span><span></span></div>
+	            <div class="landing-model-viewport">
+	              <div class="landing-model-roof"></div>
+	              <div class="landing-model-body"></div>
+	              <div class="landing-model-door"></div>
+	              <div class="landing-model-base"></div>
+	            </div>
+	            <div class="landing-control-strip"><span></span><span></span><span></span></div>
+	          </div>
+	          <div class="landing-export-preview">
+	            <span>STL</span><span>PDF</span><span>ZIP</span>
+	          </div>
+	        </div>
+	        <div class="landing-hero-copy">
 	          <p class="eyebrow">' . h(page_t('home_eyebrow', $lang)) . '</p>
 	          <h1>Nichoir</h1>
 	          <p>' . h(page_t('home_body', $lang)) . '</p>
@@ -25,36 +45,58 @@ function render_landing_page(): void
 	            <a class="primary" href="' . $appUrl . '">' . h(page_t('home_primary', $lang)) . '</a>
 	            <a class="secondary" href="' . h(page_path_with_lang('/pricing', $lang)) . '">' . h(page_t('home_secondary', $lang)) . '</a>
 	          </div>
+	          <div class="landing-proof-row" aria-label="' . h(page_t('home_steps_title', $lang)) . '">
+	            <span>' . h(page_t('home_kicker_one', $lang)) . '</span>
+	            <span>' . h(page_t('home_kicker_two', $lang)) . '</span>
+	            <span>' . h(page_t('home_kicker_three', $lang)) . '</span>
+	          </div>
 	        </div>
-	        <aside class="hero-card" aria-label="' . h(page_t('home_steps_title', $lang)) . '">
-	          <span>' . h(page_t('home_kicker_one', $lang)) . '</span>
-	          <span>' . h(page_t('home_kicker_two', $lang)) . '</span>
-	          <span>' . h(page_t('home_kicker_three', $lang)) . '</span>
-	        </aside>
 	      </section>
-	      <section class="grid">
-	        <article><h2>' . h(page_t('home_card_wasm_title', $lang)) . '</h2><p>' . h(page_t('home_card_wasm_body', $lang)) . '</p></article>
-	        <article><h2>' . h(page_t('home_card_credits_title', $lang)) . '</h2><p>' . h(page_t('home_card_credits_body', $lang)) . '</p></article>
-	        <article><h2>' . h(page_t('home_card_fabrication_title', $lang)) . '</h2><p>' . h(page_t('home_card_fabrication_body', $lang)) . '</p></article>
+	      <section class="landing-value-grid">
+	        <article class="landing-value-card">
+	          <div class="landing-value-visual landing-image-slot model" aria-hidden="true"><span>3D</span></div>
+	          <h2>' . h(page_t('home_card_wasm_title', $lang)) . '</h2>
+	          <p>' . h(page_t('home_card_wasm_body', $lang)) . '</p>
+	        </article>
+	        <article class="landing-value-card">
+	          <div class="landing-value-visual landing-image-slot exports" aria-hidden="true"><span>STL</span><span>PDF</span><span>ZIP</span></div>
+	          <h2>' . h(page_t('home_card_credits_title', $lang)) . '</h2>
+	          <p>' . h(page_t('home_card_credits_body', $lang)) . '</p>
+	        </article>
+	        <article class="landing-value-card">
+	          <div class="landing-value-visual landing-image-slot workshop" aria-hidden="true"><span></span><span></span><span></span></div>
+	          <h2>' . h(page_t('home_card_fabrication_title', $lang)) . '</h2>
+	          <p>' . h(page_t('home_card_fabrication_body', $lang)) . '</p>
+	        </article>
 	      </section>
-	      <section class="panel feature-panel">
+	      <section class="feature-panel landing-process">
 	        <div>
 	          <p class="eyebrow">' . h(page_t('home_proof_title', $lang)) . '</p>
 	          <h2>' . h(page_t('home_steps_title', $lang)) . '</h2>
 	          <p>' . h(page_t('home_proof_body', $lang)) . '</p>
 	        </div>
-	        <ol class="step-list">
-	          <li><strong>' . h(page_t('home_step_one_title', $lang)) . '</strong><span>' . h(page_t('home_step_one_body', $lang)) . '</span></li>
-	          <li><strong>' . h(page_t('home_step_two_title', $lang)) . '</strong><span>' . h(page_t('home_step_two_body', $lang)) . '</span></li>
-	          <li><strong>' . h(page_t('home_step_three_title', $lang)) . '</strong><span>' . h(page_t('home_step_three_body', $lang)) . '</span></li>
-	        </ol>
+	        <div class="landing-process-board">
+	          <ol class="step-list">
+	            <li><strong>' . h(page_t('home_step_one_title', $lang)) . '</strong><span>' . h(page_t('home_step_one_body', $lang)) . '</span></li>
+	            <li><strong>' . h(page_t('home_step_two_title', $lang)) . '</strong><span>' . h(page_t('home_step_two_body', $lang)) . '</span></li>
+	            <li><strong>' . h(page_t('home_step_three_title', $lang)) . '</strong><span>' . h(page_t('home_step_three_body', $lang)) . '</span></li>
+	          </ol>
+	          <div class="landing-plan-preview landing-image-slot" aria-hidden="true">
+	            <div></div><div></div><div></div><div></div>
+	          </div>
+	        </div>
 	      </section>
-	      <section class="hero closing-cta">
-	        <p class="eyebrow">' . h(page_t('home_cta_title', $lang)) . '</p>
-	        <p>' . h(page_t('home_cta_body', $lang)) . '</p>
-	        <div class="hero-actions">
-	          <a class="primary" href="' . $appUrl . '">' . h(page_t('home_primary', $lang)) . '</a>
-	          <a class="secondary" href="' . h(page_path_with_lang('/pricing', $lang)) . '">' . h(page_t('home_secondary', $lang)) . '</a>
+	      <section class="closing-cta landing-closing">
+	        <div>
+	          <p class="eyebrow">' . h(page_t('home_cta_title', $lang)) . '</p>
+	          <p>' . h(page_t('home_cta_body', $lang)) . '</p>
+	          <div class="hero-actions">
+	            <a class="primary" href="' . $appUrl . '">' . h(page_t('home_primary', $lang)) . '</a>
+	            <a class="secondary" href="' . h(page_path_with_lang('/pricing', $lang)) . '">' . h(page_t('home_secondary', $lang)) . '</a>
+	          </div>
+	        </div>
+	        <div class="landing-closing-visual landing-image-slot" aria-hidden="true">
+	          <span>3D</span><span>PDF</span><span>STL</span>
 	        </div>
 	      </section>
 	    ', '/');
@@ -254,6 +296,9 @@ function render_library_page(): void
               message.textContent = items.length ? "" : labels.empty;
               const previewHtml = (item) => {
                 const label = esc(item.title || item.original_filename);
+                if (String(item.media_type || item.file_ext || "").toLowerCase() === "stl") {
+                  return `<button type="button" class="library-preview-trigger" data-library-preview="${esc(item.id)}" aria-label="${esc(labels.preview)} ${label}"><span class="library-thumbnail library-stl-viewer library-card-stl-viewer" data-library-stl-preview="${esc(item.id)}" aria-hidden="true">${esc(labels.preview_loading)}</span></button>`;
+                }
                 return `<img class="library-thumbnail" src="${esc(item.thumbnail_url)}" alt="Preview ${label}" loading="lazy">`;
               };
               grid.innerHTML = items.map((item) => `
@@ -280,6 +325,10 @@ function render_library_page(): void
                   </div>
                 </article>
               `).join("");
+              previewModule()
+                .then((module) => module.renderLibraryStlPreviews(grid))
+                .then(() => log("library_inline_stl_previews_rendered", { count: grid.querySelectorAll("[data-library-stl-preview]").length }))
+                .catch((err) => log("library_inline_stl_previews_failed", { error: err.message || String(err) }));
               log("library_previews_rendered", { count: items.length });
             } catch (err) {
               log("library_load_failed", { error: err.message || String(err) });

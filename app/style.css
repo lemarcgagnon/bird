@@ -99,8 +99,29 @@ body {
 .panel h1 {
   margin: 0;
   color: var(--accent);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: 14px;
   letter-spacing: 1.5px;
+}
+
+.ui-icon,
+.brand-icon {
+  width: 1em;
+  height: 1em;
+  display: block;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.brand-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
 }
 
 .subtitle {
@@ -227,7 +248,7 @@ body {
 
 .tab-glyph {
   color: var(--accent);
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1;
 }
 
@@ -499,6 +520,10 @@ input[type="range"] {
 .tool-button {
   width: 100%;
   min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 8px 10px;
   border: 1px solid var(--button-border);
   border-radius: 4px;
@@ -703,6 +728,11 @@ input[type="range"] {
   color: var(--accent);
   font-size: 14px;
   line-height: 1;
+}
+
+.button-glyph .ui-icon {
+  width: 15px;
+  height: 15px;
 }
 
 .button-label {
@@ -977,6 +1007,10 @@ input[type="range"] {
 
 .export-gate-actions button {
   min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   padding: 10px 14px;
   border: 1px solid var(--button-border);
   border-radius: 8px;
@@ -1452,12 +1486,26 @@ input[type="range"] {
 }
 
 .deco-library-viewer-toolbar .tool-button {
+  width: auto;
   min-width: 31px;
   min-height: 30px;
   padding: 4px 7px;
   font-size: 10px;
   line-height: 1;
   white-space: nowrap;
+}
+
+.deco-library-viewer-toolbar .button-glyph {
+  width: 18px;
+  height: 18px;
+  flex-basis: 18px;
+  background: transparent;
+  font-size: 12px;
+}
+
+.deco-library-viewer-toolbar .button-glyph .ui-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .deco-library-viewer-toolbar .tool-button[aria-pressed="true"] {

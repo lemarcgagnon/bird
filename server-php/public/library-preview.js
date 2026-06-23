@@ -459,6 +459,45 @@ export async function renderLocalStlFilePreview(target, file) {
   }
 }
 
+async function loadOriginalStlGeometry(stlUrl, maxTriangles = ALL_TRIANGLES) {
+  const response = await fetch(stlUrl, { credentials: 'same-origin' });
+  if (!response.ok) throw new Error(response.statusText || 'stl_load_failed');
+  const bytes = await response.arrayBuffer();
+  const triangles = parseStlBytes(bytes, maxTriangles);
+  const geometry = trianglesToGeometry(triangles);
+  if (!geometry) throw new Error('stl_parse_failed');
+  return { bytes, triangles, geometry };
+}
+
+export async function renderOriginalStlUrlPreview(target, stlUrl, options = {}) {
+  if (!target || !stlUrl) return null;
+  target.textContent = options.loadingLabel || 'Chargement STL original...';
+  target.classList.remove('library-stl-viewer-error');
+  try {
+    const loaded = await loadOriginalStlGeometry(stlUrl, options.maxTriangles || ALL_TRIANGLES);
+    target.replaceChildren();
+    const controller = renderGeometry(target, loaded.geometry, {
+      controls: true,
+      width: Math.max(280, target.clientWidth || 360),
+      height: Math.max(280, target.clientHeight || 360),
+      distanceMultiplier: 2.0,
+      showEdges: loaded.triangles.length <= 60000,
+      ...(options.viewerOptions || {}),
+    });
+    log('original_stl_url_preview_rendered', {
+      url: stlUrl,
+      bytes: loaded.bytes.byteLength,
+      triangles: loaded.triangles.length,
+      untouched: true,
+    });
+    return controller;
+  } catch (error) {
+    warn('original_stl_url_preview_failed', { url: stlUrl, error: error.message || String(error) });
+    renderError(target, options.errorLabel || 'STL original indisponible');
+    return null;
+  }
+}
+
 export async function renderAdminOriginalStlViewers(root = document) {
   const targets = Array.from(root.querySelectorAll('[data-library-admin-stl-viewer]'));
   if (!targets.length) return;
@@ -610,6 +649,26 @@ export async function renderLibraryStlPreviews(root = document) {
     target.dataset.previewRendered = '1';
     log('stl_preview_request', { itemId });
     try {
+      try {
+        const originalUrl = `/api/library/stl-original-preview?item_id=${encodeURIComponent(itemId)}`;
+        const loaded = await loadOriginalStlGeometry(originalUrl, ALL_TRIANGLES);
+        target.replaceChildren();
+        renderGeometry(target, loaded.geometry, {
+          width: Math.max(96, target.clientWidth || 120),
+          height: Math.max(96, target.clientHeight || target.clientWidth || 120),
+          distanceMultiplier: 2.0,
+          showEdges: loaded.triangles.length <= 60000,
+        });
+        log('stl_original_preview_rendered', {
+          itemId,
+          bytes: loaded.bytes.byteLength,
+          triangles: loaded.triangles.length,
+          untouched: true,
+        });
+        return;
+      } catch (originalError) {
+        warn('stl_original_preview_failed_fallback', { itemId, error: originalError.message || String(originalError) });
+      }
       const response = await fetch(`/api/library/stl-preview?item_id=${encodeURIComponent(itemId)}`, {
         credentials: 'same-origin',
       });
@@ -634,6 +693,31 @@ export async function renderPublicLibraryStlPreview(target, itemId, options = {}
   target.classList.remove('library-stl-viewer-error');
   log('public_stl_preview_request', { itemId });
   try {
+    const originalUrl = options.originalUrl || `/api/library/stl-original-preview?item_id=${encodeURIComponent(itemId)}`;
+    if (options.preferOriginal !== false && originalUrl) {
+      try {
+        const loaded = await loadOriginalStlGeometry(originalUrl, ALL_TRIANGLES);
+        target.replaceChildren();
+        const controller = renderGeometry(target, loaded.geometry, {
+          controls: true,
+          width: Math.max(280, target.clientWidth || 360),
+          height: Math.max(280, target.clientHeight || 360),
+          distanceMultiplier: 2.0,
+          showEdges: loaded.triangles.length <= 60000,
+          ...(options.viewerOptions || {}),
+        });
+        log('public_original_stl_preview_rendered', {
+          itemId,
+          source: originalUrl,
+          bytes: loaded.bytes.byteLength,
+          triangles: loaded.triangles.length,
+          untouched: true,
+        });
+        return controller;
+      } catch (originalError) {
+        warn('public_original_stl_preview_failed_fallback', { itemId, error: originalError.message || String(originalError) });
+      }
+    }
     const detail = options.detail || 'high';
     const response = await fetch(`/api/library/stl-preview?item_id=${encodeURIComponent(itemId)}&detail=${encodeURIComponent(detail)}`, {
       credentials: 'same-origin',

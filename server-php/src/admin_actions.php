@@ -488,7 +488,7 @@ function admin_update_library_item(PDO $pdo): void
     }
 }
 
-function admin_delete_library_item(PDO $pdo): void
+function admin_archive_library_item(PDO $pdo): void
 {
     $itemId = (int) ($_POST['library_item_id'] ?? 0);
     if ($itemId <= 0) {
@@ -496,14 +496,17 @@ function admin_delete_library_item(PDO $pdo): void
         return;
     }
     try {
-        $result = library_admin_delete($pdo, $itemId);
+        $result = library_admin_archive($pdo, $itemId);
         $fileDeleted = (bool) $result['deleted_file'];
-        audit_admin_action($pdo, null, 'delete_library_item', null, 'library_item:' . $itemId . ':file_deleted=' . ($fileDeleted ? '1' : '0'));
-        header('Location: ' . admin_redirect_url(['notice' => $fileDeleted ? 'library_deleted' : 'library_deleted_file_missing']) . '#admin-library');
+        audit_admin_action($pdo, null, 'archive_library_item', null, 'library_item:' . $itemId . ':file_deleted=' . ($fileDeleted ? '1' : '0'));
+        if (!$fileDeleted) {
+            app_log($pdo, 'warning', 'admin', 'library_archive_file_delete_failed', 'Fichier librairie archive mais original prive non supprime', ['item_id' => $itemId], null, 207);
+        }
+        header('Location: ' . admin_redirect_url(['notice' => $fileDeleted ? 'library_archived' : 'library_archived_file_kept']) . '#admin-library');
     } catch (Throwable $e) {
-        audit_admin_action($pdo, null, 'delete_library_item_failed', null, 'library_item:' . $itemId);
-        app_log($pdo, 'warning', 'admin', 'library_delete_failed', 'Suppression fichier librairie refusee', ['item_id' => $itemId, 'error' => $e->getMessage()], null, 422);
-        header('Location: ' . admin_redirect_url(['notice' => 'library_delete_error']) . '#admin-library');
+        audit_admin_action($pdo, null, 'archive_library_item_failed', null, 'library_item:' . $itemId);
+        app_log($pdo, 'warning', 'admin', 'library_archive_failed', 'Archivage fichier librairie refuse', ['item_id' => $itemId, 'error' => $e->getMessage()], null, 422);
+        header('Location: ' . admin_redirect_url(['notice' => 'library_archive_error']) . '#admin-library');
     }
 }
 
@@ -642,8 +645,8 @@ function handle_admin_post(): void
         admin_update_library_item($pdo);
         return;
     }
-    if ($action === 'delete_library_item') {
-        admin_delete_library_item($pdo);
+    if ($action === 'archive_library_item') {
+        admin_archive_library_item($pdo);
         return;
     }
     if ($action === 'regenerate_library_thumbnail') {

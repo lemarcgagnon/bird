@@ -12,7 +12,7 @@ import init, {
 } from '../wasm/pkg/wasm.js?v=20260619-intact-stl-decor-import';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260619-stl-viewer-horizon-default';
+const APP_BUILD_ID = '20260623-site-app-icons';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -96,6 +96,68 @@ const EXPORT_COSTS = {
   pdf: 2,
   stl: 3,
   zip: 5,
+};
+
+const ICON_PATHS = {
+  account: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.8-4 14.2-4 16 0"/>',
+  arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  calculator: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2M12 11h2M16 11h.01M8 15h2M12 15h2M16 15h.01"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18"/>',
+  coin: '<circle cx="12" cy="12" r="8"/><path d="M12 7v10M9 10.5c.8-.7 5-.9 5 1.2 0 2.4-5 1.1-5 3.1 0 1.8 3.6 1.8 5 .8"/>',
+  cube: '<path d="M12 3 4 7v10l8 4 8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/>',
+  dimensions: '<rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M8 5v14M4 9h16"/>',
+  door: '<path d="M8 4h9v16H8z"/><path d="M14 12h.01"/>',
+  download: '<path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/>',
+  external: '<path d="M14 4h6v6"/><path d="M10 14 20 4"/><path d="M20 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h5"/>',
+  eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>',
+  file: '<path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6"/>',
+  fit: '<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>',
+  home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
+  image: '<path d="M4 5h16v14H4z"/><path d="m4 16 5-5 4 4 2-2 5 5"/><circle cx="15" cy="9" r="1.5"/>',
+  library: '<path d="M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2z"/><path d="M5 6a2 2 0 0 1 2-2h12"/><path d="M9 8h6M9 12h6"/>',
+  logout: '<path d="M12 3v9"/><path d="M7 7a7 7 0 1 0 10 0"/>',
+  moon: '<path d="M20 14.5A7.5 7.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/>',
+  move: '<path d="M12 3v18M3 12h18"/><path d="M8 7l4-4 4 4M8 17l4 4 4-4M7 8l-4 4 4 4M17 8l4 4-4 4"/>',
+  panels: '<path d="M5 5h14v4H5zM5 10h14v4H5zM5 15h14v4H5z"/>',
+  report: '<path d="M7 3h10v18H7z"/><path d="M10 8h4M10 12h4M10 16h3"/>',
+  reset: '<path d="M4 11a8 8 0 1 1 2.3 5.7"/><path d="M4 17v-6h6"/>',
+  roof: '<path d="M3 13 12 4l9 9"/><path d="M6 13v7h12v-7"/>',
+  rotate: '<path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M18.5 12A6.5 6.5 0 0 0 6.8 7.8L4 12"/><path d="M5.5 12A6.5 6.5 0 0 0 17.2 16.2L20 12"/>',
+  scissors: '<path d="M4 7a2 2 0 1 0 4 0 2 2 0 0 0-4 0zM4 17a2 2 0 1 0 4 0 2 2 0 0 0-4 0z"/><path d="M8 8l12 8M8 16l12-8"/>',
+  sparkles: '<path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5z"/><path d="M5 16l.7 2.3L8 19l-2.3.7L5 22l-.7-2.3L2 19l2.3-.7z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4 12H2M22 12h-2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/>',
+  upload: '<path d="M12 21V9"/><path d="M7 14l5-5 5 5"/><path d="M5 21h14"/>',
+  wall: '<path d="M4 5h16v14H4z"/><path d="M4 10h16M4 15h16M9 5v5M15 10v5M9 15v4"/>',
+  zoomIn: '<circle cx="10" cy="10" r="6"/><path d="M14.5 14.5 21 21M10 7v6M7 10h6"/>',
+  zoomOut: '<circle cx="10" cy="10" r="6"/><path d="M14.5 14.5 21 21M7 10h6"/>',
+};
+
+const GLYPH_ICON_NAMES = {
+  '⌂': 'home',
+  '◫': 'dimensions',
+  '✦': 'sparkles',
+  '∑': 'calculator',
+  '✂': 'scissors',
+  '◎': 'account',
+  '▲': 'roof',
+  '▣': 'door',
+  '⇩': 'download',
+  '▤': 'panels',
+  '▧': 'file',
+  '◼': 'cube',
+  '◌': 'report',
+  '▥': 'wall',
+  '✣': 'sparkles',
+  '◈': 'cube',
+  '≡': 'report',
+  '◩': 'cube',
+  '⌃': 'roof',
+  '¤': 'coin',
+  '↗': 'external',
+  '↻': 'reset',
+  '⏻': 'logout',
+  '⟲': 'reset',
+  '×': 'close',
 };
 
 function debugStlLog(message, details = {}) {
@@ -565,13 +627,44 @@ function exportFilename(key) {
   return tr(`file_${key}`);
 }
 
+function uiIcon(name, className = 'ui-icon') {
+  const path = ICON_PATHS[name] || ICON_PATHS.cube;
+  return `<svg class="${className}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${path}</svg>`;
+}
+
+function setGlyphIcon(node, iconName) {
+  if (!node || !iconName) return;
+  node.dataset.icon = iconName;
+  node.innerHTML = uiIcon(iconName);
+}
+
+function iconLabel(iconName, label, glyphClass = 'button-glyph', labelClass = 'button-label') {
+  return `<span class="${glyphClass}" aria-hidden="true">${uiIcon(iconName)}</span><span class="${labelClass}">${escapeHtml(label)}</span>`;
+}
+
+function enhanceGlyphIcons(scope = root) {
+  scope.querySelectorAll('.tab-glyph, .section-glyph, .group-glyph, .button-glyph, .chip-glyph, .header-link-glyph, .deco-drop-icon').forEach((node) => {
+    const iconName = node.dataset.icon || GLYPH_ICON_NAMES[node.textContent.trim()];
+    setGlyphIcon(node, iconName);
+  });
+}
+
+function enhanceAppIcons(scope = root) {
+  enhanceGlyphIcons(scope);
+  const title = scope.querySelector('.panel h1');
+  if (title && !title.dataset.iconEnhanced) {
+    title.dataset.iconEnhanced = '1';
+    title.innerHTML = `${uiIcon('home', 'brand-icon')}<span>NICHOIR</span>`;
+  }
+}
+
 function applyTheme() {
   const isDark = theme === 'dark';
   document.body.classList.toggle('dark', isDark);
   document.body.dataset.theme = theme;
   document.querySelectorAll('[data-action="theme-toggle"]').forEach((button) => {
     const label = isDark ? tr('theme_dark') : tr('theme_light');
-    const icon = isDark ? '☾' : '☼';
+    const icon = isDark ? 'moon' : 'sun';
     const labelNode = button.querySelector('[data-theme-label]');
     const iconNode = button.querySelector('[data-theme-icon]');
     if (labelNode) {
@@ -580,7 +673,7 @@ function applyTheme() {
       button.textContent = label;
     }
     if (iconNode) {
-      iconNode.textContent = icon;
+      setGlyphIcon(iconNode, icon);
     }
     button.setAttribute('aria-pressed', String(isDark));
     button.setAttribute('aria-label', isDark ? tr('theme_to_light') : tr('theme_to_dark'));
@@ -1170,11 +1263,11 @@ function buildLibraryPreviewGeometry(triangles = []) {
   return geometry;
 }
 
-function decorLibraryButton(label, title, onClick) {
+function decorLibraryButton(label, title, onClick, iconName = '') {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'tool-button';
-  button.textContent = label;
+  button.innerHTML = iconName ? iconLabel(iconName, label) : escapeHtml(label);
   button.title = title;
   button.setAttribute('aria-label', title);
   button.addEventListener('click', onClick);
@@ -1195,7 +1288,8 @@ function createDecorLibraryViewerToolbar(controller) {
     ['top', tr('decor_library_view_top')],
     ['side', tr('decor_library_view_side')],
   ].forEach(([view, label]) => {
-    const button = decorLibraryButton(label, label, () => controller.setView(view));
+    const viewIcons = { iso: 'cube', front: 'door', top: 'panels', side: 'dimensions' };
+    const button = decorLibraryButton(label, label, () => controller.setView(view), viewIcons[view]);
     viewButtons.set(view, button);
     viewGroup.appendChild(button);
   });
@@ -1208,20 +1302,21 @@ function createDecorLibraryViewerToolbar(controller) {
     ['horizon', tr('decor_library_horizon')],
     ['pan', tr('decor_library_move')],
   ].forEach(([mode, label]) => {
-    const button = decorLibraryButton(label, label, () => controller.setMode(mode));
+    const modeIcons = { rotate: 'rotate', horizon: 'fit', pan: 'move' };
+    const button = decorLibraryButton(label, label, () => controller.setMode(mode), modeIcons[mode]);
     modeButtons.set(mode, button);
     modeGroup.appendChild(button);
   });
 
   const zoomGroup = document.createElement('div');
   zoomGroup.className = 'deco-library-viewer-toolbar-group';
-  zoomGroup.appendChild(decorLibraryButton(tr('decor_library_zoom_in'), tr('decor_library_zoom_in'), () => controller.zoom(0.84)));
-  zoomGroup.appendChild(decorLibraryButton(tr('decor_library_zoom_out'), tr('decor_library_zoom_out'), () => controller.zoom(1.16)));
+  zoomGroup.appendChild(decorLibraryButton(tr('decor_library_zoom_in'), tr('decor_library_zoom_in'), () => controller.zoom(0.84), 'zoomIn'));
+  zoomGroup.appendChild(decorLibraryButton(tr('decor_library_zoom_out'), tr('decor_library_zoom_out'), () => controller.zoom(1.16), 'zoomOut'));
 
   const actionGroup = document.createElement('div');
   actionGroup.className = 'deco-library-viewer-toolbar-group';
-  actionGroup.appendChild(decorLibraryButton(tr('decor_library_fit'), tr('decor_library_fit'), () => controller.fit()));
-  actionGroup.appendChild(decorLibraryButton(tr('decor_library_reset'), tr('decor_library_reset'), () => controller.reset()));
+  actionGroup.appendChild(decorLibraryButton(tr('decor_library_fit'), tr('decor_library_fit'), () => controller.fit(), 'fit'));
+  actionGroup.appendChild(decorLibraryButton(tr('decor_library_reset'), tr('decor_library_reset'), () => controller.reset(), 'reset'));
 
   toolbar.append(viewGroup, modeGroup, zoomGroup, actionGroup);
   controller.onStateChange((state) => {
@@ -1470,26 +1565,55 @@ function renderDecorLibraryStlPayload(target, payload, options = {}) {
 }
 
 async function renderDecorLibraryOriginalStl(target, item, options = {}) {
-  if (!item?.app_original_url) return false;
-  const url = new URL(item.app_original_url, window.location.href).toString();
-  const response = await fetch(url, { credentials: 'same-origin' });
-  if (!response.ok) throw new Error(response.statusText || 'local_stl_load_failed');
-  const bytes = await response.arrayBuffer();
-  const triangles = parseDecorLibraryStlBytes(bytes, DECO_LIBRARY_ALL_TRIANGLES);
-  const geometry = buildLibraryPreviewGeometry(triangles);
-  if (!geometry) throw new Error('local_stl_parse_failed');
-  renderDecorLibraryStlGeometry(target, geometry, {
-    ...options,
-    showEdges: triangles.length <= 60000,
-  });
-  debugStlLog('decor library original STL rendered in WASM preview', {
-    itemId: item.id,
-    bytes: bytes.byteLength,
-    triangles: triangles.length,
-    url,
-    untouched: true,
-  });
-  return true;
+  const itemId = Number(item?.id || 0);
+  const sources = [];
+  if (itemId) {
+    sources.push({
+      source: 'php_original_stl_preview',
+      url: phpUrl(`/api/library/stl-original-preview?item_id=${encodeURIComponent(itemId)}`),
+    });
+  }
+  if (item?.app_original_url) {
+    sources.push({
+      source: 'app_original_mirror',
+      url: new URL(item.app_original_url, window.location.href).toString(),
+    });
+  }
+  if (!sources.length) return false;
+
+  let lastError = null;
+  for (const source of sources) {
+    try {
+      const response = await fetch(source.url, { credentials: 'include' });
+      if (!response.ok) throw new Error(response.statusText || 'original_stl_load_failed');
+      const bytes = await response.arrayBuffer();
+      const triangles = parseDecorLibraryStlBytes(bytes, DECO_LIBRARY_ALL_TRIANGLES);
+      const geometry = buildLibraryPreviewGeometry(triangles);
+      if (!geometry) throw new Error('original_stl_parse_failed');
+      renderDecorLibraryStlGeometry(target, geometry, {
+        ...options,
+        showEdges: triangles.length <= 60000,
+      });
+      debugStlLog('decor library original STL rendered in WASM preview', {
+        itemId: item.id,
+        bytes: bytes.byteLength,
+        triangles: triangles.length,
+        source: source.source,
+        url: source.url,
+        untouched: true,
+      });
+      return true;
+    } catch (err) {
+      lastError = err;
+      debugStlLog('decor library original STL source failed in WASM preview', {
+        itemId: item.id,
+        source: source.source,
+        url: source.url,
+        error: err?.message || String(err),
+      });
+    }
+  }
+  throw lastError || new Error('original_stl_preview_failed');
 }
 
 async function renderDecorLibraryStlPreviews(container) {
@@ -1531,9 +1655,9 @@ function renderDecorLibraryItems(items = []) {
       </div>
       <div class="deco-library-item-actions">
         ${String(item.media_type || item.file_ext || '').toLowerCase() === 'stl'
-          ? `<button class="tool-button" type="button" data-library-preview="${escapeHtml(item.id)}">${escapeHtml(tr('decor_library_preview'))}</button>`
+          ? `<button class="tool-button" type="button" data-library-preview="${escapeHtml(item.id)}">${iconLabel('eye', tr('decor_library_preview'))}</button>`
           : ''}
-        <button class="tool-button" type="button" data-library-download="${escapeHtml(item.id)}">${escapeHtml(tr('decor_library_download'))}</button>
+        <button class="tool-button primary-action" type="button" data-library-download="${escapeHtml(item.id)}">${iconLabel('download', tr('decor_library_download'))}</button>
       </div>
     </article>
   `).join('');
@@ -1566,12 +1690,12 @@ function ensureDecorLibraryPreviewModal(panel) {
           <h3 id="deco-library-preview-title">${escapeHtml(tr('decor_library_preview_title'))}</h3>
           <p data-deco-library-preview-meta></p>
         </div>
-        <button class="tool-button" type="button" data-deco-library-preview-close>${escapeHtml(tr('decor_library_preview_close'))}</button>
+        <button class="tool-button" type="button" data-deco-library-preview-close>${iconLabel('close', tr('decor_library_preview_close'))}</button>
       </div>
       <div class="deco-library-preview-stage" data-deco-library-preview-stage></div>
       <div class="deco-library-preview-actions">
-        <button class="tool-button" type="button" data-deco-library-preview-close>${escapeHtml(tr('decor_library_preview_close'))}</button>
-        <button class="tool-button primary-action" type="button" data-deco-library-preview-download>${escapeHtml(tr('decor_library_download'))}</button>
+        <button class="tool-button" type="button" data-deco-library-preview-close>${iconLabel('close', tr('decor_library_preview_close'))}</button>
+        <button class="tool-button primary-action" type="button" data-deco-library-preview-download>${iconLabel('download', tr('decor_library_download'))}</button>
       </div>
       <p class="deco-status" data-deco-library-preview-status></p>
     </div>
@@ -1733,8 +1857,16 @@ function attachDecorLibraryPanel() {
   const panel = root.querySelector('[data-deco-library-panel]');
   if (!panel) return;
   ensureDecorLibraryPreviewModal(panel);
-  panel.querySelector('[data-deco-library-open]')?.setAttribute('href', phpUrl('/library'));
-  panel.querySelector('[data-deco-library-refresh]')?.addEventListener('click', () => {
+  const openLink = panel.querySelector('[data-deco-library-open]');
+  if (openLink) {
+    openLink.setAttribute('href', phpUrl('/library'));
+    openLink.innerHTML = iconLabel('library', tr('decor_library_open'));
+  }
+  const refreshButton = panel.querySelector('[data-deco-library-refresh]');
+  if (refreshButton) {
+    refreshButton.innerHTML = iconLabel('reset', tr('decor_library_refresh'));
+  }
+  refreshButton?.addEventListener('click', () => {
     loadDecorLibraryPanel();
   });
   panel.querySelector('[data-deco-library-list]')?.addEventListener('click', async (event) => {
@@ -1918,6 +2050,12 @@ function openExportGateModal(kind, context = {}) {
   const content = exportGateContent(kind, context);
   const previousFocus = document.activeElement;
   root.querySelector('.export-gate-modal')?.remove();
+  const actionIcon = (action) => ({
+    bonus: 'download',
+    buy: 'external',
+    signin: 'account',
+    cancel: 'close',
+  }[action] || 'arrowRight');
 
   return new Promise((resolve) => {
     const modal = document.createElement('div');
@@ -1933,8 +2071,8 @@ function openExportGateModal(kind, context = {}) {
         <p>${escapeHtml(content.body)}</p>
         <p class="export-gate-note">${escapeHtml(content.note)}</p>
         <div class="export-gate-actions">
-          <button class="primary-action" type="button" data-export-gate-action="${escapeHtml(content.primaryAction)}">${escapeHtml(content.primaryLabel)}</button>
-          <button type="button" data-export-gate-action="${escapeHtml(content.secondaryAction)}">${escapeHtml(content.secondaryLabel)}</button>
+          <button class="primary-action" type="button" data-export-gate-action="${escapeHtml(content.primaryAction)}">${iconLabel(actionIcon(content.primaryAction), content.primaryLabel)}</button>
+          <button type="button" data-export-gate-action="${escapeHtml(content.secondaryAction)}">${iconLabel(actionIcon(content.secondaryAction), content.secondaryLabel)}</button>
         </div>
       </section>
     `;
@@ -3698,6 +3836,7 @@ function render() {
   ensureDecos();
   root.innerHTML = render_app_html(JSON.stringify(params));
   applyTheme();
+  enhanceAppIcons(root);
   attachDecorLibraryPanel();
 
   const accountModal = root.querySelector('[data-account-modal]');

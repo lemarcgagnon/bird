@@ -2,11 +2,18 @@
 
 This folder is the handoff layer for current release status, security backlog and refactoring work. It should explain current state and known gaps; historical docs must not override current implementation facts from the README files next to the code.
 
+## Note de reprise de session
+
+- En cas de reprise de cette session après une pause (ex. le lundi), lire cette note en premier.
+- Conserver le contexte tel qu'il est dans ce document et poursuivre depuis ce point sans revenir aux documentations historiques.
+- Vérifier rapidement la branche/état courant, puis reprendre le travail selon les sections “Current implementation facts” / “Known drift to fix”.
+
 Current release baseline: use the currently checked out hardened PHP/WASM codebase, not historical ZIPs or older handoff notes. The production hardening now includes prebuilt browser assets, local Three.js, production fail-closed config, MySQL-only production DB behavior, a configurable non-obvious admin path, and an artifact build that rejects docs/dev files/secrets.
 
 ## Documents
 
 - `architecture.mmd`: diagramme Mermaid de l'architecture active: SPA navigateur, WASM/Rust, backend PHP, stockage dev/prod, services externes et packaging cPanel.
+- `hig-ux-audit-2026-06-23.md`: audit HIG/UX actuel avec constats par surface et ordre d'implementation recommande.
 - `refactoring-plan.md`: phased DRY/KISS/i18n/HIG/security refactoring plan.
 - `securizons.md`: security backlog/reference for files, SVG/input handling, WASM and server boundaries. It is not a release certification.
 
@@ -23,7 +30,8 @@ Current release baseline: use the currently checked out hardened PHP/WASM codeba
   - `/library`: lists active items (label, description, size) and renders one public PNG thumbnail via `/api/library/thumbnail`.
   - `/api/library/thumbnail?item_id=<id>`: returns a generated PNG thumbnail (no STL payload).
   - `/api/library/preview` is admin-only and returns the source image for an item.
-  - `/api/library/stl-preview?item_id=<id>`: returns simplified STL metadata for viewer rendering.
+  - `/api/library/stl-original-preview?item_id=<id>`: returns the active original STL for the user/WASM Three.js preview so it matches the admin viewer.
+  - `/api/library/stl-preview?item_id=<id>`: returns sampled STL metadata for fallback viewer rendering.
   - `/api/library/authorize` then `/api/library/download`: creates short authorization, then decrements credits at serve time.
   - `/api/admin/library/stl-file` is admin-only and returns the original STL file for admin download.
 - Account auth now uses the HttpOnly SameSite `nichoir_account_session` cookie. The browser app clears the old `nichoir-auth-token` local-storage key and relies on credentialed same-origin requests.

@@ -6,6 +6,7 @@ Role: versioned schema files for the PHP backend.
 
 - `001_init.sql`: SQLite baseline schema for users, sessions, credits, export authorizations, tickets, ticket messages, ticket notifications, app settings, subscriptions, payments, Stripe events and admin audit data.
 - `002_library.sql`: SQLite schema for private STL/image library items, including descriptions and file metadata, short-lived download authorizations and completed library download records.
+- `003_library_archive.sql`: adds `deleted_at` so library files can be archived without erasing accounting/download history.
 
 ## Runtime behavior
 

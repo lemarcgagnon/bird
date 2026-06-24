@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260624-stl-decor-import-v8';
+} from '../wasm/pkg/wasm.js?v=20260624-stl-decor-import-v9';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260624-stl-decor-import-v8';
+const APP_BUILD_ID = '20260624-stl-decor-import-v9';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -3362,6 +3362,7 @@ function captureUiState() {
     decoParam: active.dataset.decoParam || null,
     decoNumber: active.dataset.decoNumber || null,
     choice: active.dataset.choice || null,
+    decoQuality: active.dataset.decoQuality || null,
     bool: active.dataset.bool || null,
     decoBool: active.dataset.decoBool || null,
     decoTarget: active.hasAttribute('data-deco-target'),
@@ -3386,6 +3387,7 @@ function restoreUiState(state) {
   if (state.focus.decoParam) selector = `[data-deco-param="${state.focus.decoParam}"]`;
   if (state.focus.decoNumber) selector = `[data-deco-number="${state.focus.decoNumber}"]`;
   if (state.focus.choice) selector = `[data-choice="${state.focus.choice}"]`;
+  if (state.focus.decoQuality) selector = `[data-deco-quality="${state.focus.decoQuality}"]`;
   if (state.focus.bool) selector = `[data-bool="${state.focus.bool}"]`;
   if (state.focus.decoBool) selector = `[data-deco-bool="${state.focus.decoBool}"]`;
   if (state.focus.decoTarget) selector = '[data-deco-target]';
@@ -4233,6 +4235,16 @@ function render() {
     button.addEventListener('click', () => {
       const deco = activeDeco();
       deco[button.dataset.decoChoice] = button.dataset.value;
+      render();
+    });
+  });
+
+  root.querySelectorAll('[data-deco-quality]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const value = Number(button.dataset.value);
+      if (!Number.isFinite(value)) return;
+      const deco = activeDeco();
+      deco.resolution = value;
       render();
     });
   });

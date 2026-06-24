@@ -600,7 +600,7 @@ fn sanitize_decor(mut d: DecorSettings) -> DecorSettings {
     d.bevel = clamp_finite(d.bevel, 0.0, 100.0, defaults.bevel);
     d.smooth = clamp_finite(d.smooth, 0.0, 100.0, defaults.smooth);
     d.threshold = clamp_finite(d.threshold, 0.0, 60.0, defaults.threshold);
-    d.resolution = clamp_finite(d.resolution, 8.0, 256.0, defaults.resolution);
+    d.resolution = clamp_finite(d.resolution, 8.0, 384.0, defaults.resolution);
 
     if d.source_type == "svg" {
         if !svg_text_looks_safe(&d.source_text) {
@@ -1049,6 +1049,13 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "deco_invert") => "Invert heightmap",
         ("en", "deco_remove_bg") => "Transparent background / remove white background",
         ("en", "deco_resolution") => "Heightmap resolution",
+        ("en", "deco_export_quality") => "STL export quality",
+        ("en", "deco_quality_low") => "Low",
+        ("en", "deco_quality_medium") => "Medium",
+        ("en", "deco_quality_high") => "High",
+        ("en", "deco_quality_note") => {
+            "Higher quality keeps finer STL details, but creates larger files and slower exports."
+        },
         ("en", "deco_smooth") => "Auto smooth",
         ("en", "deco_bevel") => "Bevel / chamfer intensity",
         ("en", "deco_threshold") => "Noise threshold",
@@ -1341,6 +1348,13 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "deco_invert") => "Inverser heightmap",
         (_, "deco_remove_bg") => "Fond transparent / supprimer fond blanc",
         (_, "deco_resolution") => "Resolution heightmap",
+        (_, "deco_export_quality") => "Qualite export STL",
+        (_, "deco_quality_low") => "Basse",
+        (_, "deco_quality_medium") => "Moyenne",
+        (_, "deco_quality_high") => "Haute",
+        (_, "deco_quality_note") => {
+            "Une qualite plus haute garde plus de details STL, mais cree des fichiers plus lourds et des exports plus lents."
+        },
         (_, "deco_smooth") => "Auto smooth",
         (_, "deco_bevel") => "Intensite biseau / chanfrein",
         (_, "deco_threshold") => "Seuil anti-bruit",
@@ -1682,6 +1696,28 @@ fn choice_button(label: &str, key: &str, value: &str, current: &str) -> String {
         active_str(current, value),
         html_escape(key),
         html_escape(value),
+        html_escape(label),
+    )
+}
+
+fn deco_quality_key(resolution: f64) -> &'static str {
+    if resolution >= 320.0 {
+        "high"
+    } else if resolution >= 192.0 {
+        "medium"
+    } else {
+        "low"
+    }
+}
+
+fn deco_quality_button(label: &str, value: f64, current: &str) -> String {
+    let key = deco_quality_key(value);
+    format!(
+        r#"<button class="choice {}" data-deco-quality="{}" data-value="{:.0}" type="button" aria-pressed="{}">{}</button>"#,
+        active_str(current, key),
+        key,
+        value,
+        if current == key { "true" } else { "false" },
         html_escape(label),
     )
 }
@@ -3701,7 +3737,7 @@ fn add_imported_stl_heightfield_basis(
         }
     };
 
-    let res = d.resolution.round().clamp(72.0, 192.0) as usize;
+    let res = d.resolution.round().clamp(96.0, 384.0) as usize;
     let w = d.w.max(1.0);
     let h = d.h.max(1.0);
     let idx = |x: usize, y: usize| -> usize { y * (res + 1) + x };
@@ -7946,7 +7982,21 @@ pub fn render_app_html(input: &str) -> String {
         !active_deco.source_text.trim().is_empty() || !active_deco.source_data.trim().is_empty();
     let deco_shape_controls = if deco_has_source {
         let heightmap_controls = if is_stl_deco {
-            String::new()
+            let quality = deco_quality_key(active_deco.resolution);
+            format!(
+                r#"<div class="field-group deco-quality-control">
+        <p>{quality_label}</p>
+        <div class="choices" role="group" aria-label="{quality_label}">
+          {low}{medium}{high}
+        </div>
+        <p class="control-note">{quality_note}</p>
+      </div>"#,
+                quality_label = html_escape(t(lang, "deco_export_quality")),
+                quality_note = html_escape(t(lang, "deco_quality_note")),
+                low = deco_quality_button(t(lang, "deco_quality_low"), 128.0, quality),
+                medium = deco_quality_button(t(lang, "deco_quality_medium"), 256.0, quality),
+                high = deco_quality_button(t(lang, "deco_quality_high"), 384.0, quality),
+            )
         } else {
             format!(
                 r#"<div class="subcontrols mode-settings">
@@ -8829,6 +8879,28 @@ mod tests {
         let html = render_app_html(&input);
 
         assert!(html.contains("data-deco-bool=\"lockProportions\""));
+    }
+
+    #[test]
+    fn render_app_html_exposes_stl_decor_quality_presets() {
+        let data = test_box_stl_base64(test_vec3(0.0, 0.0, 0.0), test_vec3(10.0, 10.0, 2.0));
+        let input = serde_json::json!({
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "stl",
+                    "sourceData": data,
+                    "mode": "stl",
+                    "resolution": 384
+                }
+            }
+        })
+        .to_string();
+        let html = render_app_html(&input);
+
+        assert!(html.contains("data-deco-quality=\"low\""));
+        assert!(html.contains("data-deco-quality=\"medium\""));
+        assert!(html.contains("data-deco-quality=\"high\""));
     }
 
     #[test]

@@ -49,49 +49,49 @@ Responsabilites actuelles:
 
 ## Lancer en local
 
-Serveur PHP site/API unifie:
+Serveur PHP site/API local:
 
 ```bash
 cd /home/marc/Documents/nichoir16
-php -d upload_max_filesize=25M -d post_max_size=64M -S 127.0.0.1:8016 -t server-php/public server-php/public/index.php
+php -d upload_max_filesize=25M -d post_max_size=64M -S 127.0.0.1:8021 -t server-php/public server-php/public/index.php
 ```
 
-Serveur statique pour l'app seulement si tu testes volontairement une origine separee:
+Serveur statique pour l'app WASM:
 
 ```bash
 cd /home/marc/Documents/nichoir16
 php -S 127.0.0.1:8016 -t .
 ```
 
-Ne lance pas ces deux commandes sur le meme port en meme temps. Le serveur PHP doit recevoir `server-php/public/index.php` comme routeur, sinon les routes propres comme `/gestion-nichoir/login` peuvent retourner un faux 404.
+Le serveur PHP doit recevoir `server-php/public/index.php` comme routeur, sinon les routes propres comme `/gestion-nichoir/login` peuvent retourner un faux 404.
 
 URLs de référence:
 
-- Homepage: `http://127.0.0.1:8016/`
-- Librairie publique: `http://127.0.0.1:8016/library?lang=fr`
-- Admin librairie: `http://127.0.0.1:8016/gestion-nichoir#admin-library`
-- Login admin local: `http://127.0.0.1:8016/gestion-nichoir/login`
-- App WASM: `http://127.0.0.1:8016/app/?lang=fr`
+- Homepage: `http://127.0.0.1:8021/`
+- Librairie publique: `http://127.0.0.1:8021/library?lang=fr`
+- Admin librairie: `http://127.0.0.1:8021/gestion-nichoir#admin-library`
+- Login admin local: `http://127.0.0.1:8021/gestion-nichoir/login`
+- App WASM: `http://127.0.0.1:8016/app/?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021`
 
 Mot de passe d'accès admin local: à configurer dans `NICHOIR_ADMIN_PASSWORD_HASH` (pas de mot de passe magique dans le code).
 
 Ouvrir le site:
 
 ```text
-http://127.0.0.1:8016/
+http://127.0.0.1:8021/
 ```
 
 Ouvrir l'app directement avec l'API PHP separee:
 
 ```text
-http://127.0.0.1:8016/app/
+http://127.0.0.1:8016/app/?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021
 ```
 
 ```text
-http://127.0.0.1:8016/gestion-nichoir/login
+http://127.0.0.1:8021/gestion-nichoir/login
 ```
 
-En mode unifie, l'app utilise la meme origine que PHP. L'override local `?php_base=...` reste accepte seulement pour tester une autre origine locale. Hors hote local, `php_base` est ignore et l'app utilise `window.location.origin`, ce qui correspond a l'artifact production ou `public_html/app/` et le wrapper PHP partagent la meme origine.
+En dev local, l'app statique sur `8016` pointe par defaut l'API PHP vers `8021`, et l'override `?php_base=...` reste disponible pour d'autres tests locaux. Hors hote local, `php_base` est ignore et l'app utilise `window.location.origin`, ce qui correspond a l'artifact production ou `public_html/app/` et le wrapper PHP partagent la meme origine.
 
 ## Compiler le WASM
 
@@ -171,6 +171,7 @@ Etat actuel:
 - `/library` liste les fichiers actifs de la librairie, leur description, leur taille et affiche une miniature PNG publique sans donner le fichier source telechargeable. `/api/library/authorize` cree une autorisation courte et `/api/library/download` debite les credits atomiquement au moment ou le fichier est servi. Les fichiers originaux sont stockes hors webroot dans `server-php/data/library` par defaut et copies localement dans `app/images/library` pour les apercus locaux/admin. Les deux chemins sont configurables en admin sauf override par environnement. Les miniatures publiques sont servies via `/api/library/thumbnail`; `/api/library/stl-original-preview` peut servir un STL actif en lecture inline pour preview 3D publique, tandis que `/api/admin/library/stl-file` reste reserve a l'admin pour l'original de gestion.
 - `/api/admin/session` ne renvoie que l'etat admin de la session PHP courante; l'app statique l'utilise pour afficher les telechargements diagnostiques admin-only et debloquer les exports premium a cout zero sans exposer le chemin admin configure.
 - `server-php/src/credits.php` est la source de verite pour le registre des apps WASM, le catalogue `product_code`, les couts par produit, les formats de fichier, les entitlements de retelechargement et le bonus de solde partiel.
+- Le bonus de solde partiel reste reglable dans l'admin, mais les couts publics par produit proviennent actuellement du catalogue backend `EXPORT_PRODUCTS`, pas d'un cout global unique configurable.
 - `/api/apps` expose les apps WASM connues du backend. L'app actuelle utilise `app_id=nichoir`.
 - `/api/exports/quote` annonce le cout/solde/bonus par `app_id` sans creer d'autorisation; `/api/exports/authorize` cree une autorisation courte; `/api/exports/consume` la reclame atomiquement avant debit. Avec une session admin, le cout est zero et l'autorisation est stockee/consommee en session PHP sans ligne `credit_ledger`.
 - `/api/client-log` accepte les erreurs navigateur/WASM avec rate limit de 10 logs/minute par utilisateur ou IP.
@@ -219,7 +220,7 @@ Checks manuels importants:
 - consommer deux fois la meme autorisation et verifier qu'un seul debit passe;
 - tester la session admin: quote/authorize/consume doivent retourner `admin=true`, `cost=0`, puis refuser une seconde consommation du meme token;
 - tester le son landing: reinitialiser `nichoir_welcome_bird_played_v1` puis recharger `/` sur un navigateur neuf; la premiere tentative peut etre bloquee par autoplay, valider que le son se lance apres la premiere interaction.
-- tester l'app WASM en FR: verifier que `Dimensions > Fixation murale universelle` n'affiche d'abord que l'activation, puis revele les groupes `Plaque d'insertion (male)`, `Queue d'aronde` et `Recepteur mural (femelle)` apres activation; confirmer que le STL maison contient la piece male fusionnee et que seul le STL `Recepteur mural femelle` est telechargeable gratuitement dans les telechargements 3D.
+- tester l'app WASM en FR: verifier que `Dimensions > Fixation murale universelle` n'affiche d'abord que l'activation, puis revele les groupes `Plaque d'insertion (male)`, `Queue d'aronde` et `Recepteur mural (femelle)` apres activation; confirmer que le STL maison contient la piece male fusionnee et que le STL `Recepteur mural femelle` passe bien par le flux quote/authorize/consume comme produit facture.
 - tester Checkout, portail et webhook Stripe en mode test avant production.
 
 ## Points ouverts

@@ -2,6 +2,8 @@
 **Date:** June 17, 2026
 **Agent:** Gemini CLI (Multi-Agent Audit Team)
 
+> Status note (2026-06-24): this is a historical external audit snapshot. Since this review, the current codebase already uses the HttpOnly SameSite=Lax `nichoir_account_session` cookie, clears the legacy `nichoir-auth-token` local-storage key in `app/app.js`, keeps a persistent Three.js viewer lifecycle, adds the major `user_id`/export indexes in `server-php/src/db.php`, clamps the taper path in WASM, and prefetches Stripe invoice data before the webhook DB transaction. Remaining points below should be read as follow-up recommendations unless reconfirmed against current code.
+
 ## 1. Executive Summary
 Following an initial audit and a multi-agent deep-dive, the codebase was updated with a "Mission Control" architecture to support multi-WASM applications. This review has been updated to reflect these changes. The foundation remains solid, and the new architectural direction significantly improves extensibility.
 
@@ -10,8 +12,8 @@ Following an initial audit and a multi-agent deep-dive, the codebase was updated
 ## 2. Security & Hardening
 
 ### 2.1 Authentication Token Storage
-*   **Problem:** Auth tokens are currently stored in `localStorage` (`app/app.js`). This makes them accessible to any script running on the page, including potential XSS vectors.
-*   **Proposed Solution:** Transition to **HttpOnly, Secure, SameSite=Strict Cookies**. Modify `server-php/src/auth.php` to emit a `Set-Cookie` header on login and remove the token from the JSON response body.
+*   **Historical Finding (Closed):** Earlier builds stored account auth state in `localStorage`. The current app now clears the legacy browser key and authenticates through the server-set HttpOnly cookie `nichoir_account_session`.
+*   **Current State:** `server-php/src/auth.php` sets the cookie, browser requests use credentials, and the active cookie policy is `SameSite=Lax` rather than the stricter `SameSite=Strict` proposed here.
 
 ### 2.2 SVG Sanitization Strategy
 *   **Problem:** The custom `assertSafeSvgText` function in `app/app.js` uses a "blacklist" of forbidden tags/attributes. Blacklists are prone to bypasses.
@@ -29,13 +31,12 @@ Following an initial audit and a multi-agent deep-dive, the codebase was updated
 *   **Proposed Solution:** Implement **Spatial Indexing** (e.g., Bounding Box check or Grid-based binning) to reduce the number of `point_in_poly_2d` calls.
 
 ### 3.2 Three.js Context Management
-*   **Problem:** `app/app.js` recreates the entire WebGLRenderer and Scene on every parameter update, causing GPU pressure and UI stuttering.
-*   **Proposed Solution:** **Persist the Renderer and Scene**. Update `BufferGeometry` attributes rather than disposing of the entire world.
+*   **Historical Finding (Closed):** Earlier builds recreated the `WebGLRenderer` and scene on repeated updates.
+*   **Current State:** `app/app.js` now keeps a persistent `viewerState`, rebinds the mount when needed, and replaces/disposes mesh resources instead of rebuilding the renderer per parameter change.
 
 ### 3.3 Database Indexing
-*   **Progress:** The "Mission Control" update correctly added `idx_export_authorizations_app_id`.
-*   **Remaining Problem:** Tables like `credit_ledger`, `subscriptions`, and `payments` still lack indices on the `user_id` foreign key.
-*   **Proposed Solution:** Add `CREATE INDEX IF NOT EXISTS idx_..._user_id` to the migration for all relational tables.
+*   **Progress:** The original "Mission Control" update added `idx_export_authorizations_app_id`.
+*   **Historical Finding (Closed for current schema):** The current schema in `server-php/src/db.php` now also carries the major `user_id`, payment, subscription, ticket, and export indexes that were missing when this review was written.
 
 ---
 
@@ -46,12 +47,12 @@ Following an initial audit and a multi-agent deep-dive, the codebase was updated
 *   **Future-Proofing:** Currently, `EXPORT_APPS` is a hardcoded PHP constant. As the ecosystem expands, moving this registry to the `app_settings` table would allow adding new WASM apps without redeploying code.
 
 ### 4.2 Negative Geometry Underflow
-*   **Problem:** Extreme taper values can result in negative floor widths, causing overlapping panels.
-*   **Proposed Solution:** Apply **Clamping** in the Rust geometry logic: `floor_w = (params.w - taper_diff).max(0.0)`.
+*   **Historical Finding (Closed):** Extreme taper values previously risked negative floor widths and overlapping panels.
+*   **Current State:** The taper path has since been clamped in the Rust geometry logic.
 
 ### 4.3 Webhook Transaction Contention
-*   **Problem:** `stripe_webhook.php` performs external Stripe API calls inside a database transaction while holding a `FOR UPDATE` lock.
-*   **Proposed Solution:** Move API calls **outside the transaction**. Fetch invoice data *before* starting the DB transaction.
+*   **Historical Finding (Closed):** The earlier webhook flow could perform external Stripe API work inside the DB transaction.
+*   **Current State:** `server-php/src/stripe_webhook.php` now enriches the Stripe object before the transaction begins.
 
 ---
 
@@ -70,4 +71,4 @@ Following an initial audit and a multi-agent deep-dive, the codebase was updated
 ---
 
 ## 6. Final Recommendation
-The "Mission Control" update is a major step forward, demonstrating excellent attention to validation and scalability (e.g., the new `app_id` index). Addressing the remaining **Performance** (Three.js) and **Security** (Cookie-based auth) gaps will make Nichoir16 a fully production-ready multi-app platform.
+The "Mission Control" update was a major step forward, and several concrete gaps from this review are now closed in the current codebase. The remaining higher-value follow-up areas are SVG hardening, heavy WASM geometry hotspots, and the long-term question of whether the app registry should stay code-backed or move to data-backed configuration.

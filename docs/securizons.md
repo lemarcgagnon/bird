@@ -206,11 +206,11 @@ Architecture serveur cible:
 Flux cible pour un telechargement:
 
 1. L'utilisateur demande un export dans l'app WASM.
-2. Le front-end appelle `POST /api/exports/authorize` avec le `product_code`, le format de fichier `export_type` et le fingerprint du modele.
+2. Le front-end peut appeler `POST /api/exports/quote` pour connaitre le cout reel, puis appelle `POST /api/exports/authorize` avec `app_id`, `product_code`, le format `export_type` et le fingerprint du modele.
 3. Le serveur verifie session, abonnement, credits et regles commerciales.
-4. Si autorise, le serveur retourne une autorisation courte et reserve/debite les credits selon la strategie retenue.
+4. Si autorise, le serveur retourne une autorisation courte; il ne debite pas encore les credits a cette etape.
 5. Le WASM genere le fichier localement.
-6. Le front-end appelle `POST /api/exports/consume` pour confirmer la consommation si necessaire.
+6. Le front-end appelle `POST /api/exports/consume`; le serveur reverifie le compte, applique au besoin le bonus de solde partiel, debite, journalise et enregistre l'entitlement de retelechargement.
 
 Le serveur ne doit pas recevoir le STL, le PDF, le ZIP, les panneaux ou la geometrie complete sauf besoin volontaire de support/debug.
 
@@ -223,6 +223,7 @@ Objectif realiste:
 
 Mesures deja en place:
 
+- Auth compte via cookie HttpOnly SameSite=Lax `nichoir_account_session`; l'app supprime la cle legacy `nichoir-auth-token` et utilise des requetes avec credentials.
 - Sanitizer SVG cote app avant rasterisation.
 - Normalisation stricte des parametres cote Rust/WASM.
 - Plafonds image decodee cote Rust/WASM.
@@ -247,7 +248,7 @@ Risques restants / durcissement apres la stabilisation production courante:
 - Tester `NICHOIR_STRIPE_WEBHOOK_SECRET` avec Stripe reel en production pour confirmer le rejet des webhooks non signes.
 - Extraire les scripts inline PHP et passer a une CSP plus stricte.
 - Remplacer ou completer le hard delete admin par une politique de retention/soft delete.
-- Revoir le stockage du bearer token dans `localStorage` si l'app devient exposee a du contenu tiers.
+- Verifier les regles cookie-auth/CSRF si un futur mode split-origin non local ou du contenu tiers est introduit; l'app courante n'utilise plus de bearer token persistant dans `localStorage`.
 - Proteger les secrets SMTP comme les secrets Stripe: acces admin strict, variables serveur preferees, pas de commit de base contenant un vrai mot de passe.
 - Proteger les credentials DB: ne pas exposer `server-php/data` ni `nichoir_private`, utiliser l'artifact `public_html/` + `nichoir_private/`, ne jamais committer `db-config.php` ou `production.php`.
 

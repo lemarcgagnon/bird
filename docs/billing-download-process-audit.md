@@ -103,7 +103,7 @@ Action: Define fingerprint normalization per product:
 | Plan PDF/SVG/PNG | language if layout is language-independent, view mode | dimensions, kerf, sheet size, cut settings |
 | Calculations PDF | view mode, explode | dimensions, unit if displayed values differ, language if text differs |
 
-Current implementation note: only the house STL path currently sends a quality-insensitive model fingerprint. Other billable products still need explicit product-specific fingerprint policy if repeat downloads should be free.
+Current implementation note: all current public app products now send an export fingerprint. The shared browser policy already strips view/language noise and ignores STL decor quality so repeat-download entitlements remain fairness-oriented instead of charging again for quality-only changes.
 
 2. UI copy must make credit behavior explicit.
 
@@ -111,17 +111,17 @@ If a repeated same-model download is free, the UI should say so. Users should un
 
 Action: Add explicit status text when quote/authorize returns `previously_purchased=true`.
 
-3. The `zip` export type is now billable.
+3. The ZIP product is now modeled correctly.
 
-This is correct for panels ZIP, but backend naming should distinguish panels ZIP from any future ZIP utility bundle.
+This is correct for panels ZIP, and the backend already distinguishes it with `product_code=panels_zip` rather than billing by raw `zip`.
 
-Action: Use `product_code=panels_zip` before adding more ZIP products.
+Action: Keep future ZIP-family products as distinct product codes instead of extending `panels_zip` beyond its current meaning.
 
-4. Credit ledger may omit zero-cost repeat downloads.
+4. Credit ledger may omit zero-cost repeat debits.
 
 That is probably correct for accounting, but support may need visibility into repeat downloads.
 
-Action: Store repeat download count in `export_entitlements` and expose it in admin support views later.
+Action: Keep using `export_entitlements.download_count` plus the current admin reporting fields for repeat-download support visibility.
 
 ### Minor
 
@@ -484,13 +484,13 @@ Debug OBJ and mesh report are admin-only.
 
 1. Move fingerprint canonicalization to PHP if fraud risk rises.
 
-2. Add per-product pricing.
+2. Refine per-product pricing presentation or move to admin-managed product pricing if the business wants runtime-configurable prices.
 
 3. Add invoice-style customer history showing purchased exports.
 
 ## Final assessment
 
-The billing direction is now coherent only if the core product rule is enforced: every customer-facing fabrication or decor asset is billable unless explicitly bundled inside a paid entitlement. Revenue comes from library files and fabrication downloads, while diagnostics remain admin-only. The architecture is usable and pragmatic, but it needs one more product-model pass: stop treating file format as product identity, and introduce product codes with explicit billable/admin/bundled policy.
+The billing direction is now coherent because the core product rule is enforced in the current backend catalog: customer-facing fabrication and decor assets are modeled as explicit billable products unless intentionally treated as diagnostics or future bundle entitlements. Revenue comes from library files and fabrication downloads, while diagnostics remain admin-only. The remaining architectural pressure is no longer product identity, but trust boundary clarity, UI billing clarity, and operational recovery behavior.
 
 The current entitlement implementation is a good KISS step for customer fairness. It should not be mistaken for anti-fraud security.
 

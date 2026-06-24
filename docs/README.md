@@ -22,7 +22,7 @@ Current release baseline: use the currently checked out hardened PHP/WASM codeba
 - PHP routes the public site, pricing, about, contact, terms, legal, account, configurable admin path, JSON API and Stripe webhook through `server-php/public/index.php`.
 - `server-php/src/pages.php` is now a compatibility include that loads smaller page, layout, i18n, contact, account, admin, credit, mail, Stripe and helper modules.
 - Contact form email is implemented with CSRF, honeypot, IP rate limiting, SMTP handoff through `src/mail.php`, app logging and session flash messages.
-- Credit policy is implemented in `server-php/src/credits.php` and configurable from admin settings.
+- Credit policy is implemented in `server-php/src/credits.php`. The partial-balance bonus remains configurable from admin settings; current public per-product export costs come from the server product catalog rather than from a single global admin export-cost field.
 - Billed exports use server `app_id`, product code, quote, short authorization and atomic consume before debit. The current WASM app id is `nichoir`; billed app products are `house_stl`, `door_stl`, `female_wall_receiver_stl`, `panels_zip`, `plan_svg`, `plan_png`, `explosion_png`, `plan_pdf` and `calculations_pdf`.
 - Debug OBJ and mesh report JSON are diagnostics, not client-billed products.
 - Repeat app downloads are keyed by user, app, product code and model fingerprint. The same product/model can be downloaded again without a second debit; changing the model or decor produces a different fingerprint.

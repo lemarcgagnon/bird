@@ -16,29 +16,29 @@ The Rust/WASM app stays under `/app/` and generates geometry and fabrication fil
 
 ```bash
 cd /home/marc/Documents/nichoir16
-php -d upload_max_filesize=25M -d post_max_size=64M -S 127.0.0.1:8016 -t server-php/public server-php/public/index.php
+php -d upload_max_filesize=25M -d post_max_size=64M -S 127.0.0.1:8021 -t server-php/public server-php/public/index.php
 ```
 
 The PHP built-in server must receive `server-php/public/index.php` as router script. Without the router, direct routes such as `/gestion-nichoir/login` can return a false 404.
 
 Useful pages:
 
-- `http://127.0.0.1:8016/`
-- `http://127.0.0.1:8016/pricing`
-- `http://127.0.0.1:8016/account`
-- `http://127.0.0.1:8016/gestion-nichoir/login` unless `NICHOIR_ADMIN_PATH` is configured differently.
-- Librairie publique: `http://127.0.0.1:8016/library?lang=fr`
-- Admin librairie: `http://127.0.0.1:8016/gestion-nichoir#admin-library`
+- `http://127.0.0.1:8021/`
+- `http://127.0.0.1:8021/pricing`
+- `http://127.0.0.1:8021/account`
+- `http://127.0.0.1:8021/gestion-nichoir/login` unless `NICHOIR_ADMIN_PATH` is configured differently.
+- Librairie publique: `http://127.0.0.1:8021/library?lang=fr`
+- Admin librairie: `http://127.0.0.1:8021/gestion-nichoir#admin-library`
 
 En local, le mot de passe admin dépend de `NICHOIR_ADMIN_PASSWORD_HASH` et doit être configuré côté serveur.
 
 When the static WASM app runs separately on `8016`, open it with:
 
 ```text
-http://127.0.0.1:8016/app/
+http://127.0.0.1:8016/app/?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021
 ```
 
-The default local setup is same-origin on `127.0.0.1:8016`. The `php_base` query parameter remains available for local-only split-origin tests.
+The current local app setup is split-origin by default: static app on `127.0.0.1:8016`, PHP site/API on `127.0.0.1:8021`. The `php_base` query parameter remains available for local-only override tests.
 
 ## Current routes
 
@@ -121,6 +121,7 @@ API and webhook:
 - `/api/apps` returns the server-known WASM apps. The current app id is `nichoir`.
 - Current public app products are `house_stl`, `door_stl`, `female_wall_receiver_stl`, `panels_zip`, `plan_svg`, `plan_png`, `explosion_png`, `plan_pdf` and `calculations_pdf`.
 - Product costs are defined by `EXPORT_PRODUCTS`: STL products cost 3 credits, panel ZIP costs 5 credits, SVG/PNG products cost 1 credit and PDF products cost 2 credits.
+- The admin credit-policy screen still controls the partial-balance bonus behavior, but public per-product billing currently comes from `EXPORT_PRODUCTS`, not from a single configurable global export cost.
 - `/api/exports/quote` checks `app_id`, product code and, for clients, current balance plus optional partial-balance bonus without creating a token or debiting credits. Admin sessions get `cost=0`.
 - `/api/exports/authorize` checks `app_id`, product code and, for clients, active account status/current balance/bonus eligibility, then creates a short-lived token. Client tokens are stored in `export_authorizations`; admin tokens are stored in PHP session.
 - `/api/exports/consume` revalidates the account or admin session and `app_id`, atomically claims the authorization, applies any configured client top-up, debits client credits, writes `credit_ledger`, and logs/audits the event. Admin consumption is one-shot, logged, and does not debit or create ledger rows.
@@ -214,7 +215,7 @@ If using the temporary installer:
 
 ```bash
 find server-php installation deployment/namecheap -name '*.php' -print -exec php -l {} \;
-curl http://127.0.0.1:8016/api/health
+curl http://127.0.0.1:8021/api/health
 ```
 
 Manual checks:

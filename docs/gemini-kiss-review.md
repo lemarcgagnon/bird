@@ -2,12 +2,14 @@
 **Date:** June 17, 2026
 **Focus:** Architectural Purity, Code Efficiency, Long-term Maintainability
 
+> Status note (2026-06-24): this is a historical review snapshot. Since it was written, the current codebase already uses HttpOnly cookie auth, a static cache in `page_t()`, the major DB/export indexes in `server-php/src/db.php`, and a persistent Three.js viewer lifecycle in `app/app.js`. The remaining value of this memo is mostly around longer-term simplification and SVG hardening direction.
+
 ## 1. The KISS Principle (Keep It Simple, Stupid)
 
 ### 1.1 The WebGL Re-initialization "Anti-Pattern"
-*   **The Violation:** `app.js` destroys and recreates the entire Three.js `WebGLRenderer` and `Scene` on every parameter change.
-*   **The Band-Aid:** Using `cleanupViewer()` to wipe the slate clean instead of properly updating existing objects.
-*   **KISS Solution:** Initialize the renderer **once**. Update only the `geometry.attributes` of existing meshes. Simplicity in the rendering loop leads to better performance and fewer edge cases.
+*   **Historical Violation (Closed):** Earlier `app.js` builds recreated the entire Three.js renderer/scene stack on repeated parameter changes.
+*   **Current State:** The viewer now keeps a persistent `viewerState`, reuses the renderer/camera lifecycle, and swaps/disposes scene objects instead of tearing the whole viewer down.
+*   **Remaining KISS Direction:** Keep geometry replacement/disposal simple and avoid drifting back to recreate-the-world rendering patterns.
 
 ### 1.2 Multi-WASM Registry (Mission Control)
 *   **The Success:** The backend correctly ignores the complexity of geometry and focuses solely on `app_id` and credit policy. This is a perfect application of KISS—separation of concerns.
@@ -24,21 +26,20 @@
 *   **DRY Solution:** Centralize sanitization. Since the WASM engine is the ultimate consumer of the SVG, it should be the **single source of truth** for what is "safe." The frontend should merely pass the string through.
 
 ### 2.2 Translation Array Allocation
-*   **The Violation:** The `page_t` function in `i18n.php` re-allocates massive associative arrays (FR/EN) on every single call.
-*   **The Band-Aid:** Relying on PHP's memory management to clean up the mess thousands of times per request.
-*   **DRY Solution:** Use `static` variables or a single configuration file that returns the array once. Stop redefining the same data structures repeatedly.
+*   **Historical Violation (Closed):** `page_t` previously rebuilt large FR/EN arrays on repeated calls.
+*   **Current State:** `server-php/src/i18n.php` now reuses a static cache instead of reallocating the translation tables every time.
 
 ---
 
 ## 3. No-Band-Aid Strategy (Root Cause Fixes)
 
 ### 3.1 Database Scalability (The Indexing Gap)
-*   **The Band-Aid:** Relying on the small initial dataset to hide the lack of indices on foreign keys (`user_id`).
-*   **Root Cause Fix:** Add explicit indices to `credit_ledger`, `subscriptions`, and `payments`. A database without indices is a ticking performance bomb.
+*   **Historical Gap (Closed for current schema):** The original concern about missing `user_id` indexes was valid when this memo was written.
+*   **Current State:** The current schema in `server-php/src/db.php` includes the major `user_id`, export, payment, ticket, and subscription indexes that were missing earlier.
 
 ### 3.2 Secure Token Handling
-*   **The Band-Aid:** Storing auth tokens in `localStorage` because it is "easier" to implement in JavaScript.
-*   **Root Cause Fix:** Use `HttpOnly` cookies. This solves the security problem at the protocol level rather than trying to "sanitize" every possible XSS vector in the UI.
+*   **Historical Gap (Closed):** The browser app no longer relies on a persistent bearer token in `localStorage`.
+*   **Current State:** Account auth now uses the server-set HttpOnly cookie `nichoir_account_session`, and `app/app.js` clears the old `nichoir-auth-token` key on load.
 
 ### 3.3 WASM Processing Loops
 *   **The Band-Aid:** Accepting UI lag during "Processing..." for complex SVGs.
@@ -49,11 +50,11 @@
 ## 4. Final Verdict
 
 ### Structural Health: **7/10**
-Nichoir16 is a clean, well-organized project, but it is currently "held together" by several high-maintenance band-aids in the frontend rendering and backend translation logic.
+Nichoir16 is a clean, well-organized project. Several of the highest-maintenance band-aids identified here have since been removed; the remaining longer-term design pressure is mostly around SVG sanitization centralization and whether app registry/config should stay code-backed.
 
 ### Top 3 "No-Band-Aid" Priorities:
-1.  **Stop Re-initializing WebGL:** Move to a persistent renderer with attribute updates.
-2.  **Move Config to Data:** Transition the `EXPORT_APPS` registry to the DB.
-3.  **Harden the Protocol:** Switch from `localStorage` to `HttpOnly` cookies.
+1.  **Centralize SVG trust decisions:** reduce split sanitization logic between JS and Rust.
+2.  **Move Config to Data when justified:** transition the `EXPORT_APPS` registry to admin/data-backed config only if multi-app operations truly need it.
+3.  **Keep the viewer lifecycle stable:** prevent regressions back to recreate-the-renderer patterns.
 
 By removing these architectural shortcuts, the codebase will transition from a "working prototype" to a "robust platform."

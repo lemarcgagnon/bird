@@ -13,8 +13,8 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 
 - `window.NICHOIR_PHP_BASE`: optional explicit PHP API origin for controlled local/dev shells.
 - `EXPORT_APP_ID`: fixed to `nichoir` for this WASM app. It is sent with export quote/authorize/consume calls so the PHP backend can act as mission control for multiple WASM apps.
-- `?php_base=...`: local-only override for deliberate split-origin tests. The normal local setup is same-origin on `127.0.0.1:8016`.
-- When the app is served through the PHP router on `127.0.0.1:8016`, `app.js` uses the same origin for API calls.
+- `?php_base=...`: local-only override for deliberate split-origin tests.
+- When the app is served from `127.0.0.1:8016` or `localhost:8016` without `php_base`, `app.js` currently targets the PHP API on the same host at port `8021`.
 - `?lang=fr|en` and local storage key `nichoir-lang`.
 - Local storage keys `nichoir-theme` and `nichoir-last-mesh-report`.
 - Legacy key `nichoir-auth-token` is removed on load. Current account auth relies on the PHP HttpOnly cookie `nichoir_account_session` and `fetch(..., { credentials: 'include' })`.
@@ -22,9 +22,9 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 
 URLs usuelles en local:
 
-- WASM direct: `http://127.0.0.1:8016/app/?lang=fr`
-- API PHP locale: `http://127.0.0.1:8016/`
-- Librairie publique: `http://127.0.0.1:8016/library?lang=fr`
+- WASM direct: `http://127.0.0.1:8016/app/?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021`
+- API PHP locale: `http://127.0.0.1:8021/`
+- Librairie publique: `http://127.0.0.1:8021/library?lang=fr`
 
 ## What `app.js` owns
 
@@ -56,13 +56,13 @@ URLs usuelles en local:
 
 ## Current drift
 
-- Local `EXPORT_COSTS` values are fallback UI estimates for modal/status copy only. Backend credit cost is configurable in `server-php/src/credits.php`; quote and authorize responses return the real `cost`.
+- Local `EXPORT_COSTS` values are fallback UI estimates for modal/status copy only. Backend per-product cost is defined by the server product catalog in `server-php/src/credits.php`; quote and authorize responses return the real `cost`.
 - Account login is handled by the PHP account page. The app modal only summarizes account state and links users to the server-owned account workflow.
 
 ## Validation after changes
 
 1. Run `node --check app/app.js`.
-2. Open `http://127.0.0.1:8016/app/?lang=fr` and the same URL with `lang=en`.
+2. Open `http://127.0.0.1:8016/app/?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021` and the same URL with `lang=en`.
 3. Confirm language switch, theme switch, account modal, PHP links and download authorization messages.
 4. If download code changes, test one successful authorize/generate/consume path and one failed authorization path.
 5. If admin download code changes, log into `{NICHOIR_ADMIN_PATH}/login`, confirm `/api/admin/session` returns `admin=true`, and verify a premium export returns `cost=0` then refuses a second consume of the same authorization.

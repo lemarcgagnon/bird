@@ -1,6 +1,8 @@
 # Hardening Source Of Truth
 
-This document is the working source of truth for the `hardening-auth-svg-renderer` branch.
+> Archived branch plan note (2026-06-24): this document records the original work order for the `hardening-auth-svg-renderer` branch. It is kept for traceability, not as the live repository source of truth. The current codebase already includes a static PHP i18n cache, HttpOnly SameSite=Lax account auth via `nichoir_account_session`, cleanup of the legacy `nichoir-auth-token` browser key, the major DB/export indexes in `server-php/src/db.php`, Stripe invoice enrichment before the webhook DB transaction, and a persistent Three.js viewer lifecycle in `app/app.js`.
+
+This document was the working source of truth for the `hardening-auth-svg-renderer` branch.
 
 The goal is targeted hardening after the production stabilization pass, without redesigning the app or changing the validated Namecheap/cPanel release path unless a real blocker is found.
 
@@ -37,7 +39,7 @@ Do not:
   - WASM negative taper clamp.
   - Stripe invoice prefetch moved outside webhook DB transaction.
 
-## Work Order
+## Original Work Order
 
 ### 1. PHP i18n Cache
 

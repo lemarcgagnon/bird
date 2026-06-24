@@ -2,6 +2,8 @@
 
 Use this handover to resume work after a cleared context window.
 
+> Archived handover note (2026-06-24): this file is a historical branch handover from the 2026-06-17 hardening pass. It is no longer the current next-step order for the repository. Since this handover was written, the current codebase already includes the static PHP i18n cache, HttpOnly SameSite=Lax account auth via `nichoir_account_session`, cleanup of the legacy `nichoir-auth-token` browser key, the major DB/export indexes in `server-php/src/db.php`, Stripe invoice enrichment before the webhook DB transaction, and a persistent viewer lifecycle in `app/app.js`.
+
 ## Repository State
 
 - Repository: `/home/marc/Documents/nichoir16`
@@ -9,7 +11,7 @@ Use this handover to resume work after a cleared context window.
 - Current branch for next work: `hardening-auth-svg-renderer`
 - Stable production baseline on `main`: `55cff7a Prepare mission control and review fixes`
 
-## Current Goal
+## Original Goal
 
 Harden the app after the Namecheap/cPanel production stabilization work, without refactoring broadly.
 
@@ -52,7 +54,7 @@ Recent validations passed before this handover:
   - `/wasm/pkg/wasm.js` returns `200`.
   - `/wasm/pkg/wasm_bg.wasm` returns `200`.
 
-## Next Work Order
+## Original Next Work Order
 
 Follow this exact order unless a test reveals a blocker:
 
@@ -74,7 +76,7 @@ Do not start by moving the Mission Control app registry to the DB. Keep that def
 - Do not commit real secrets, `.env`, real `production.php`, DB files, generated zips, or private host credentials.
 - Keep admin path hardening intact. Obvious `/admin` and `/administration` paths must remain unavailable/reserved in the public artifact.
 
-## First Task To Start
+## Original First Task To Start
 
 Start with `server-php/src/i18n.php`.
 
@@ -103,7 +105,7 @@ If public route smoke is available, also test:
 /contact?lang=en
 ```
 
-## Larger Tasks After That
+## Original Larger Tasks After That
 
 ### HttpOnly Cookies
 

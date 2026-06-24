@@ -78,7 +78,7 @@ Tasks:
 
 1. Store display price, Stripe price ID, package name, and credit quantity per package.
 2. Render `/pricing` from the same package settings used by checkout.
-3. Show the active credit cost from `credit_policy_settings()`.
+3. Render package pricing from the same server/admin settings used by checkout, and render per-product export costs from the backend product catalog instead of a single global export cost.
 4. Add admin controls for display prices and package quantities.
 
 Validation:

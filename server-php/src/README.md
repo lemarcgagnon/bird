@@ -15,7 +15,7 @@ This folder contains the backend code included by `server-php/public/index.php`.
 - `stripe_webhook.php`: Stripe event idempotence, event logs, checkout completion handling, invoice/payment sync and subscription sync.
 - `response.php`: JSON response helper, JSON payload size limit, required-field helper and base HTTP security headers.
 - `i18n.php`: public/account translation tables, language detection, language-aware URLs and local dev app URL helper.
-- `layout.php`: shared PHP page shell, header/nav/footer, language switcher and shared tab/modal inline JavaScript.
+- `layout.php`: shared PHP page shell, header/nav/footer, language switcher and shared tab/modal inline JavaScript (including first-visit landing chime startup + localStorage marker handling).
 - `public_pages.php`: landing, pricing, about, contact, terms and legal page renderers.
 - `contact.php`: contact CSRF helpers and `handle_contact_post()`.
 - `account_pages.php`: account page renderer and account inline JavaScript.

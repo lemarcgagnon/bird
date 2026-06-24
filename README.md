@@ -124,6 +124,7 @@ Le package genere est `wasm/pkg/`; `app/app.js` importe `wasm/pkg/wasm.js`.
 - Clipping decor au panneau et aux trous: les STL importes gardent clipping desactive par defaut pour afficher le mesh original complet dans le WASM. Si l'utilisateur active le clipping, le viewer reste permissif pour permettre le placement; un decor qui deviendrait ouvert ou non-manifold apres clipping est exclu des exports stricts au lieu de produire un fichier casse.
 - Rapport mesh avec comptage des triangles degeneres, valeurs non finies, aretes ouvertes, aretes non-manifold et indicateur `watertight`.
 - Limite navigateur de 2 Mo pour images/SVG; la librairie PHP accepte les STL jusqu a 25 Mo maximum, avec une limite active configurable dans les reglages admin.
+- Le landing public joue un bip d'oiseau unique par navigateur au premier chargement: `/assets/bird-chirp.mp3` est servi par `server-php/public/index.php`, et le marquage de première visite est stocké via `localStorage` (`nichoir_welcome_bird_played_v1`) seulement après lecture réussie pour limiter les repetitions.
 
 ## Exports
 
@@ -212,6 +213,7 @@ Checks manuels importants:
 - tester autorisation puis consommation d'un export avec un compte connecte;
 - consommer deux fois la meme autorisation et verifier qu'un seul debit passe;
 - tester la session admin: quote/authorize/consume doivent retourner `admin=true`, `cost=0`, puis refuser une seconde consommation du meme token;
+- tester le son landing: reinitialiser `nichoir_welcome_bird_played_v1` puis recharger `/` sur un navigateur neuf; la premiere tentative peut etre bloquee par autoplay, valider que le son se lance apres la premiere interaction.
 - tester Checkout, portail et webhook Stripe en mode test avant production.
 
 ## Points ouverts

@@ -7,6 +7,7 @@ This folder is the intended web document root for the PHP site during local PHP-
 - `index.php`: front controller. It includes backend modules, runs migrations, registers shutdown logging, emits security/CORS headers, dispatches public pages, handles contact POST, serves JSON APIs, handles Stripe webhook, guards admin routes and returns JSON 404 for unknown API paths.
 - `site.css`: shared CSS for PHP-rendered public pages, pricing/about/contact layouts, account tabs, admin dashboard, admin modals, tables, forms, language switcher, responsive behavior and focus-visible states.
 - `.htaccess`: Apache front-controller and hardening rules when Apache serves this directory.
+- `assets/bird-chirp.mp3`: mp3 asset used for first-visit welcome sound.
 
 ## Routes owned by `index.php`
 
@@ -20,6 +21,7 @@ Pages:
 - `GET /terms`
 - `GET /legal`
 - `GET /account`
+- `GET /assets/bird-chirp.mp3`
 - `GET {NICHOIR_ADMIN_PATH}/login`
 - `POST {NICHOIR_ADMIN_PATH}/login`
 - `POST {NICHOIR_ADMIN_PATH}/logout`
@@ -65,6 +67,7 @@ API/webhook:
 - In production, `/api/health` should report `env=production` and `db_driver=mysql`; `db_driver=sqlite` is a failed production configuration.
 - `GET /api/admin/session` should return only the current admin-session boolean used by the static app for admin-only diagnostics and zero-cost admin export access.
 - Export quote/authorize/consume routes must support both client credit-backed authorizations and admin session-backed zero-cost authorizations. Admin tokens stay in PHP session, expire, and are consumed once.
+- `GET /assets/bird-chirp.mp3` is handled in `index.php` and should be returned as `audio/mpeg`.
 - API routes should return through `json_response()`.
 - HTML pages should use `page_response()` from `src/layout.php`.
 - New shared visual styling should go in `site.css`, not page-local inline styles.

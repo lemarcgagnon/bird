@@ -305,6 +305,64 @@ function table_has_column(PDO $pdo, string $table, string $column): bool
     return false;
 }
 
+function sqlite_unique_index_exists(PDO $pdo, string $table, array $columns): bool
+{
+    if (db_driver_name($pdo) !== 'sqlite') {
+        return false;
+    }
+    if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table)) {
+        throw new InvalidArgumentException('Invalid database identifier.');
+    }
+    $expected = array_values($columns);
+    $indexes = $pdo->query('PRAGMA index_list(' . $table . ')')->fetchAll();
+    foreach ($indexes as $index) {
+        if ((int) ($index['unique'] ?? 0) !== 1) {
+            continue;
+        }
+        $name = (string) ($index['name'] ?? '');
+        if ($name === '' || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $name)) {
+            continue;
+        }
+        $info = $pdo->query('PRAGMA index_info(' . $name . ')')->fetchAll();
+        $actual = array_map(static fn (array $row): string => (string) ($row['name'] ?? ''), $info);
+        if ($actual === $expected) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function sqlite_rebuild_export_entitlements_product_key(PDO $pdo): void
+{
+    $pdo->exec(
+        "CREATE TABLE export_entitlements_product_key (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            app_id TEXT NOT NULL DEFAULT 'nichoir',
+            product_code TEXT NOT NULL DEFAULT '',
+            export_type TEXT NOT NULL,
+            export_fingerprint TEXT NOT NULL,
+            first_authorization_id INTEGER,
+            first_credit_cost INTEGER NOT NULL DEFAULT 0,
+            download_count INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, app_id, product_code, export_fingerprint),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (first_authorization_id) REFERENCES export_authorizations(id) ON DELETE SET NULL
+        )"
+    );
+    $pdo->exec(
+        "INSERT OR IGNORE INTO export_entitlements_product_key
+            (id, user_id, app_id, product_code, export_type, export_fingerprint, first_authorization_id, first_credit_cost, download_count, created_at, updated_at)
+         SELECT id, user_id, app_id, product_code, export_type, export_fingerprint, first_authorization_id, first_credit_cost, download_count, created_at, updated_at
+         FROM export_entitlements
+         ORDER BY id"
+    );
+    $pdo->exec('DROP TABLE export_entitlements');
+    $pdo->exec('ALTER TABLE export_entitlements_product_key RENAME TO export_entitlements');
+}
+
 function setting_get(PDO $pdo, string $key, string $default = ''): string
 {
     $stmt = $pdo->prepare('SELECT `value` FROM app_settings WHERE `key` = ?');
@@ -366,8 +424,64 @@ function ensure_runtime_schema(PDO $pdo): void
         if (!table_has_column($pdo, 'export_authorizations', 'app_id')) {
             $pdo->exec("ALTER TABLE export_authorizations ADD COLUMN app_id TEXT NOT NULL DEFAULT 'nichoir'");
         }
+        if (!table_has_column($pdo, 'export_authorizations', 'product_code')) {
+            $pdo->exec("ALTER TABLE export_authorizations ADD COLUMN product_code TEXT NOT NULL DEFAULT ''");
+        }
+        if (!table_has_column($pdo, 'export_authorizations', 'export_fingerprint')) {
+            $pdo->exec("ALTER TABLE export_authorizations ADD COLUMN export_fingerprint TEXT NOT NULL DEFAULT ''");
+        }
+        $pdo->exec(
+            "UPDATE export_authorizations
+             SET product_code = CASE export_type
+                WHEN 'zip' THEN 'panels_zip'
+                WHEN 'svg' THEN 'plan_svg'
+                WHEN 'png' THEN 'plan_png'
+                WHEN 'pdf' THEN 'plan_pdf'
+                ELSE 'house_stl'
+             END
+             WHERE product_code = ''"
+        );
         $pdo->exec('CREATE INDEX IF NOT EXISTS idx_export_authorizations_app_id ON export_authorizations(app_id)');
+        $pdo->exec('CREATE INDEX IF NOT EXISTS idx_export_authorizations_product_fingerprint ON export_authorizations(user_id, app_id, product_code, export_fingerprint)');
     }
+    $pdo->exec(
+        "CREATE TABLE IF NOT EXISTS export_entitlements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            app_id TEXT NOT NULL DEFAULT 'nichoir',
+            product_code TEXT NOT NULL DEFAULT '',
+            export_type TEXT NOT NULL,
+            export_fingerprint TEXT NOT NULL,
+            first_authorization_id INTEGER,
+            first_credit_cost INTEGER NOT NULL DEFAULT 0,
+            download_count INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, app_id, product_code, export_fingerprint),
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (first_authorization_id) REFERENCES export_authorizations(id) ON DELETE SET NULL
+        )"
+    );
+    if (table_has_column($pdo, 'export_entitlements', 'id') && !table_has_column($pdo, 'export_entitlements', 'product_code')) {
+        $pdo->exec("ALTER TABLE export_entitlements ADD COLUMN product_code TEXT NOT NULL DEFAULT ''");
+    }
+    $pdo->exec(
+        "UPDATE export_entitlements
+         SET product_code = CASE export_type
+            WHEN 'zip' THEN 'panels_zip'
+            WHEN 'svg' THEN 'plan_svg'
+            WHEN 'png' THEN 'plan_png'
+            WHEN 'pdf' THEN 'plan_pdf'
+            ELSE 'house_stl'
+         END
+         WHERE product_code = ''"
+    );
+    if (sqlite_unique_index_exists($pdo, 'export_entitlements', ['user_id', 'app_id', 'export_type', 'export_fingerprint'])) {
+        sqlite_rebuild_export_entitlements_product_key($pdo);
+    }
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_export_entitlements_user_id ON export_entitlements(user_id)');
+    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_export_entitlements_product_fingerprint ON export_entitlements(user_id, app_id, product_code, export_fingerprint)');
+    $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS uniq_export_entitlements_product_fingerprint ON export_entitlements(user_id, app_id, product_code, export_fingerprint)');
     if (table_has_column($pdo, 'library_items', 'id') && !table_has_column($pdo, 'library_items', 'description')) {
         $pdo->exec("ALTER TABLE library_items ADD COLUMN description TEXT NOT NULL DEFAULT ''");
     }
@@ -605,6 +719,48 @@ function mysql_add_index_if_missing(PDO $pdo, string $table, string $index, stri
     }
 }
 
+function mysql_add_unique_index_if_missing(PDO $pdo, string $table, string $index, string $definition): void
+{
+    if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table) || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $index)) {
+        throw new InvalidArgumentException('Invalid database identifier.');
+    }
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?'
+    );
+    $stmt->execute([$table, $index]);
+    if ((int) $stmt->fetchColumn() === 0) {
+        $pdo->exec('ALTER TABLE `' . $table . '` ADD UNIQUE KEY `' . $index . '` ' . $definition);
+    }
+}
+
+function mysql_index_columns(PDO $pdo, string $table, string $index): array
+{
+    if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table) || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $index)) {
+        throw new InvalidArgumentException('Invalid database identifier.');
+    }
+    $stmt = $pdo->prepare(
+        'SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?
+         ORDER BY SEQ_IN_INDEX ASC'
+    );
+    $stmt->execute([$table, $index]);
+    return array_map(static fn (array $row): string => (string) $row['COLUMN_NAME'], $stmt->fetchAll());
+}
+
+function mysql_drop_index_if_exists(PDO $pdo, string $table, string $index): void
+{
+    if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table) || !preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $index)) {
+        throw new InvalidArgumentException('Invalid database identifier.');
+    }
+    $stmt = $pdo->prepare(
+        'SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?'
+    );
+    $stmt->execute([$table, $index]);
+    if ((int) $stmt->fetchColumn() > 0) {
+        $pdo->exec('ALTER TABLE `' . $table . '` DROP INDEX `' . $index . '`');
+    }
+}
+
 function ensure_mysql_schema(PDO $pdo): void
 {
     $tableOptions = ' ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci';
@@ -713,7 +869,9 @@ function ensure_mysql_schema(PDO $pdo): void
         id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
         user_id INT UNSIGNED NOT NULL,
         app_id VARCHAR(64) NOT NULL DEFAULT \'nichoir\',
+        product_code VARCHAR(80) NOT NULL DEFAULT \'\',
         export_type VARCHAR(32) NOT NULL,
+        export_fingerprint CHAR(64) NOT NULL DEFAULT \'\',
         credit_cost INT NOT NULL,
         auth_token_hash VARCHAR(128) NOT NULL UNIQUE,
         status VARCHAR(32) NOT NULL DEFAULT \'authorized\',
@@ -722,7 +880,26 @@ function ensure_mysql_schema(PDO $pdo): void
         consumed_at DATETIME NULL,
         INDEX idx_export_authorizations_app_id (app_id),
         INDEX idx_export_authorizations_user_id (user_id),
+        INDEX idx_export_authorizations_fingerprint (user_id, app_id, product_code, export_fingerprint),
         CONSTRAINT fk_export_authorizations_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )' . $tableOptions);
+    $pdo->exec('CREATE TABLE IF NOT EXISTS export_entitlements (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        app_id VARCHAR(64) NOT NULL DEFAULT \'nichoir\',
+        product_code VARCHAR(80) NOT NULL DEFAULT \'\',
+        export_type VARCHAR(32) NOT NULL,
+        export_fingerprint CHAR(64) NOT NULL,
+        first_authorization_id INT UNSIGNED NULL,
+        first_credit_cost INT NOT NULL DEFAULT 0,
+        download_count INT UNSIGNED NOT NULL DEFAULT 1,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY uniq_export_entitlements_product_fingerprint (user_id, app_id, product_code, export_fingerprint),
+        INDEX idx_export_entitlements_user_id (user_id),
+        INDEX idx_export_entitlements_fingerprint (user_id, app_id, product_code, export_fingerprint),
+        CONSTRAINT fk_export_entitlements_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        CONSTRAINT fk_export_entitlements_authorization FOREIGN KEY (first_authorization_id) REFERENCES export_authorizations(id) ON DELETE SET NULL
     )' . $tableOptions);
     $pdo->exec('CREATE TABLE IF NOT EXISTS library_items (
         id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -904,6 +1081,34 @@ function ensure_mysql_schema(PDO $pdo): void
     mysql_add_column_if_missing($pdo, 'users', 'email_verification_blocked_until', 'email_verification_blocked_until DATETIME NULL');
     mysql_add_column_if_missing($pdo, 'users', 'stripe_customer_id', 'stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'export_authorizations', 'app_id', 'app_id VARCHAR(64) NOT NULL DEFAULT \'nichoir\' AFTER user_id');
+    mysql_add_column_if_missing($pdo, 'export_authorizations', 'product_code', 'product_code VARCHAR(80) NOT NULL DEFAULT \'\' AFTER app_id');
+    mysql_add_column_if_missing($pdo, 'export_authorizations', 'export_fingerprint', 'export_fingerprint CHAR(64) NOT NULL DEFAULT \'\' AFTER export_type');
+    mysql_add_column_if_missing($pdo, 'export_entitlements', 'product_code', 'product_code VARCHAR(80) NOT NULL DEFAULT \'\' AFTER app_id');
+    $pdo->exec(
+        "UPDATE export_authorizations
+         SET product_code = CASE export_type
+            WHEN 'zip' THEN 'panels_zip'
+            WHEN 'svg' THEN 'plan_svg'
+            WHEN 'png' THEN 'plan_png'
+            WHEN 'pdf' THEN 'plan_pdf'
+            ELSE 'house_stl'
+         END
+         WHERE product_code = ''"
+    );
+    $pdo->exec(
+        "UPDATE export_entitlements
+         SET product_code = CASE export_type
+            WHEN 'zip' THEN 'panels_zip'
+            WHEN 'svg' THEN 'plan_svg'
+            WHEN 'png' THEN 'plan_png'
+            WHEN 'pdf' THEN 'plan_pdf'
+            ELSE 'house_stl'
+         END
+         WHERE product_code = ''"
+    );
+    if (mysql_index_columns($pdo, 'export_entitlements', 'uniq_export_entitlements_fingerprint') === ['user_id', 'app_id', 'export_type', 'export_fingerprint']) {
+        mysql_drop_index_if_exists($pdo, 'export_entitlements', 'uniq_export_entitlements_fingerprint');
+    }
     mysql_add_column_if_missing($pdo, 'subscriptions', 'stripe_price_id', 'stripe_price_id VARCHAR(255) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'payments', 'stripe_customer_id', 'stripe_customer_id VARCHAR(255) NOT NULL DEFAULT \'\'');
     mysql_add_column_if_missing($pdo, 'payments', 'stripe_invoice_id', 'stripe_invoice_id VARCHAR(255) NOT NULL DEFAULT \'\'');
@@ -921,6 +1126,10 @@ function ensure_mysql_schema(PDO $pdo): void
     mysql_add_index_if_missing($pdo, 'sessions', 'idx_sessions_user_id', '(user_id)');
     mysql_add_index_if_missing($pdo, 'export_authorizations', 'idx_export_authorizations_app_id', '(app_id)');
     mysql_add_index_if_missing($pdo, 'export_authorizations', 'idx_export_authorizations_user_id', '(user_id)');
+    mysql_add_index_if_missing($pdo, 'export_authorizations', 'idx_export_authorizations_product_fingerprint', '(user_id, app_id, product_code, export_fingerprint)');
+    mysql_add_index_if_missing($pdo, 'export_entitlements', 'idx_export_entitlements_user_id', '(user_id)');
+    mysql_add_index_if_missing($pdo, 'export_entitlements', 'idx_export_entitlements_product_fingerprint', '(user_id, app_id, product_code, export_fingerprint)');
+    mysql_add_unique_index_if_missing($pdo, 'export_entitlements', 'uniq_export_entitlements_product_fingerprint', '(user_id, app_id, product_code, export_fingerprint)');
     mysql_add_index_if_missing($pdo, 'library_items', 'idx_library_items_is_active', '(is_active)');
     mysql_add_index_if_missing($pdo, 'library_items', 'idx_library_items_media_type', '(media_type)');
     mysql_add_index_if_missing($pdo, 'library_download_authorizations', 'idx_library_download_authorizations_user_id', '(user_id)');

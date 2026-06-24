@@ -329,14 +329,54 @@ function render_client_billing_detail_panel(PDO $pdo, array $user): string
 
 function render_client_exports_detail_panel(PDO $pdo, array $user): string
 {
-    $exports = $pdo->prepare('SELECT app_id, export_type, credit_cost, status, created_at, consumed_at FROM export_authorizations WHERE user_id = ? ORDER BY id DESC LIMIT 50');
+    $exports = $pdo->prepare(
+        'SELECT export_authorizations.id, export_authorizations.app_id,
+                COALESCE(NULLIF(export_authorizations.product_code, \'\'),
+                    CASE export_authorizations.export_type
+                        WHEN \'zip\' THEN \'panels_zip\'
+                        WHEN \'svg\' THEN \'plan_svg\'
+                        WHEN \'png\' THEN \'plan_png\'
+                        WHEN \'pdf\' THEN \'plan_pdf\'
+                        ELSE \'house_stl\'
+                    END
+                ) AS product_code,
+                export_authorizations.export_type AS file_format,
+                export_authorizations.credit_cost, export_authorizations.status,
+                CASE
+                    WHEN export_authorizations.status <> \'consumed\' THEN export_authorizations.status
+                    WHEN export_authorizations.credit_cost > 0 THEN \'charged\'
+                    WHEN export_authorizations.export_fingerprint <> \'\'
+                        AND export_entitlements.first_authorization_id IS NOT NULL
+                        AND export_entitlements.first_authorization_id <> export_authorizations.id THEN \'free_repeat\'
+                    ELSE \'free_zero_cost\'
+                END AS billing_outcome,
+                COALESCE(export_entitlements.download_count, 0) AS entitlement_download_count,
+                export_authorizations.created_at, export_authorizations.consumed_at
+         FROM export_authorizations
+         LEFT JOIN export_entitlements
+            ON export_entitlements.user_id = export_authorizations.user_id
+            AND export_entitlements.app_id = export_authorizations.app_id
+            AND export_entitlements.product_code = COALESCE(NULLIF(export_authorizations.product_code, \'\'),
+                CASE export_authorizations.export_type
+                    WHEN \'zip\' THEN \'panels_zip\'
+                    WHEN \'svg\' THEN \'plan_svg\'
+                    WHEN \'png\' THEN \'plan_png\'
+                    WHEN \'pdf\' THEN \'plan_pdf\'
+                    ELSE \'house_stl\'
+                END
+            )
+            AND export_entitlements.export_fingerprint = export_authorizations.export_fingerprint
+         WHERE export_authorizations.user_id = ?
+         ORDER BY export_authorizations.id DESC
+         LIMIT 50'
+    );
     $exports->execute([(int) $user['id']]);
     $rows = '';
     foreach ($exports->fetchAll() as $row) {
-        $rows .= '<tr><td>' . h((string) $row['app_id']) . '</td><td>' . h((string) $row['export_type']) . '</td><td>' . (int) $row['credit_cost'] . '</td><td>' . h((string) $row['status']) . '</td><td>' . h((string) $row['created_at']) . '</td><td>' . h((string) ($row['consumed_at'] ?: '-')) . '</td></tr>';
+        $rows .= '<tr><td>#' . (int) $row['id'] . '</td><td>' . h((string) $row['product_code']) . '</td><td>' . h((string) $row['file_format']) . '</td><td>' . (int) $row['credit_cost'] . '</td><td>' . h((string) $row['billing_outcome']) . '</td><td>' . (int) $row['entitlement_download_count'] . '</td><td>' . h((string) $row['created_at']) . '</td><td>' . h((string) ($row['consumed_at'] ?: '-')) . '</td></tr>';
     }
-    $rows = $rows ?: '<tr><td colspan="6">Aucun export.</td></tr>';
-    return '<section class="modal-section"><h3>Exports client</h3><div class="table-wrap"><table><thead><tr><th>App</th><th>Type</th><th>Cout</th><th>Etat</th><th>Cree</th><th>Consomme</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
+    $rows = $rows ?: '<tr><td colspan="8">Aucun export.</td></tr>';
+    return '<section class="modal-section"><h3>Exports client</h3><p>Suivi par produit billable, format de fichier et compteur d entitlement.</p><div class="table-wrap"><table><thead><tr><th>Auth</th><th>Produit</th><th>Format</th><th>Cout</th><th>Resultat</th><th>Telech.</th><th>Cree</th><th>Consomme</th></tr></thead><tbody>' . $rows . '</tbody></table></div></section>';
 }
 
 function render_client_library_detail_panel(PDO $pdo, array $user): string
@@ -583,16 +623,21 @@ function render_credit_policy_settings_panel(PDO $pdo): string
 
 function render_library_settings_panel(PDO $pdo): string
 {
-    $maxMb = library_stl_upload_max_mb($pdo);
+    $stlMaxMb = library_stl_upload_max_mb($pdo);
+    $imageMaxMb = library_image_upload_max_mb($pdo);
+    $storageDir = library_storage_dir();
+    $appImageDir = library_app_image_dir();
     return '
       <section class="panel">
         <h2>Reglages librairie</h2>
-        <p>Controle les limites applicatives des fichiers de decor. Le serveur PHP doit aussi avoir upload_max_filesize et post_max_size assez hauts.</p>
+        <p>Controle les limites applicatives et les dossiers de stockage des fichiers de decor.</p>
         <form class="admin-library-settings-form" method="post" action="' . h(admin_base_path()) . '">
           ' . admin_csrf_input() . '
           <input type="hidden" name="action" value="update_library_settings">
-          <label><span>Limite upload STL (Mo)</span><input type="number" name="library_stl_upload_max_mb" min="1" max="' . LIBRARY_MAX_STL_MB . '" step="1" value="' . $maxMb . '"></label>
-          <p class="control-note">Maximum autorise par l application: ' . LIBRARY_MAX_STL_MB . ' Mo. Limites PHP actives: ' . h(library_ini_upload_limit_label()) . '.</p>
+          <label><span>Limite STL (Mo)</span><input type="number" name="library_stl_upload_max_mb" min="1" max="' . LIBRARY_MAX_STL_MB . '" step="1" value="' . $stlMaxMb . '"></label>
+          <label><span>Limite image (Mo)</span><input type="number" name="library_image_upload_max_mb" min="1" max="' . LIBRARY_MAX_IMAGE_MB . '" step="1" value="' . $imageMaxMb . '"></label>
+          <label><span>Dossier originaux prives</span><input type="text" name="library_storage_dir" value="' . h($storageDir) . '"></label>
+          <label><span>Dossier copies apercus locaux</span><input type="text" name="library_app_image_dir" value="' . h($appImageDir) . '"></label>
           <button type="submit">Enregistrer reglages librairie</button>
         </form>
       </section>
@@ -627,11 +672,14 @@ function render_database_settings_panel(): string
       <section class="panel">
         <h2>Base de donnees</h2>
         <p>Configure la connexion cPanel/MySQL ici. SQLite reste le mode local par defaut. Enregistrer teste la connexion et cree le schema MySQL si la base est vide.</p>
-        <div class="client-summary compact">
-          <div class="stat"><span>Driver actif</span><strong>' . h($driver) . '</strong></div>
-          <div class="stat"><span>Source</span><strong>' . h($source) . '</strong></div>
-          <div class="stat"><span>Config locale</span><strong>' . h(db_config_path()) . '</strong></div>
-        </div>
+        <details class="admin-config-details">
+          <summary>Infos configuration active</summary>
+          <dl>
+            <div><dt>Driver actif</dt><dd>' . h($driver) . '</dd></div>
+            <div><dt>Source</dt><dd>' . h($source) . '</dd></div>
+            <div><dt>Config locale</dt><dd><code>' . h(db_config_path()) . '</code></dd></div>
+          </dl>
+        </details>
         <form class="admin-db-form" method="post" action="' . h(admin_base_path()) . '">
           ' . admin_csrf_input() . '
           <fieldset class="db-driver-choice">
@@ -674,7 +722,7 @@ function render_admin_database_export_panel(): string
         'billing' => ['Billing', 'Abonnements, paiements, factures et identifiants Stripe utiles.'],
         'support' => ['Support', 'Tickets, messages et notifications email.'],
         'credits' => ['Credits', 'Historique des mouvements de credits par client.'],
-        'exports' => ['Autorisations', 'Demandes d exports, couts, et consommation.'],
+        'exports' => ['Consommation exports', 'Produit, format, cout, autorisation, reprise gratuite, fingerprint et compteur de telechargements.'],
         'library' => ['Librairie', 'Fichiers STL de librairie, couts, activation et telechargements clients.'],
     ];
 
@@ -706,6 +754,9 @@ function render_admin_library_panel(PDO $pdo): string
     $items = library_list_items($pdo, false);
     $phpUploadLimits = library_ini_upload_limit_label();
     $stlUploadMaxMb = library_stl_upload_max_mb($pdo);
+    $imageUploadMaxMb = library_image_upload_max_mb($pdo);
+    $storageDir = library_storage_dir();
+    $appImageDir = library_app_image_dir();
     $itemCards = '';
     foreach ($items as $item) {
         $deleted = library_item_is_deleted($item);
@@ -831,7 +882,7 @@ function render_admin_library_panel(PDO $pdo): string
           <label class="checkbox-label"><input type="checkbox" name="is_active" value="1" checked> Publier dans la librairie</label>
           <button type="submit">Ajouter fichiers</button>
         </form>
-        <p class="control-note">Limites applicatives: ' . $stlUploadMaxMb . ' Mo par STL, 2 Mo par image PNG/JPEG/GIF/WEBP. Limites PHP actives: ' . h($phpUploadLimits) . '. Les originaux restent dans <code>server-php/data/library</code> et sont aussi copies localement dans <code>app/images/library</code> pour les apercus locaux.</p>
+        <p class="control-note">Limites applicatives: ' . $stlUploadMaxMb . ' Mo par STL, ' . $imageUploadMaxMb . ' Mo par image PNG/JPEG/GIF/WEBP. Limites PHP actives: ' . h($phpUploadLimits) . '. Les originaux restent dans <code>' . h($storageDir) . '</code> et sont aussi copies localement dans <code>' . h($appImageDir) . '</code> pour les apercus locaux.</p>
         <div class="library-preview-grid" data-library-admin-selected-preview></div>
         <p class="control-note" data-library-admin-debug>Aucun fichier selectionne.</p>
         <div class="library-admin-list">' . $itemCards . '</div>
@@ -866,7 +917,9 @@ function render_admin_library_panel(PDO $pdo): string
             uploaded: params.get("uploaded") || "",
             failed: params.get("failed") || "",
             errors: params.get("errors") || "",
-            php_limits: "' . h($phpUploadLimits) . '"
+            php_limits: "' . h($phpUploadLimits) . '",
+            stl_limit_mb: ' . $stlUploadMaxMb . ',
+            image_limit_mb: ' . $imageUploadMaxMb . '
           });
           if (params.get("notice") === "library_upload_error") {
             warn("server_upload_refused", {
@@ -1161,6 +1214,7 @@ function admin_notice_message(string $notice): string
         'library_archived_file_kept' => 'Fichier librairie archive, mais suppression de l original prive non confirmee. Verifie les logs systeme.',
         'library_archive_error' => 'Archivage du fichier librairie refuse.',
         'library_settings_updated' => 'Reglages librairie mis a jour.',
+        'library_settings_invalid' => 'Reglages librairie invalides. Verifie les limites et les chemins.',
         'library_thumbnail_regenerated' => 'Miniature STL regeneree.',
         'library_thumbnail_error' => 'Miniature STL refusee.',
     ];
@@ -1181,17 +1235,93 @@ function render_admin_page(): void
     $summary = admin_summary();
     $selected = selected_admin_user($pdo);
     $notice = trim((string) ($_GET['notice'] ?? ''));
-    $exports = $pdo->query('SELECT export_authorizations.id, users.id AS user_id, users.email, app_id, export_type, credit_cost, export_authorizations.status AS export_status, export_authorizations.created_at, consumed_at FROM export_authorizations JOIN users ON users.id = export_authorizations.user_id ORDER BY export_authorizations.id DESC LIMIT 20')->fetchAll();
+    $exports = $pdo->query(
+        'SELECT export_authorizations.id, users.id AS user_id, users.email, export_authorizations.app_id,
+                COALESCE(NULLIF(export_authorizations.product_code, \'\'),
+                    CASE export_authorizations.export_type
+                        WHEN \'zip\' THEN \'panels_zip\'
+                        WHEN \'svg\' THEN \'plan_svg\'
+                        WHEN \'png\' THEN \'plan_png\'
+                        WHEN \'pdf\' THEN \'plan_pdf\'
+                        ELSE \'house_stl\'
+                    END
+                ) AS product_code,
+                export_authorizations.export_type AS file_format,
+                export_authorizations.credit_cost, export_authorizations.status AS export_status,
+                CASE
+                    WHEN export_authorizations.status <> \'consumed\' THEN export_authorizations.status
+                    WHEN export_authorizations.credit_cost > 0 THEN \'charged\'
+                    WHEN export_authorizations.export_fingerprint <> \'\'
+                        AND export_entitlements.first_authorization_id IS NOT NULL
+                        AND export_entitlements.first_authorization_id <> export_authorizations.id THEN \'free_repeat\'
+                    ELSE \'free_zero_cost\'
+                END AS billing_outcome,
+                COALESCE(export_entitlements.download_count, 0) AS entitlement_download_count,
+                export_authorizations.created_at, export_authorizations.consumed_at
+         FROM export_authorizations
+         JOIN users ON users.id = export_authorizations.user_id
+         LEFT JOIN export_entitlements
+            ON export_entitlements.user_id = export_authorizations.user_id
+            AND export_entitlements.app_id = export_authorizations.app_id
+            AND export_entitlements.product_code = COALESCE(NULLIF(export_authorizations.product_code, \'\'),
+                CASE export_authorizations.export_type
+                    WHEN \'zip\' THEN \'panels_zip\'
+                    WHEN \'svg\' THEN \'plan_svg\'
+                    WHEN \'png\' THEN \'plan_png\'
+                    WHEN \'pdf\' THEN \'plan_pdf\'
+                    ELSE \'house_stl\'
+                END
+            )
+            AND export_entitlements.export_fingerprint = export_authorizations.export_fingerprint
+         ORDER BY export_authorizations.id DESC
+         LIMIT 20'
+    )->fetchAll();
+    $exportProducts = $pdo->query(
+        'SELECT COALESCE(NULLIF(product_code, \'\'),
+                    CASE export_type
+                        WHEN \'zip\' THEN \'panels_zip\'
+                        WHEN \'svg\' THEN \'plan_svg\'
+                        WHEN \'png\' THEN \'plan_png\'
+                        WHEN \'pdf\' THEN \'plan_pdf\'
+                        ELSE \'house_stl\'
+                    END
+                ) AS product_code,
+                export_type AS file_format,
+                COUNT(*) AS authorization_count,
+                SUM(CASE WHEN status = \'consumed\' THEN 1 ELSE 0 END) AS consumed_count,
+                SUM(CASE WHEN status = \'consumed\' AND credit_cost > 0 THEN 1 ELSE 0 END) AS charged_count,
+                SUM(CASE WHEN status = \'consumed\' AND credit_cost = 0 THEN 1 ELSE 0 END) AS free_count,
+                SUM(CASE WHEN status = \'consumed\' THEN credit_cost ELSE 0 END) AS credits_consumed
+         FROM export_authorizations
+         GROUP BY COALESCE(NULLIF(product_code, \'\'),
+                    CASE export_type
+                        WHEN \'zip\' THEN \'panels_zip\'
+                        WHEN \'svg\' THEN \'plan_svg\'
+                        WHEN \'png\' THEN \'plan_png\'
+                        WHEN \'pdf\' THEN \'plan_pdf\'
+                        ELSE \'house_stl\'
+                    END
+                ), export_type
+         ORDER BY consumed_count DESC, authorization_count DESC, product_code ASC'
+    )->fetchAll();
     $subscriptions = $pdo->query('SELECT subscriptions.id, users.id AS user_id, users.email, plan, subscriptions.status AS subscription_state, current_period_end, subscriptions.updated_at FROM subscriptions JOIN users ON users.id = subscriptions.user_id ORDER BY subscriptions.id DESC LIMIT 20')->fetchAll();
     $payments = $pdo->query('SELECT payments.id, users.id AS user_id, users.email, amount_cents, currency, payments.status AS payment_state, description, invoice_url, invoice_pdf, payments.created_at FROM payments JOIN users ON users.id = payments.user_id ORDER BY payments.id DESC LIMIT 20')->fetchAll();
 
     $exportRows = '';
     foreach ($exports as $export) {
         $clientHref = admin_client_modal_url((int) $export['user_id'], 'admin-exports', 'exports');
-        $exportRows .= '<tr><td>' . (int) $export['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $export['email']) . '</a></td><td>' . h((string) $export['app_id']) . '</td><td>' . h((string) $export['export_type']) . '</td><td>' . (int) $export['credit_cost'] . '</td><td>' . h((string) $export['export_status']) . '</td><td>' . h((string) ($export['consumed_at'] ?: '-')) . '</td></tr>';
+        $exportRows .= '<tr><td>' . (int) $export['id'] . '</td><td><a href="' . h($clientHref) . '">' . h((string) $export['email']) . '</a></td><td>' . h((string) $export['product_code']) . '</td><td>' . h((string) $export['file_format']) . '</td><td>' . (int) $export['credit_cost'] . '</td><td>' . h((string) $export['billing_outcome']) . '</td><td>' . (int) $export['entitlement_download_count'] . '</td><td>' . h((string) ($export['consumed_at'] ?: '-')) . '</td></tr>';
     }
     if ($exportRows === '') {
-        $exportRows = '<tr><td colspan="7">Aucune autorisation.</td></tr>';
+        $exportRows = '<tr><td colspan="8">Aucune autorisation.</td></tr>';
+    }
+
+    $exportProductRows = '';
+    foreach ($exportProducts as $row) {
+        $exportProductRows .= '<tr><td>' . h((string) $row['product_code']) . '</td><td>' . h((string) $row['file_format']) . '</td><td>' . (int) $row['authorization_count'] . '</td><td>' . (int) $row['consumed_count'] . '</td><td>' . (int) $row['charged_count'] . '</td><td>' . (int) $row['free_count'] . '</td><td>' . (int) $row['credits_consumed'] . '</td></tr>';
+    }
+    if ($exportProductRows === '') {
+        $exportProductRows = '<tr><td colspan="7">Aucune consommation export.</td></tr>';
     }
 
     $subscriptionRows = '';
@@ -1229,6 +1359,8 @@ function render_admin_page(): void
         <div><span>Clients</span><strong>' . $summary['users'] . '</strong></div>
         <div><span>Credits totaux</span><strong>' . $summary['credits'] . '</strong></div>
         <div><span>Exports demandes</span><strong>' . $summary['exports'] . '</strong></div>
+        <div><span>Exports consommes</span><strong>' . $summary['exports_consumed'] . '</strong></div>
+        <div><span>Credits exports</span><strong>' . $summary['export_credits'] . '</strong></div>
         <a href="#admin-support" data-tab-target="admin-support"><span>Tickets ouverts</span><strong>' . $summary['tickets'] . '</strong></a>
         <div><span>Abonnements actifs</span><strong>' . $summary['subscriptions'] . '</strong></div>
         <div><span>Paiements recus</span><strong>' . h(money_cents((int) $summary['payments'], 'cad')) . '</strong></div>
@@ -1262,10 +1394,19 @@ function render_admin_page(): void
           <div class="section-heading">
             <div>
               <h2>Autorisations recentes</h2>
-              <p>Telechargements autorises et consommation des credits.</p>
+              <p>Telechargements autorises et consommation des credits par produit billable.</p>
             </div>
           </div>
-          <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>App</th><th>Type</th><th>Cout</th><th>Etat</th><th>Consomme</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>ID</th><th>Client</th><th>Produit</th><th>Format</th><th>Cout</th><th>Resultat</th><th>Telech.</th><th>Consomme</th></tr></thead><tbody>' . $exportRows . '</tbody></table></div>
+        </section>
+        <section class="panel">
+          <div class="section-heading">
+            <div>
+              <h2>Consommation par produit</h2>
+              <p>Vue compacte pour voir quels fichiers generent les credits et quels telechargements sont des reprises gratuites.</p>
+            </div>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Produit</th><th>Format</th><th>Autorisations</th><th>Consommes</th><th>Factures</th><th>Gratuits</th><th>Credits</th></tr></thead><tbody>' . $exportProductRows . '</tbody></table></div>
         </section>
       </section>
 	      <section class="tab-panel" id="admin-logs" data-tab-panel role="tabpanel" aria-labelledby="tab-admin-logs" hidden>

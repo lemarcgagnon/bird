@@ -9,8 +9,9 @@ require_once __DIR__ . '/logger.php';
 require_once __DIR__ . '/auth.php';
 
 const LIBRARY_DEFAULT_MAX_STL_MB = 25;
-const LIBRARY_MAX_STL_MB = 25;
-const LIBRARY_MAX_IMAGE_BYTES = 2097152;
+const LIBRARY_MAX_STL_MB = 1024;
+const LIBRARY_DEFAULT_MAX_IMAGE_MB = 2;
+const LIBRARY_MAX_IMAGE_MB = 512;
 const LIBRARY_IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp'];
 const LIBRARY_STL_PREVIEW_MAX_TRIANGLES = 700;
 const LIBRARY_STL_PREVIEW_HIGH_MAX_TRIANGLES = 12000;
@@ -24,6 +25,16 @@ function library_stl_upload_max_mb(PDO $pdo): int
 function library_stl_upload_max_bytes(PDO $pdo): int
 {
     return library_stl_upload_max_mb($pdo) * 1024 * 1024;
+}
+
+function library_image_upload_max_mb(PDO $pdo): int
+{
+    return max(1, min(LIBRARY_MAX_IMAGE_MB, (int) setting_get($pdo, 'library_image_upload_max_mb', (string) LIBRARY_DEFAULT_MAX_IMAGE_MB)));
+}
+
+function library_image_upload_max_bytes(PDO $pdo): int
+{
+    return library_image_upload_max_mb($pdo) * 1024 * 1024;
 }
 
 function library_ini_upload_limit_label(): string
@@ -47,12 +58,48 @@ function library_upload_error_message(int $error): string
 
 function library_storage_dir(): string
 {
-    return rtrim(app_config_value('NICHOIR_LIBRARY_DIR', dirname(__DIR__) . '/data/library'), '/');
+    $env = trim(app_config_value('NICHOIR_LIBRARY_DIR', ''));
+    if ($env !== '') {
+        return rtrim($env, '/');
+    }
+    try {
+        $configured = trim(setting_get(db(), 'library_storage_dir', ''));
+        if ($configured !== '') {
+            return rtrim($configured, '/');
+        }
+    } catch (Throwable) {
+        // Fall back during early bootstrap or database repair.
+    }
+    return dirname(__DIR__) . '/data/library';
 }
 
 function library_app_image_dir(): string
 {
-    return rtrim(app_config_value('NICHOIR_LIBRARY_APP_IMAGE_DIR', dirname(__DIR__, 2) . '/app/images/library'), '/');
+    $env = trim(app_config_value('NICHOIR_LIBRARY_APP_IMAGE_DIR', ''));
+    if ($env !== '') {
+        return rtrim($env, '/');
+    }
+    try {
+        $configured = trim(setting_get(db(), 'library_app_image_dir', ''));
+        if ($configured !== '') {
+            return rtrim($configured, '/');
+        }
+    } catch (Throwable) {
+        // Fall back during early bootstrap or database repair.
+    }
+    return dirname(__DIR__, 2) . '/app/images/library';
+}
+
+function library_admin_config_path(string $value, string $fallback): string
+{
+    $path = trim($value);
+    if ($path === '') {
+        $path = $fallback;
+    }
+    if (str_contains($path, "\0") || strlen($path) > 500) {
+        throw new RuntimeException('invalid_library_path');
+    }
+    return rtrim($path, '/');
 }
 
 function library_ensure_storage_dir(): void
@@ -216,7 +263,7 @@ function library_file_kind(PDO $pdo, string $original, string $tmpName, int $siz
     }
 
     if (in_array($ext, LIBRARY_IMAGE_EXTENSIONS, true)) {
-        if ($size <= 0 || $size > LIBRARY_MAX_IMAGE_BYTES) {
+        if ($size <= 0 || $size > library_image_upload_max_bytes($pdo)) {
             throw new RuntimeException('invalid_library_image');
         }
         $info = @getimagesize($tmpName);

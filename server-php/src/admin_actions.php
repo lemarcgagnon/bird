@@ -414,10 +414,21 @@ function admin_update_credit_policy_settings(PDO $pdo): void
 
 function admin_update_library_settings(PDO $pdo): void
 {
-    $maxMb = max(1, min(LIBRARY_MAX_STL_MB, (int) ($_POST['library_stl_upload_max_mb'] ?? LIBRARY_DEFAULT_MAX_STL_MB)));
-    setting_set($pdo, 'library_stl_upload_max_mb', (string) $maxMb);
-    audit_admin_action($pdo, null, 'update_library_settings', $maxMb, 'stl_upload_max_mb');
-    header('Location: ' . admin_redirect_url(['notice' => 'library_settings_updated']) . '#admin-settings');
+    try {
+        $stlMaxMb = max(1, min(LIBRARY_MAX_STL_MB, (int) ($_POST['library_stl_upload_max_mb'] ?? LIBRARY_DEFAULT_MAX_STL_MB)));
+        $imageMaxMb = max(1, min(LIBRARY_MAX_IMAGE_MB, (int) ($_POST['library_image_upload_max_mb'] ?? LIBRARY_DEFAULT_MAX_IMAGE_MB)));
+        $storageDir = library_admin_config_path((string) ($_POST['library_storage_dir'] ?? ''), library_storage_dir());
+        $appImageDir = library_admin_config_path((string) ($_POST['library_app_image_dir'] ?? ''), library_app_image_dir());
+
+        setting_set($pdo, 'library_stl_upload_max_mb', (string) $stlMaxMb);
+        setting_set($pdo, 'library_image_upload_max_mb', (string) $imageMaxMb);
+        setting_set($pdo, 'library_storage_dir', $storageDir);
+        setting_set($pdo, 'library_app_image_dir', $appImageDir);
+        audit_admin_action($pdo, null, 'update_library_settings', $stlMaxMb, 'stl=' . $stlMaxMb . ':image=' . $imageMaxMb);
+        header('Location: ' . admin_redirect_url(['notice' => 'library_settings_updated']) . '#admin-settings');
+    } catch (Throwable) {
+        header('Location: ' . admin_redirect_url(['notice' => 'library_settings_invalid']) . '#admin-settings');
+    }
 }
 
 function admin_upload_library_item(PDO $pdo): void
@@ -437,6 +448,10 @@ function admin_upload_library_item(PDO $pdo): void
         'uploaded' => $uploadedCount,
         'failed' => $failedCount,
         'failures' => array_slice($result['failed'], 0, 10),
+        'app_stl_upload_max_mb' => library_stl_upload_max_mb($pdo),
+        'app_image_upload_max_mb' => library_image_upload_max_mb($pdo),
+        'library_storage_dir' => library_storage_dir(),
+        'library_app_image_dir' => library_app_image_dir(),
         'php_upload_max_filesize' => (string) ini_get('upload_max_filesize'),
         'php_post_max_size' => (string) ini_get('post_max_size'),
     ], null, $uploadedCount > 0 ? 200 : 422);

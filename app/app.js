@@ -94,7 +94,39 @@ const EXPORT_COSTS = {
   pdf: 2,
   stl: 3,
   zip: 5,
+  house_stl: 3,
+  door_stl: 3,
+  female_wall_receiver_stl: 3,
+  panels_zip: 5,
+  plan_svg: 1,
+  plan_png: 1,
+  explosion_png: 1,
+  plan_pdf: 2,
+  calculations_pdf: 2,
 };
+const EXPORT_PRODUCTS = {
+  house_stl: { exportType: 'stl' },
+  door_stl: { exportType: 'stl' },
+  female_wall_receiver_stl: { exportType: 'stl' },
+  panels_zip: { exportType: 'zip' },
+  plan_svg: { exportType: 'svg' },
+  plan_png: { exportType: 'png' },
+  explosion_png: { exportType: 'png' },
+  plan_pdf: { exportType: 'pdf' },
+  calculations_pdf: { exportType: 'pdf' },
+};
+
+function exportProduct(productCode) {
+  return EXPORT_PRODUCTS[productCode] || { exportType: productCode };
+}
+
+function exportTypeForProduct(productCode) {
+  return exportProduct(productCode).exportType || productCode;
+}
+
+function fallbackExportCost(productCode) {
+  return EXPORT_COSTS[productCode] ?? EXPORT_COSTS[exportTypeForProduct(productCode)] ?? 0;
+}
 
 const ICON_PATHS = {
   account: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.8-4 14.2-4 16 0"/>',
@@ -851,6 +883,73 @@ function toDownloadBytes(raw) {
   if (ArrayBuffer.isView(raw)) return new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength).slice();
   if (Array.isArray(raw)) return new Uint8Array(raw);
   return null;
+}
+
+function stableJsonStringify(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map((item) => stableJsonStringify(item)).join(',')}]`;
+  return `{${Object.keys(value)
+    .filter((key) => value[key] !== undefined)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJsonStringify(value[key])}`)
+    .join(',')}}`;
+}
+
+function exportFingerprintPayload(productCode, sourceParams) {
+  const exportType = exportTypeForProduct(productCode);
+  const payload = JSON.parse(JSON.stringify(sourceParams || {}));
+  delete payload.lang;
+  delete payload.unit;
+  delete payload.mode;
+  delete payload.explode;
+  delete payload.decorActive;
+
+  if (exportType === 'stl') {
+    delete payload.thicknessPreset;
+    delete payload.panelPreset;
+    delete payload.panelW;
+    delete payload.panelH;
+    delete payload.kerf;
+  }
+
+  if (payload.decos && typeof payload.decos === 'object') {
+    Object.keys(payload.decos).forEach((key) => {
+      const deco = payload.decos[key];
+      if (!deco || typeof deco !== 'object') return;
+      delete deco.sourceName;
+      delete deco.sourceBytes;
+      if (!deco.enabled) {
+        payload.decos[key] = { enabled: false };
+        return;
+      }
+      if (deco.sourceType === 'stl') {
+        delete deco.resolution;
+      }
+    });
+  }
+
+  return {
+    app_id: EXPORT_APP_ID,
+    export_type: exportType,
+    model: payload,
+  };
+}
+
+async function sha256Hex(text) {
+  if (!window.crypto?.subtle || !window.TextEncoder) return '';
+  const digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function exportFingerprint(productCode, sourceParams) {
+  try {
+    return await sha256Hex(stableJsonStringify(exportFingerprintPayload(productCode, sourceParams)));
+  } catch (err) {
+    console.warn('export fingerprint failed', err);
+    return '';
+  }
 }
 
 function bytesToBase64(bytes) {
@@ -2459,24 +2558,36 @@ async function logoutAccount() {
   setExportStatus(tr('account_logged_out'), 'info');
 }
 
-async function authorizeExport(exportType, filename) {
+function exportAuthorizationBody(productCode, exportFingerprintValue = '') {
+  const body = {
+    app_id: EXPORT_APP_ID,
+    product_code: productCode,
+    export_type: exportTypeForProduct(productCode),
+  };
+  if (/^[a-f0-9]{64}$/.test(String(exportFingerprintValue || ''))) {
+    body.export_fingerprint = exportFingerprintValue;
+  }
+  return body;
+}
+
+async function authorizeExport(productCode, filename, exportFingerprintValue = '') {
   if (!accountState.user && !(await hasAdminExportAccess())) {
     throw new Error('connexion_requise');
   }
   setExportStatus(tr('authorizing_export', { filename }), 'info');
   return apiRequest('/api/exports/authorize', {
     method: 'POST',
-    body: JSON.stringify({ app_id: EXPORT_APP_ID, export_type: exportType }),
+    body: JSON.stringify(exportAuthorizationBody(productCode, exportFingerprintValue)),
   });
 }
 
-async function quoteExport(exportType) {
+async function quoteExport(productCode, exportFingerprintValue = '') {
   if (!accountState.user && !(await hasAdminExportAccess())) {
     throw new Error('connexion_requise');
   }
   return apiRequest('/api/exports/quote', {
     method: 'POST',
-    body: JSON.stringify({ app_id: EXPORT_APP_ID, export_type: exportType }),
+    body: JSON.stringify(exportAuthorizationBody(productCode, exportFingerprintValue)),
   });
 }
 
@@ -2508,9 +2619,10 @@ function exportDeniedMessage(err) {
   return tr('authorization_denied', { code });
 }
 
-async function authorizeExportWithPrompt(exportType, filename) {
+async function authorizeExportWithPrompt(productCode, filename, exportFingerprintValue = '') {
+  const exportType = exportTypeForProduct(productCode);
   if (await hasAdminExportAccess()) {
-    return authorizeExport(exportType, filename);
+    return authorizeExport(productCode, filename, exportFingerprintValue);
   }
 
   if (!accountState.user) {
@@ -2520,7 +2632,7 @@ async function authorizeExportWithPrompt(exportType, filename) {
 
   let quote = null;
   try {
-    quote = await quoteExport(exportType);
+    quote = await quoteExport(productCode, exportFingerprintValue);
   } catch (err) {
     const code = err?.message || String(err);
     if (code === 'connexion_requise' || code === 'unauthorized') {
@@ -2532,7 +2644,7 @@ async function authorizeExportWithPrompt(exportType, filename) {
         filename,
         exportType,
         credits: Number(err?.payload?.credits ?? accountState.user?.credits ?? 0),
-        cost: Number(err?.payload?.cost ?? EXPORT_COSTS[exportType] ?? 0),
+        cost: Number(err?.payload?.cost ?? fallbackExportCost(productCode)),
       });
       return null;
     }
@@ -2541,7 +2653,7 @@ async function authorizeExportWithPrompt(exportType, filename) {
 
   const bonus = Number(quote?.bonus_credits || 0);
   if (bonus > 0) {
-    const cost = Number(quote?.cost ?? EXPORT_COSTS[exportType] ?? 0);
+    const cost = Number(quote?.cost ?? fallbackExportCost(productCode));
     const action = await openExportGateModal('bonus', {
       filename,
       exportType,
@@ -2555,7 +2667,7 @@ async function authorizeExportWithPrompt(exportType, filename) {
   }
 
   try {
-    return await authorizeExport(exportType, filename);
+    return await authorizeExport(productCode, filename, exportFingerprintValue);
   } catch (err) {
     const code = err?.message || String(err);
     if (code === 'insufficient_credits') {
@@ -2563,7 +2675,7 @@ async function authorizeExportWithPrompt(exportType, filename) {
         filename,
         exportType,
         credits: Number(err?.payload?.credits ?? accountState.user?.credits ?? 0),
-        cost: Number(err?.payload?.cost ?? quote?.cost ?? EXPORT_COSTS[exportType] ?? 0),
+        cost: Number(err?.payload?.cost ?? quote?.cost ?? fallbackExportCost(productCode)),
       });
       return null;
     }
@@ -2571,10 +2683,11 @@ async function authorizeExportWithPrompt(exportType, filename) {
   }
 }
 
-async function exportBinaryAuthorized(filename, type, exportType, producer, emptyMessage) {
+async function exportBinaryAuthorized(filename, type, productCode, producer, emptyMessage, options = {}) {
   let auth = null;
   try {
-    auth = await authorizeExportWithPrompt(exportType, filename);
+    const exportFingerprintValue = options.exportFingerprint ? await options.exportFingerprint : '';
+    auth = await authorizeExportWithPrompt(productCode, filename, exportFingerprintValue);
     if (!auth) return false;
     const bytes = toDownloadBytes(producer());
     if (!bytes || !bytes.byteLength) {
@@ -2588,7 +2701,7 @@ async function exportBinaryAuthorized(filename, type, exportType, producer, empt
     setExportStatus(tr('file_created_bytes', {
       filename,
       size: formatCountText(bytes.byteLength),
-      cost: auth.cost ?? EXPORT_COSTS[exportType] ?? '?',
+      cost: auth.cost ?? fallbackExportCost(productCode) ?? '?',
       suffix,
     }), 'ok');
     return true;
@@ -2599,9 +2712,10 @@ async function exportBinaryAuthorized(filename, type, exportType, producer, empt
   }
 }
 
-async function exportTextAuthorized(filename, type, exportType, producer, emptyMessage) {
+async function exportTextAuthorized(filename, type, productCode, producer, emptyMessage, options = {}) {
   try {
-    const auth = await authorizeExportWithPrompt(exportType, filename);
+    const exportFingerprintValue = options.exportFingerprint ? await options.exportFingerprint : '';
+    const auth = await authorizeExportWithPrompt(productCode, filename, exportFingerprintValue);
     if (!auth) return false;
     const text = producer();
     if (!text || !String(text).length) {
@@ -2615,7 +2729,7 @@ async function exportTextAuthorized(filename, type, exportType, producer, emptyM
     setExportStatus(tr('file_created_chars', {
       filename,
       size: formatCountText(String(text).length),
-      cost: auth.cost ?? EXPORT_COSTS[exportType] ?? '?',
+      cost: auth.cost ?? fallbackExportCost(productCode) ?? '?',
       suffix,
     }), 'ok');
     return true;
@@ -2626,9 +2740,10 @@ async function exportTextAuthorized(filename, type, exportType, producer, emptyM
   }
 }
 
-async function runAuthorizedExport(exportType, filename, producer) {
+async function runAuthorizedExport(productCode, filename, producer, options = {}) {
   try {
-    const auth = await authorizeExportWithPrompt(exportType, filename);
+    const exportFingerprintValue = options.exportFingerprint ? await options.exportFingerprint : '';
+    const auth = await authorizeExportWithPrompt(productCode, filename, exportFingerprintValue);
     if (!auth) return false;
     const ok = await producer();
     if (ok) await consumeExport(auth.authorization);
@@ -4352,68 +4467,96 @@ function render() {
   });
 
   root.querySelector('[data-action="export-house"]')?.addEventListener('click', () => {
+    const exportParams = JSON.parse(JSON.stringify(params));
+    const exportInput = JSON.stringify(exportParams);
     exportBinaryAuthorized(
       exportFilename('house_stl'),
       'model/stl',
-      'stl',
-      () => export_house_stl(JSON.stringify(params)),
-      tr('export_house_empty')
+      'house_stl',
+      () => export_house_stl(exportInput),
+      tr('export_house_empty'),
+      { exportFingerprint: exportFingerprint('house_stl', exportParams) }
     );
   });
 
   root.querySelector('[data-action="export-door"]')?.addEventListener('click', () => {
-    exportBinary(
+    const exportParams = JSON.parse(JSON.stringify(params));
+    const exportInput = JSON.stringify(exportParams);
+    exportBinaryAuthorized(
       exportFilename('door_stl'),
       'model/stl',
-      () => export_door_stl(JSON.stringify(params)),
-      tr('export_door_empty')
+      'door_stl',
+      () => export_door_stl(exportInput),
+      tr('export_door_empty'),
+      { exportFingerprint: exportFingerprint('door_stl', exportParams) }
     );
   });
 
   root.querySelector('[data-action="export-wall-mount-receiver"]')?.addEventListener('click', () => {
-    exportBinary(
+    const exportParams = JSON.parse(JSON.stringify(params));
+    const exportInput = JSON.stringify(exportParams);
+    exportBinaryAuthorized(
       currentLang() === 'fr' ? 'nichoir_recepteur_mural_femelle.stl' : 'nichoir_female_wall_receiver.stl',
       'model/stl',
-      () => export_wall_mount_receiver_stl(JSON.stringify(params)),
-      tr('export_wall_mount_empty')
+      'female_wall_receiver_stl',
+      () => export_wall_mount_receiver_stl(exportInput),
+      tr('export_wall_mount_empty'),
+      { exportFingerprint: exportFingerprint('female_wall_receiver_stl', exportParams) }
     );
   });
 
   root.querySelector('[data-action="export-panels"]')?.addEventListener('click', () => {
-    exportBinary(
+    const exportParams = JSON.parse(JSON.stringify(params));
+    const exportInput = JSON.stringify(exportParams);
+    exportBinaryAuthorized(
       exportFilename('panels_zip'),
       'application/zip',
-      () => export_panels_zip(JSON.stringify(params)),
-      tr('export_panels_empty')
+      'panels_zip',
+      () => export_panels_zip(exportInput),
+      tr('export_panels_empty'),
+      { exportFingerprint: exportFingerprint('panels_zip', exportParams) }
     );
   });
 
   root.querySelector('[data-action="export-plan"]')?.addEventListener('click', () => {
+    const exportParams = JSON.parse(JSON.stringify(params));
+    const exportInput = JSON.stringify(exportParams);
     exportTextAuthorized(
       exportFilename('plan_svg'),
       'image/svg+xml',
-      'svg',
+      'plan_svg',
       () => {
-        const payload = parseResponse(plan_preview_svg(JSON.stringify(params)));
+        const payload = parseResponse(plan_preview_svg(exportInput));
         return payload?.svg || '';
       },
-      tr('export_plan_empty')
+      tr('export_plan_empty'),
+      { exportFingerprint: exportFingerprint('plan_svg', exportParams) }
     );
   });
 
   root.querySelector('[data-action="download-plan-png"]')?.addEventListener('click', async () => {
-    await runAuthorizedExport('png', exportFilename('plan_png'), downloadPlanPng);
+    await runAuthorizedExport('plan_png', exportFilename('plan_png'), downloadPlanPng, {
+      exportFingerprint: exportFingerprint('plan_png', JSON.parse(JSON.stringify(params))),
+    });
   });
 
   root.querySelector('[data-action="download-explosion-png"]')?.addEventListener('click', async () => {
-    await runAuthorizedExport('png', exportFilename('explosion_png'), downloadExplosionPng);
+    await runAuthorizedExport('explosion_png', exportFilename('explosion_png'), downloadExplosionPng, {
+      exportFingerprint: exportFingerprint('explosion_png', JSON.parse(JSON.stringify(params))),
+    });
   });
 
   root.querySelector('[data-action="download-plan-pdf"]')?.addEventListener('click', async () => {
-    await runAuthorizedExport('pdf', exportFilename('plan_pdf'), downloadPlanPdf);
+    await runAuthorizedExport('plan_pdf', exportFilename('plan_pdf'), downloadPlanPdf, {
+      exportFingerprint: exportFingerprint('plan_pdf', JSON.parse(JSON.stringify(params))),
+    });
   });
 
-  root.querySelector('[data-action="export-obj"]')?.addEventListener('click', () => {
+  root.querySelector('[data-action="export-obj"]')?.addEventListener('click', async () => {
+    if (!(await hasAdminExportAccess())) {
+      setExportStatus(tr('authorization_denied', { code: 'admin_required' }), 'error');
+      return;
+    }
     exportText(
       exportFilename('debug_obj'),
       'text/plain',
@@ -4423,10 +4566,16 @@ function render() {
   });
 
   root.querySelector('[data-action="download-calcs-pdf"]')?.addEventListener('click', async () => {
-    await downloadCalculationsPdf();
+    await runAuthorizedExport('calculations_pdf', exportFilename('calcs_pdf'), downloadCalculationsPdf, {
+      exportFingerprint: exportFingerprint('calculations_pdf', JSON.parse(JSON.stringify(params))),
+    });
   });
 
-  root.querySelector('[data-action="mesh-report"]')?.addEventListener('click', () => {
+  root.querySelector('[data-action="mesh-report"]')?.addEventListener('click', async () => {
+    if (!(await hasAdminExportAccess())) {
+      setExportStatus(tr('authorization_denied', { code: 'admin_required' }), 'error');
+      return;
+    }
     try {
       const snapshot = saveMeshReportToBrowser();
       const payload = snapshot?.report;

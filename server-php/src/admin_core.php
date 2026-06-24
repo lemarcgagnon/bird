@@ -13,6 +13,8 @@ function admin_summary(): array
         'users' => (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn(),
         'credits' => (int) $pdo->query('SELECT COALESCE(SUM(credits), 0) FROM users')->fetchColumn(),
         'exports' => (int) $pdo->query('SELECT COUNT(*) FROM export_authorizations')->fetchColumn(),
+        'exports_consumed' => (int) $pdo->query('SELECT COUNT(*) FROM export_authorizations WHERE status = "consumed"')->fetchColumn(),
+        'export_credits' => (int) $pdo->query('SELECT COALESCE(SUM(credit_cost), 0) FROM export_authorizations WHERE status = "consumed"')->fetchColumn(),
         'tickets' => (int) $pdo->query('SELECT COUNT(*) FROM tickets WHERE status = "open"')->fetchColumn(),
         'subscriptions' => (int) $pdo->query('SELECT COUNT(*) FROM subscriptions WHERE status = "active"')->fetchColumn(),
         'payments' => (int) $pdo->query('SELECT COALESCE(SUM(amount_cents), 0) FROM payments WHERE status IN ("paid", "succeeded")')->fetchColumn(),

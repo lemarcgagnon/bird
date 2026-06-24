@@ -110,7 +110,9 @@ CREATE TABLE IF NOT EXISTS export_authorizations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL,
   app_id TEXT NOT NULL DEFAULT 'nichoir',
+  product_code TEXT NOT NULL DEFAULT '',
   export_type TEXT NOT NULL,
+  export_fingerprint TEXT NOT NULL DEFAULT '',
   credit_cost INTEGER NOT NULL,
   auth_token_hash TEXT NOT NULL UNIQUE,
   status TEXT NOT NULL DEFAULT 'authorized',
@@ -118,6 +120,23 @@ CREATE TABLE IF NOT EXISTS export_authorizations (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   consumed_at TEXT,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS export_entitlements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL,
+  app_id TEXT NOT NULL DEFAULT 'nichoir',
+  product_code TEXT NOT NULL,
+  export_type TEXT NOT NULL,
+  export_fingerprint TEXT NOT NULL,
+  first_authorization_id INTEGER,
+  first_credit_cost INTEGER NOT NULL DEFAULT 0,
+  download_count INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(user_id, app_id, product_code, export_fingerprint),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (first_authorization_id) REFERENCES export_authorizations(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS credit_ledger (
@@ -132,6 +151,9 @@ CREATE TABLE IF NOT EXISTS credit_ledger (
 
 CREATE INDEX IF NOT EXISTS idx_export_authorizations_app_id ON export_authorizations(app_id);
 CREATE INDEX IF NOT EXISTS idx_export_authorizations_user_id ON export_authorizations(user_id);
+CREATE INDEX IF NOT EXISTS idx_export_authorizations_fingerprint ON export_authorizations(user_id, app_id, product_code, export_fingerprint);
+CREATE INDEX IF NOT EXISTS idx_export_entitlements_user_id ON export_entitlements(user_id);
+CREATE INDEX IF NOT EXISTS idx_export_entitlements_fingerprint ON export_entitlements(user_id, app_id, product_code, export_fingerprint);
 CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_id ON credit_ledger(user_id);
 CREATE INDEX IF NOT EXISTS idx_credit_ledger_user_reason_reference ON credit_ledger(user_id, reason, reference);
 

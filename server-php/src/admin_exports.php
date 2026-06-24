@@ -82,10 +82,46 @@ function admin_export_data(PDO $pdo): array
 
     $exports = $pdo->query(
         'SELECT export_authorizations.created_at AS date, export_authorizations.id AS record_id, users.id AS user_id, users.email,
-                export_authorizations.app_id, export_authorizations.export_type, export_authorizations.credit_cost, export_authorizations.status,
+                export_authorizations.app_id,
+                COALESCE(NULLIF(export_authorizations.product_code, \'\'),
+                    CASE export_authorizations.export_type
+                        WHEN \'zip\' THEN \'panels_zip\'
+                        WHEN \'svg\' THEN \'plan_svg\'
+                        WHEN \'png\' THEN \'plan_png\'
+                        WHEN \'pdf\' THEN \'plan_pdf\'
+                        ELSE \'house_stl\'
+                    END
+                ) AS product_code,
+                export_authorizations.export_type AS file_format,
+                export_authorizations.export_fingerprint,
+                export_authorizations.credit_cost, export_authorizations.status,
+                CASE
+                    WHEN export_authorizations.status <> \'consumed\' THEN export_authorizations.status
+                    WHEN export_authorizations.credit_cost > 0 THEN \'charged\'
+                    WHEN export_authorizations.export_fingerprint <> \'\'
+                        AND export_entitlements.first_authorization_id IS NOT NULL
+                        AND export_entitlements.first_authorization_id <> export_authorizations.id THEN \'free_repeat\'
+                    ELSE \'free_zero_cost\'
+                END AS billing_outcome,
+                COALESCE(export_entitlements.download_count, 0) AS entitlement_download_count,
+                COALESCE(export_entitlements.first_authorization_id, \'\') AS first_authorization_id,
+                COALESCE(export_entitlements.first_credit_cost, \'\') AS first_credit_cost,
                 export_authorizations.expires_at, export_authorizations.created_at, export_authorizations.consumed_at
          FROM export_authorizations
          JOIN users ON users.id = export_authorizations.user_id
+         LEFT JOIN export_entitlements
+            ON export_entitlements.user_id = export_authorizations.user_id
+            AND export_entitlements.app_id = export_authorizations.app_id
+            AND export_entitlements.product_code = COALESCE(NULLIF(export_authorizations.product_code, \'\'),
+                CASE export_authorizations.export_type
+                    WHEN \'zip\' THEN \'panels_zip\'
+                    WHEN \'svg\' THEN \'plan_svg\'
+                    WHEN \'png\' THEN \'plan_png\'
+                    WHEN \'pdf\' THEN \'plan_pdf\'
+                    ELSE \'house_stl\'
+                END
+            )
+            AND export_entitlements.export_fingerprint = export_authorizations.export_fingerprint
          ORDER BY export_authorizations.created_at DESC, export_authorizations.id DESC'
     )->fetchAll();
 
@@ -154,7 +190,7 @@ function admin_export_data(PDO $pdo): array
         'clients' => admin_export_dataset('Clients', ['date', 'user_id', 'email', 'display_name', 'credits', 'subscription_status', 'status', 'stripe_customer_id', 'created_at'], $clients),
         'billing' => admin_export_dataset('Billing', ['billing_type', 'record_id', 'date', 'user_id', 'email', 'provider', 'plan', 'status', 'amount_cents', 'currency', 'description', 'stripe_customer_id', 'stripe_subscription_id', 'stripe_price_id', 'stripe_checkout_session_id', 'stripe_payment_intent_id', 'stripe_invoice_id', 'invoice_url', 'invoice_pdf', 'current_period_end', 'cancel_at_period_end', 'created_at', 'updated_at'], $billing),
         'credits' => admin_export_dataset('Credits', ['date', 'record_id', 'user_id', 'email', 'delta', 'reason', 'reference', 'created_at'], $credits),
-        'exports' => admin_export_dataset('Autorisations exports', ['date', 'record_id', 'user_id', 'email', 'app_id', 'export_type', 'credit_cost', 'status', 'expires_at', 'created_at', 'consumed_at'], $exports),
+        'exports' => admin_export_dataset('Consommation exports', ['date', 'record_id', 'user_id', 'email', 'app_id', 'product_code', 'file_format', 'credit_cost', 'status', 'billing_outcome', 'entitlement_download_count', 'first_authorization_id', 'first_credit_cost', 'export_fingerprint', 'expires_at', 'created_at', 'consumed_at'], $exports),
         'library' => admin_export_dataset('Librairie decors', ['library_type', 'record_id', 'date', 'user_id', 'email', 'library_item_id', 'title', 'description', 'original_filename', 'credit_cost', 'is_active', 'download_count', 'authorization_id', 'status', 'created_at', 'updated_at', 'deleted_at', 'downloaded_at'], $library),
         'support' => admin_export_dataset('Support', ['support_type', 'record_id', 'date', 'ticket_id', 'user_id', 'email', 'subject', 'status', 'priority', 'assigned_to', 'author_role', 'body', 'recipient', 'notification_status', 'error', 'created_at', 'updated_at', 'closed_at'], $support),
         'system' => admin_export_dataset('Systeme', ['system_type', 'record_id', 'date', 'user_id', 'email', 'reference', 'action', 'status', 'error', 'created_at', 'processed_at'], $system),
@@ -175,7 +211,8 @@ function admin_export_timeline_rows(array $datasets): array
             $type = admin_export_value($row, 'billing_type')
                 ?: admin_export_value($row, 'support_type')
                 ?: admin_export_value($row, 'system_type')
-                ?: admin_export_value($row, 'export_type')
+                ?: admin_export_value($row, 'product_code')
+                ?: admin_export_value($row, 'file_format')
                 ?: admin_export_value($row, 'reason')
                 ?: $scope;
             $timeline[] = [

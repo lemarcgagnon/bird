@@ -114,11 +114,11 @@ Le package genere est `wasm/pkg/`; `app/app.js` importe `wasm/pkg/wasm.js`.
 - Unites `mm`, `cm` et `in`.
 - Dimensions, epaisseur, evasement, plancher `enclave` ou `pose`.
 - Toit avec pente, debordement pluie et crete `gauche`, `droit` ou `onglet`.
-- Porte `aucune`, `ronde`, `carree` ou `pentagonale`, panneau de porte optionnel, perchoir cylindrique optionnel et bloc de fixation murale optionnel.
+- Porte `aucune`, `ronde`, `carree` ou `pentagonale`, panneau de porte optionnel, perchoir cylindrique optionnel et fixation murale universelle optionnelle male/femelle a queue d'aronde: la piece male est fusionnee au dos du nichoir, et seul le recepteur femelle mural reste une piece STL separee.
 - Jusqu'a quatre trous de suspension dans le toit.
 - Viewer Three.js avec modes plein, filaire, rayons X, aretes et mode eclate.
 - Light/dark mode, langue FR/EN et liens de retour au site PHP.
-- Menu WASM remodele: panneau gauche organise en sections repliables ouvertes par defaut, bouton Compte dans l'en-tete, raccourci Telechargements dans l'overlay 3D et largeur adaptee aux libelles FR.
+- Menu WASM remodele: panneau gauche organise en sections repliables ouvertes par defaut, bouton Compte dans l'en-tete, raccourci Telechargements dans l'overlay 3D et largeur adaptee aux libelles FR. Les options avancees de fixation murale restent cachees tant que la fixation universelle n'est pas activee.
 - Decorations SVG, PNG, JPG/JPEG, GIF fixe, WEBP et import STL local. Les images deviennent des reliefs heightmap; les STL sont attaches au panneau cible et inclus dans le mesh maison.
 - Librairie decors cote PHP: les clients telechargent un STL ou une image avec credits, le fichier arrive sur leur ordinateur, puis ils l'importent dans le panneau Decor de l'app WASM comme fichier local.
 - Largeur/hauteur de decor peuvent etre liees pour garder les proportions pendant le redimensionnement.
@@ -142,7 +142,7 @@ Une session admin PHP valide contourne le debit credits pour ces exports: `/api/
 Telechargements locaux/gratuits dans l'app actuelle:
 
 - STL porte;
-- STL bloc de fixation murale;
+- STL recepteur mural femelle de la fixation universelle, gratuit/local et sans debit de credits;
 - ZIP de panneaux STL separes;
 - PDF des calculs;
 - OBJ maison complete pour debug;
@@ -215,7 +215,7 @@ Checks manuels importants:
 - consommer deux fois la meme autorisation et verifier qu'un seul debit passe;
 - tester la session admin: quote/authorize/consume doivent retourner `admin=true`, `cost=0`, puis refuser une seconde consommation du meme token;
 - tester le son landing: reinitialiser `nichoir_welcome_bird_played_v1` puis recharger `/` sur un navigateur neuf; la premiere tentative peut etre bloquee par autoplay, valider que le son se lance apres la premiere interaction.
-- tester l'app WASM en FR: verifier que `Dimensions > Fixation murale` affiche la case `Activer le bloc arriere` et tous les sliders `wallMount...`, puis activer le bloc et confirmer que le STL bloc de fixation murale devient disponible dans les telechargements.
+- tester l'app WASM en FR: verifier que `Dimensions > Fixation murale universelle` n'affiche d'abord que l'activation, puis revele les groupes `Plaque d'insertion (male)`, `Queue d'aronde` et `Recepteur mural (femelle)` apres activation; confirmer que le STL maison contient la piece male fusionnee et que seul le STL `Recepteur mural femelle` est telechargeable gratuitement dans les telechargements 3D.
 - tester Checkout, portail et webhook Stripe en mode test avant production.
 
 ## Points ouverts

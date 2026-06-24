@@ -5,14 +5,14 @@ import init, {
   export_house_stl,
   export_house_obj,
   export_door_stl,
-  export_wall_mount_stl,
+  export_wall_mount_receiver_stl,
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260624-wall-mount-restored-v1';
+} from '../wasm/pkg/wasm.js?v=20260624-dovetail-wall-mount-v8';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260624-wall-mount-restored-v1';
+const APP_BUILD_ID = '20260624-dovetail-wall-mount-v8';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -333,7 +333,7 @@ const I18N = {
     subscription_suspended: 'suspendu',
     file_house_stl: 'nichoir_maison.stl',
     file_door_stl: 'nichoir_porte.stl',
-    file_wall_mount_stl: 'nichoir_bloc_fixation_mur.stl',
+    file_wall_mount_stl: 'nichoir_kit_fixation_murale_universelle.stl',
     file_panels_zip: 'nichoir_panneaux.zip',
     file_plan_svg: 'nichoir_plan.svg',
     file_plan_png: 'nichoir_plan_de_coupe.png',
@@ -511,7 +511,7 @@ const I18N = {
     subscription_suspended: 'suspended',
     file_house_stl: 'nichoir_house.stl',
     file_door_stl: 'nichoir_door.stl',
-    file_wall_mount_stl: 'nichoir_wall_mount_block.stl',
+    file_wall_mount_stl: 'nichoir_universal_wall_mount_kit.stl',
     file_panels_zip: 'nichoir_panels.zip',
     file_plan_svg: 'nichoir_cut_plan.svg',
     file_plan_png: 'nichoir_cut_plan.png',
@@ -4340,11 +4340,11 @@ function render() {
     );
   });
 
-  root.querySelector('[data-action="export-wall-mount"]')?.addEventListener('click', () => {
+  root.querySelector('[data-action="export-wall-mount-receiver"]')?.addEventListener('click', () => {
     exportBinary(
-      exportFilename('wall_mount_stl'),
+      currentLang() === 'fr' ? 'nichoir_recepteur_mural_femelle.stl' : 'nichoir_female_wall_receiver.stl',
       'model/stl',
-      () => export_wall_mount_stl(JSON.stringify(params)),
+      () => export_wall_mount_receiver_stl(JSON.stringify(params)),
       tr('export_wall_mount_empty')
     );
   });

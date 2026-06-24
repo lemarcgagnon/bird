@@ -37,7 +37,7 @@ URLs usuelles en local:
 - API calls to PHP for auth, profile, ledger, billing, Stripe checkout/portal, export quote/authorize/consume with `app_id=nichoir`, tickets, admin session visibility and client logs.
 - Billed download flow: request a quote from PHP, show the credit/bonus modal if needed, request a short authorization, generate the file locally, then consume the authorization after successful local generation.
 - Current billed downloads: house STL, cut-plan SVG, cut-plan PNG, exploded assembly PNG and cut-plan PDF.
-- Current local/free downloads: door STL, wall-mount STL, panels ZIP, calculations PDF, debug OBJ and mesh report JSON.
+- Current local/free downloads: door STL, female wall-receiver STL for the universal dovetail wall mount, panels ZIP, calculations PDF, debug OBJ and mesh report JSON. When the universal mount is enabled, the male dovetail support is part of the house STL rather than a separate download.
 - Diagnostic downloads are rendered by WASM but hidden by default with `data-admin-only`; `app.js` unhides them only when `/api/admin/session` confirms an admin PHP session.
 - Admin export access: when `/api/admin/session` returns `admin=true`, premium downloads still go through quote/authorize/consume but PHP returns `cost=0`, stores the token in the admin PHP session, and consumes it once without touching credits.
 - Client-side decoration file intake: SVG/raster images are capped at 2 MiB and converted to WASM heightmaps; local STL imports are capped at 25 MiB and sent to WASM as base64 mesh data.
@@ -51,7 +51,7 @@ URLs usuelles en local:
 - Rust/WASM is the source of truth for geometry, calculations, app control markup and export data generation.
 - JavaScript should coordinate browser behavior and display returned policy data, not define billing or credit policy. Local `EXPORT_COSTS` values are fallback copy only; PHP responses are authoritative.
 - JavaScript should not persist account bearer tokens. The current browser flow depends on the PHP session cookie and `/api/admin/session` for admin-only visibility.
-- JavaScript should not special-case downloads by directly skipping authorization. Even admin downloads use the server quote/authorize/consume endpoints so one-shot tokens, expiry and logging stay consistent.
+- JavaScript should not special-case billed downloads by directly skipping authorization. Free/local utility downloads can use local generation, but premium exports and admin cost-zero exports still use the server quote/authorize/consume endpoints so one-shot tokens, expiry and logging stay consistent.
 
 ## Current drift
 

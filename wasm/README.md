@@ -25,6 +25,7 @@ Current public bindings include:
 - `export_house_obj(input)`
 - `export_door_stl(input)`
 - `export_wall_mount_stl(input)`
+- `export_wall_mount_receiver_stl(input)`
 - `export_panels_zip(input)`
 - `mesh_report_json(input)`
 
@@ -32,12 +33,12 @@ Current public bindings include:
 
 ## Current ownership
 
-- Birdhouse dimensions, unit conversion, derived measures, panel geometry, roof/floor/door/perch/wall-mount behavior and mesh generation.
+- Birdhouse dimensions, unit conversion, derived measures, panel geometry, roof/floor/door/perch/universal dovetail wall-mount behavior and mesh generation. The wall-mount male side is generated as a merged rear-wall support in the house mesh; the female wall receiver is generated as the separate screw-mounted STL.
 - Rust-rendered control markup and labels for dense app UI sections.
 - Rust-rendered download button markup, including the diagnostic group marker. Admin visibility is resolved later by JavaScript/PHP session state.
 - Rust-side French/English translation table for labels rendered from Rust.
 - SVG/image/STL decoration parsing, heightmap/vector extrusion, imported mesh placement, and optional panel clipping. Imported STL decor keeps the full source mesh visible by default; clipping is opt-in from the decor controls.
-- Export helpers for fabrication outputs used by the JavaScript download flow: house STL, door STL, wall-mount STL, panels ZIP, debug OBJ, mesh report JSON and cut-plan SVG. Imported STL decor is included in the full house mesh as an additive local mesh merge.
+- Export helpers for fabrication outputs used by the JavaScript download flow: house STL, door STL, female wall-receiver STL, panels ZIP, debug OBJ, mesh report JSON and cut-plan SVG. The legacy universal wall-mount kit binding remains available for diagnostics, but the user-facing download is the receiver only because the male mount is fused into the house STL. Imported STL decor is included in the full house mesh as an additive local mesh merge.
 - Mesh topology analysis for reports and safety gates: open edge count, non-manifold edge count and `watertight` flag using the same 0.001 mm quantization as the Node smoke test.
 - Watertight safety gate for generated decor: heightmap cells with zero relief are not emitted as double coplanar skin, and STL/heightmap decor that would survive clipping as an open or non-manifold mesh is excluded from strict exports instead of exported broken.
 - Client-side validation/clamping for geometry-heavy inputs.
@@ -64,7 +65,7 @@ Current billed browser exports are:
 Current free/local browser exports are:
 
 - door STL (`export_door_stl`);
-- wall-mount STL (`export_wall_mount_stl`);
+- female wall-receiver STL (`export_wall_mount_receiver_stl`);
 - panels ZIP (`export_panels_zip`);
 - calculations PDF;
 - debug OBJ (`export_house_obj`);

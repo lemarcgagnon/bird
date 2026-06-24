@@ -245,6 +245,33 @@ struct NichoirParams {
     wall_mount_block_h: f64,
     #[serde(rename = "wallMountBlockDepth", alias = "wall_mount_block_depth")]
     wall_mount_block_depth: f64,
+    #[serde(rename = "wallMountPlateW", alias = "wall_mount_plate_w")]
+    wall_mount_plate_w: f64,
+    #[serde(rename = "wallMountPlateH", alias = "wall_mount_plate_h")]
+    wall_mount_plate_h: f64,
+    #[serde(rename = "wallMountPlateT", alias = "wall_mount_plate_t")]
+    wall_mount_plate_t: f64,
+    #[serde(rename = "wallMountJointW", alias = "wall_mount_joint_w")]
+    wall_mount_joint_w: f64,
+    #[serde(rename = "wallMountJointDepth", alias = "wall_mount_joint_depth")]
+    wall_mount_joint_depth: f64,
+    #[serde(rename = "wallMountTolerance", alias = "wall_mount_tolerance")]
+    wall_mount_tolerance: f64,
+    #[serde(rename = "wallMountReceiverW", alias = "wall_mount_receiver_w")]
+    wall_mount_receiver_w: f64,
+    #[serde(rename = "wallMountReceiverH", alias = "wall_mount_receiver_h")]
+    wall_mount_receiver_h: f64,
+    #[serde(rename = "wallMountReceiverT", alias = "wall_mount_receiver_t")]
+    wall_mount_receiver_t: f64,
+    #[serde(rename = "wallMountScrewRadius", alias = "wall_mount_screw_radius")]
+    wall_mount_screw_radius: f64,
+    #[serde(
+        rename = "wallMountScrewSpacingH",
+        alias = "wall_mount_screw_spacing_h"
+    )]
+    wall_mount_screw_spacing_h: f64,
+    #[serde(rename = "wallMountScrewPosV", alias = "wall_mount_screw_pos_v")]
+    wall_mount_screw_pos_v: f64,
     #[serde(rename = "decorActive", alias = "decor_active")]
     decor_active: String,
     decos: HashMap<String, DecorSettings>,
@@ -298,6 +325,18 @@ impl Default for NichoirParams {
             wall_mount_block_w: 100.0,
             wall_mount_block_h: 70.0,
             wall_mount_block_depth: 0.0,
+            wall_mount_plate_w: 60.0,
+            wall_mount_plate_h: 50.0,
+            wall_mount_plate_t: 10.0,
+            wall_mount_joint_w: 30.0,
+            wall_mount_joint_depth: 8.0,
+            wall_mount_tolerance: 0.3,
+            wall_mount_receiver_w: 50.0,
+            wall_mount_receiver_h: 60.0,
+            wall_mount_receiver_t: 12.0,
+            wall_mount_screw_radius: 2.1,
+            wall_mount_screw_spacing_h: 30.0,
+            wall_mount_screw_pos_v: 30.0,
             decor_active: "front".to_string(),
             decos: default_decos(),
         }
@@ -661,6 +700,74 @@ fn sanitize_params(mut p: NichoirParams) -> NichoirParams {
         } else {
             p.overhang.max(6.0).min(80.0)
         };
+    p.wall_mount_plate_w = clamp_finite(
+        p.wall_mount_plate_w,
+        30.0,
+        180.0,
+        defaults.wall_mount_plate_w,
+    );
+    p.wall_mount_plate_h = clamp_finite(
+        p.wall_mount_plate_h,
+        30.0,
+        180.0,
+        defaults.wall_mount_plate_h,
+    );
+    p.wall_mount_plate_t =
+        clamp_finite(p.wall_mount_plate_t, 4.0, 30.0, defaults.wall_mount_plate_t);
+    p.wall_mount_joint_w = clamp_finite(
+        p.wall_mount_joint_w,
+        12.0,
+        100.0,
+        defaults.wall_mount_joint_w,
+    );
+    p.wall_mount_joint_depth = clamp_finite(
+        p.wall_mount_joint_depth,
+        3.0,
+        30.0,
+        defaults.wall_mount_joint_depth,
+    );
+    p.wall_mount_tolerance = clamp_finite(
+        p.wall_mount_tolerance,
+        0.0,
+        3.0,
+        defaults.wall_mount_tolerance,
+    );
+    p.wall_mount_receiver_w = clamp_finite(
+        p.wall_mount_receiver_w,
+        30.0,
+        180.0,
+        defaults.wall_mount_receiver_w,
+    );
+    p.wall_mount_receiver_h = clamp_finite(
+        p.wall_mount_receiver_h,
+        35.0,
+        200.0,
+        defaults.wall_mount_receiver_h,
+    );
+    p.wall_mount_receiver_t = clamp_finite(
+        p.wall_mount_receiver_t,
+        4.0,
+        30.0,
+        defaults.wall_mount_receiver_t,
+    );
+    p.wall_mount_screw_radius = clamp_finite(
+        p.wall_mount_screw_radius,
+        1.0,
+        8.0,
+        defaults.wall_mount_screw_radius,
+    );
+    p.wall_mount_screw_spacing_h = clamp_finite(
+        p.wall_mount_screw_spacing_h,
+        10.0,
+        120.0,
+        defaults.wall_mount_screw_spacing_h,
+    );
+    p.wall_mount_screw_pos_v = clamp_finite(
+        p.wall_mount_screw_pos_v,
+        8.0,
+        180.0,
+        defaults.wall_mount_screw_pos_v,
+    );
     p.unit = allowed_string(p.unit.trim(), &["mm", "cm", "in"], "mm");
     p.lang = allowed_string(p.lang.trim(), &["fr", "en"], "fr");
     p.mode = allowed_string(
@@ -834,19 +941,30 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "hang_diam") => "Hole diameter",
         ("en", "hang_side_offset") => "Offset from roof side edge",
         ("en", "hang_end_offset") => "Offset from front/back edge",
-        ("en", "wall_mount") => "Wall mount",
-        ("en", "wall_mount_enable") => "Enable rear wall mount",
-        ("en", "wall_mount_hole_diam") => "Rear hole diameter",
-        ("en", "wall_mount_hole_spacing") => "Hole spacing",
-        ("en", "wall_mount_y") => "Hole height",
-        ("en", "wall_mount_block_w") => "Mount block width",
-        ("en", "wall_mount_block_h") => "Mount block height",
-        ("en", "wall_mount_block_depth") => "Mount block depth",
+        ("en", "wall_mount") => "Universal mount",
+        ("en", "wall_mount_enable") => "Enable universal rear mount",
+        ("en", "wall_mount_system") => "Male/Female Dovetail System",
+        ("en", "wall_mount_insert_plate") => "Insert Plate (Male)",
+        ("en", "wall_mount_plate_w") => "Plate width",
+        ("en", "wall_mount_plate_h") => "Plate height",
+        ("en", "wall_mount_plate_t") => "Plate thickness",
+        ("en", "wall_mount_dovetail") => "Dovetail Joint",
+        ("en", "wall_mount_joint_w") => "Joint width",
+        ("en", "wall_mount_joint_depth") => "Joint depth",
+        ("en", "wall_mount_tolerance") => "Tolerance",
+        ("en", "wall_mount_receiver") => "Wall Receiver (Female)",
+        ("en", "wall_mount_receiver_w") => "Receiver width",
+        ("en", "wall_mount_receiver_h") => "Receiver height",
+        ("en", "wall_mount_receiver_t") => "Receiver thickness",
+        ("en", "wall_mount_screw_radius") => "Screw hole radius",
+        ("en", "wall_mount_screw_spacing_h") => "Screw spacing H",
+        ("en", "wall_mount_screw_pos_v") => "Screw position V",
         ("en", "wall_mount_note") => {
-            "Two rear holes align with the external block. Fasten it from inside through the entrance door. The block top sheds rain outward at 30 degrees."
+            "The male insert is a solid bonded plate on the birdhouse back with no screw holes. Its standoff automatically clears the roof rain overhang. The female receiver screws to the wall and captures the dovetail with the configured tolerance."
         }
-        ("en", "wall_mount_piece") => "Wall mount block",
-        ("en", "wall_mount_note_cut") => "rear holes aligned to block",
+        ("en", "wall_mount_piece") => "Universal wall mount kit",
+        ("en", "wall_mount_receiver_piece") => "Female wall receiver",
+        ("en", "wall_mount_note_cut") => "separate screw-mounted female receiver only; male dovetail is merged into the house",
         ("en", "models_3d_info") => {
             "Fabrication geometry: STL files for the assembled house and individual printable parts."
         }
@@ -1115,19 +1233,30 @@ fn t(lang: &str, key: &str) -> &'static str {
         (_, "hang_diam") => "Diametre trou",
         (_, "hang_side_offset") => "Retrait depuis cote du toit",
         (_, "hang_end_offset") => "Retrait depuis avant/arriere",
-        (_, "wall_mount") => "Fixation murale",
-        (_, "wall_mount_enable") => "Activer le bloc arriere",
-        (_, "wall_mount_hole_diam") => "Diametre trous arriere",
-        (_, "wall_mount_hole_spacing") => "Espacement des trous",
-        (_, "wall_mount_y") => "Hauteur des trous",
-        (_, "wall_mount_block_w") => "Largeur bloc",
-        (_, "wall_mount_block_h") => "Hauteur bloc",
-        (_, "wall_mount_block_depth") => "Profondeur bloc",
+        (_, "wall_mount") => "Fixation murale universelle",
+        (_, "wall_mount_enable") => "Activer la fixation arriere universelle",
+        (_, "wall_mount_system") => "Systeme male/femelle a queue d'aronde",
+        (_, "wall_mount_insert_plate") => "Plaque d'insertion (male)",
+        (_, "wall_mount_plate_w") => "Largeur plaque",
+        (_, "wall_mount_plate_h") => "Hauteur plaque",
+        (_, "wall_mount_plate_t") => "Epaisseur plaque",
+        (_, "wall_mount_dovetail") => "Queue d'aronde",
+        (_, "wall_mount_joint_w") => "Largeur joint",
+        (_, "wall_mount_joint_depth") => "Profondeur joint",
+        (_, "wall_mount_tolerance") => "Tolerance",
+        (_, "wall_mount_receiver") => "Recepteur mural (femelle)",
+        (_, "wall_mount_receiver_w") => "Largeur recepteur",
+        (_, "wall_mount_receiver_h") => "Hauteur recepteur",
+        (_, "wall_mount_receiver_t") => "Epaisseur recepteur",
+        (_, "wall_mount_screw_radius") => "Rayon trou vis",
+        (_, "wall_mount_screw_spacing_h") => "Espacement vis H",
+        (_, "wall_mount_screw_pos_v") => "Position vis V",
         (_, "wall_mount_note") => {
-            "Deux trous arriere s'alignent avec le bloc externe. Vissage depuis l'interieur par la porte. Le dessus du bloc evacue l'eau vers l'exterieur a 30 degres."
+            "La piece male est une plaque pleine fusionnee au dos du nichoir, sans trou de vis. Son entretoise degage automatiquement le debord de pluie du toit. Le recepteur femelle se visse au mur et capture la queue d'aronde avec la tolerance configuree."
         }
-        (_, "wall_mount_piece") => "Bloc fixation murale",
-        (_, "wall_mount_note_cut") => "trous arriere alignes au bloc",
+        (_, "wall_mount_piece") => "Kit fixation murale universelle",
+        (_, "wall_mount_receiver_piece") => "Recepteur mural femelle",
+        (_, "wall_mount_note_cut") => "recepteur femelle separe a visser uniquement; la queue d'aronde male est fusionnee dans la maison",
         (_, "models_3d_info") => {
             "Geometrie de fabrication: fichiers STL pour la maison assemblee et les pieces imprimables separees."
         }
@@ -2074,11 +2203,11 @@ fn build_cuts(p: &NichoirParams, g: &GeometryPayload) -> Vec<BomLine> {
     if p.wall_mount {
         let m = wall_mount_geometry(p, g);
         cuts.push(base_cut(
-            t(lang, "wall_mount_piece"),
+            t(lang, "wall_mount_receiver"),
             1,
             "rect",
-            m.block_w,
-            m.block_h,
+            m.receiver_w,
+            m.receiver_h,
             t(lang, "wall_mount_note_cut"),
         ));
     }
@@ -2322,11 +2451,27 @@ fn build_layout_pieces(p: &NichoirParams, geom: &GeometryPayload) -> Vec<LayoutP
     if p.wall_mount {
         let m = wall_mount_geometry(p, geom);
         pieces.push(LayoutPiece {
-            name: t(lang, "wall_mount_piece").to_string(),
+            name: t(lang, "wall_mount_insert_plate").to_string(),
             qty: 1,
-            w: m.block_w,
-            h: m.block_h,
+            w: m.plate_w,
+            h: m.plate_h,
             color: "#7f6245".to_string(),
+            shape: "rect".to_string(),
+            rot: false,
+            px: 0.0,
+            py: 0.0,
+            overflow: false,
+            wall_h: None,
+            roof_h: None,
+            w_top: None,
+            w_bot: None,
+        });
+        pieces.push(LayoutPiece {
+            name: t(lang, "wall_mount_receiver").to_string(),
+            qty: 1,
+            w: m.receiver_w,
+            h: m.receiver_h,
+            color: "#536f91".to_string(),
             shape: "rect".to_string(),
             rot: false,
             px: 0.0,
@@ -4249,68 +4394,335 @@ fn facade_holes(p: &NichoirParams, g: &GeometryPayload) -> Vec<Vec<(f64, f64)>> 
 
 struct WallMountGeometry {
     y: f64,
-    hole_radius: f64,
-    hole_spacing: f64,
-    block_w: f64,
-    block_h: f64,
-    block_depth: f64,
+    screw_radius: f64,
+    screw_spacing_h: f64,
+    screw_pos_y: f64,
+    plate_w: f64,
+    plate_h: f64,
+    plate_t: f64,
+    joint_depth: f64,
+    receiver_w: f64,
+    receiver_h: f64,
+    receiver_t: f64,
+    male_joint_depth: f64,
+    male_rail_h: f64,
+    receiver_rail_h: f64,
+    receiver_stop_h: f64,
+    male_neck_w: f64,
+    male_cap_w: f64,
+    female_neck_w: f64,
+    female_cap_w: f64,
 }
 
-const WALL_MOUNT_SHED_ANGLE_DEG: f64 = 30.0;
-const WALL_MOUNT_SHED_EDGE_THICKNESS: f64 = 1.5;
-const WALL_MOUNT_SHED_INSET: f64 = 0.05;
+fn wall_mount_effective_plate_t(p: &NichoirParams) -> f64 {
+    let requested = p.wall_mount_plate_t.clamp(4.0, 30.0);
+    let roof_clearance = (p.overhang + 2.0).clamp(4.0, 160.0);
+    requested.max(roof_clearance).clamp(4.0, 160.0)
+}
 
 fn wall_mount_depth(p: &NichoirParams) -> f64 {
-    if p.wall_mount_block_depth.is_finite() && p.wall_mount_block_depth > 0.0 {
-        p.wall_mount_block_depth
-    } else {
-        p.overhang.max(6.0)
-    }
-    .clamp(6.0, 80.0)
+    (wall_mount_effective_plate_t(p) + p.wall_mount_joint_depth).clamp(7.0, 200.0)
 }
 
 fn wall_mount_geometry(p: &NichoirParams, g: &GeometryPayload) -> WallMountGeometry {
-    let hole_radius = (p.wall_mount_hole_diam / 2.0).clamp(1.5, 10.0);
-    let block_h = p.wall_mount_block_h.clamp(30.0, g.wall_h.max(30.0));
-    let y_margin = (block_h / 2.0 + 4.0).min((g.wall_h / 2.0).max(4.0));
+    let plate_h = p.wall_mount_plate_h.clamp(30.0, g.wall_h.max(30.0));
+    let y_margin = (plate_h / 2.0 + 4.0).min((g.wall_h / 2.0).max(4.0));
     let max_y = (g.wall_h - y_margin).max(y_margin);
     let y = p.wall_mount_y.clamp(y_margin, max_y);
     let wall_w = (wall_right_x(g, y) - wall_left_x(g, y)).max(40.0);
-    let max_block_w = (wall_w - 8.0).max(40.0);
-    let block_w = p.wall_mount_block_w.clamp(40.0, max_block_w);
-    let max_spacing = (wall_w.min(block_w) - p.wall_mount_hole_diam - 16.0).max(0.0);
-    let min_spacing = (p.wall_mount_hole_diam * 2.0).min(max_spacing.max(p.wall_mount_hole_diam));
-    let hole_spacing = if max_spacing <= min_spacing {
-        max_spacing.max(p.wall_mount_hole_diam)
-    } else {
-        p.wall_mount_hole_spacing.clamp(min_spacing, max_spacing)
-    };
+    let max_plate_w = (wall_w - 8.0).max(30.0);
+    let plate_w = p.wall_mount_plate_w.clamp(30.0, max_plate_w);
+    let plate_t = wall_mount_effective_plate_t(p);
+    let joint_depth = p.wall_mount_joint_depth.clamp(3.0, 30.0);
+    let receiver_w = p.wall_mount_receiver_w.clamp(30.0, 180.0);
+    let receiver_h = p.wall_mount_receiver_h.clamp(35.0, 200.0);
+    let receiver_t = p.wall_mount_receiver_t.clamp(4.0, 30.0);
+    let receiver_inner_limit = (receiver_w - 8.0).max(12.0);
+    let joint_w = p
+        .wall_mount_joint_w
+        .clamp(12.0, (plate_w - 8.0).min(receiver_inner_limit).max(12.0));
+    let tolerance_limit = ((joint_w * 0.3 - 1.0) / 1.6)
+        .min(joint_w * 0.18)
+        .min(joint_depth - 1.0)
+        .max(0.0);
+    let tolerance = p.wall_mount_tolerance.clamp(0.0, tolerance_limit);
+    let female_cap_w = joint_w;
+    let female_neck_w = joint_w * 0.6;
+    let male_cap_half_w = joint_w / 2.0 - tolerance;
+    let male_neck_half_w = male_cap_half_w * 0.6 - tolerance;
+    let male_cap_w = male_cap_half_w * 2.0;
+    let male_neck_w = male_neck_half_w * 2.0;
+    let male_joint_depth = joint_depth - tolerance;
+    let receiver_stop_h = 4.0_f64.min((receiver_h * 0.2).max(2.0));
+    let receiver_top_margin = 6.0_f64.min((receiver_h * 0.15).max(3.0));
+    let receiver_rail_h = (receiver_h - receiver_stop_h - receiver_top_margin).max(12.0);
+    let male_rail_h = (plate_h * 0.56)
+        .clamp(24.0, 32.0)
+        .min(receiver_rail_h - 1.0)
+        .min(plate_h - 6.0)
+        .max(12.0)
+        .min(plate_h);
+    let screw_radius = p.wall_mount_screw_radius.clamp(1.0, 8.0);
+    let max_spacing = (plate_w.min(receiver_w) - screw_radius * 2.0 - 10.0).max(10.0);
+    let screw_spacing_h = p.wall_mount_screw_spacing_h.clamp(10.0, max_spacing);
+    let screw_pos_y = (-receiver_h / 2.0 + p.wall_mount_screw_pos_v).clamp(
+        -receiver_h / 2.0 + screw_radius + 4.0,
+        receiver_h / 2.0 - screw_radius - 4.0,
+    );
 
     WallMountGeometry {
         y,
-        hole_radius,
-        hole_spacing,
-        block_w,
-        block_h,
-        block_depth: wall_mount_depth(p),
+        screw_radius,
+        screw_spacing_h,
+        screw_pos_y,
+        plate_w,
+        plate_h,
+        plate_t,
+        joint_depth,
+        receiver_w,
+        receiver_h,
+        receiver_t,
+        male_joint_depth,
+        male_rail_h,
+        receiver_rail_h,
+        receiver_stop_h,
+        male_neck_w,
+        male_cap_w,
+        female_neck_w,
+        female_cap_w,
     }
-}
-
-fn wall_mount_shed_rise(m: &WallMountGeometry) -> f64 {
-    let desired = m.block_depth * (WALL_MOUNT_SHED_ANGLE_DEG * PI / 180.0).tan();
-    desired.clamp(2.0, (m.block_h * 0.45).max(2.0))
 }
 
 fn wall_mount_holes(p: &NichoirParams, g: &GeometryPayload) -> Vec<Vec<(f64, f64)>> {
-    if !p.wall_mount {
+    let _ = (p, g);
+    Vec::new()
+}
+
+fn wall_mount_receiver_holes(m: &WallMountGeometry, cy: f64) -> Vec<Vec<(f64, f64)>> {
+    let half = m.screw_spacing_h / 2.0;
+    vec![
+        ellipse_points(
+            -half,
+            cy + m.screw_pos_y,
+            m.screw_radius,
+            m.screw_radius,
+            32,
+        ),
+        ellipse_points(half, cy + m.screw_pos_y, m.screw_radius, m.screw_radius, 32),
+    ]
+}
+
+fn add_prism_y(mesh: &mut Vec<Tri>, points: &[(f64, f64)], cy: f64, h: f64) {
+    if points.len() < 3 {
+        return;
+    }
+    let y0 = cy - h / 2.0;
+    let y1 = cy + h / 2.0;
+    let back: Vec<Vec3> = points
+        .iter()
+        .map(|(x, z)| Vec3 {
+            x: *x as f32,
+            y: y0 as f32,
+            z: *z as f32,
+        })
+        .collect();
+    let front: Vec<Vec3> = points
+        .iter()
+        .map(|(x, z)| Vec3 {
+            x: *x as f32,
+            y: y1 as f32,
+            z: *z as f32,
+        })
+        .collect();
+
+    for i in 1..points.len() - 1 {
+        mesh.push(tri(back[0], back[i], back[i + 1]));
+        mesh.push(tri(front[0], front[i + 1], front[i]));
+    }
+
+    for i in 0..points.len() {
+        let j = (i + 1) % points.len();
+        quad(mesh, back[i], back[j], front[j], front[i]);
+    }
+}
+
+fn offset_tris(tris: Vec<Tri>, dx: f64, dy: f64, dz: f64) -> Vec<Tri> {
+    let delta = Vec3 {
+        x: dx as f32,
+        y: dy as f32,
+        z: dz as f32,
+    };
+    tris.into_iter()
+        .map(|t| Tri {
+            normal: t.normal,
+            a: add3(t.a, delta),
+            b: add3(t.b, delta),
+            c: add3(t.c, delta),
+        })
+        .collect()
+}
+
+fn add_dovetail_male(mesh: &mut Vec<Tri>, m: &WallMountGeometry, cy: f64, z0: f64) {
+    let z1 = z0 + m.male_joint_depth;
+    let profile = vec![
+        (-m.male_neck_w / 2.0, z0),
+        (m.male_neck_w / 2.0, z0),
+        (m.male_cap_w / 2.0, z1),
+        (-m.male_cap_w / 2.0, z1),
+    ];
+    add_prism_y(mesh, &profile, cy, m.male_rail_h);
+}
+
+fn profile_area2(profile: &[(f64, f64)]) -> f64 {
+    if profile.len() < 3 {
+        return 0.0;
+    }
+    let mut sum = 0.0;
+    for i in 0..profile.len() {
+        let (x0, z0) = profile[i];
+        let (x1, z1) = profile[(i + 1) % profile.len()];
+        sum += x0 * z1 - x1 * z0;
+    }
+    sum
+}
+
+fn clip_profile_x(profile: &[(f64, f64)], limit: f64, keep_greater: bool) -> Vec<(f64, f64)> {
+    if profile.is_empty() {
         return Vec::new();
     }
-    let m = wall_mount_geometry(p, g);
-    let half = m.hole_spacing / 2.0;
-    vec![
-        ellipse_points(-half, m.y, m.hole_radius, m.hole_radius, 32),
-        ellipse_points(half, m.y, m.hole_radius, m.hole_radius, 32),
-    ]
+    let inside = |x: f64| {
+        if keep_greater {
+            x >= limit - 1e-6
+        } else {
+            x <= limit + 1e-6
+        }
+    };
+    let mut out = Vec::<(f64, f64)>::new();
+    let mut prev = *profile.last().unwrap();
+    let mut prev_inside = inside(prev.0);
+    for &curr in profile {
+        let curr_inside = inside(curr.0);
+        if curr_inside != prev_inside {
+            let denom = curr.0 - prev.0;
+            if denom.abs() > 1e-9 {
+                let t = (limit - prev.0) / denom;
+                out.push((limit, prev.1 + (curr.1 - prev.1) * t));
+            }
+        }
+        if curr_inside {
+            out.push(curr);
+        }
+        prev = curr;
+        prev_inside = curr_inside;
+    }
+    out
+}
+
+fn add_prism_y_if_area(mesh: &mut Vec<Tri>, profile: &[(f64, f64)], cy: f64, h: f64) {
+    if h > 0.0 && profile_area2(profile).abs() > 1e-6 {
+        add_prism_y(mesh, profile, cy, h);
+    }
+}
+
+fn add_receiver_rail_slice(
+    mesh: &mut Vec<Tri>,
+    profile: &[(f64, f64)],
+    cy: f64,
+    h: f64,
+    screw_x: f64,
+    screw_y: f64,
+    screw_radius: f64,
+) {
+    let dy = (cy - screw_y).abs();
+    if dy >= screw_radius {
+        add_prism_y_if_area(mesh, profile, cy, h);
+        return;
+    }
+
+    let bore_half_w = (screw_radius * screw_radius - dy * dy).sqrt();
+    let bore_min_x = screw_x - bore_half_w;
+    let bore_max_x = screw_x + bore_half_w;
+    let left_of_bore = clip_profile_x(profile, bore_min_x, false);
+    let right_of_bore = clip_profile_x(profile, bore_max_x, true);
+    add_prism_y_if_area(mesh, &left_of_bore, cy, h);
+    add_prism_y_if_area(mesh, &right_of_bore, cy, h);
+}
+
+fn add_receiver_rail_with_screw_bore(
+    mesh: &mut Vec<Tri>,
+    profile: &[(f64, f64)],
+    y0: f64,
+    y1: f64,
+    screw_x: f64,
+    screw_y: f64,
+    screw_radius: f64,
+) {
+    let slices = 32;
+    let step = (y1 - y0) / slices as f64;
+    for i in 0..slices {
+        let a = y0 + step * i as f64;
+        let b = a + step;
+        add_receiver_rail_slice(
+            mesh,
+            profile,
+            (a + b) / 2.0,
+            step,
+            screw_x,
+            screw_y,
+            screw_radius,
+        );
+    }
+}
+
+fn add_dovetail_receiver_rails(mesh: &mut Vec<Tri>, m: &WallMountGeometry, cy: f64, z0: f64) {
+    let rail_outer_x = m.receiver_w / 2.0;
+    let z1 = z0 + m.joint_depth;
+    let left = vec![
+        (-rail_outer_x, z0),
+        (-m.female_cap_w / 2.0, z0),
+        (-m.female_neck_w / 2.0, z1),
+        (-rail_outer_x, z1),
+    ];
+    let right = vec![
+        (m.female_cap_w / 2.0, z0),
+        (rail_outer_x, z0),
+        (rail_outer_x, z1),
+        (m.female_neck_w / 2.0, z1),
+    ];
+    let rail_y0 = cy - m.receiver_h / 2.0 + m.receiver_stop_h;
+    let rail_y1 = rail_y0 + m.receiver_rail_h;
+    let screw_y = cy + m.screw_pos_y;
+    let screw_half = m.screw_spacing_h / 2.0;
+    let stop = vec![
+        (-m.female_cap_w / 2.0, z0),
+        (m.female_cap_w / 2.0, z0),
+        (m.female_cap_w / 2.0, z1),
+        (-m.female_cap_w / 2.0, z1),
+    ];
+    add_receiver_rail_with_screw_bore(
+        mesh,
+        &left,
+        rail_y0,
+        rail_y1,
+        -screw_half,
+        screw_y,
+        m.screw_radius,
+    );
+    add_receiver_rail_with_screw_bore(
+        mesh,
+        &right,
+        rail_y0,
+        rail_y1,
+        screw_half,
+        screw_y,
+        m.screw_radius,
+    );
+    add_prism_y(
+        mesh,
+        &stop,
+        cy - m.receiver_h / 2.0 + m.receiver_stop_h / 2.0,
+        m.receiver_stop_h,
+    );
 }
 
 fn perch_center(p: &NichoirParams, g: &GeometryPayload) -> (f64, f64) {
@@ -5558,65 +5970,111 @@ fn back_panel_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
     clean_tris(tris)
 }
 
-fn add_wall_mount_shed_cap(mesh: &mut Vec<Tri>, m: &WallMountGeometry, cy: f64, z_start: f64) {
-    let inset = WALL_MOUNT_SHED_INSET
-        .min(m.block_w * 0.1)
-        .min(m.block_depth * 0.1);
-    let x0 = -m.block_w / 2.0 + inset;
-    let x1 = m.block_w / 2.0 - inset;
-    let z0 = z_start + inset;
-    let z1 = z_start + m.block_depth - inset;
-    let y_base = cy + m.block_h / 2.0;
-    let y_exterior = y_base + WALL_MOUNT_SHED_EDGE_THICKNESS;
-    let y_wall = y_exterior + wall_mount_shed_rise(m);
+fn rounded_rect_profile(
+    cx: f64,
+    cy: f64,
+    w: f64,
+    h: f64,
+    radius: f64,
+    corner_segments: usize,
+) -> Vec<(f64, f64)> {
+    let r = radius.clamp(0.0, w.min(h) / 2.0);
+    if r <= 0.01 {
+        return vec![
+            (cx - w / 2.0, cy - h / 2.0),
+            (cx + w / 2.0, cy - h / 2.0),
+            (cx + w / 2.0, cy + h / 2.0),
+            (cx - w / 2.0, cy + h / 2.0),
+        ];
+    }
 
-    let p00 = Vec3 {
-        x: x0 as f32,
-        y: y_base as f32,
-        z: z0 as f32,
-    };
-    let p10 = Vec3 {
-        x: x1 as f32,
-        y: y_base as f32,
-        z: z0 as f32,
-    };
-    let p11 = Vec3 {
-        x: x1 as f32,
-        y: y_base as f32,
-        z: z1 as f32,
-    };
-    let p01 = Vec3 {
-        x: x0 as f32,
-        y: y_base as f32,
-        z: z1 as f32,
-    };
-    let q00 = Vec3 {
-        x: x0 as f32,
-        y: y_exterior as f32,
-        z: z0 as f32,
-    };
-    let q10 = Vec3 {
-        x: x1 as f32,
-        y: y_exterior as f32,
-        z: z0 as f32,
-    };
-    let q11 = Vec3 {
-        x: x1 as f32,
-        y: y_wall as f32,
-        z: z1 as f32,
-    };
-    let q01 = Vec3 {
-        x: x0 as f32,
-        y: y_wall as f32,
-        z: z1 as f32,
-    };
+    let seg = corner_segments.max(4);
+    let corners = [
+        (cx + w / 2.0 - r, cy - h / 2.0 + r, -PI / 2.0, 0.0),
+        (cx + w / 2.0 - r, cy + h / 2.0 - r, 0.0, PI / 2.0),
+        (cx - w / 2.0 + r, cy + h / 2.0 - r, PI / 2.0, PI),
+        (cx - w / 2.0 + r, cy - h / 2.0 + r, PI, 3.0 * PI / 2.0),
+    ];
+    let mut profile = Vec::with_capacity(seg * 4);
+    for (ccx, ccy, a0, a1) in corners {
+        for i in 0..seg {
+            let t = i as f64 / seg as f64;
+            let a = a0 + (a1 - a0) * t;
+            profile.push((ccx + a.cos() * r, ccy + a.sin() * r));
+        }
+    }
+    profile
+}
 
-    quad(mesh, p00, p01, p11, p10);
-    quad(mesh, q00, q10, q11, q01);
-    quad(mesh, p00, p10, q10, q00);
-    quad(mesh, p01, q01, q11, p11);
-    quad(mesh, p00, q00, q01, p01);
-    quad(mesh, p10, p11, q11, q10);
+fn add_tapered_wall_mount_standoff(
+    mesh: &mut Vec<Tri>,
+    m: &WallMountGeometry,
+    cy: f64,
+    z_start: f64,
+    depth: f64,
+) {
+    let collar_depth = depth.min(6.0).max(depth.min(4.0));
+    let neck_depth = (depth - collar_depth).max(0.0);
+    let neck_slices = 24;
+    let neck_front_w = (m.male_cap_w + 1.5)
+        .clamp(28.0, 34.0)
+        .min(m.plate_w - 14.0)
+        .max(m.male_cap_w + 1.0);
+    let neck_back_w = (neck_front_w + 8.0)
+        .clamp(34.0, 42.0)
+        .min(m.plate_w - 8.0)
+        .max(m.male_cap_w + 4.0);
+    let neck_front_h = (m.male_rail_h + 2.0)
+        .clamp(24.0, 32.0)
+        .min(m.plate_h - 12.0)
+        .max(m.male_rail_h + 1.0);
+    let neck_back_h = (neck_front_h + 4.0)
+        .clamp(28.0, 38.0)
+        .min(m.plate_h - 8.0)
+        .max(neck_front_h + 1.0);
+    let neck_radius = (neck_front_h.min(neck_front_w) * 0.24).clamp(5.0, 9.0);
+    let collar_w = (neck_front_w + 12.0).min(m.plate_w);
+    let collar_h = (neck_front_h + 12.0).min(m.plate_h);
+    let collar_radius = (neck_radius + 4.0)
+        .clamp(8.0, 12.0)
+        .min(collar_w.min(collar_h) / 2.0);
+
+    if neck_depth > 0.5 {
+        let step = neck_depth / neck_slices as f64;
+        for i in 0..neck_slices {
+            let a = i as f64 / neck_slices as f64;
+            let b = (i + 1) as f64 / neck_slices as f64;
+            let mid = (a + b) / 2.0;
+            let eased = mid * mid * (3.0 - 2.0 * mid);
+            let w = neck_back_w + (neck_front_w - neck_back_w) * eased;
+            let h = neck_back_h + (neck_front_h - neck_back_h) * eased;
+            let z = z_start + step * i as f64;
+            let profile = rounded_rect_profile(0.0, cy, w, h, neck_radius, 8);
+            add_extruded_polygon_z(mesh, &profile, step + 0.02, 0.0, 0.0, z, 0.0);
+        }
+    }
+
+    let collar_slices = 10;
+    let collar_step = collar_depth / collar_slices as f64;
+    for i in 0..collar_slices {
+        let a = i as f64 / collar_slices as f64;
+        let b = (i + 1) as f64 / collar_slices as f64;
+        let mid = (a + b) / 2.0;
+        let eased = mid * mid * (3.0 - 2.0 * mid);
+        let w = neck_front_w + (collar_w - neck_front_w) * eased;
+        let h = neck_front_h + (collar_h - neck_front_h) * eased;
+        let radius = neck_radius + (collar_radius - neck_radius) * eased;
+        let profile = rounded_rect_profile(0.0, cy, w, h, radius, 10);
+        add_extruded_polygon_z(
+            mesh,
+            &profile,
+            collar_step + 0.02,
+            0.0,
+            0.0,
+            z_start + neck_depth + collar_step * i as f64,
+            0.0,
+        );
+    }
 }
 
 fn add_wall_mount_block(
@@ -5632,27 +6090,46 @@ fn add_wall_mount_block(
     }
     let m = wall_mount_geometry(p, g);
     let cy = if placed { base_y + m.y } else { 0.0 };
-    let outer = vec![
-        (-m.block_w / 2.0, cy - m.block_h / 2.0),
-        (m.block_w / 2.0, cy - m.block_h / 2.0),
-        (m.block_w / 2.0, cy + m.block_h / 2.0),
-        (-m.block_w / 2.0, cy + m.block_h / 2.0),
-    ];
-    let hole_y = cy;
-    let half = m.hole_spacing / 2.0;
-    let holes = vec![
-        ellipse_points(-half, hole_y, m.hole_radius, m.hole_radius, 32),
-        ellipse_points(half, hole_y, m.hole_radius, m.hole_radius, 32),
-    ];
-    if !add_extruded_shape_with_holes_z(mesh, &outer, &holes, m.block_depth, 0.0, 0.0, z_start) {
-        add_extruded_polygon_z(mesh, &outer, m.block_depth, 0.0, 0.0, z_start, 0.0);
-    }
-    add_wall_mount_shed_cap(mesh, &m, cy, z_start);
+    let plate_z = z_start + m.joint_depth;
+    let bond_overlap = if placed { p.t.min(0.35) } else { 0.0 };
+    add_tapered_wall_mount_standoff(mesh, &m, cy, plate_z, m.plate_t + bond_overlap);
+    add_dovetail_male(mesh, &m, cy, plate_z - m.male_joint_depth);
 }
 
 fn wall_mount_block_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
     let mut tris = Vec::<Tri>::new();
     add_wall_mount_block(&mut tris, p, g, 0.0, 0.0, false);
+    clean_tris(tris)
+}
+
+fn wall_mount_receiver_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
+    let m = wall_mount_geometry(p, g);
+    let mut tris = Vec::<Tri>::new();
+    let cy = 0.0;
+    let receiver_radius = (m.receiver_w.min(m.receiver_h) * 0.18).clamp(8.0, 14.0);
+    let outer = rounded_rect_profile(0.0, cy, m.receiver_w, m.receiver_h, receiver_radius, 10);
+    let holes = wall_mount_receiver_holes(&m, cy);
+    if !add_extruded_shape_with_holes_z(&mut tris, &outer, &holes, m.receiver_t, 0.0, 0.0, 0.0) {
+        add_extruded_polygon_z(&mut tris, &outer, m.receiver_t, 0.0, 0.0, 0.0, 0.0);
+    }
+    add_dovetail_receiver_rails(&mut tris, &m, cy, m.receiver_t);
+    clean_tris(tris)
+}
+
+fn wall_mount_kit_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
+    if !p.wall_mount {
+        return Vec::new();
+    }
+    let m = wall_mount_geometry(p, g);
+    let gap = 18.0;
+    let offset = (m.plate_w + m.receiver_w) / 2.0 + gap;
+    let mut tris = offset_tris(wall_mount_block_tris(p, g), -offset / 2.0, 0.0, 0.0);
+    tris.extend(offset_tris(
+        wall_mount_receiver_tris(p, g),
+        offset / 2.0,
+        0.0,
+        0.0,
+    ));
     clean_tris(tris)
 }
 
@@ -6175,7 +6652,10 @@ fn panel_export_parts(p: &NichoirParams, g: &GeometryPayload) -> Vec<(String, Ve
     ];
 
     if p.wall_mount {
-        parts.push(("bloc_fixation_mur".to_string(), wall_mount_block_tris(p, g)));
+        parts.push((
+            "recepteur_femelle_mural".to_string(),
+            wall_mount_receiver_tris(p, g),
+        ));
     }
 
     let door = door_panel_tris(p);
@@ -6257,6 +6737,7 @@ fn build_scene_meshes(p: &NichoirParams) -> Vec<RenderMesh> {
 
     if p.wall_mount {
         let mut block = Vec::<Tri>::new();
+        let m = wall_mount_geometry(p, &g);
         add_wall_mount_block(
             &mut block,
             p,
@@ -6265,6 +6746,12 @@ fn build_scene_meshes(p: &NichoirParams) -> Vec<RenderMesh> {
             -p.d / 2.0 - wall_mount_depth(p),
             true,
         );
+        block.extend(offset_tris(
+            wall_mount_receiver_tris(p, &g),
+            p.w / 2.0 + m.receiver_w / 2.0 + 24.0,
+            base_y + m.y,
+            -p.d / 2.0 - m.plate_t - m.male_joint_depth - m.receiver_t,
+        ));
         out.push(render_mesh_offset(
             "wallMount",
             "#7f6245",
@@ -6450,12 +6937,31 @@ pub fn export_wall_mount_stl(input: &str) -> Vec<u8> {
     }
 
     let g = GeometryPayload::from_p(&p);
-    let tris = wall_mount_block_tris(&p, &g);
+    let tris = wall_mount_kit_tris(&p, &g);
     if tris.is_empty() {
         return Vec::new();
     }
 
-    write_stl("Nichoir Wall Mount Block", &tris)
+    write_stl("Nichoir Universal Wall Mount Kit", &tris)
+}
+
+#[wasm_bindgen]
+pub fn export_wall_mount_receiver_stl(input: &str) -> Vec<u8> {
+    let p = match parse_input(input) {
+        Ok(v) => v,
+        Err(_) => NichoirParams::default(),
+    };
+    if !p.wall_mount {
+        return Vec::new();
+    }
+
+    let g = GeometryPayload::from_p(&p);
+    let tris = wall_mount_receiver_tris(&p, &g);
+    if tris.is_empty() {
+        return Vec::new();
+    }
+
+    write_stl("Nichoir Female Wall Receiver", &tris)
 }
 
 #[wasm_bindgen]
@@ -6781,67 +7287,35 @@ pub fn render_app_html(input: &str) -> String {
         t(lang, "hang_enable"),
         hang_details,
     );
-    let wall_mount_details = format!(
-        r#"<div class="subcontrols">{}{}{}{}{}{}<p class="control-note">{}</p></div>"#,
-        length_control(
-            t(lang, "wall_mount_hole_diam"),
-            "wallMountHoleDiam",
-            3.0,
-            20.0,
-            0.5,
-            p.wall_mount_hole_diam,
-            &p.unit
-        ),
-        length_control(
-            t(lang, "wall_mount_hole_spacing"),
-            "wallMountHoleSpacing",
-            20.0,
-            220.0,
-            1.0,
-            p.wall_mount_hole_spacing,
-            &p.unit
-        ),
-        length_control(
-            t(lang, "wall_mount_y"),
-            "wallMountY",
-            20.0,
-            440.0,
-            1.0,
-            p.wall_mount_y,
-            &p.unit
-        ),
-        length_control(
-            t(lang, "wall_mount_block_w"),
-            "wallMountBlockW",
-            40.0,
-            260.0,
-            1.0,
-            p.wall_mount_block_w,
-            &p.unit
-        ),
-        length_control(
-            t(lang, "wall_mount_block_h"),
-            "wallMountBlockH",
-            30.0,
-            220.0,
-            1.0,
-            p.wall_mount_block_h,
-            &p.unit
-        ),
-        length_control(
-            t(lang, "wall_mount_block_depth"),
-            "wallMountBlockDepth",
-            6.0,
-            80.0,
-            1.0,
-            p.wall_mount_block_depth,
-            &p.unit
-        ),
-        html_escape(t(lang, "wall_mount_note")),
-    );
+    let wall_mount_details = if p.wall_mount {
+        format!(
+            r#"<div id="wall-mount-options" class="subcontrols wall-mount-builder"><p class="control-note">{}</p><div class="field-group"><p>{}</p>{}{}{}</div><div class="field-group"><p>{}</p>{}{}{}</div><div class="field-group"><p>{}</p>{}{}{}{}{}{}</div></div>"#,
+            html_escape(t(lang, "wall_mount_note")),
+            html_escape(t(lang, "wall_mount_insert_plate")),
+            length_control(t(lang, "wall_mount_plate_w"), "wallMountPlateW", 30.0, 180.0, 1.0, p.wall_mount_plate_w, &p.unit),
+            length_control(t(lang, "wall_mount_plate_h"), "wallMountPlateH", 30.0, 180.0, 1.0, p.wall_mount_plate_h, &p.unit),
+            length_control(t(lang, "wall_mount_plate_t"), "wallMountPlateT", 4.0, 30.0, 1.0, p.wall_mount_plate_t, &p.unit),
+            html_escape(t(lang, "wall_mount_dovetail")),
+            length_control(t(lang, "wall_mount_joint_w"), "wallMountJointW", 12.0, 100.0, 1.0, p.wall_mount_joint_w, &p.unit),
+            length_control(t(lang, "wall_mount_joint_depth"), "wallMountJointDepth", 3.0, 30.0, 1.0, p.wall_mount_joint_depth, &p.unit),
+            length_control(t(lang, "wall_mount_tolerance"), "wallMountTolerance", 0.0, 3.0, 0.05, p.wall_mount_tolerance, &p.unit),
+            html_escape(t(lang, "wall_mount_receiver")),
+            length_control(t(lang, "wall_mount_receiver_w"), "wallMountReceiverW", 30.0, 180.0, 1.0, p.wall_mount_receiver_w, &p.unit),
+            length_control(t(lang, "wall_mount_receiver_h"), "wallMountReceiverH", 35.0, 200.0, 1.0, p.wall_mount_receiver_h, &p.unit),
+            length_control(t(lang, "wall_mount_receiver_t"), "wallMountReceiverT", 4.0, 30.0, 1.0, p.wall_mount_receiver_t, &p.unit),
+            length_control(t(lang, "wall_mount_screw_radius"), "wallMountScrewRadius", 1.0, 8.0, 0.1, p.wall_mount_screw_radius, &p.unit),
+            length_control(t(lang, "wall_mount_screw_spacing_h"), "wallMountScrewSpacingH", 10.0, 120.0, 1.0, p.wall_mount_screw_spacing_h, &p.unit),
+            length_control(t(lang, "wall_mount_screw_pos_v"), "wallMountScrewPosV", 8.0, 180.0, 1.0, p.wall_mount_screw_pos_v, &p.unit),
+        )
+    } else {
+        r#"<div id="wall-mount-options" class="subcontrols wall-mount-builder" hidden></div>"#
+            .to_string()
+    };
     let wall_mount_controls = format!(
-        r#"<div class="field-group disclosure-group advanced-group wall-mount-group"><p>{}</p><label class="check"><input data-bool="wallMount" type="checkbox" {}>{}</label>{}</div>"#,
+        r#"<div class="field-group disclosure-group advanced-group wall-mount-group"><p>{}</p><small>{}</small><label class="check"><input data-bool="wallMount" type="checkbox" aria-controls="wall-mount-options" aria-expanded="{}" {}>{}</label>{}</div>"#,
         t(lang, "wall_mount"),
+        html_escape(t(lang, "wall_mount_system")),
+        if p.wall_mount { "true" } else { "false" },
         checked(p.wall_mount),
         t(lang, "wall_mount_enable"),
         wall_mount_details,
@@ -7487,11 +7961,11 @@ pub fn render_app_html(input: &str) -> String {
     );
     let export_house_label = icon_text("⌂", "button-glyph", "button-label", t(lang, "house"));
     let export_door_label = icon_text("▣", "button-glyph", "button-label", t(lang, "door"));
-    let export_wall_mount_label = icon_text(
-        "▥",
+    let export_wall_mount_receiver_label = icon_text(
+        "▧",
         "button-glyph",
         "button-label",
-        t(lang, "wall_mount_piece"),
+        t(lang, "wall_mount_receiver_piece"),
     );
     let export_panel_label = icon_text("▤", "button-glyph", "button-label", t(lang, "panel_stls"));
     let export_plan_label = icon_text("▧", "button-glyph", "button-label", t(lang, "plan"));
@@ -7522,7 +7996,7 @@ pub fn render_app_html(input: &str) -> String {
     );
     let wall_mount_export_button = if p.wall_mount {
         format!(
-            r#"<button data-action="export-wall-mount">{export_wall_mount_label}<strong>.STL</strong></button>"#
+            r#"<button data-action="export-wall-mount-receiver">{export_wall_mount_receiver_label}<strong>.STL</strong></button>"#
         )
     } else {
         String::new()
@@ -8289,32 +8763,62 @@ mod tests {
 
         assert!(!p.wall_mount);
         assert!(wall_mount_holes(&p, &g).is_empty());
-        assert!(!parts.iter().any(|(name, _)| name == "bloc_fixation_mur"));
+        assert!(
+            !parts
+                .iter()
+                .any(|(name, _)| name == "insert_male_fixation_mur")
+        );
+        assert!(
+            !parts
+                .iter()
+                .any(|(name, _)| name == "recepteur_femelle_mural")
+        );
     }
 
     #[test]
-    fn wall_mount_adds_rear_holes_and_export_block() {
+    fn wall_mount_adds_bonded_male_and_receiver_with_holes() {
         let input = r#"{
             "wallMount": true,
-            "overhang": 36,
-            "wallMountBlockDepth": 0,
-            "wallMountHoleDiam": 8,
-            "wallMountHoleSpacing": 70,
+            "overhang": 6,
+            "wallMountPlateW": 64,
+            "wallMountPlateH": 54,
+            "wallMountPlateT": 10,
+            "wallMountJointW": 30,
+            "wallMountJointDepth": 8,
+            "wallMountTolerance": 0.3,
+            "wallMountReceiverW": 56,
+            "wallMountReceiverH": 66,
+            "wallMountReceiverT": 12,
+            "wallMountScrewRadius": 2.2,
+            "wallMountScrewSpacingH": 32,
             "wallMountY": 120
         }"#;
 
         let p = parse_input(input).expect("wall mount params should parse");
         let g = GeometryPayload::from_p(&p);
         let parts = panel_export_parts(&p, &g);
+        let m = wall_mount_geometry(&p, &g);
 
         assert!(p.wall_mount);
-        assert_eq!(wall_mount_depth(&p), 36.0);
-        assert_eq!(wall_mount_holes(&p, &g).len(), 2);
+        assert_eq!(wall_mount_depth(&p), 18.0);
+        assert!(wall_mount_holes(&p, &g).is_empty());
+        assert_eq!(wall_mount_receiver_holes(&m, 0.0).len(), 2);
         assert!(
             parts
                 .iter()
-                .any(|(name, tris)| name == "bloc_fixation_mur" && !tris.is_empty())
+                .all(|(name, _)| name != "insert_male_fixation_mur")
         );
+        assert!(
+            parts
+                .iter()
+                .any(|(name, tris)| name == "recepteur_femelle_mural" && !tris.is_empty())
+        );
+
+        let high_overhang = parse_input(
+            r#"{"wallMount":true,"overhang":36,"wallMountPlateT":10,"wallMountJointDepth":8}"#,
+        )
+        .expect("high overhang params should parse");
+        assert_eq!(wall_mount_depth(&high_overhang), 46.0);
     }
 
     #[test]
@@ -8329,35 +8833,45 @@ mod tests {
     }
 
     #[test]
-    fn wall_mount_block_top_sheds_water_outward() {
+    fn wall_mount_dovetail_geometry_has_male_and_receiver_clearance() {
         let input = r#"{
             "wallMount": true,
-            "overhang": 36,
-            "wallMountBlockDepth": 0,
-            "wallMountBlockH": 70,
-            "wallMountHoleDiam": 8,
-            "wallMountHoleSpacing": 70,
-            "wallMountY": 120
+            "wallMountPlateW": 60,
+            "wallMountPlateH": 50,
+            "wallMountPlateT": 10,
+            "wallMountJointW": 30,
+            "wallMountJointDepth": 8,
+            "wallMountTolerance": 0.3,
+            "wallMountReceiverW": 50,
+            "wallMountReceiverH": 60,
+            "wallMountReceiverT": 12,
+            "wallMountScrewRadius": 2.1,
+            "wallMountScrewSpacingH": 30,
+            "wallMountScrewPosV": 30
         }"#;
 
         let p = parse_input(input).expect("wall mount params should parse");
         let g = GeometryPayload::from_p(&p);
         let m = wall_mount_geometry(&p, &g);
-        let tris = wall_mount_block_tris(&p, &g);
+        let male = wall_mount_block_tris(&p, &g);
+        let receiver = wall_mount_receiver_tris(&p, &g);
+        let kit = wall_mount_kit_tris(&p, &g);
 
-        let max_y_at_z = |z: f64| -> f32 {
-            tris.iter()
-                .flat_map(|tri| [tri.a, tri.b, tri.c])
-                .filter(|v| ((v.z as f64) - z).abs() < 0.01)
-                .map(|v| v.y)
-                .fold(f32::NEG_INFINITY, f32::max)
-        };
-
-        let exterior_y = max_y_at_z(WALL_MOUNT_SHED_INSET);
-        let wall_y = max_y_at_z(m.block_depth - WALL_MOUNT_SHED_INSET);
-
-        assert!(wall_y.is_finite());
-        assert!(exterior_y.is_finite());
-        assert!(wall_y > exterior_y + 10.0);
+        assert!((m.female_cap_w - 30.0).abs() < 1e-6);
+        assert!((m.female_neck_w - 18.0).abs() < 1e-6);
+        assert!((m.male_cap_w - 29.4).abs() < 1e-6);
+        assert!((m.male_neck_w - 17.04).abs() < 1e-6);
+        assert!((m.male_joint_depth - 7.7).abs() < 1e-6);
+        assert!(m.male_cap_w > m.male_neck_w);
+        assert!(m.female_cap_w > m.male_cap_w);
+        assert!(m.female_neck_w > m.male_neck_w);
+        assert!(m.male_cap_w > m.female_neck_w);
+        assert!(m.receiver_stop_h > 0.0);
+        assert!(m.receiver_rail_h <= m.receiver_h - m.receiver_stop_h + 1e-6);
+        assert!(m.male_rail_h <= m.receiver_rail_h - 1.0 + 1e-6);
+        assert!(!male.is_empty());
+        assert!(!receiver.is_empty());
+        assert!(kit.len() > male.len());
+        assert!(kit.len() > receiver.len());
     }
 }

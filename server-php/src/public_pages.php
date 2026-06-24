@@ -14,92 +14,166 @@ require_once __DIR__ . '/mail.php';
 function render_landing_page(): void
 {
     $lang = page_lang();
+
     $appUrl = h(dev_app_url($lang));
+    $pricingUrl = h(page_path_with_lang('/pricing', $lang));
     page_response(page_t('home_title', $lang), '
-	      <section class="hero landing-hero">
-	        <div class="landing-hero-scene" aria-hidden="true">
-	          <div class="landing-workbench-image landing-image-slot">
-	            <div class="landing-wood-sheet"></div>
-	            <div class="landing-wood-sheet small"></div>
-	            <div class="landing-cut-line"></div>
-	          </div>
-	          <div class="landing-app-preview landing-image-slot">
-	            <div class="landing-window-bar"><span></span><span></span><span></span></div>
-	            <div class="landing-model-viewport">
-	              <div class="landing-model-roof"></div>
-	              <div class="landing-model-body"></div>
-	              <div class="landing-model-door"></div>
-	              <div class="landing-model-base"></div>
-	            </div>
-	            <div class="landing-control-strip"><span></span><span></span><span></span></div>
-	          </div>
-	          <div class="landing-export-preview">
-	            <span>STL</span><span>PDF</span><span>ZIP</span>
-	          </div>
-	        </div>
-	        <div class="landing-hero-copy">
-	          <p class="eyebrow">' . h(page_t('home_eyebrow', $lang)) . '</p>
-	          <h1>Nichoir</h1>
-	          <p>' . h(page_t('home_body', $lang)) . '</p>
-	          <div class="hero-actions">
-	            <a class="primary" href="' . $appUrl . '">' . h(page_t('home_primary', $lang)) . '</a>
-	            <a class="secondary" href="' . h(page_path_with_lang('/pricing', $lang)) . '">' . h(page_t('home_secondary', $lang)) . '</a>
-	          </div>
-	          <div class="landing-proof-row" aria-label="' . h(page_t('home_steps_title', $lang)) . '">
-	            <span>' . h(page_t('home_kicker_one', $lang)) . '</span>
-	            <span>' . h(page_t('home_kicker_two', $lang)) . '</span>
-	            <span>' . h(page_t('home_kicker_three', $lang)) . '</span>
-	          </div>
-	        </div>
-	      </section>
-	      <section class="landing-value-grid">
-	        <article class="landing-value-card">
-	          <div class="landing-value-visual landing-image-slot model" aria-hidden="true"><span>3D</span></div>
-	          <h2>' . h(page_t('home_card_wasm_title', $lang)) . '</h2>
-	          <p>' . h(page_t('home_card_wasm_body', $lang)) . '</p>
-	        </article>
-	        <article class="landing-value-card">
-	          <div class="landing-value-visual landing-image-slot exports" aria-hidden="true"><span>STL</span><span>PDF</span><span>ZIP</span></div>
-	          <h2>' . h(page_t('home_card_credits_title', $lang)) . '</h2>
-	          <p>' . h(page_t('home_card_credits_body', $lang)) . '</p>
-	        </article>
-	        <article class="landing-value-card">
-	          <div class="landing-value-visual landing-image-slot workshop" aria-hidden="true"><span></span><span></span><span></span></div>
-	          <h2>' . h(page_t('home_card_fabrication_title', $lang)) . '</h2>
-	          <p>' . h(page_t('home_card_fabrication_body', $lang)) . '</p>
-	        </article>
-	      </section>
-	      <section class="feature-panel landing-process">
-	        <div>
-	          <p class="eyebrow">' . h(page_t('home_proof_title', $lang)) . '</p>
-	          <h2>' . h(page_t('home_steps_title', $lang)) . '</h2>
-	          <p>' . h(page_t('home_proof_body', $lang)) . '</p>
-	        </div>
-	        <div class="landing-process-board">
-	          <ol class="step-list">
-	            <li><strong>' . h(page_t('home_step_one_title', $lang)) . '</strong><span>' . h(page_t('home_step_one_body', $lang)) . '</span></li>
-	            <li><strong>' . h(page_t('home_step_two_title', $lang)) . '</strong><span>' . h(page_t('home_step_two_body', $lang)) . '</span></li>
-	            <li><strong>' . h(page_t('home_step_three_title', $lang)) . '</strong><span>' . h(page_t('home_step_three_body', $lang)) . '</span></li>
-	          </ol>
-	          <div class="landing-plan-preview landing-image-slot" aria-hidden="true">
-	            <div></div><div></div><div></div><div></div>
-	          </div>
-	        </div>
-	      </section>
-	      <section class="closing-cta landing-closing">
-	        <div>
-	          <p class="eyebrow">' . h(page_t('home_cta_title', $lang)) . '</p>
-	          <p>' . h(page_t('home_cta_body', $lang)) . '</p>
-	          <div class="hero-actions">
-	            <a class="primary" href="' . $appUrl . '">' . h(page_t('home_primary', $lang)) . '</a>
-	            <a class="secondary" href="' . h(page_path_with_lang('/pricing', $lang)) . '">' . h(page_t('home_secondary', $lang)) . '</a>
-	          </div>
-	        </div>
-	        <div class="landing-closing-visual landing-image-slot" aria-hidden="true">
-	          <span>3D</span><span>PDF</span><span>STL</span>
-	        </div>
-	      </section>
-	    ', '/');
+      <section class="hero" aria-labelledby="hero-title">
+        <div class="wrap hero-grid">
+          <div class="hero-copy">
+            <p class="eyebrow">' . h(page_t('landing_hero_eyebrow', $lang)) . '</p>
+            <h1 id="hero-title">' . h(page_t('landing_hero_title', $lang)) . '</h1>
+            <p class="lead">' . h(page_t('landing_hero_lead', $lang)) . '</p>
+            <div class="hero-actions">
+              <a class="btn primary" href="' . $appUrl . '">' . h(page_t('home_primary', $lang)) . '</a>
+              <a class="btn secondary" href="' . $pricingUrl . '">' . h(page_t('landing_pricing_cta', $lang)) . '</a>
+            </div>
+            <p class="mini-note"><strong>' . h(page_t('landing_hero_note_title', $lang)) . '</strong> ' . h(page_t('landing_hero_note', $lang)) . '</p>
+            <div class="proof-row" aria-label="' . h(page_t('landing_hero_advantages', $lang)) . '">
+              <span class="proof-pill"><span class="pill-icon">🐦</span>' . h(page_t('landing_hero_pill_one', $lang)) . '</span>
+              <span class="proof-pill"><span class="pill-icon">STL</span>' . h(page_t('landing_hero_pill_two', $lang)) . '</span>
+              <span class="proof-pill"><span class="pill-icon">🪙</span>' . h(page_t('landing_hero_pill_three', $lang)) . '</span>
+            </div>
+          </div>
+          <div class="hero-visual" aria-label="' . h(page_t('landing_visual_label', $lang)) . '">
+            <div class="sun" aria-hidden="true"></div>
+            <div class="cloud one" aria-hidden="true"></div>
+            <div class="cloud two" aria-hidden="true"></div>
+            <div class="bird one" aria-hidden="true"><svg viewBox="0 0 64 38"><path d="M7 24c9-15 20-15 29 0M31 24c9-14 19-14 27 0"/></svg></div>
+            <div class="bird two" aria-hidden="true"><svg viewBox="0 0 64 38"><path d="M7 24c9-15 20-15 29 0M31 24c9-14 19-14 27 0"/></svg></div>
+            <div class="bird three" aria-hidden="true"><svg viewBox="0 0 64 38"><path d="M7 24c9-15 20-15 29 0M31 24c9-14 19-14 27 0"/></svg></div>
+            <div class="birdhouse-scene" aria-hidden="true">
+              <div class="house-wrap">
+                <div class="roof"></div>
+                <div class="house-body"></div>
+                <div class="perch"></div>
+              </div>
+              <div class="branch"></div>
+              <div class="leaves"><span class="leaf"></span><span class="leaf"></span><span class="leaf"></span><span class="leaf"></span></div>
+            </div>
+            <div class="export-card" aria-hidden="true">
+              <span class="card-label">' . h(page_t('landing_hero_export_card', $lang)) . '</span>
+              <div class="export-file"><span>STL</span><span class="download-dot">↓</span></div>
+            </div>
+            <div class="coin-card" aria-hidden="true">
+              <span class="card-label">' . h(page_t('landing_hero_credit_card', $lang)) . '</span>
+              <div class="coins"><span class="coin"></span><span class="coin"></span><span class="coin"></span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="pourquoi" class="section">
+        <div class="wrap">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">' . h(page_t('landing_why_eyebrow', $lang)) . '</p>
+              <h2>' . h(page_t('landing_why_title', $lang)) . '</h2>
+            </div>
+            <p>' . h(page_t('landing_why_body', $lang)) . '</p>
+          </div>
+          <div class="cards">
+            <article class="card">
+              <div class="icon-badge" aria-hidden="true">🏠</div>
+              <h3>' . h(page_t('landing_why_card_one_title', $lang)) . '</h3>
+              <p>' . h(page_t('landing_why_card_one_body', $lang)) . '</p>
+            </article>
+            <article class="card">
+              <div class="icon-badge" aria-hidden="true">✨</div>
+              <h3>' . h(page_t('landing_why_card_two_title', $lang)) . '</h3>
+              <p>' . h(page_t('landing_why_card_two_body', $lang)) . '</p>
+            </article>
+            <article class="card">
+              <div class="icon-badge" aria-hidden="true">⬇️</div>
+              <h3>' . h(page_t('landing_why_card_three_title', $lang)) . '</h3>
+              <p>' . h(page_t('landing_why_card_three_body', $lang)) . '</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section">
+        <div class="wrap story">
+          <div class="story-grid">
+            <div>
+              <p class="eyebrow">' . h(page_t('landing_story_eyebrow', $lang)) . '</p>
+              <h2>' . h(page_t('landing_story_title', $lang)) . '</h2>
+              <p>' . h(page_t('landing_story_body', $lang)) . '</p>
+              <div class="hero-actions">
+                <a class="btn primary" href="' . $appUrl . '">' . h(page_t('landing_story_cta', $lang)) . '</a>
+              </div>
+            </div>
+            <div class="story-points">
+              <div class="point"><div class="icon-badge" aria-hidden="true">🐣</div><div><h3>' . h(page_t('landing_story_point_one_title', $lang)) . '</h3><p>' . h(page_t('landing_story_point_one_body', $lang)) . '</p></div></div>
+              <div class="point"><div class="icon-badge" aria-hidden="true">🎨</div><div><h3>' . h(page_t('landing_story_point_two_title', $lang)) . '</h3><p>' . h(page_t('landing_story_point_two_body', $lang)) . '</p></div></div>
+              <div class="point"><div class="icon-badge" aria-hidden="true">🖨️</div><div><h3>' . h(page_t('landing_story_point_three_title', $lang)) . '</h3><p>' . h(page_t('landing_story_point_three_body', $lang)) . '</p></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="fonctionnement" class="section">
+        <div class="wrap">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">' . h(page_t('landing_steps_eyebrow', $lang)) . '</p>
+              <h2>' . h(page_t('landing_steps_title', $lang)) . '</h2>
+            </div>
+            <p>' . h(page_t('landing_steps_body', $lang)) . '</p>
+          </div>
+          <div class="steps">
+            <article class="step"><h3>' . h(page_t('landing_steps_step_one_title', $lang)) . '</h3><p>' . h(page_t('landing_steps_step_one_body', $lang)) . '</p></article>
+            <article class="step"><h3>' . h(page_t('landing_steps_step_two_title', $lang)) . '</h3><p>' . h(page_t('landing_steps_step_two_body', $lang)) . '</p></article>
+            <article class="step"><h3>' . h(page_t('landing_steps_step_three_title', $lang)) . '</h3><p>' . h(page_t('landing_steps_step_three_body', $lang)) . '</p></article>
+            <article class="step"><h3>' . h(page_t('landing_steps_step_four_title', $lang)) . '</h3><p>' . h(page_t('landing_steps_step_four_body', $lang)) . '</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section id="exports" class="section">
+        <div class="wrap split">
+          <div>
+            <p class="eyebrow">' . h(page_t('landing_exports_eyebrow', $lang)) . '</p>
+            <h2>' . h(page_t('landing_exports_title', $lang)) . '</h2>
+            <p class="lead">' . h(page_t('landing_exports_lead', $lang)) . '</p>
+          </div>
+          <div class="bonus-card">
+            <h3>' . h(page_t('landing_exports_bonus_title', $lang)) . '</h3>
+            <p>' . h(page_t('landing_exports_bonus_body', $lang)) . '</p>
+            <div class="bonus-list">
+              <span class="check">' . h(page_t('landing_exports_bonus_item_one', $lang)) . '</span>
+              <span class="check">' . h(page_t('landing_exports_bonus_item_two', $lang)) . '</span>
+              <span class="check">' . h(page_t('landing_exports_bonus_item_three', $lang)) . '</span>
+              <span class="check">' . h(page_t('landing_exports_bonus_item_four', $lang)) . '</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="credits" class="section">
+        <div class="wrap banner">
+          <div>
+            <p class="eyebrow">' . h(page_t('landing_credits_eyebrow', $lang)) . '</p>
+            <h2>' . h(page_t('landing_credits_title', $lang)) . '</h2>
+            <p>' . h(page_t('landing_credits_body', $lang)) . '</p>
+          </div>
+          <div class="credit-mini"><span>🪙</span><span>' . h(page_t('landing_credits_mini', $lang)) . '</span></div>
+        </div>
+      </section>
+
+      <section class="cta">
+        <div class="wrap cta-box">
+          <p class="eyebrow">' . h(page_t('landing_cta_eyebrow', $lang)) . '</p>
+          <h2>' . h(page_t('landing_cta_title', $lang)) . '</h2>
+          <p class="lead">' . h(page_t('landing_cta_body', $lang)) . '</p>
+          <div class="cta-actions">
+            <a class="btn primary" href="' . $appUrl . '">' . h(page_t('home_primary', $lang)) . '</a>
+            <a class="btn secondary" href="' . $pricingUrl . '">' . h(page_t('landing_pricing_cta', $lang)) . '</a>
+          </div>
+        </div>
+      </section>
+
+    ', '/');
 }
 
 function render_pricing_page(): void
@@ -440,7 +514,7 @@ function render_about_page(): void
         <p>' . h(page_t('about_cta_body', $lang)) . '</p>
         <div class="hero-actions">
           <a class="primary" href="' . h(dev_app_url($lang)) . '">' . h(page_t('home_primary', $lang)) . '</a>
-          <a class="secondary" href="' . h(page_path_with_lang('/pricing', $lang)) . '">' . h(page_t('home_secondary', $lang)) . '</a>
+          <a class="secondary" href="' . h(page_path_with_lang('/pricing', $lang)) . '">' . h(page_t('landing_pricing_cta', $lang)) . '</a>
         </div>
       </section>
     ', '/about');

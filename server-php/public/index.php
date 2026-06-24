@@ -101,6 +101,22 @@ if ($method === 'GET' && $path === '/assets/three.module.min.js') {
     exit;
 }
 
+if ($method === 'GET' && $path === '/assets/bird-chirp.mp3') {
+    $birdPath = __DIR__ . '/assets/bird-chirp.mp3';
+    if (!is_file($birdPath) || !is_readable($birdPath)) {
+        http_response_code(404);
+        header('Content-Type: text/plain; charset=utf-8');
+        echo "Bird sound asset not found\n";
+        exit;
+    }
+    header('Content-Type: audio/mpeg');
+    header('Content-Length: ' . (string) filesize($birdPath));
+    header('Cache-Control: public, max-age=600');
+    header('X-Content-Type-Options: nosniff');
+    readfile($birdPath);
+    exit;
+}
+
 if ($method === 'GET' && $path === '/library-preview.js') {
     $previewPath = __DIR__ . '/library-preview.js';
     if (!is_file($previewPath) || !is_readable($previewPath)) {

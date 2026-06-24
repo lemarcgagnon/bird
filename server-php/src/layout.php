@@ -32,6 +32,7 @@ function page_response(string $title, string $body, string $active = '', int $st
     $adminPath = function_exists('admin_base_path') ? admin_base_path() : '';
     $isAdmin = $adminPath !== '' && function_exists('admin_path_is_admin') && admin_path_is_admin($active);
     $adminPathForScript = $isAdmin ? $adminPath : '';
+    $bodyThemeClass = $isAdmin ? 'admin-theme' : 'public-theme';
     $lang = $isAdmin ? 'fr' : page_lang();
     $appUrl = h(dev_app_url($lang));
     $nav = [
@@ -50,7 +51,11 @@ function page_response(string $title, string $body, string $active = '', int $st
     echo '<link rel="alternate" hreflang="en" href="' . h(page_path_with_lang($path, 'en')) . '">';
     echo '<link rel="alternate" hreflang="x-default" href="' . h(page_path_with_lang($path, 'fr')) . '">';
     echo '<link rel="icon" href="/favicon.svg" type="image/svg+xml">';
-    echo '<link rel="stylesheet" href="/site.css?v=20260623-landing-redesign"></head><body>';
+    echo '<link rel="stylesheet" href="/site.css?v=20260623-landing-redesign">';
+    if (!$isAdmin) {
+        echo '<link rel="stylesheet" href="/landing-home.css?v=20260623-public-look-v1">';
+    }
+    echo '</head><body class="' . h($bodyThemeClass) . '">';
     echo '<header class="site-header" data-site-header><a class="brand" href="' . h(page_path_with_lang('/', $lang)) . '">Nichoir</a><button class="site-nav-toggle" type="button" aria-label="' . h(page_t('nav_menu', $lang)) . '" aria-controls="site-navigation" aria-expanded="false" data-site-nav-toggle><span class="site-nav-toggle-icon site-nav-toggle-menu">' . page_icon_svg('menu') . '</span><span class="site-nav-toggle-icon site-nav-toggle-close">' . page_icon_svg('close') . '</span><span class="site-nav-toggle-text">' . h(page_t('nav_menu', $lang)) . '</span></button><nav id="site-navigation" class="site-nav" aria-label="' . h(page_t('aria_main_navigation', $lang)) . '">';
     foreach ($nav as $href => $item) {
         $class = $active === $href ? ' class="active"' : '';
@@ -98,8 +103,8 @@ function page_response(string $title, string $body, string $active = '', int $st
           });
         }
         const tabNavs = document.querySelectorAll("[data-tab-nav]");
-        if (!tabNavs.length) return;
         function activateTabs() {
+          if (!tabNavs.length) return;
           let hash = window.location.hash.replace("#", "");
           if (!hash && adminPath && window.location.pathname === adminPath) {
             const params = new URLSearchParams(window.location.search);
@@ -161,9 +166,76 @@ function page_response(string $title, string $body, string $active = '', int $st
         if (modal) {
           const close = modal.querySelector("[data-modal-close]");
           if (close) close.focus();
-          document.addEventListener("keydown", (event) => {
+        document.addEventListener("keydown", (event) => {
             if (event.key === "Escape" && modal.dataset.closeUrl) {
               window.location.href = modal.dataset.closeUrl;
+            }
+          });
+        }
+
+        const welcomeBirdStorageKey = "nichoir_welcome_bird_played_v1";
+        const welcomeBirdAudioSrc = "/assets/bird-chirp.mp3";
+        const welcomeBirdStorageAvailable = () => {
+          try {
+            const testKey = "__nichoir_welcome_bird_storage_test";
+            localStorage.setItem(testKey, "1");
+            localStorage.removeItem(testKey);
+            return true;
+          } catch {
+            return false;
+          }
+        };
+
+        const hasWelcomeBirdPlayed = () => {
+          if (!welcomeBirdStorageAvailable()) return false;
+          try {
+            return localStorage.getItem(welcomeBirdStorageKey) === "1";
+          } catch {
+            return false;
+          }
+        };
+
+        const setWelcomeBirdPlayed = () => {
+          if (!welcomeBirdStorageAvailable()) return;
+          try {
+            localStorage.setItem(welcomeBirdStorageKey, "1");
+          } catch {
+          }
+        };
+
+        const tryPlayWelcomeBird = () => {
+          if (hasWelcomeBirdPlayed() || typeof Audio !== "function") return Promise.resolve(false);
+          const audio = new Audio(welcomeBirdAudioSrc);
+          audio.preload = "auto";
+          audio.volume = 0.9;
+          return audio.play().then(() => {
+            setWelcomeBirdPlayed();
+            return true;
+          }).catch(() => false);
+        };
+
+        if (!adminPath) {
+          let welcomeBirdAttemptInProgress = false;
+          const onFirstInteraction = () => {
+            if (welcomeBirdAttemptInProgress || hasWelcomeBirdPlayed()) return;
+            welcomeBirdAttemptInProgress = true;
+            tryPlayWelcomeBird().then((played) => {
+              if (played) {
+                interactionEvents.forEach((eventName) => {
+                  window.removeEventListener(eventName, onFirstInteraction, true);
+                });
+                return;
+              }
+              welcomeBirdAttemptInProgress = false;
+            });
+          };
+          const interactionEvents = ["click", "keydown", "pointerdown", "touchstart"];
+
+          tryPlayWelcomeBird().then((played) => {
+            if (!played && !hasWelcomeBirdPlayed()) {
+              interactionEvents.forEach((eventName) => {
+                window.addEventListener(eventName, onFirstInteraction, true);
+              });
             }
           });
         }

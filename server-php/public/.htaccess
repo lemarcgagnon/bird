@@ -3,6 +3,7 @@ Options -Indexes
 AddType application/wasm .wasm
 AddType application/json .json
 AddType application/javascript .js
+AddType audio/mpeg .mp3
 
 <IfModule mod_rewrite.c>
 RewriteEngine On

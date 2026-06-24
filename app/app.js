@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260619-intact-stl-decor-import';
+} from '../wasm/pkg/wasm.js?v=20260624-wall-mount-restored-v1';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260623-site-app-icons';
+const APP_BUILD_ID = '20260624-wall-mount-restored-v1';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -172,6 +172,10 @@ const I18N = {
     theme_dark: 'Sombre',
     theme_to_light: 'Passer au mode clair',
     theme_to_dark: 'Passer au mode sombre',
+    menu_kicker_title: 'Atelier nichoir',
+    menu_kicker_subtitle: 'Concois, decore et exporte un nichoir pret pour la fabrication.',
+    menu_kicker_note: 'Creer - Decorer - Exporter',
+    jump_plan_downloads: 'Telechargements',
     account_loading: 'Chargement...',
     account_connected: 'Connecte',
     account_session_expired: 'Session expiree',
@@ -346,6 +350,10 @@ const I18N = {
     theme_dark: 'Dark',
     theme_to_light: 'Switch to light mode',
     theme_to_dark: 'Switch to dark mode',
+    menu_kicker_title: 'Birdhouse workshop',
+    menu_kicker_subtitle: 'Design, decorate, and export a fabrication-ready birdhouse.',
+    menu_kicker_note: 'Create - Decorate - Export',
+    jump_plan_downloads: 'Downloads',
     account_loading: 'Loading...',
     account_connected: 'Connected',
     account_session_expired: 'Session expired',
@@ -678,6 +686,121 @@ function applyTheme() {
     button.setAttribute('aria-pressed', String(isDark));
     button.setAttribute('aria-label', isDark ? tr('theme_to_light') : tr('theme_to_dark'));
   });
+}
+
+function wrapPanelSections(panel) {
+  if (!panel || panel.dataset.menuSectionsWrapped === '1') return;
+
+  const children = Array.from(panel.children);
+  const headings = children.filter((child) => child.tagName === 'H2');
+  if (!headings.length) {
+    panel.dataset.menuSectionsWrapped = '1';
+    return;
+  }
+
+  const built = [];
+  let cursor = 0;
+
+  while (cursor < children.length) {
+    const current = children[cursor];
+    if (current.tagName === 'H2') {
+      const details = document.createElement('details');
+      details.className = 'menu-section';
+      details.open = true;
+
+      const summary = document.createElement('summary');
+      summary.className = 'menu-section-summary';
+      summary.appendChild(current);
+
+      const body = document.createElement('div');
+      body.className = 'menu-section-body';
+
+      cursor += 1;
+      while (cursor < children.length) {
+        const next = children[cursor];
+        if (next.tagName === 'H2') break;
+        body.appendChild(next);
+        cursor += 1;
+      }
+
+      details.append(summary, body);
+      built.push(details);
+      continue;
+    }
+
+    built.push(current);
+    cursor += 1;
+  }
+
+  panel.textContent = '';
+  built.forEach((item) => panel.appendChild(item));
+  panel.dataset.menuSectionsWrapped = '1';
+}
+
+function rewriteLeftMenu(scope = root) {
+  const panel = scope.querySelector('.panel');
+  if (!panel || panel.dataset.leftMenuRemodel === '1') return;
+
+  panel.classList.add('menu-shell');
+  panel.querySelector('.tabs')?.classList.add('menu-step-tabs');
+  panel.querySelector('.unit-row')?.classList.add('menu-unit-row');
+  panel.querySelector('.tab-scroll')?.classList.add('menu-scroll');
+
+  const accountButton = panel.querySelector('.tabs .account-tab-button');
+  const headerActions = panel.querySelector('.header-actions');
+  if (accountButton && headerActions) {
+    accountButton.classList.add('menu-account-button');
+    headerActions.appendChild(accountButton);
+  }
+
+  if (!panel.querySelector('.menu-kicker')) {
+    const anchor = panel.querySelector('.unit-row') || panel.querySelector('.tabs') || panel.querySelector('.tab-scroll');
+    const kicker = document.createElement('section');
+    kicker.className = 'menu-kicker';
+    kicker.innerHTML = [
+      '<p class="menu-kicker-eyebrow">NICHOIR</p>',
+      `<h2>${escapeHtml(tr('menu_kicker_title'))}</h2>`,
+      `<p class="menu-kicker-subtitle">${escapeHtml(tr('menu_kicker_subtitle'))}</p>`,
+      `<p class="menu-kicker-note">${escapeHtml(tr('menu_kicker_note'))}</p>`,
+    ].join('');
+
+    if (anchor) {
+      panel.insertBefore(kicker, anchor);
+    } else {
+      panel.appendChild(kicker);
+    }
+  }
+
+  panel.querySelectorAll('.control-section').forEach(wrapPanelSections);
+  panel.dataset.leftMenuRemodel = '1';
+}
+
+function addPlanDownloadShortcut(scope = root) {
+  const overlay = scope.querySelector('.overlay');
+  if (!overlay || overlay.querySelector('[data-action="jump-plan-downloads"]')) return;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'overlay-download-button';
+  button.dataset.action = 'jump-plan-downloads';
+  button.innerHTML = iconLabel('download', tr('jump_plan_downloads'));
+
+  const resetButton = overlay.querySelector('[data-action="reset-view"]');
+  if (resetButton) {
+    overlay.insertBefore(button, resetButton);
+  } else {
+    overlay.appendChild(button);
+  }
+}
+
+function jumpToPlanDownloads() {
+  activeTab = 'plan';
+  updateTabs();
+  renderPlanPreview();
+
+  const planPanel = root.querySelector('[data-panel="plan"]');
+  const target = planPanel?.querySelector('.download-section-heading') || planPanel;
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function toggleTheme() {
@@ -3837,6 +3960,8 @@ function render() {
   root.innerHTML = render_app_html(JSON.stringify(params));
   applyTheme();
   enhanceAppIcons(root);
+  rewriteLeftMenu(root);
+  addPlanDownloadShortcut(root);
   attachDecorLibraryPanel();
 
   const accountModal = root.querySelector('[data-account-modal]');
@@ -4181,6 +4306,12 @@ function render() {
   root.querySelectorAll('[data-action="reset-view"]').forEach((button) => {
     button.addEventListener('click', () => {
       resetCameraView();
+    });
+  });
+
+  root.querySelectorAll('[data-action="jump-plan-downloads"]').forEach((button) => {
+    button.addEventListener('click', () => {
+      jumpToPlanDownloads();
     });
   });
 

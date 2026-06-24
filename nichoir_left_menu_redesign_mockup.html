@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Nichoir — Left Menu UX Redesign Mockup</title>
+<style>
+  :root{
+    --bg:#f8f1e6;
+    --panel:#fffaf2;
+    --panel-2:#f3e7d6;
+    --ink:#3b2613;
+    --muted:#7a6249;
+    --soft:#b88a53;
+    --brand:#bd7117;
+    --brand-dark:#8a4b0f;
+    --line:#e4d3bd;
+    --green:#487a48;
+    --blue:#5f7f94;
+    --shadow:0 18px 45px rgba(71,45,18,.14);
+    --radius:18px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+  .app-shell{
+    display:grid;
+    grid-template-columns:360px 1fr;
+    min-height:100vh;
+  }
+  .sidebar{
+    position:relative;
+    z-index:3;
+    height:100vh;
+    overflow:auto;
+    padding:14px;
+    background:linear-gradient(180deg,#fff9ef 0%,#f7ecd9 100%);
+    border-right:1px solid var(--line);
+    box-shadow:8px 0 34px rgba(62,39,17,.08);
+  }
+  .topbar{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:6px 4px 12px;
+  }
+  .brand-badge{
+    width:42px;height:42px;border-radius:14px;
+    background:linear-gradient(140deg,#c97819,#f0b85c);
+    display:grid;place-items:center;
+    color:#fff;font-size:22px;
+    box-shadow:0 10px 24px rgba(189,113,23,.25);
+  }
+  .brand-copy{line-height:1.05; flex:1}
+  .brand-copy strong{display:block;letter-spacing:.18em;font-size:12px;color:var(--brand-dark)}
+  .brand-copy span{font-size:12px;color:var(--muted)}
+  .utility{display:flex;gap:6px}
+  .chip{
+    border:1px solid var(--line);
+    background:#fffdf8;
+    color:var(--muted);
+    border-radius:999px;
+    font-size:11px;
+    padding:7px 9px;
+    font-weight:750;
+  }
+  .hero-card{
+    overflow:hidden;
+    position:relative;
+    padding:16px;
+    border-radius:22px;
+    background:radial-gradient(circle at 85% 0%,#ffe4ad 0 18%,transparent 38%),linear-gradient(135deg,#fff7e8,#f1dec3);
+    border:1px solid #ead4b8;
+    box-shadow:var(--shadow);
+  }
+  .hero-card:after{
+    content:"🐦";
+    position:absolute;right:18px;top:13px;
+    font-size:31px;transform:rotate(-12deg);
+  }
+  .hero-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.4;max-width:220px}
+  .hero-card h1{margin:4px 0 6px;font-size:21px;line-height:1.05;letter-spacing:-.03em}
+  .coin-row{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--brand-dark);font-weight:800}
+  .coin{width:20px;height:20px;border-radius:50%;display:inline-grid;place-items:center;background:linear-gradient(135deg,#ffd66e,#c97819);color:#fff;border:2px solid #fff3c8;box-shadow:0 2px 4px rgba(0,0,0,.12);font-size:12px}
+  .cta-row{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:13px}
+  button,.button{
+    border:0;
+    border-radius:14px;
+    cursor:pointer;
+    font-weight:850;
+    letter-spacing:-.01em;
+    font-family:inherit;
+  }
+  .primary{
+    background:linear-gradient(135deg,var(--brand),#dc8a22);
+    color:#fff;
+    padding:12px 14px;
+    box-shadow:0 12px 22px rgba(189,113,23,.22);
+  }
+  .secondary{
+    background:#fffaf2;
+    color:var(--brand-dark);
+    padding:12px 13px;
+    border:1px solid #e3caa9;
+  }
+  .step-tabs{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:6px;
+    margin:14px 0;
+    padding:5px;
+    background:#efe2cf;
+    border-radius:18px;
+    border:1px solid #e4d0b6;
+  }
+  .step-tabs button{
+    min-width:0;
+    padding:10px 5px;
+    border-radius:13px;
+    background:transparent;
+    color:#7e6244;
+    font-size:11px;
+  }
+  .step-tabs button.active{
+    background:#fffaf2;
+    color:var(--brand-dark);
+    box-shadow:0 6px 14px rgba(84,51,20,.11);
+  }
+  .section{
+    margin-top:10px;
+    border:1px solid var(--line);
+    background:rgba(255,250,242,.84);
+    border-radius:18px;
+    overflow:hidden;
+  }
+  .section summary{
+    list-style:none;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:13px 14px;
+    cursor:pointer;
+    font-weight:900;
+  }
+  .section summary::-webkit-details-marker{display:none}
+  .section summary span.icon{
+    width:30px;height:30px;border-radius:12px;
+    display:grid;place-items:center;
+    background:#f0dfc7;
+  }
+  .section summary small{
+    display:block;
+    font-weight:650;
+    color:var(--muted);
+    font-size:11px;
+    margin-top:2px;
+  }
+  .section summary:after{
+    content:"⌄";
+    margin-left:auto;
+    color:#a98b69;
+    transition:.2s transform ease;
+  }
+  .section[open] summary:after{transform:rotate(180deg)}
+  .section-body{padding:0 14px 14px}
+  .style-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .style-card{
+    min-height:82px;
+    border:1px solid #e4d0b6;
+    background:#fffdf8;
+    border-radius:16px;
+    padding:9px 6px;
+    text-align:center;
+    color:var(--muted);
+    font-size:11px;
+    font-weight:800;
+    transition:.16s transform ease,.16s border ease,.16s box-shadow ease;
+  }
+  .style-card:hover{transform:translateY(-2px);border-color:#c38a42;box-shadow:0 10px 18px rgba(90,55,20,.09)}
+  .style-card.active{background:#fff4df;border-color:#c97819;color:var(--brand-dark)}
+  .tiny-house{
+    position:relative;margin:3px auto 7px;width:42px;height:38px;
+  }
+  .tiny-house:before{
+    content:"";position:absolute;left:4px;top:12px;width:34px;height:24px;background:#c8965a;border-radius:5px 5px 3px 3px;
+  }
+  .tiny-house:after{
+    content:"";position:absolute;left:0;top:1px;width:42px;height:22px;background:#7d4f25;clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:2px;
+  }
+  .tiny-house.round:before{border-radius:16px 16px 5px 5px}
+  .tiny-house.modern:after{clip-path:polygon(12% 25%,100% 0,90% 100%,0 100%)}
+  .metric-card{
+    display:flex;justify-content:space-between;align-items:center;
+    gap:10px;margin-bottom:12px;padding:12px;
+    background:#f8edda;border:1px solid #ead7bd;border-radius:16px;
+  }
+  .metric-card strong{font-size:18px;letter-spacing:-.03em}
+  .pill{font-size:11px;color:#fff;background:var(--green);padding:6px 8px;border-radius:999px;font-weight:850;white-space:nowrap}
+  .control{
+    margin:12px 0 0;
+    padding:11px;
+    background:#fffdf8;
+    border:1px solid #ead7bd;
+    border-radius:15px;
+  }
+  .control-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .control label{font-size:13px;font-weight:850;color:#4c321b}
+  .value-box{
+    min-width:70px;text-align:right;font-variant-numeric:tabular-nums;
+    border:1px solid #e1c49f;background:#fff6e7;border-radius:10px;padding:7px 8px;font-size:12px;font-weight:850;color:#9b5a13;
+  }
+  input[type="range"]{width:100%;accent-color:#bd7117}
+  .segment{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:5px;border-radius:15px;background:#efe2cf;border:1px solid #e4d0b6}
+  .segment button{padding:9px 5px;background:transparent;color:#7e6244;font-size:11px}
+  .segment button.active{background:#fffaf2;color:var(--brand-dark);box-shadow:0 5px 12px rgba(84,51,20,.1)}
+  .checkline{display:flex;gap:10px;align-items:flex-start;margin-top:10px;padding:9px;border-radius:13px;background:#fffaf4;border:1px solid #ead7bd;color:#5a4028;font-size:12px;font-weight:700}
+  .checkline input{accent-color:#bd7117;margin-top:2px}
+  .helper{font-size:11.5px;color:var(--muted);line-height:1.4;margin:9px 0 0}
+  .bottom-card{
+    position:sticky;bottom:0;margin-top:12px;padding-top:10px;background:linear-gradient(180deg,rgba(247,236,217,0),#f7ecd9 30%);
+  }
+  .export-card{
+    display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
+    padding:13px;border:1px solid #dfc49f;border-radius:20px;background:#fffaf2;box-shadow:0 -8px 24px rgba(90,55,20,.08);
+  }
+  .export-card strong{font-size:14px;display:block}
+  .export-card span{font-size:12px;color:var(--muted)}
+  .viewport{
+    position:relative;
+    min-height:100vh;
+    overflow:hidden;
+    background:
+      radial-gradient(circle at 70% 15%,rgba(255,225,166,.42),transparent 28%),
+      linear-gradient(180deg,#faf3e9,#f7efe4 62%,#f1e5d3);
+  }
+  .view-toolbar{
+    position:absolute;right:22px;top:20px;
+    display:flex;gap:8px;align-items:center;
+    padding:8px;
+    background:rgba(255,250,242,.86);
+    border:1px solid #e4d0b6;
+    border-radius:18px;
+    box-shadow:var(--shadow);
+  }
+  .view-toolbar button{padding:9px 12px;background:#f3e7d6;color:var(--muted);font-size:12px}
+  .view-toolbar button.active{background:#bd7117;color:white}
+  .viewer-caption{
+    position:absolute;left:32px;bottom:28px;
+    padding:14px 16px;border-radius:18px;background:rgba(255,250,242,.75);border:1px solid #e4d0b6;color:var(--muted);font-size:13px;backdrop-filter:blur(8px)
+  }
+  .viewer-caption strong{display:block;color:var(--ink);font-size:16px;margin-bottom:3px}
+  .scene{
+    position:absolute;left:50%;top:47%;transform:translate(-50%,-50%);
+    width:520px;height:430px;
+  }
+  .bird{position:absolute;font-size:30px;filter:drop-shadow(0 8px 14px rgba(80,45,16,.13));animation:floaty 5s ease-in-out infinite}
+  .bird.one{left:-20px;top:48px}.bird.two{right:10px;top:10px;animation-delay:1.1s;font-size:24px}.bird.three{left:380px;bottom:55px;animation-delay:.4s;font-size:22px}
+  @keyframes floaty{50%{transform:translateY(-12px) rotate(5deg)}}
+  .big-house{position:absolute;left:95px;top:84px;width:350px;height:285px;filter:drop-shadow(0 42px 25px rgba(62,39,17,.16))}
+  .roof{position:absolute;left:20px;top:0;width:312px;height:116px;background:linear-gradient(135deg,#6b421d,#95612d);clip-path:polygon(50% 0,100% 100%,0 100%);border-radius:8px}
+  .body-house{position:absolute;left:86px;top:105px;width:196px;height:178px;background:linear-gradient(90deg,#9d7148,#c58d55);border-radius:12px 12px 20px 20px;box-shadow:inset -30px 0 0 rgba(73,43,17,.11)}
+  .hole{position:absolute;left:154px;top:152px;width:48px;height:48px;background:#5d3618;border-radius:50%;box-shadow:inset 0 0 0 8px rgba(255,218,169,.23)}
+  .perch{position:absolute;left:140px;top:214px;width:75px;height:12px;background:#764619;border-radius:99px;box-shadow:0 10px 14px rgba(53,29,10,.18)}
+  .sparkle{position:absolute;border-radius:50%;background:#d99a2b;opacity:.72;animation:pulse 3.6s ease-in-out infinite}
+  .sparkle.a{width:9px;height:9px;left:80px;top:195px}.sparkle.b{width:6px;height:6px;right:56px;top:142px;animation-delay:.7s}.sparkle.c{width:11px;height:11px;right:80px;bottom:70px;animation-delay:1.4s}
+  @keyframes pulse{50%{transform:scale(1.8);opacity:.26}}
+  .coin-float{position:absolute;right:88px;top:290px;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#ffd76d,#c97819);display:grid;place-items:center;color:#fff;border:3px solid #fff2c2;box-shadow:0 12px 18px rgba(82,51,17,.18);font-weight:900;animation:floaty 4.2s ease-in-out infinite}
+  @media(max-width:850px){
+    .app-shell{grid-template-columns:1fr}.sidebar{height:auto;max-height:none}.viewport{min-height:560px}.view-toolbar{left:14px;right:14px;top:14px;justify-content:center}.scene{transform:translate(-50%,-46%) scale(.78)}
+  }
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Birdhouse editor controls">
+      <div class="topbar">
+        <div class="brand-badge">⌂</div>
+        <div class="brand-copy">
+          <strong>NICHOIR</strong>
+          <span>Birdhouse 3D Studio</span>
+        </div>
+        <div class="utility"><button class="chip">EN</button><button class="chip">☀</button></div>
+      </div>
+
+      <section class="hero-card">
+        <p>Make a birdhouse that feels yours.</p>
+        <h1>Create, decorate, print.</h1>
+        <div class="coin-row"><span class="coin">¢</span> STL export uses 1 coin</div>
+        <div class="cta-row">
+          <button class="primary">Download STL</button>
+          <button class="secondary">Wood plans</button>
+        </div>
+      </section>
+
+      <nav class="step-tabs" aria-label="Editor steps">
+        <button class="active">🏠<br>Create</button>
+        <button>✨<br>Decor</button>
+        <button>🧵<br>Print</button>
+        <button>🪵<br>Wood</button>
+      </nav>
+
+      <details class="section" open>
+        <summary><span class="icon">🐦</span><span>Start with a style<small>Choose a friendly shape first</small></span></summary>
+        <div class="section-body">
+          <div class="style-grid">
+            <button class="style-card active"><span class="tiny-house"></span>Classic</button>
+            <button class="style-card"><span class="tiny-house round"></span>Soft</button>
+            <button class="style-card"><span class="tiny-house modern"></span>Modern</button>
+          </div>
+        </div>
+      </details>
+
+      <details class="section" open>
+        <summary><span class="icon">📐</span><span>Size<small>Easy dimensions, no clutter</small></span></summary>
+        <div class="section-body">
+          <div class="metric-card"><div><strong id="dimensionText">160 × 220 × 160 mm</strong><br><small>Width × Height × Depth</small></div><span class="pill">Good size</span></div>
+          <div class="control">
+            <div class="control-top"><label for="w">Width</label><output class="value-box" id="wOut">160 mm</output></div>
+            <input id="w" type="range" min="90" max="260" value="160" />
+          </div>
+          <div class="control">
+            <div class="control-top"><label for="h">Height</label><output class="value-box" id="hOut">220 mm</output></div>
+            <input id="h" type="range" min="120" max="340" value="220" />
+          </div>
+          <div class="control">
+            <div class="control-top"><label for="d">Depth</label><output class="value-box" id="dOut">160 mm</output></div>
+            <input id="d" type="range" min="90" max="260" value="160" />
+          </div>
+        </div>
+      </details>
+
+      <details class="section" open>
+        <summary><span class="icon">🚪</span><span>Entrance<small>Pick the look of the front</small></span></summary>
+        <div class="section-body">
+          <div class="segment"><button>None</button><button class="active">Round</button><button>Square</button></div>
+          <div class="control">
+            <div class="control-top"><label for="hole">Opening size</label><output class="value-box" id="holeOut">38 mm</output></div>
+            <input id="hole" type="range" min="24" max="70" value="38" />
+          </div>
+          <label class="checkline"><input type="checkbox" checked /> Add a small perch under the entrance</label>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary><span class="icon">🏡</span><span>Roof & mounting<small>Keep common choices together</small></span></summary>
+        <div class="section-body">
+          <div class="segment"><button>Flat</button><button class="active">Slope</button><button>A-frame</button></div>
+          <label class="checkline"><input type="checkbox" checked /> Add hanging holes on the roof</label>
+          <label class="checkline"><input type="checkbox" /> Add rear wall mount</label>
+        </div>
+      </details>
+
+      <details class="section">
+        <summary><span class="icon">⚙️</span><span>Advanced<small>For makers who want control</small></span></summary>
+        <div class="section-body">
+          <div class="control">
+            <div class="control-top"><label for="wall">Wall thickness</label><output class="value-box" id="wallOut">2.4 mm</output></div>
+            <input id="wall" type="range" min="1.2" max="5" value="2.4" step=".2" />
+          </div>
+          <p class="helper">Keep technical options here so beginners are not overwhelmed. Power users still have access.</p>
+        </div>
+      </details>
+
+      <div class="bottom-card">
+        <div class="export-card">
+          <div><strong>Ready when you are</strong><span>Preview first. Export STL after.</span></div>
+          <button class="primary">Get STL</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="viewport" aria-label="3D preview mockup">
+      <div class="view-toolbar">
+        <button class="active">Solid</button><button>Wire</button><button>X-ray</button><button>Reset</button>
+      </div>
+      <div class="scene" aria-hidden="true">
+        <span class="bird one">🐦</span><span class="bird two">🕊️</span><span class="bird three">🐤</span>
+        <div class="big-house"><div class="roof"></div><div class="body-house"></div><div class="hole"></div><div class="perch"></div></div>
+        <span class="sparkle a"></span><span class="sparkle b"></span><span class="sparkle c"></span>
+        <span class="coin-float">¢</span>
+      </div>
+      <div class="viewer-caption"><strong>Cleaner controls. More fun.</strong> The left menu now starts with the result people want: a custom printable birdhouse.</div>
+    </main>
+  </div>
+
+<script>
+  const controls = [
+    ['w','wOut'], ['h','hOut'], ['d','dOut'], ['hole','holeOut'], ['wall','wallOut']
+  ];
+  const dimensionText = document.getElementById('dimensionText');
+  function update(){
+    controls.forEach(([inputId,outId])=>{
+      const input = document.getElementById(inputId);
+      const out = document.getElementById(outId);
+      if(!input || !out) return;
+      const value = inputId === 'wall' ? Number(input.value).toFixed(1) : Math.round(Number(input.value));
+      out.textContent = value + ' mm';
+    });
+    dimensionText.textContent = `${Math.round(w.value)} × ${Math.round(h.value)} × ${Math.round(d.value)} mm`;
+  }
+  document.querySelectorAll('input[type="range"]').forEach(input=>input.addEventListener('input', update));
+  document.querySelectorAll('.style-card').forEach(card=>card.addEventListener('click',()=>{
+    document.querySelectorAll('.style-card').forEach(c=>c.classList.remove('active'));
+    card.classList.add('active');
+  }));
+  document.querySelectorAll('.segment button').forEach(button=>button.addEventListener('click',()=>{
+    button.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+    button.classList.add('active');
+  }));
+  update();
+</script>
+</body>
+</html>

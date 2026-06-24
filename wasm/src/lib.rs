@@ -3401,8 +3401,16 @@ fn add_imported_stl_basis(
     let raw_sx = d.w.max(1.0) / bw;
     let raw_sy = d.h.max(1.0) / bh;
     let fit_scale = raw_sx.min(raw_sy).max(0.001);
-    let sx = if d.lock_proportions { fit_scale } else { raw_sx };
-    let sy = if d.lock_proportions { fit_scale } else { raw_sy };
+    let sx = if d.lock_proportions {
+        fit_scale
+    } else {
+        raw_sx
+    };
+    let sy = if d.lock_proportions {
+        fit_scale
+    } else {
+        raw_sy
+    };
     let sz = if d.lock_proportions {
         fit_scale
     } else if bd > 0.001 {
@@ -6773,68 +6781,64 @@ pub fn render_app_html(input: &str) -> String {
         t(lang, "hang_enable"),
         hang_details,
     );
-    let wall_mount_details = if p.wall_mount {
-        format!(
-            r#"<div class="subcontrols">{}{}{}{}{}{}<p class="control-note">{}</p></div>"#,
-            length_control(
-                t(lang, "wall_mount_hole_diam"),
-                "wallMountHoleDiam",
-                3.0,
-                20.0,
-                0.5,
-                p.wall_mount_hole_diam,
-                &p.unit
-            ),
-            length_control(
-                t(lang, "wall_mount_hole_spacing"),
-                "wallMountHoleSpacing",
-                20.0,
-                220.0,
-                1.0,
-                p.wall_mount_hole_spacing,
-                &p.unit
-            ),
-            length_control(
-                t(lang, "wall_mount_y"),
-                "wallMountY",
-                20.0,
-                440.0,
-                1.0,
-                p.wall_mount_y,
-                &p.unit
-            ),
-            length_control(
-                t(lang, "wall_mount_block_w"),
-                "wallMountBlockW",
-                40.0,
-                260.0,
-                1.0,
-                p.wall_mount_block_w,
-                &p.unit
-            ),
-            length_control(
-                t(lang, "wall_mount_block_h"),
-                "wallMountBlockH",
-                30.0,
-                220.0,
-                1.0,
-                p.wall_mount_block_h,
-                &p.unit
-            ),
-            length_control(
-                t(lang, "wall_mount_block_depth"),
-                "wallMountBlockDepth",
-                6.0,
-                80.0,
-                1.0,
-                p.wall_mount_block_depth,
-                &p.unit
-            ),
-            html_escape(t(lang, "wall_mount_note")),
-        )
-    } else {
-        String::new()
-    };
+    let wall_mount_details = format!(
+        r#"<div class="subcontrols">{}{}{}{}{}{}<p class="control-note">{}</p></div>"#,
+        length_control(
+            t(lang, "wall_mount_hole_diam"),
+            "wallMountHoleDiam",
+            3.0,
+            20.0,
+            0.5,
+            p.wall_mount_hole_diam,
+            &p.unit
+        ),
+        length_control(
+            t(lang, "wall_mount_hole_spacing"),
+            "wallMountHoleSpacing",
+            20.0,
+            220.0,
+            1.0,
+            p.wall_mount_hole_spacing,
+            &p.unit
+        ),
+        length_control(
+            t(lang, "wall_mount_y"),
+            "wallMountY",
+            20.0,
+            440.0,
+            1.0,
+            p.wall_mount_y,
+            &p.unit
+        ),
+        length_control(
+            t(lang, "wall_mount_block_w"),
+            "wallMountBlockW",
+            40.0,
+            260.0,
+            1.0,
+            p.wall_mount_block_w,
+            &p.unit
+        ),
+        length_control(
+            t(lang, "wall_mount_block_h"),
+            "wallMountBlockH",
+            30.0,
+            220.0,
+            1.0,
+            p.wall_mount_block_h,
+            &p.unit
+        ),
+        length_control(
+            t(lang, "wall_mount_block_depth"),
+            "wallMountBlockDepth",
+            6.0,
+            80.0,
+            1.0,
+            p.wall_mount_block_depth,
+            &p.unit
+        ),
+        html_escape(t(lang, "wall_mount_note")),
+    );
     let wall_mount_controls = format!(
         r#"<div class="field-group disclosure-group advanced-group wall-mount-group"><p>{}</p><label class="check"><input data-bool="wallMount" type="checkbox" {}>{}</label>{}</div>"#,
         t(lang, "wall_mount"),
@@ -6852,7 +6856,7 @@ pub fn render_app_html(input: &str) -> String {
     );
 
     let roof_controls = format!(
-        "{}{}<div class=\"field-group\"><p>{}</p><div class=\"choices\">{}{}{}</div>{}</div>{}{}{}",
+        "{}{}<div class=\"field-group\"><p>{}</p><div class=\"choices\">{}{}{}</div>{}</div>{}{}",
         range_control(t(lang, "slope"), "slope", 10.0, 60.0, 1.0, p.slope, "deg"),
         length_control(
             t(lang, "overhang"),
@@ -6877,7 +6881,6 @@ pub fn render_app_html(input: &str) -> String {
         },
         material_controls,
         hang_controls,
-        wall_mount_controls,
     );
 
     let door_current = door_value(p.door);
@@ -7458,6 +7461,8 @@ pub fn render_app_html(input: &str) -> String {
     let tab_account = icon_text("◎", "tab-glyph", "tab-label", t(lang, "account"));
     let heading_body = icon_text("◫", "section-glyph", "section-label", t(lang, "body"));
     let heading_roof = icon_text("▲", "section-glyph", "section-label", t(lang, "roof"));
+    let heading_wall_mount =
+        icon_text("▥", "section-glyph", "section-label", t(lang, "wall_mount"));
     let heading_door = icon_text("▣", "section-glyph", "section-label", t(lang, "door"));
     let heading_decor = icon_text("✦", "section-glyph", "section-label", t(lang, "decor"));
     let heading_calcs = icon_text("∑", "section-glyph", "section-label", t(lang, "calcs"));
@@ -7561,6 +7566,7 @@ pub fn render_app_html(input: &str) -> String {
     <section data-panel="dim" class="control-section">
       <h2>{heading_body}</h2>{body_controls}
       <h2>{heading_roof}</h2>{roof_controls}
+      <h2>{heading_wall_mount}</h2>{wall_mount_controls}
       <h2>{heading_door}</h2>{door_controls}
     </section>
 
@@ -7669,6 +7675,7 @@ pub fn render_app_html(input: &str) -> String {
         tab_account = tab_account,
         heading_body = heading_body,
         heading_roof = heading_roof,
+        heading_wall_mount = heading_wall_mount,
         heading_door = heading_door,
         heading_decor = heading_decor,
         heading_calcs = heading_calcs,
@@ -7703,6 +7710,7 @@ pub fn render_app_html(input: &str) -> String {
         body_controls = body_controls,
         view_controls = view_controls,
         roof_controls = roof_controls,
+        wall_mount_controls = wall_mount_controls,
         door_controls = door_controls,
         panel_controls = panel_controls,
         plan_stats = plan_stats,

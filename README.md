@@ -43,7 +43,7 @@ Responsabilites actuelles:
 - `installation/`: assistant web one-shot pour config DB/SMTP et lock d'installation. Voir `installation/README.md`.
 - `deployment/namecheap/`: packaging public/private pour Namecheap/cPanel. Voir `deployment/namecheap/README.md`.
 - `scripts/`: smoke tests mesh et script d'artifact cPanel. Voir `scripts/README.md`.
-- `docs/`: index de plans, audit, notes historiques et diagramme d'architecture Mermaid. Voir `docs/README.md` et `docs/architecture.mmd`.
+- `docs/`: index de plans, audit, notes historiques, documents de reprise/refactoring et diagramme d'architecture Mermaid. Voir `docs/README.md` et `docs/architecture.mmd`.
 - `server/`: ancienne API FastAPI/SQLite de licence, gardee comme reference. Voir `server/README.md`.
 - `nichoir_v16.html`: ancienne reference fonctionnelle monofichier.
 
@@ -92,6 +92,16 @@ http://127.0.0.1:8021/gestion-nichoir/login
 ```
 
 En dev local, l'app statique sur `8016` pointe par defaut l'API PHP vers `8021`, et l'override `?php_base=...` reste disponible pour d'autres tests locaux. Hors hote local, `php_base` est ignore et l'app utilise `window.location.origin`, ce qui correspond a l'artifact production ou `public_html/app/` et le wrapper PHP partagent la meme origine.
+
+## Refactoring en cours
+
+Le refactoring structurel est documente dans `docs/refactoring-plan.md`. Toute reprise doit commencer par `docs/refactoring-resume-message.md`, puis lire dans l'ordre le plan, le contrat de non-regression, la checklist smoke et le journal de progression.
+
+Etat courant:
+
+- Phase 1 traitee: le shell/menu de l'app WASM est rendu par Rust dans `render_app_html`.
+- JavaScript ne doit plus remodeler structurellement ce shell apres `root.innerHTML`; il conserve l'enhancement d'icones, les bindings d'evenements, l'etat vivant, les appels API et le viewer.
+- Les prochaines phases doivent suivre `docs/refactoring-progress-log.md` et ne toucher qu'une phase a la fois.
 
 ## Compiler le WASM
 

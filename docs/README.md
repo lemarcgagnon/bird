@@ -15,6 +15,10 @@ Current release baseline: use the currently checked out hardened PHP/WASM codeba
 - `architecture.mmd`: diagramme Mermaid de l'architecture active: SPA navigateur, WASM/Rust, backend PHP, stockage dev/prod, services externes et packaging cPanel.
 - `hig-ux-audit-2026-06-23.md`: audit HIG/UX actuel avec constats par surface et ordre d'implementation recommande.
 - `refactoring-plan.md`: phased DRY/KISS/i18n/HIG/security refactoring plan.
+- `refactoring-non-regression-contract.md`: invariants produit a preserver pendant chaque phase.
+- `refactoring-smoke-checklist.md`: smoke tests minimaux par phase.
+- `refactoring-progress-log.md`: journal obligatoire des phases executees, checks effectues et risques residuels.
+- `refactoring-resume-message.md`: message de reprise a relire ou copier pour continuer le refactoring sans contexte implicite.
 - `securizons.md`: security backlog/reference for files, SVG/input handling, WASM and server boundaries. It is not a release certification.
 
 ## Current implementation facts
@@ -43,6 +47,7 @@ Current release baseline: use the currently checked out hardened PHP/WASM codeba
 - Public pages must not expose the configured admin path in rendered HTML or JavaScript; the real path is only rendered in admin responses.
 - Public PHP pages are bilingual and resolve language from `?lang`, then cookie, then `Accept-Language`.
 - The static app receives `params.lang` from `app/app.js`.
+- Refactoring Phase 1 has moved the app shell/menu contract into Rust `render_app_html`; `app/app.js` should bind behavior and live state rather than moving core shell DOM after render.
 - Namecheap/cPanel packaging is documented in `deployment/namecheap/README.md` and scripted by `scripts/build-cpanel-artifact.sh`.
 - Runtime SQLite files are ignored by Git and must remain local/development only.
 - Production Namecheap/cPanel runs as `NICHOIR_ENV=production`, requires `NICHOIR_DB_DRIVER=mysql`, and fails closed without complete private MySQL config.
@@ -80,5 +85,6 @@ Use this checklist when changing code before updating audit docs:
 
 - `docs/README.md` is only the index and current status owner for this folder.
 - Code-near README files own their subsystem facts: `server-php/README.md`, `app/README.md`, `wasm/README.md`, `deployment/namecheap/README.md`.
+- Refactoring state is owned by `refactoring-plan.md`, `refactoring-non-regression-contract.md`, `refactoring-smoke-checklist.md` and `refactoring-progress-log.md`; update those when executing or auditing a refactoring phase.
 - Current release-gate facts belong in this index and the code-near README files.
 - Historical documents can remain only when clearly labeled and not likely to confuse the Namecheap release path.

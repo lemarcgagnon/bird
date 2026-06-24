@@ -34,7 +34,7 @@ Current public bindings include:
 ## Current ownership
 
 - Birdhouse dimensions, unit conversion, derived measures, panel geometry, roof/floor/door/perch/universal dovetail wall-mount behavior and mesh generation. The wall-mount male side is generated as a merged rear-wall support in the house mesh; the female wall receiver is generated as the separate screw-mounted STL.
-- Rust-rendered control markup and labels for dense app UI sections.
+- Rust-rendered app shell/menu markup, including menu shell classes, menu kicker, collapsible menu sections, account action placement, overlay download shortcut, dense control markup and labels.
 - Rust-rendered download button markup, including the diagnostic group marker. Admin visibility is resolved later by JavaScript/PHP session state.
 - Rust-side French/English translation table for labels rendered from Rust.
 - SVG/image/STL decoration parsing, heightmap/vector extrusion, imported mesh placement, and optional panel clipping. Imported STL decor keeps the full source mesh visible by default; clipping is opt-in from the decor controls.
@@ -48,6 +48,7 @@ Current public bindings include:
 - Do not put Stripe, account, session, SMTP, admin or credit-policy truth in Rust/WASM.
 - Do not assume a fixed credit cost in Rust labels. Credit policy, credit balance, bonus eligibility, authorization and debit all belong to PHP.
 - Keep browser/API/network orchestration in `app/app.js`.
+- Do not rely on JavaScript to move account buttons, wrap panel sections or insert shell actions after `render_app_html`; shell structure belongs here and JavaScript binds to `data-*` hooks.
 - The browser may save the mesh report snapshot in local storage as `nichoir-last-mesh-report`; this is diagnostic state only, not account, token or credit authority.
 - Treat all incoming JSON and imported files as untrusted, even when they come from the UI.
 - Do not claim arbitrary imported STL clipping is exact CSG. The current implementation maps the STL onto a panel and can clip triangles against panel/hole footprints only when clipping is enabled. The viewer keeps imported STL files visible and proportionally scaled by default; strict exports still drop decor that becomes non-watertight rather than repairing it with a fake surface.
@@ -97,6 +98,8 @@ node scripts/mesh-smoke.mjs
 ```
 
 Open the app in French and English after UI/i18n changes and confirm Rust-rendered labels do not fall back to raw keys.
+
+For shell/menu changes, verify the menu shell, tabs, account button, overlay download shortcut and details menu sections render from Rust before JavaScript binds behavior. JavaScript should not structurally rewrite those elements after `root.innerHTML`.
 
 Topology expectations:
 

@@ -29,6 +29,7 @@ URLs usuelles en local:
 ## What `app.js` owns
 
 - Loading `../wasm/pkg/wasm.js`.
+- Binding behavior to Rust-rendered shell hooks after render. It must not move core shell DOM, wrap control sections or insert account/download shell actions after `root.innerHTML`; those structures are owned by Rust `render_app_html`.
 - Local Three.js viewer setup, camera interaction, mesh rebuilds, explode mode and image capture.
 - Browser-side FR/EN messages for dynamic UI not rendered by Rust/PHP.
 - Language propagation to PHP page links.
@@ -50,6 +51,7 @@ URLs usuelles en local:
 
 - PHP is the source of truth for users, sessions, credits, Stripe billing, support tickets, credit policy and configured package settings.
 - Rust/WASM is the source of truth for geometry, calculations, app control markup and export data generation.
+- Rust owns the structural app shell/menu markup rendered by `render_app_html`. JavaScript may enhance icons and bind events, but should not recreate or move those shell elements.
 - JavaScript should coordinate browser behavior and display returned policy data, not define billing or credit policy. Local `EXPORT_COSTS` values are fallback copy only; PHP responses are authoritative.
 - JavaScript should not persist account bearer tokens. The current browser flow depends on the PHP session cookie and `/api/admin/session` for admin-only visibility.
 - JavaScript should not special-case billed downloads by directly skipping authorization. Billable products and admin cost-zero exports still use the server quote/authorize/consume endpoints so one-shot tokens, expiry, repeat entitlements and logging stay consistent.
@@ -67,3 +69,4 @@ URLs usuelles en local:
 4. If download code changes, test one successful authorize/generate/consume path and one failed authorization path.
 5. If admin download code changes, log into `{NICHOIR_ADMIN_PATH}/login`, confirm `/api/admin/session` returns `admin=true`, and verify a premium export returns `cost=0` then refuses a second consume of the same authorization.
 6. If decoration intake changes, test SVG plus one raster image and one STL, and confirm client logs do not include heavy file payloads.
+7. If shell/menu code changes, confirm no structural post-render shell surgery is reintroduced after `root.innerHTML`; shell hooks should remain Rust-rendered and JS-bound via `data-*` selectors.

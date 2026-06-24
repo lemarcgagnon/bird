@@ -2,7 +2,7 @@
 
 This folder is the old FastAPI/SQLite prototype used to test login and license authorization before the PHP platform existed.
 
-Current status: secondary reference only. The active backend is `server-php/`, which now owns accounts, credits, admin, public pages, API, billing, Stripe, tickets, contact email and deployment.
+Current status: secondary reference only. The active backend is `server-php/`, which now owns accounts, credits, product-code export billing, library decor billing, admin reporting, public pages, API, Stripe, tickets, contact email and deployment.
 
 ## Structure
 

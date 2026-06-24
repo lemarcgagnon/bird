@@ -6,7 +6,7 @@ Current status:
 
 - Secondary reference only.
 - The active backend is `server-php/`.
-- Do not add product behavior here without an explicit decision to revive this prototype.
+- Do not add product, billing, export or library behavior here without an explicit decision to revive this prototype.
 
 Files:
 

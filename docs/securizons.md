@@ -206,7 +206,7 @@ Architecture serveur cible:
 Flux cible pour un telechargement:
 
 1. L'utilisateur demande un export dans l'app WASM.
-2. Le front-end appelle `POST /api/exports/authorize` avec le type d'export.
+2. Le front-end appelle `POST /api/exports/authorize` avec le `product_code`, le format de fichier `export_type` et le fingerprint du modele.
 3. Le serveur verifie session, abonnement, credits et regles commerciales.
 4. Si autorise, le serveur retourne une autorisation courte et reserve/debite les credits selon la strategie retenue.
 5. Le WASM genere le fichier localement.
@@ -231,7 +231,7 @@ Mesures deja en place:
 - CSP minimale activee avec scripts/styles inline acceptes pour compatibilite actuelle; CSP stricte attend extraction des scripts inline PHP.
 - Payload JSON limite a `256 KiB`.
 - Offres checkout limitees a `credits`, `atelier`, `pro`.
-- Types d'export limites a `svg`, `png`, `pdf`, `stl`, `zip`; type inconnu refuse.
+- Formats d'export limites a `svg`, `png`, `pdf`, `stl`, `zip`; produits limites au catalogue serveur `product_code`.
 - `consume` reverifie le statut du compte et le solde au moment du debit.
 - Champs compte/tickets limites cote serveur.
 - Admin CRUD centralise cote PHP; le WASM ne gere pas les clients.
@@ -303,7 +303,7 @@ Risques restants / durcissement apres la stabilisation production courante:
 - [x] Ne pas injecter les SVG importes dans `innerHTML`; seulement les SVG generes par le WASM pour le plan.
 - [x] Ne jamais stocker secrets dans WASM.
 - [x] Limiter payload JSON API.
-- [x] Valider offres checkout et types d'export.
+- [x] Valider offres checkout, formats d'export et produits `product_code`.
 - [x] Revalider statut/credits au debit d'export.
 - [x] Ajouter rate limiting serveur de base pour auth, activation et logs client.
 - [x] Ajouter CSRF/admin auth production.

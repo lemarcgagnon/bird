@@ -128,6 +128,8 @@ The script refuses to overwrite an existing output directory. Review the artifac
 ## Runtime expectations
 
 - Browser assets and the PHP wrapper share one public origin, so `app/app.js` should use same-origin API calls in production.
+- App downloads are billed by server product code through the PHP quote/authorize/consume flow. Product costs and repeat-download entitlements are backend state, not static browser config.
+- Library original storage and local preview mirror paths are configurable in admin settings unless overridden by private config/environment variables. Keep original library files outside `public_html`.
 - Three.js is served from `public_html/app/vendor/three.module.min.js`; no CDN access is required at runtime.
 - The production `.htaccess` blocks installer, docs, server source, private folders, SQLite/dump/log/archive files, Rust source paths and the obvious `/admin` + `/administration` paths.
 - `installation/` is not part of the artifact and should not be uploaded.

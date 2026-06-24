@@ -76,12 +76,14 @@ API/webhook:
 ## Local server
 
 ```bash
-php -d upload_max_filesize=25M -d post_max_size=64M -S 127.0.0.1:8021 -t server-php/public
+php -d upload_max_filesize=25M -d post_max_size=64M -S 127.0.0.1:8016 -t server-php/public server-php/public/index.php
 ```
+
+The built-in PHP server must use `index.php` as router script for clean routes.
 
 Local quick links:
 
-- `http://127.0.0.1:8021/`
-- `http://127.0.0.1:8021/library`
-- `http://127.0.0.1:8021/gestion-nichoir/login`
-- `http://127.0.0.1:8021/gestion-nichoir#admin-library`
+- `http://127.0.0.1:8016/`
+- `http://127.0.0.1:8016/library`
+- `http://127.0.0.1:8016/gestion-nichoir/login`
+- `http://127.0.0.1:8016/gestion-nichoir#admin-library`

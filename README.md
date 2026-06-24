@@ -49,34 +49,36 @@ Responsabilites actuelles:
 
 ## Lancer en local
 
-Serveur PHP site/API:
+Serveur PHP site/API unifie:
 
 ```bash
 cd /home/marc/Documents/nichoir16
-php -d upload_max_filesize=25M -d post_max_size=64M -S 127.0.0.1:8021 -t server-php/public
+php -d upload_max_filesize=25M -d post_max_size=64M -S 127.0.0.1:8016 -t server-php/public server-php/public/index.php
 ```
 
-Serveur statique pour l'app:
+Serveur statique pour l'app seulement si tu testes volontairement une origine separee:
 
 ```bash
 cd /home/marc/Documents/nichoir16
 php -S 127.0.0.1:8016 -t .
 ```
 
+Ne lance pas ces deux commandes sur le meme port en meme temps. Le serveur PHP doit recevoir `server-php/public/index.php` comme routeur, sinon les routes propres comme `/gestion-nichoir/login` peuvent retourner un faux 404.
+
 URLs de référence:
 
-- Homepage: `http://127.0.0.1:8021/`
-- Librairie (public) : `http://127.0.0.1:8021/library?lang=fr`
-- Admin librairie : `http://127.0.0.1:8021/gestion-nichoir#admin-library`
-- Login admin (local): `http://127.0.0.1:8021/gestion-nichoir/login`
-- App WASM : `http://127.0.0.1:8016/app/?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021`
+- Homepage: `http://127.0.0.1:8016/`
+- Librairie publique: `http://127.0.0.1:8016/library?lang=fr`
+- Admin librairie: `http://127.0.0.1:8016/gestion-nichoir#admin-library`
+- Login admin local: `http://127.0.0.1:8016/gestion-nichoir/login`
+- App WASM: `http://127.0.0.1:8016/app/?lang=fr`
 
 Mot de passe d'accès admin local: à configurer dans `NICHOIR_ADMIN_PASSWORD_HASH` (pas de mot de passe magique dans le code).
 
 Ouvrir le site:
 
 ```text
-http://127.0.0.1:8021/
+http://127.0.0.1:8016/
 ```
 
 Ouvrir l'app directement avec l'API PHP separee:
@@ -86,10 +88,10 @@ http://127.0.0.1:8016/app/
 ```
 
 ```text
-http://127.0.0.1:8021/gestion-nichoir/login
+http://127.0.0.1:8016/gestion-nichoir/login
 ```
 
-Sur `localhost`/`127.0.0.1`, l'app servie sur le port `8016` pointe automatiquement l'API vers `8021`. L'override local `?php_base=http://127.0.0.1:8021` reste accepte pour tester une autre origine locale. Hors hote local, `php_base` est ignore et l'app utilise `window.location.origin`, ce qui correspond a l'artifact production ou `public_html/app/` et le wrapper PHP partagent la meme origine.
+En mode unifie, l'app utilise la meme origine que PHP. L'override local `?php_base=...` reste accepte seulement pour tester une autre origine locale. Hors hote local, `php_base` est ignore et l'app utilise `window.location.origin`, ce qui correspond a l'artifact production ou `public_html/app/` et le wrapper PHP partagent la meme origine.
 
 ## Compiler le WASM
 
@@ -131,20 +133,22 @@ Le package genere est `wasm/pkg/`; `app/app.js` importe `wasm/pkg/wasm.js`.
 
 Telechargements factures autorises par PHP puis generes localement:
 
-- STL maison complete;
-- plan SVG;
-- plan PNG;
-- PDF du plan de coupe avec image d'assemblage;
-- PNG de l'assemblage eclate.
+Produits app facturables actuels:
+
+- `house_stl`: STL maison complete, 3 credits;
+- `door_stl`: STL porte, 3 credits;
+- `female_wall_receiver_stl`: STL recepteur mural femelle, 3 credits;
+- `panels_zip`: ZIP de panneaux STL separes, 5 credits;
+- `plan_svg`: plan SVG, 1 credit;
+- `plan_png`: plan PNG, 1 credit;
+- `explosion_png`: PNG de l'assemblage eclate, 1 credit;
+- `plan_pdf`: PDF du plan de coupe, 2 credits;
+- `calculations_pdf`: PDF des calculs, 2 credits.
 
 Une session admin PHP valide contourne le debit credits pour ces exports: `/api/exports/quote`, `/api/exports/authorize` et `/api/exports/consume` renvoient alors `admin=true` et `cost=0`. Les autorisations admin sont stockees en session PHP, one-shot, et expirent apres 10 minutes.
 
-Telechargements locaux/gratuits dans l'app actuelle:
+Telechargements locaux/admin diagnostiques:
 
-- STL porte;
-- STL recepteur mural femelle de la fixation universelle, gratuit/local et sans debit de credits;
-- ZIP de panneaux STL separes;
-- PDF des calculs;
 - OBJ maison complete pour debug;
 - rapport mesh JSON.
 
@@ -164,9 +168,9 @@ Etat actuel:
 - Les chemins evidents `/admin` et `/administration` sont reserves/interdits et ne doivent pas etre utilises en production.
 - Le chemin admin reel ne doit pas etre expose dans les pages publiques: il est seulement rendu cote admin, et les pages publiques ne doivent pas injecter `NICHOIR_ADMIN_PATH` dans leur HTML/JS.
 - L'admin gere clients, credits, statuts, abonnements manuels, tickets, logs, exports DB, reglages DB/Stripe/SMTP et tests email.
-- `/library` liste les fichiers actifs de la librairie, leur description, leur taille et affiche une miniature PNG publique sans donner le fichier source. `/api/library/authorize` cree une autorisation courte et `/api/library/download` debite les credits atomiquement au moment ou le fichier est servi. Les fichiers originaux sont stockes hors webroot dans `server-php/data/library` et copies localement dans `app/images/library` pour les apercus locaux/admin. Les miniatures publiques sont servies via `/api/library/thumbnail` ; l'image source (`/api/library/preview`) et le STL original (`/api/admin/library/stl-file`) restent reserves a l'admin.
+- `/library` liste les fichiers actifs de la librairie, leur description, leur taille et affiche une miniature PNG publique sans donner le fichier source telechargeable. `/api/library/authorize` cree une autorisation courte et `/api/library/download` debite les credits atomiquement au moment ou le fichier est servi. Les fichiers originaux sont stockes hors webroot dans `server-php/data/library` par defaut et copies localement dans `app/images/library` pour les apercus locaux/admin. Les deux chemins sont configurables en admin sauf override par environnement. Les miniatures publiques sont servies via `/api/library/thumbnail`; `/api/library/stl-original-preview` peut servir un STL actif en lecture inline pour preview 3D publique, tandis que `/api/admin/library/stl-file` reste reserve a l'admin pour l'original de gestion.
 - `/api/admin/session` ne renvoie que l'etat admin de la session PHP courante; l'app statique l'utilise pour afficher les telechargements diagnostiques admin-only et debloquer les exports premium a cout zero sans exposer le chemin admin configure.
-- `server-php/src/credits.php` est la source de verite pour le registre des apps WASM, les types d'export factures, le cout configure et le bonus de solde partiel.
+- `server-php/src/credits.php` est la source de verite pour le registre des apps WASM, le catalogue `product_code`, les couts par produit, les formats de fichier, les entitlements de retelechargement et le bonus de solde partiel.
 - `/api/apps` expose les apps WASM connues du backend. L'app actuelle utilise `app_id=nichoir`.
 - `/api/exports/quote` annonce le cout/solde/bonus par `app_id` sans creer d'autorisation; `/api/exports/authorize` cree une autorisation courte; `/api/exports/consume` la reclame atomiquement avant debit. Avec une session admin, le cout est zero et l'autorisation est stockee/consommee en session PHP sans ligne `credit_ledger`.
 - `/api/client-log` accepte les erreurs navigateur/WASM avec rate limit de 10 logs/minute par utilisateur ou IP.

@@ -23,8 +23,9 @@ Current release baseline: use the currently checked out hardened PHP/WASM codeba
 - `server-php/src/pages.php` is now a compatibility include that loads smaller page, layout, i18n, contact, account, admin, credit, mail, Stripe and helper modules.
 - Contact form email is implemented with CSRF, honeypot, IP rate limiting, SMTP handoff through `src/mail.php`, app logging and session flash messages.
 - Credit policy is implemented in `server-php/src/credits.php` and configurable from admin settings.
-- Billed exports use server `app_id`, quote, short authorization and atomic consume before debit. The current WASM app id is `nichoir`; billed app downloads are house STL, cut-plan SVG, cut-plan PNG, exploded assembly PNG and cut-plan PDF.
-- Door STL, wall-mount STL, panels ZIP, calculations PDF, debug OBJ and mesh report JSON are currently local/free app downloads.
+- Billed exports use server `app_id`, product code, quote, short authorization and atomic consume before debit. The current WASM app id is `nichoir`; billed app products are `house_stl`, `door_stl`, `female_wall_receiver_stl`, `panels_zip`, `plan_svg`, `plan_png`, `explosion_png`, `plan_pdf` and `calculations_pdf`.
+- Debug OBJ and mesh report JSON are diagnostics, not client-billed products.
+- Repeat app downloads are keyed by user, app, product code and model fingerprint. The same product/model can be downloaded again without a second debit; changing the model or decor produces a different fingerprint.
 - The mesh report JSON may be stored in browser local storage as diagnostic state only; account credit truth stays server-side.
 - Public library endpoint flow:
   - `/library`: lists active items (label, description, size) and renders one public PNG thumbnail via `/api/library/thumbnail`.

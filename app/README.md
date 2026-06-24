@@ -13,8 +13,8 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 
 - `window.NICHOIR_PHP_BASE`: optional explicit PHP API origin for controlled local/dev shells.
 - `EXPORT_APP_ID`: fixed to `nichoir` for this WASM app. It is sent with export quote/authorize/consume calls so the PHP backend can act as mission control for multiple WASM apps.
-- `?php_base=http://127.0.0.1:8021`: local-only override when the static app and PHP API run on separate local origins. The override is ignored unless both the page host and target API host are `localhost`, `127.0.0.1` or `::1`.
-- When the static app is served from `127.0.0.1:8016` or `localhost:8016` without `php_base`, `app.js` automatically uses the PHP API at the same host on port `8021`.
+- `?php_base=...`: local-only override for deliberate split-origin tests. The normal local setup is same-origin on `127.0.0.1:8016`.
+- When the app is served through the PHP router on `127.0.0.1:8016`, `app.js` uses the same origin for API calls.
 - `?lang=fr|en` and local storage key `nichoir-lang`.
 - Local storage keys `nichoir-theme` and `nichoir-last-mesh-report`.
 - Legacy key `nichoir-auth-token` is removed on load. Current account auth relies on the PHP HttpOnly cookie `nichoir_account_session` and `fetch(..., { credentials: 'include' })`.
@@ -22,9 +22,9 @@ This folder contains the static browser shell and JavaScript glue for the Rust/W
 
 URLs usuelles en local:
 
-- WASM direct: `http://127.0.0.1:8016/app/?lang=fr&php_base=http%3A%2F%2F127.0.0.1%3A8021`
-- API PHP locale: `http://127.0.0.1:8021/`
-- Librairie publique: `http://127.0.0.1:8021/library?lang=fr`
+- WASM direct: `http://127.0.0.1:8016/app/?lang=fr`
+- API PHP locale: `http://127.0.0.1:8016/`
+- Librairie publique: `http://127.0.0.1:8016/library?lang=fr`
 
 ## What `app.js` owns
 
@@ -35,9 +35,10 @@ URLs usuelles en local:
 - Theme persistence and light/dark toggle behavior.
 - Account modal behavior, focus handling, profile summary, credits, billing, support tickets and ticket replies.
 - API calls to PHP for auth, profile, ledger, billing, Stripe checkout/portal, export quote/authorize/consume with `app_id=nichoir`, tickets, admin session visibility and client logs.
-- Billed download flow: request a quote from PHP, show the credit/bonus modal if needed, request a short authorization, generate the file locally, then consume the authorization after successful local generation.
-- Current billed downloads: house STL, cut-plan SVG, cut-plan PNG, exploded assembly PNG and cut-plan PDF.
-- Current local/free downloads: door STL, female wall-receiver STL for the universal dovetail wall mount, panels ZIP, calculations PDF, debug OBJ and mesh report JSON. When the universal mount is enabled, the male dovetail support is part of the house STL rather than a separate download.
+- Billed download flow: request a quote from PHP with `app_id`, product code, file-format `export_type` and model fingerprint, show the credit/bonus modal if needed, request a short authorization, generate the file locally, then consume the authorization after successful local generation.
+- Current billed app products: `house_stl`, `door_stl`, `female_wall_receiver_stl`, `panels_zip`, `plan_svg`, `plan_png`, `explosion_png`, `plan_pdf` and `calculations_pdf`.
+- Current local/admin diagnostics: debug OBJ and mesh report JSON. When the universal mount is enabled, the male dovetail support is part of the house STL rather than a separate download.
+- Repeat app downloads are free only when the same user downloads the same product for the same model fingerprint. Changing geometry or decor creates a new billable fingerprint.
 - Diagnostic downloads are rendered by WASM but hidden by default with `data-admin-only`; `app.js` unhides them only when `/api/admin/session` confirms an admin PHP session.
 - Admin export access: when `/api/admin/session` returns `admin=true`, premium downloads still go through quote/authorize/consume but PHP returns `cost=0`, stores the token in the admin PHP session, and consumes it once without touching credits.
 - Client-side decoration file intake: SVG/raster images are capped at 2 MiB and converted to WASM heightmaps; local STL imports are capped at 25 MiB and sent to WASM as base64 mesh data.
@@ -51,7 +52,7 @@ URLs usuelles en local:
 - Rust/WASM is the source of truth for geometry, calculations, app control markup and export data generation.
 - JavaScript should coordinate browser behavior and display returned policy data, not define billing or credit policy. Local `EXPORT_COSTS` values are fallback copy only; PHP responses are authoritative.
 - JavaScript should not persist account bearer tokens. The current browser flow depends on the PHP session cookie and `/api/admin/session` for admin-only visibility.
-- JavaScript should not special-case billed downloads by directly skipping authorization. Free/local utility downloads can use local generation, but premium exports and admin cost-zero exports still use the server quote/authorize/consume endpoints so one-shot tokens, expiry and logging stay consistent.
+- JavaScript should not special-case billed downloads by directly skipping authorization. Billable products and admin cost-zero exports still use the server quote/authorize/consume endpoints so one-shot tokens, expiry, repeat entitlements and logging stay consistent.
 
 ## Current drift
 

@@ -12,6 +12,6 @@ The script is idempotent for the known local seed accounts: it deletes and recre
 
 Do not run it on a production database containing real customers.
 
-Included data: active/suspended local users, subscriptions, test payments/invoices, export authorizations, credit ledger rows, open/closed tickets, support message threads and ticket email notifications.
+Included data: active/suspended local users, subscriptions, test payments/invoices, product-code export authorizations, credit ledger rows, open/closed tickets, support message threads and ticket email notifications.
 
 Keep seeded account credentials out of production docs, public assets and release artifacts.

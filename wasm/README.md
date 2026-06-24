@@ -54,24 +54,24 @@ Current public bindings include:
 
 ## Download billing contract
 
-Current billed browser exports are:
+Current billable browser products are:
 
-- house STL (`export_house_stl`);
-- cut plan SVG (`plan_preview_svg`);
-- cut plan PNG;
-- exploded assembly PNG;
-- cut plan PDF.
+- `house_stl`: `export_house_stl`, STL, 3 credits.
+- `door_stl`: `export_door_stl`, STL, 3 credits.
+- `female_wall_receiver_stl`: `export_wall_mount_receiver_stl`, STL, 3 credits.
+- `panels_zip`: `export_panels_zip`, ZIP, 5 credits.
+- `plan_svg`: `plan_preview_svg`, SVG, 1 credit.
+- `plan_png`: browser-rendered plan PNG, 1 credit.
+- `explosion_png`: browser-rendered exploded assembly PNG, 1 credit.
+- `plan_pdf`: browser-rendered cut-plan PDF, 2 credits.
+- `calculations_pdf`: browser-rendered calculations PDF, 2 credits.
 
-Current free/local browser exports are:
+Current local/admin diagnostic exports are:
 
-- door STL (`export_door_stl`);
-- female wall-receiver STL (`export_wall_mount_receiver_stl`);
-- panels ZIP (`export_panels_zip`);
-- calculations PDF;
 - debug OBJ (`export_house_obj`);
 - mesh report JSON (`mesh_report_json`).
 
-For billed exports, `app/app.js` identifies this app as `app_id=nichoir`, asks PHP for `/api/exports/quote`, shows the credit/bonus gate if needed, calls `/api/exports/authorize`, generates the file locally from WASM or browser capture, then calls `/api/exports/consume`. WASM must not skip or replace that server-side flow.
+For billable exports, `app/app.js` identifies this app as `app_id=nichoir`, sends the server product code and file format to `/api/exports/quote`, shows the credit/bonus gate if needed, calls `/api/exports/authorize`, generates the file locally from WASM or browser capture, then calls `/api/exports/consume`. WASM must not skip or replace that server-side flow.
 
 Admin sessions are handled entirely by PHP/JavaScript. If PHP reports an admin session, premium exports still use quote/authorize/consume but with `cost=0`; WASM is unaware of that policy and only returns bytes/text.
 

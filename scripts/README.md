@@ -4,7 +4,7 @@ Local validation and packaging scripts. They are not runtime production entry po
 
 ## Files
 
-- `mesh-smoke.mjs`: loads `wasm/pkg`, generates several presets, validates binary STL sizes, imported STL decor handling, ZIP entries, OBJ output, mesh report values and topology. It fails on open edges for the full house, fails on open/non-manifold edges for every ZIP part, and allows only known over-shared assembly-contact edges on the combined `house.stl`.
+- `mesh-smoke.mjs`: loads `wasm/pkg`, generates several presets, validates binary STL sizes, imported STL decor handling, wall-mount receiver output, ZIP entries, OBJ output, mesh report values and topology. It fails on open edges for the full house, fails on open/non-manifold edges for every ZIP part, and allows only known over-shared assembly-contact edges on the combined `house.stl`.
 - `build-cpanel-artifact.sh`: creates a local `public_html/` + `nichoir_private/` artifact for Namecheap/cPanel by allowlist. It includes PHP runtime files, SQL migration files, prebuilt browser assets, `wasm/pkg` runtime files and local Three.js from `app/vendor/`.
 
 ## Usage

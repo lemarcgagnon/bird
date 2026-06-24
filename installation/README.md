@@ -15,6 +15,7 @@ Role: one-time web installer for server setup. Use it during setup, then remove 
 - Writes `server-php/data/db-config.php` when the database is not controlled by env/private config.
 - Tests the DB config and initializes schema through the same app code path (`run_migrations_for_pdo()` / MySQL schema setup).
 - Can save support email and basic SMTP settings.
+- Leaves library upload limits and storage paths to the admin settings panel after installation.
 - Writes `server-php/data/installed.lock.php` to block a second installation.
 
 ## Rules

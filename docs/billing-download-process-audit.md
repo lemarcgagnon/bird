@@ -12,7 +12,7 @@ Core product rule: every customer-facing fabrication or decor asset is billable 
 
 The product model is clear: the birdhouse app is the carrier, and revenue comes from downloadable fabrication assets and decor library files.
 
-The current architecture has a good foundation: PHP owns account, credit, authorization, and consumption; the browser generates geometry locally; admin diagnostic exports are separate. Recent uncommitted changes strengthen the model by routing panels ZIP and calculations PDF through billing, and by adding export entitlements so a same-house-STL re-download at a different STL decor quality does not double-charge.
+The current architecture has a good foundation: PHP owns account, credit, authorization, and consumption; the browser generates geometry locally; admin diagnostic exports are separate. Product-code billing now routes public fabrication exports through the same quote/authorize/consume flow, and export entitlements prevent repeat debits for the same user/product/model fingerprint.
 
 The main remaining risk is trust boundary clarity. Because geometry is generated client-side, the server cannot fully prove that a submitted fingerprint matches the actual generated file. That is acceptable as a KISS business safeguard against accidental double-billing, but it is not anti-fraud. If abuse becomes real, move more canonical export-state validation server-side.
 
@@ -22,24 +22,23 @@ Implementation-state labels:
 
 | Label | Meaning |
 |---|---|
-| Production path | Existing billing path already present before this audit. |
-| Uncommitted change | Implemented in the working tree but not committed, pushed, or independently validated. |
-| Policy gap | Product decision required before release. |
+| Billable product | Customer-facing product charged through quote/authorize/consume. |
+| Admin diagnostic | Internal diagnostic output, not a customer product. |
 
 | Download | Current status | Revenue purpose | Notes |
 |---|---:|---|---|
-| Library decor file | Billable - production path | Core paid content | Server-hosted file, strongest billing path. |
-| House STL | Billable - production path | Main fabrication model | Uses server authorization and consume. |
-| Panels ZIP | Billable - uncommitted change | Fabrication-ready parts | Must be validated before calling production-ready. |
-| Cutting plan SVG | Billable - production path | Fabrication plan | Server authorization and consume. |
-| Cutting plan PNG | Billable - production path | Fabrication plan image | Server authorization and consume. |
-| Cutting plan PDF | Billable - production path | Fabrication plan document | Server authorization and consume. |
-| Explosion PNG | Billable - production path | Assembly/support visual | Server authorization and consume. |
-| Calculations PDF | Billable - uncommitted change | Fabrication/calculation document | Must be validated before calling production-ready. |
-| Door STL | Policy gap | Fabrication asset | Must be billed or explicitly bundled; do not leave free by omission. |
-| Female wall receiver STL | Policy gap | Fabrication/mount asset | Must be billed or explicitly bundled; do not leave free by omission. |
-| Debug OBJ | Admin-only/free | Diagnostic only | Must stay unavailable to clients. |
-| Mesh report JSON | Admin-only/free | Diagnostic only | Must stay unavailable to clients. |
+| Library decor file | Billable product | Core paid content | Server-hosted file, strongest billing path. |
+| House STL | Billable product | Main fabrication model | `house_stl`, 3 credits. |
+| Panels ZIP | Billable product | Fabrication-ready parts | `panels_zip`, 5 credits. |
+| Door STL | Billable product | Fabrication asset | `door_stl`, 3 credits. |
+| Female wall receiver STL | Billable product | Fabrication/mount asset | `female_wall_receiver_stl`, 3 credits. |
+| Cutting plan SVG | Billable product | Fabrication plan | `plan_svg`, 1 credit. |
+| Cutting plan PNG | Billable product | Fabrication plan image | `plan_png`, 1 credit. |
+| Cutting plan PDF | Billable product | Fabrication plan document | `plan_pdf`, 2 credits. |
+| Explosion PNG | Billable product | Assembly/support visual | `explosion_png`, 1 credit. |
+| Calculations PDF | Billable product | Fabrication/calculation document | `calculations_pdf`, 2 credits. |
+| Debug OBJ | Admin diagnostic | Diagnostic only | Must stay unavailable to clients. |
+| Mesh report JSON | Admin diagnostic | Diagnostic only | Must stay unavailable to clients. |
 
 ## What works well
 
@@ -77,17 +76,17 @@ The browser computes the fingerprint and the browser generates the file. A modif
 
 Action: Treat entitlements as customer-experience logic, not anti-fraud. If needed later, send a canonical model-state payload to PHP and have PHP compute the fingerprint independently.
 
-2. Export-type billing is too coarse for pricing strategy.
+2. Product catalog must remain the commercial source of truth.
 
-The backend currently uses export type identifiers like `stl`, `pdf`, `png`, `svg`, `zip`. That means all `pdf` exports share one cost class unless additional product metadata is introduced.
+The backend now carries `product_code` through quote, authorize, consume, logs, ledger references and entitlement checks. `export_type` remains file-format metadata only.
 
-Action: Add `product_code` or `export_sku`, for example `house_stl`, `panels_zip`, `plan_pdf`, `calcs_pdf`, `library_decor`. Keep `export_type` as file format only.
+Action: Keep new billable products in `EXPORT_PRODUCTS` and do not reintroduce pricing decisions in JavaScript, WASM labels or route handlers.
 
-3. Door STL and female wall receiver remain unmodeled as products.
+3. Product bundling policy must stay explicit.
 
-They are fabrication assets. Under the core product rule, they must be billed or explicitly included inside a paid kit entitlement. They should not remain free just because the current button wiring is local.
+Door STL and female wall receiver STL are now explicit billable products (`door_stl`, `female_wall_receiver_stl`). They are no longer free by omission.
 
-Action: Decide whether `door_stl` and `wall_receiver_stl` are separate paid products or bundled inside `house_stl` / `panels_zip` entitlements.
+Action: If a future bundle is introduced, model it explicitly as a product or entitlement policy rather than bypassing quote/authorize/consume.
 
 ### Major
 
@@ -215,16 +214,16 @@ Root cause table:
 
 | Root issue | Symptom | Corrective direction |
 |---|---|---|
-| Product identity missing | `pdf`, `png`, `zip`, `stl` are overloaded as products | Add `product_code`. |
+| Product identity drift | Future code may treat `pdf`, `png`, `zip`, `stl` as products again | Keep `product_code` as commercial identity and `export_type` as format only. |
 | Fingerprint authority is client-side | Prevents accidental double billing but not manipulation | Move canonical hash to PHP if abuse risk rises. |
-| Product policy is implicit | Free assets exist by button wiring, not business decision | Add backend billing catalog. |
+| Product policy drift | New buttons can bypass billing if they are not added to the backend catalog | Add every customer-facing download to `EXPORT_PRODUCTS` first. |
 | Diagnostics are browser-generated | Admin-only protection is weaker than server-owned routes | Keep hidden/checks now; move sensitive diagnostics server-side if needed. |
 
-1. File format is overloaded as product identity.
+1. Product identity must not fall back to file format.
 
 `pdf` does not mean one product. It can mean plan PDF, calculations PDF, or future invoices. This is simple today but fragile tomorrow.
 
-Fix: Add `product_code` while keeping `export_type` as format.
+Fix: Preserve the current `product_code` path and reject unknown products instead of billing by raw `export_type`.
 
 2. Fingerprint normalization in JavaScript can grow into a patchwork.
 
@@ -287,9 +286,9 @@ Using `stl`, `pdf`, `zip` as billing identities is a shortcut. It works until mu
 
 It is acceptable while diagnostics are generated locally and hidden, but it is not strong access control.
 
-4. "Free utility" exports are not explicitly modeled.
+4. Customer downloads are explicitly modeled.
 
-Door STL and female receiver STL are free by omission, not by a documented product rule.
+Door STL, female wall receiver STL, panels ZIP and calculations PDF are product-code billed. Debug OBJ and mesh report JSON remain diagnostics.
 
 ## CRUD and data integrity audit
 
@@ -307,11 +306,11 @@ Current creates:
 
 Needs review:
 
-1. Add product identity to export authorization creation.
+1. Keep product identity on every export authorization.
 
-2. Store the fingerprint on authorization and entitlement. This is in progress.
+2. Keep the fingerprint on authorization and entitlement.
 
-3. Ensure repeat downloads increase `download_count`.
+3. Ensure repeat downloads continue to increase `download_count`.
 
 ### Read
 
@@ -429,9 +428,9 @@ Revenue-control interpretation: the current client fingerprint is a customer-fai
 
 8. `calculations_pdf`
 
-9. `door_stl`, unless bundled into a paid kit entitlement.
+9. `door_stl`
 
-10. `female_wall_receiver_stl`, unless bundled into a paid kit entitlement.
+10. `female_wall_receiver_stl`
 
 ### Admin-only/free
 
@@ -439,27 +438,23 @@ Revenue-control interpretation: the current client fingerprint is a customer-fai
 
 2. `mesh_report_json`
 
-### Explicit bundling decision required
+### Bundling policy
 
-1. `door_stl`
-
-2. `female_wall_receiver_stl`
-
-Recommendation: because these are fabrication assets, either bill them as separate products or include them in a paid kit. Do not leave them free by accident.
+Door STL and female wall receiver STL are currently separate billable products. Any future bundle must be represented explicitly in backend product/entitlement policy.
 
 ## Recommended next implementation steps
 
 ### Priority 1
 
-1. Add `product_code` to quote, authorize, consume, logs, and ledger references.
+1. Keep `product_code` mandatory for every customer-facing download button.
 
-2. Create a backend billing catalog that defines billable products and costs.
+2. Keep the backend billing catalog as the only commercial source of truth.
 
-3. Update the app to request by product code instead of raw file format.
+3. Keep the app requesting products by code, never by raw file format.
 
 4. Add user-facing copy for repeat entitlements: `Already purchased - free re-download`.
 
-5. Define the bundle policy for `door_stl` and `female_wall_receiver_stl`.
+5. If bundles are added, implement them as explicit backend entitlement rules.
 
 6. Add explicit processing-failure recovery behavior.
 

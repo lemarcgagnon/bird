@@ -16,17 +16,19 @@ The Rust/WASM app stays under `/app/` and generates geometry and fabrication fil
 
 ```bash
 cd /home/marc/Documents/nichoir16
-php -d upload_max_filesize=25M -d post_max_size=64M -S 127.0.0.1:8021 -t server-php/public
+php -d upload_max_filesize=25M -d post_max_size=64M -S 127.0.0.1:8016 -t server-php/public server-php/public/index.php
 ```
+
+The PHP built-in server must receive `server-php/public/index.php` as router script. Without the router, direct routes such as `/gestion-nichoir/login` can return a false 404.
 
 Useful pages:
 
-- `http://127.0.0.1:8021/`
-- `http://127.0.0.1:8021/pricing`
-- `http://127.0.0.1:8021/account`
-- `http://127.0.0.1:8021/gestion-nichoir/login` unless `NICHOIR_ADMIN_PATH` is configured differently.
-- Librairie publique: `http://127.0.0.1:8021/library?lang=fr`
-- Admin librairie: `http://127.0.0.1:8021/gestion-nichoir#admin-library`
+- `http://127.0.0.1:8016/`
+- `http://127.0.0.1:8016/pricing`
+- `http://127.0.0.1:8016/account`
+- `http://127.0.0.1:8016/gestion-nichoir/login` unless `NICHOIR_ADMIN_PATH` is configured differently.
+- Librairie publique: `http://127.0.0.1:8016/library?lang=fr`
+- Admin librairie: `http://127.0.0.1:8016/gestion-nichoir#admin-library`
 
 En local, le mot de passe admin dépend de `NICHOIR_ADMIN_PASSWORD_HASH` et doit être configuré côté serveur.
 
@@ -36,7 +38,7 @@ When the static WASM app runs separately on `8016`, open it with:
 http://127.0.0.1:8016/app/
 ```
 
-The app auto-detects this local split-port setup and sends API calls to `127.0.0.1:8021`. The `php_base` query parameter remains available for local-only override tests.
+The default local setup is same-origin on `127.0.0.1:8016`. The `php_base` query parameter remains available for local-only split-origin tests.
 
 ## Current routes
 
@@ -114,18 +116,21 @@ API and webhook:
 
 ## Credits, exports and library
 
-- Valid server-billed export type identifiers are `svg`, `png`, `pdf`, `stl` and `zip`.
-- `server-php/src/credits.php` owns the WASM app registry, configured export cost and partial-credit bonus policy.
+- Valid file-format identifiers are `svg`, `png`, `pdf`, `stl` and `zip`. Billing is product-code based.
+- `server-php/src/credits.php` owns the WASM app registry, product catalog, product credit costs, repeat-entitlement policy and partial-credit bonus policy.
 - `/api/apps` returns the server-known WASM apps. The current app id is `nichoir`.
-- `/api/exports/quote` checks `app_id`, export type and, for clients, current balance plus optional partial-balance bonus without creating a token or debiting credits. Admin sessions get `cost=0`.
-- `/api/exports/authorize` checks `app_id`, export type and, for clients, active account status/current balance/bonus eligibility, then creates a short-lived token. Client tokens are stored in `export_authorizations`; admin tokens are stored in PHP session.
+- Current public app products are `house_stl`, `door_stl`, `female_wall_receiver_stl`, `panels_zip`, `plan_svg`, `plan_png`, `explosion_png`, `plan_pdf` and `calculations_pdf`.
+- Product costs are defined by `EXPORT_PRODUCTS`: STL products cost 3 credits, panel ZIP costs 5 credits, SVG/PNG products cost 1 credit and PDF products cost 2 credits.
+- `/api/exports/quote` checks `app_id`, product code and, for clients, current balance plus optional partial-balance bonus without creating a token or debiting credits. Admin sessions get `cost=0`.
+- `/api/exports/authorize` checks `app_id`, product code and, for clients, active account status/current balance/bonus eligibility, then creates a short-lived token. Client tokens are stored in `export_authorizations`; admin tokens are stored in PHP session.
 - `/api/exports/consume` revalidates the account or admin session and `app_id`, atomically claims the authorization, applies any configured client top-up, debits client credits, writes `credit_ledger`, and logs/audits the event. Admin consumption is one-shot, logged, and does not debit or create ledger rows.
+- `export_entitlements` records the first consumed authorization for each user/app/product/fingerprint and increments repeat `download_count`; repeats of the same product/model cost 0 credits.
 - The browser generates the actual file locally after authorization. PHP never generates STL, PDF, ZIP or mesh data.
-- The current app only bills house STL and plan-section SVG/PNG/PDF exports. Door STL, wall-mount STL, panels ZIP, calculations PDF and diagnostic exports are local/free unless the browser wiring is intentionally changed.
+- Debug OBJ and mesh report JSON are local/admin diagnostics, not client-billed products.
 - First-visit landing audio behavior: `server-php/public/index.php` serves `GET /assets/bird-chirp.mp3` from `server-php/public/assets/bird-chirp.mp3`; `src/layout.php` triggers one-time playback with key `nichoir_welcome_bird_played_v1` in localStorage (written after successful playback) and retries on first user interaction when autoplay is denied.
 - `/library` is the public decor file library. Clients download a server-hosted STL or image to their computer, then import it manually into the WASM decoration uploader.
 - `/api/library` returns active file metadata, a PNG thumbnail URL and, in development only, a local `app_original_url` when the mirrored file exists under `app/images/library`. `/api/library/thumbnail` returns a public low-resolution PNG preview. `/api/library/stl-original-preview` serves the active original STL for the public/WASM Three.js preview so user-facing previews match the admin viewer. `/api/library/stl-preview` returns sampled STL preview JSON only as fallback, with `detail=high` for public pre-download fallback previews. Admin-only `/api/admin/library/stl-file` serves the original STL for the admin Three.js viewer and thumbnail editor, and `/api/admin/library/thumbnail` stores a custom PNG snapshot. `/api/library/authorize` checks the active account and current credit balance, then creates a short-lived token. `/api/library/download` claims that token, debits client credits, writes `credit_ledger` with reason `library_download`, records `library_downloads`, then streams the private file.
-- Admins manage library STL/image files from the back-office Librairie tab, including title, description, credit cost, active/inactive state, thumbnail regeneration and archive. STL uploads are capped by the admin `library_stl_upload_max_mb` setting up to 25 MiB, images are capped at 2 MiB, and originals are stored in `server-php/data/library`, outside `public_html`, then mirrored locally into `app/images/library` for local/admin previews. Uploaded STL files generate persistent PNG thumbnails for public and WASM library listings; the admin list and user/WASM preview modals render the untouched original STL directly with Three.js. Admin and user Three.js viewers include view presets, rotate/pan modes, zoom, fit and reset controls. Admins can regenerate the automatic PNG or open the PNG editor and save the current canvas as the library PNG. Newly selected admin STL files are parsed and previewed locally with Three.js before upload. Image previews use `/api/library/preview` or thumbnails. Admin sessions can authorize/download library files at cost zero through one-shot PHP-session tokens.
+- Admins manage library STL/image files from the back-office Librairie tab, including title, description, credit cost, active/inactive state, thumbnail regeneration and archive. STL uploads default to 25 MiB and can be configured up to 1024 MiB with `library_stl_upload_max_mb`; PNG/JPEG/GIF/WEBP uploads default to 2 MiB and can be configured up to 512 MiB with `library_image_upload_max_mb`. PHP `upload_max_filesize` and `post_max_size` can still reject files before application validation. Originals default to `server-php/data/library`, outside `public_html`, then mirror locally into `app/images/library` for local/admin previews. Both paths are configurable in admin settings unless overridden by `NICHOIR_LIBRARY_DIR` or `NICHOIR_LIBRARY_APP_IMAGE_DIR`. Uploaded STL files generate persistent PNG thumbnails for public and WASM library listings; the admin list and user/WASM preview modals render the untouched original STL directly with Three.js. Admin and user Three.js viewers include view presets, rotate/pan modes, zoom, fit and reset controls. Admins can regenerate the automatic PNG or open the PNG editor and save the current canvas as the library PNG. Newly selected admin STL files are parsed and previewed locally with Three.js before upload. Image previews use `/api/library/preview` or thumbnails. Admin sessions can authorize/download library files at cost zero through one-shot PHP-session tokens.
 - Browser console prefixes: `[nichoir library admin]` for back-office file selection, upload submit and local STL preview loading; `[nichoir library user]` for public library loading, thumbnail rendering, authorization and download redirect.
 
 ## Stripe
@@ -209,7 +214,7 @@ If using the temporary installer:
 
 ```bash
 find server-php installation deployment/namecheap -name '*.php' -print -exec php -l {} \;
-curl http://127.0.0.1:8021/api/health
+curl http://127.0.0.1:8016/api/health
 ```
 
 Manual checks:

@@ -899,6 +899,12 @@ fn html_escape(value: &str) -> String {
 fn t(lang: &str, key: &str) -> &'static str {
     match (lang, key) {
         ("en", "app_title") => "Calculator",
+        ("en", "menu_kicker_title") => "Birdhouse workshop",
+        ("en", "menu_kicker_subtitle") => {
+            "Design, decorate, and export a fabrication-ready birdhouse."
+        }
+        ("en", "menu_kicker_note") => "Create - Decorate - Export",
+        ("en", "jump_plan_downloads") => "Downloads",
         ("en", "body") => "Body",
         ("en", "view") => "View",
         ("en", "decor") => "Decor",
@@ -1198,6 +1204,12 @@ fn t(lang: &str, key: &str) -> &'static str {
         ("en", "cylinder") => "cylinder",
         ("en", "longitudinal_axis") => "longitudinal axis",
         (_, "app_title") => "Calculateur",
+        (_, "menu_kicker_title") => "Atelier nichoir",
+        (_, "menu_kicker_subtitle") => {
+            "Concois, decore et exporte un nichoir pret pour la fabrication."
+        }
+        (_, "menu_kicker_note") => "Creer - Decorer - Exporter",
+        (_, "jump_plan_downloads") => "Telechargements",
         (_, "body") => "Corps",
         (_, "view") => "Vue",
         (_, "decor") => "Decor",
@@ -8481,7 +8493,7 @@ pub fn render_app_html(input: &str) -> String {
 
     format!(
         r##"
-<aside class="panel">
+<aside class="panel menu-shell">
   <header>
     <div class="header-top">
       <div>
@@ -8495,38 +8507,45 @@ pub fn render_app_html(input: &str) -> String {
         </div>
         <a class="header-site-link" data-site-link="/" href="/">{site_exit}</a>
         <button class="theme-toggle" data-action="theme-toggle" type="button" aria-pressed="false">{theme_toggle_content}</button>
+        <button class="account-tab-button menu-account-button" data-action="account-modal-open" type="button" aria-haspopup="dialog" aria-controls="account-modal">{tab_account}</button>
       </div>
     </div>
   </header>
 
-  <div class="unit-row">
+  <section class="menu-kicker" data-menu-kicker>
+    <p class="menu-kicker-eyebrow">NICHOIR</p>
+    <h2>{menu_kicker_title}</h2>
+    <p class="menu-kicker-subtitle">{menu_kicker_subtitle}</p>
+    <p class="menu-kicker-note">{menu_kicker_note}</p>
+  </section>
+
+  <div class="unit-row menu-unit-row">
     {unit_mm}
     {unit_cm}
     {unit_in}
   </div>
 
-  <nav class="tabs">
+  <nav class="tabs menu-step-tabs">
     <button data-tab="dim">{tab_dim}</button>
     <button data-tab="decor">{tab_decor}</button>
     <button data-tab="calcs">{tab_calcs}</button>
     <button data-tab="plan">{tab_plan}</button>
-    <button class="account-tab-button" data-action="account-modal-open" type="button" aria-haspopup="dialog" aria-controls="account-modal">{tab_account}</button>
   </nav>
 
-  <div class="tab-scroll">
+  <div class="tab-scroll menu-scroll">
     <section data-panel="dim" class="control-section">
-      <h2>{heading_body}</h2>{body_controls}
-      <h2>{heading_roof}</h2>{roof_controls}
-      <h2>{heading_wall_mount}</h2>{wall_mount_controls}
-      <h2>{heading_door}</h2>{door_controls}
+      <details class="menu-section" open><summary class="menu-section-summary"><h2>{heading_body}</h2></summary><div class="menu-section-body">{body_controls}</div></details>
+      <details class="menu-section" open><summary class="menu-section-summary"><h2>{heading_roof}</h2></summary><div class="menu-section-body">{roof_controls}</div></details>
+      <details class="menu-section" open><summary class="menu-section-summary"><h2>{heading_wall_mount}</h2></summary><div class="menu-section-body">{wall_mount_controls}</div></details>
+      <details class="menu-section" open><summary class="menu-section-summary"><h2>{heading_door}</h2></summary><div class="menu-section-body">{door_controls}</div></details>
     </section>
 
     <section data-panel="decor" class="control-section">
-      <h2>{heading_decor}</h2>{deco_controls}
+      <details class="menu-section" open><summary class="menu-section-summary"><h2>{heading_decor}</h2></summary><div class="menu-section-body">{deco_controls}</div></details>
     </section>
 
     <section data-panel="calcs" class="control-section">
-      <h2>{heading_calcs}</h2>
+      <details class="menu-section" open><summary class="menu-section-summary"><h2>{heading_calcs}</h2></summary><div class="menu-section-body">
       <div class="stat-row"><span>{volume_ext}</span><strong>{ext} {volume_unit}</strong></div>
       <div class="stat-row"><span>{volume_int}</span><strong>{int} {volume_unit}</strong></div>
       <div class="stat-row"><span>{material_volume}</span><strong>{mat} {volume_unit}</strong></div>
@@ -8543,12 +8562,15 @@ pub fn render_app_html(input: &str) -> String {
       <div class="buttons calc-actions">
         <button data-action="download-calcs-pdf" type="button">{calc_pdf_label}</button>
       </div>
-      <h2>{heading_pieces}</h2>
-      <div class="cut-list">{cut_rows}</div>
+      </div></details>
+      <details class="menu-section" open><summary class="menu-section-summary"><h2>{heading_pieces}</h2></summary><div class="menu-section-body">
+        <div class="cut-list">{cut_rows}</div>
+      </div></details>
     </section>
 
     <section data-panel="plan" class="control-section">
-      <h2>{heading_cut_plan}</h2>{panel_controls}
+      <details class="menu-section" open><summary class="menu-section-summary"><h2>{heading_cut_plan}</h2></summary><div class="menu-section-body">
+      {panel_controls}
       {plan_stats}
       <div id="plan-preview" class="plan-preview"></div>
       <div class="download-section-heading">
@@ -8582,13 +8604,14 @@ pub fn render_app_html(input: &str) -> String {
           </div>
         </div>
       </div>
+      </div></details>
     </section>
 
   </div>
 </aside>
 
 <main class="workspace">
-  <div class="overlay"><span class="overlay-badge">{overlay_mode}</span><span class="overlay-badge">{overlay_floor}</span><span class="overlay-badge">{overlay_ridge}</span><button data-action="reset-view" type="button"><span class="button-glyph" aria-hidden="true">⟲</span><span>{reset_view}</span></button></div>
+  <div class="overlay"><span class="overlay-badge">{overlay_mode}</span><span class="overlay-badge">{overlay_floor}</span><span class="overlay-badge">{overlay_ridge}</span><button class="overlay-download-button" data-action="jump-plan-downloads" type="button"><span class="button-glyph" aria-hidden="true">⇩</span><span class="button-label">{jump_plan_downloads}</span></button><button data-action="reset-view" type="button"><span class="button-glyph" aria-hidden="true">⟲</span><span>{reset_view}</span></button></div>
   {view_controls}
   <div id="viewer" class="viewer" aria-label="{viewer_preview_aria}"></div>
   <div class="axis-hint"><span class="x">X</span> {axis_width} <span class="y">Y</span> {axis_height} <span class="z">Z</span> {axis_depth}</div>
@@ -8612,6 +8635,9 @@ pub fn render_app_html(input: &str) -> String {
 </div>
 "##,
         app_subtitle = t(lang, "app_subtitle"),
+        menu_kicker_title = html_escape(t(lang, "menu_kicker_title")),
+        menu_kicker_subtitle = html_escape(t(lang, "menu_kicker_subtitle")),
+        menu_kicker_note = html_escape(t(lang, "menu_kicker_note")),
         theme_toggle_content = theme_toggle_content,
         site_exit = site_exit,
         language = t(lang, "language"),
@@ -8665,6 +8691,7 @@ pub fn render_app_html(input: &str) -> String {
         door_controls = door_controls,
         panel_controls = panel_controls,
         plan_stats = plan_stats,
+        jump_plan_downloads = html_escape(t(lang, "jump_plan_downloads")),
         reset_view = t(lang, "reset_view"),
         volume_ext = t(lang, "volume_ext"),
         volume_int = t(lang, "volume_int"),
@@ -8861,6 +8888,31 @@ mod tests {
         assert!(html.contains(".svg,image/*"));
         assert!(html.contains(".stl"));
         assert!(!html.contains("data-deco-choice=\"mode\""));
+    }
+
+    #[test]
+    fn render_app_html_owns_app_shell_structure() {
+        let html = render_app_html(&default_params_json());
+        let nav = html
+            .split(r#"<nav class="tabs menu-step-tabs">"#)
+            .nth(1)
+            .and_then(|tail| tail.split("</nav>").next())
+            .expect("tab nav should render");
+
+        assert!(html.contains(r#"<aside class="panel menu-shell">"#));
+        assert!(html.contains(r#"<section class="menu-kicker" data-menu-kicker>"#));
+        assert!(html.contains(r#"<details class="menu-section" open>"#));
+        assert!(html.contains(r#"class="account-tab-button menu-account-button""#));
+        assert!(html.contains(r#"data-action="jump-plan-downloads""#));
+        assert!(!nav.contains("account-modal-open"));
+    }
+
+    #[test]
+    fn render_app_html_localizes_menu_kicker() {
+        let html = render_app_html(r#"{"lang":"en"}"#);
+
+        assert!(html.contains("Birdhouse workshop"));
+        assert!(html.contains("Create - Decorate - Export"));
     }
 
     #[test]

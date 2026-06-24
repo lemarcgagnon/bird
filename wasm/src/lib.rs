@@ -7,12 +7,8 @@ use std::f64::consts::PI;
 
 const MAX_DECO_SOURCE_TEXT_BYTES: usize = 1_000_000;
 const MAX_DECO_SOURCE_DATA_CHARS: usize = 3_000_000;
-const MAX_DECO_STL_SOURCE_DATA_CHARS: usize = 6_000_000;
 const MAX_DECO_IMAGE_SIDE: u32 = 4096;
 const MAX_DECO_IMAGE_PIXELS: u64 = 16_777_216;
-// A 4 MiB binary STL can carry roughly 84k triangles; leave headroom for
-// small metadata differences while keeping pathological files out.
-const MAX_IMPORTED_STL_TRIANGLES: usize = 120_000;
 
 #[derive(Serialize)]
 struct ApiOk<T: Serialize> {
@@ -619,14 +615,9 @@ fn sanitize_decor(mut d: DecorSettings) -> DecorSettings {
         d.source_text.clear();
     }
 
-    let source_data_limit = if d.source_type == "stl" {
-        MAX_DECO_STL_SOURCE_DATA_CHARS
-    } else {
-        MAX_DECO_SOURCE_DATA_CHARS
-    };
-    if d.source_data.len() > source_data_limit {
+    if d.source_type != "stl" && d.source_data.len() > MAX_DECO_SOURCE_DATA_CHARS {
         d.source_data.clear();
-        if (d.mode == "heightmap" && d.source_type != "svg") || d.source_type == "stl" {
+        if d.mode == "heightmap" && d.source_type != "svg" {
             d.enabled = false;
             d.source_type.clear();
             d.mode = "heightmap".to_string();
@@ -3369,7 +3360,7 @@ fn parse_binary_stl(bytes: &[u8]) -> Option<Vec<Tri>> {
     }
     let count_raw: [u8; 4] = bytes.get(80..84)?.try_into().ok()?;
     let count = u32::from_le_bytes(count_raw) as usize;
-    if count == 0 || count > MAX_IMPORTED_STL_TRIANGLES {
+    if count == 0 {
         return None;
     }
     let expected = 84usize.checked_add(count.checked_mul(50)?)?;
@@ -3423,9 +3414,6 @@ fn parse_ascii_stl(bytes: &[u8]) -> Vec<Tri> {
         if verts.len() == 3 {
             tris.push(tri(verts[0], verts[1], verts[2]));
             verts.clear();
-            if tris.len() >= MAX_IMPORTED_STL_TRIANGLES {
-                break;
-            }
         }
     }
 
@@ -3612,6 +3600,279 @@ fn add_imported_stl_basis(
         mesh.push(tri(a, b, cpt));
         stats.kept += 1;
     }
+    stats
+}
+
+#[derive(Clone, Copy)]
+struct LocalDecorPoint {
+    x: f64,
+    y: f64,
+    z: f64,
+}
+
+fn barycentric_2d(
+    p: (f64, f64),
+    a: LocalDecorPoint,
+    b: LocalDecorPoint,
+    c: LocalDecorPoint,
+) -> Option<(f64, f64, f64)> {
+    let denom = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+    if denom.abs() < 0.000_000_1 {
+        return None;
+    }
+    let wa = ((b.y - c.y) * (p.0 - c.x) + (c.x - b.x) * (p.1 - c.y)) / denom;
+    let wb = ((c.y - a.y) * (p.0 - c.x) + (a.x - c.x) * (p.1 - c.y)) / denom;
+    let wc = 1.0 - wa - wb;
+    const EPS: f64 = 0.000_001;
+    if wa >= -EPS && wb >= -EPS && wc >= -EPS {
+        Some((wa, wb, wc))
+    } else {
+        None
+    }
+}
+
+fn add_imported_stl_heightfield_basis(
+    mesh: &mut Vec<Tri>,
+    d: &DecorSettings,
+    origin: Vec3,
+    u_axis: Vec3,
+    v_axis: Vec3,
+    n_axis: Vec3,
+    base_embed: f64,
+    clip_poly: Option<&[(f64, f64)]>,
+    clip_holes: Option<&[Vec<(f64, f64)>]>,
+) -> ImportedStlBuildStats {
+    let mut stats = ImportedStlBuildStats::default();
+    let source = decode_imported_stl(d);
+    let Some((min, max)) = stl_bounds(&source) else {
+        return stats;
+    };
+
+    let bounds_min = [min.x as f64, min.y as f64, min.z as f64];
+    let bounds_max = [max.x as f64, max.y as f64, max.z as f64];
+    let (u_src_axis, v_src_axis, depth_src_axis) = imported_stl_axes(min, max);
+    let bw = (bounds_max[u_src_axis] - bounds_min[u_src_axis])
+        .abs()
+        .max(0.001);
+    let bh = (bounds_max[v_src_axis] - bounds_min[v_src_axis])
+        .abs()
+        .max(0.001);
+    let bd = (bounds_max[depth_src_axis] - bounds_min[depth_src_axis]).abs();
+    let cx = (bounds_min[u_src_axis] + bounds_max[u_src_axis]) * 0.5;
+    let cy = (bounds_min[v_src_axis] + bounds_max[v_src_axis]) * 0.5;
+    let raw_sx = d.w.max(1.0) / bw;
+    let raw_sy = d.h.max(1.0) / bh;
+    let fit_scale = raw_sx.min(raw_sy).max(0.001);
+    let sx = if d.lock_proportions {
+        fit_scale
+    } else {
+        raw_sx
+    };
+    let sy = if d.lock_proportions {
+        fit_scale
+    } else {
+        raw_sy
+    };
+    let sz = if d.lock_proportions {
+        fit_scale
+    } else if bd > 0.001 {
+        d.depth.max(0.1) / bd
+    } else {
+        1.0
+    };
+    let rot = d.rotation * PI / 180.0;
+    let c = rot.cos();
+    let s = rot.sin();
+
+    let map_local = |src: Vec3| -> LocalDecorPoint {
+        let local_x = (vec3_axis(src, u_src_axis) - cx) * sx;
+        let local_y = (vec3_axis(src, v_src_axis) - cy) * sy;
+        let rx = local_x * c - local_y * s;
+        let ry = local_x * s + local_y * c;
+        let local_z = if bd > 0.001 {
+            (vec3_axis(src, depth_src_axis) - bounds_min[depth_src_axis]) * sz
+        } else {
+            0.0
+        };
+        LocalDecorPoint {
+            x: rx,
+            y: ry,
+            z: local_z.max(0.0),
+        }
+    };
+
+    let res = d.resolution.round().clamp(72.0, 192.0) as usize;
+    let w = d.w.max(1.0);
+    let h = d.h.max(1.0);
+    let idx = |x: usize, y: usize| -> usize { y * (res + 1) + x };
+    let mut heights = vec![0.0_f64; (res + 1) * (res + 1)];
+    let mut hits = vec![false; (res + 1) * (res + 1)];
+
+    let grid_x = |ix: usize| -> f64 { -w / 2.0 + (ix as f64 / res as f64) * w };
+    let grid_y = |iy: usize| -> f64 { h / 2.0 - (iy as f64 / res as f64) * h };
+    let ix_for = |x: f64, round_down: bool| -> usize {
+        let v = ((x + w / 2.0) / w * res as f64).clamp(0.0, res as f64);
+        if round_down {
+            v.floor() as usize
+        } else {
+            v.ceil() as usize
+        }
+    };
+    let iy_for = |y: f64, round_down: bool| -> usize {
+        let v = ((h / 2.0 - y) / h * res as f64).clamp(0.0, res as f64);
+        if round_down {
+            v.floor() as usize
+        } else {
+            v.ceil() as usize
+        }
+    };
+
+    for src in source {
+        let a = map_local(src.a);
+        let b = map_local(src.b);
+        let cpt = map_local(src.c);
+        if orient_2d((a.x, a.y), (b.x, b.y), (cpt.x, cpt.y)).abs() < 0.000_001 {
+            continue;
+        }
+
+        let min_x = a.x.min(b.x).min(cpt.x);
+        let max_x = a.x.max(b.x).max(cpt.x);
+        let min_y = a.y.min(b.y).min(cpt.y);
+        let max_y = a.y.max(b.y).max(cpt.y);
+        let ix0 = ix_for(min_x, true);
+        let ix1 = ix_for(max_x, false);
+        let iy0 = iy_for(max_y, true);
+        let iy1 = iy_for(min_y, false);
+
+        for iy in iy0..=iy1 {
+            let y = grid_y(iy);
+            for ix in ix0..=ix1 {
+                let x = grid_x(ix);
+                if let Some((wa, wb, wc)) = barycentric_2d((x, y), a, b, cpt) {
+                    let z = (wa * a.z + wb * b.z + wc * cpt.z).max(0.0);
+                    let i = idx(ix, iy);
+                    if z > heights[i] {
+                        heights[i] = z;
+                        hits[i] = true;
+                    }
+                }
+            }
+        }
+    }
+
+    let point_active = |ix: usize, iy: usize, heights: &[f64], hits: &[bool]| -> bool {
+        let x = grid_x(ix);
+        let y = grid_y(iy);
+        let inside = clip_poly
+            .map(|poly| point_in_poly_2d(x, y, poly))
+            .unwrap_or(true);
+        let in_hole = clip_holes
+            .map(|holes| holes.iter().any(|hole| point_in_poly_2d(x, y, hole)))
+            .unwrap_or(false);
+        hits[idx(ix, iy)] && heights[idx(ix, iy)] > 0.001 && inside && !in_hole
+    };
+    let mut mask = vec![false; (res + 1) * (res + 1)];
+    for iy in 0..=res {
+        for ix in 0..=res {
+            mask[idx(ix, iy)] = point_active(ix, iy, &heights, &hits);
+        }
+    }
+    let mut expanded_mask = mask.clone();
+    let mut expanded_heights = heights.clone();
+    for iy in 0..=res {
+        for ix in 0..=res {
+            let i = idx(ix, iy);
+            if !mask[i] {
+                continue;
+            }
+            let y0 = iy.saturating_sub(1);
+            let y1 = (iy + 1).min(res);
+            let x0 = ix.saturating_sub(1);
+            let x1 = (ix + 1).min(res);
+            for ny in y0..=y1 {
+                for nx in x0..=x1 {
+                    if point_active(nx, ny, &heights, &hits) || {
+                        let gx = grid_x(nx);
+                        let gy = grid_y(ny);
+                        let inside = clip_poly
+                            .map(|poly| point_in_poly_2d(gx, gy, poly))
+                            .unwrap_or(true);
+                        let in_hole = clip_holes
+                            .map(|holes| holes.iter().any(|hole| point_in_poly_2d(gx, gy, hole)))
+                            .unwrap_or(false);
+                        inside && !in_hole
+                    } {
+                        let ni = idx(nx, ny);
+                        expanded_mask[ni] = true;
+                        expanded_heights[ni] = expanded_heights[ni].max(heights[i]);
+                    }
+                }
+            }
+        }
+    }
+    mask = expanded_mask;
+    heights = expanded_heights;
+    let cell_active = |x: usize, y: usize, mask: &[bool]| -> bool {
+        mask[idx(x, y)] && mask[idx(x + 1, y)] && mask[idx(x + 1, y + 1)] && mask[idx(x, y + 1)]
+    };
+    let top_at = |x: usize, y: usize| -> Vec3 {
+        map_basis(
+            origin,
+            u_axis,
+            v_axis,
+            n_axis,
+            grid_x(x),
+            grid_y(y),
+            heights[idx(x, y)],
+        )
+    };
+    let base_at = |x: usize, y: usize| -> Vec3 {
+        map_basis(
+            origin,
+            u_axis,
+            v_axis,
+            n_axis,
+            grid_x(x),
+            grid_y(y),
+            -base_embed.max(0.0),
+        )
+    };
+
+    for y in 0..res {
+        for x in 0..res {
+            if !cell_active(x, y, &mask) {
+                continue;
+            }
+            let a = top_at(x, y);
+            let b = top_at(x + 1, y);
+            let cpt = top_at(x + 1, y + 1);
+            let dpt = top_at(x, y + 1);
+            mesh.push(tri(a, b, cpt));
+            mesh.push(tri(a, cpt, dpt));
+
+            let ba = base_at(x, y);
+            let bb = base_at(x + 1, y);
+            let bc = base_at(x + 1, y + 1);
+            let bd = base_at(x, y + 1);
+            mesh.push(tri(ba, bc, bb));
+            mesh.push(tri(ba, bd, bc));
+
+            if y == 0 || !cell_active(x, y - 1, &mask) {
+                quad(mesh, ba, bb, b, a);
+            }
+            if x + 1 == res || !cell_active(x + 1, y, &mask) {
+                quad(mesh, bb, bc, cpt, b);
+            }
+            if y + 1 == res || !cell_active(x, y + 1, &mask) {
+                quad(mesh, bd, dpt, cpt, bc);
+            }
+            if x == 0 || !cell_active(x - 1, y, &mask) {
+                quad(mesh, ba, a, dpt, bd);
+            }
+            stats.kept += 1;
+        }
+    }
+
     stats
 }
 
@@ -3837,9 +4098,31 @@ fn add_box(mesh: &mut Vec<Tri>, cx: f64, cy: f64, cz: f64, w: f64, h: f64, d: f6
     quad(mesh, p100, p101, p111, p110);
 }
 
-fn add_floor_panel(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload) {
+fn add_floor_panel(
+    mesh: &mut Vec<Tri>,
+    p: &NichoirParams,
+    g: &GeometryPayload,
+    include_side_faces: bool,
+) {
     if matches!(p.floor, FloorMode::Pose) || g.floor_side_cut.abs() < 1e-9 {
-        add_box(mesh, 0.0, p.t / 2.0, 0.0, g.floor_w, p.t, g.floor_d);
+        if include_side_faces {
+            add_box(mesh, 0.0, p.t / 2.0, 0.0, g.floor_w, p.t, g.floor_d);
+        } else {
+            let hw = (g.floor_w as f32) / 2.0;
+            let hd = (g.floor_d as f32) / 2.0;
+            let y0 = 0.0_f32;
+            let y1 = p.t as f32;
+            let p000 = Vec3 { x: -hw, y: y0, z: -hd };
+            let p100 = Vec3 { x: hw, y: y0, z: -hd };
+            let p110 = Vec3 { x: hw, y: y1, z: -hd };
+            let p010 = Vec3 { x: -hw, y: y1, z: -hd };
+            let p001 = Vec3 { x: -hw, y: y0, z: hd };
+            let p101 = Vec3 { x: hw, y: y0, z: hd };
+            let p111 = Vec3 { x: hw, y: y1, z: hd };
+            let p011 = Vec3 { x: -hw, y: y1, z: hd };
+            quad(mesh, p010, p110, p111, p011);
+            quad(mesh, p001, p101, p100, p000);
+        }
         return;
     }
 
@@ -3893,15 +4176,17 @@ fn add_floor_panel(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload) 
 
     quad(mesh, b3, b2, b1, b0);
     quad(mesh, t0, t1, t2, t3);
-    quad(mesh, b0, b1, t1, t0);
-    quad(mesh, b2, b3, t3, t2);
-    quad(mesh, b3, b0, t0, t3);
-    quad(mesh, b1, b2, t2, t1);
+    if include_side_faces {
+        quad(mesh, b0, b1, t1, t0);
+        quad(mesh, b2, b3, t3, t2);
+        quad(mesh, b3, b0, t0, t3);
+        quad(mesh, b1, b2, t2, t1);
+    }
 }
 
 fn floor_panel_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
     let mut tris = Vec::<Tri>::new();
-    add_floor_panel(&mut tris, p, g);
+    add_floor_panel(&mut tris, p, g, true);
     clean_tris(tris)
 }
 
@@ -3948,13 +4233,20 @@ fn add_cylinder_z(
     }
 }
 
-fn add_side_panel_with_cuts(mesh: &mut Vec<Tri>, inner: [Vec3; 4], outer: [Vec3; 4]) {
+fn add_side_panel_with_cuts(
+    mesh: &mut Vec<Tri>,
+    inner: [Vec3; 4],
+    outer: [Vec3; 4],
+    include_end_caps: bool,
+) {
     quad(mesh, inner[0], inner[1], inner[2], inner[3]);
     quad(mesh, outer[0], outer[3], outer[2], outer[1]);
     quad(mesh, inner[0], outer[0], outer[1], inner[1]);
     quad(mesh, inner[3], inner[2], outer[2], outer[3]);
-    quad(mesh, inner[0], inner[3], outer[3], outer[0]);
-    quad(mesh, inner[1], outer[1], outer[2], inner[2]);
+    if include_end_caps {
+        quad(mesh, inner[0], inner[3], outer[3], outer[0]);
+        quad(mesh, inner[1], outer[1], outer[2], inner[2]);
+    }
 }
 
 fn add_one_side_wall(
@@ -3963,6 +4255,7 @@ fn add_one_side_wall(
     g: &GeometryPayload,
     base_y: f64,
     left: bool,
+    include_end_caps: bool,
 ) {
     let alpha = (p.taper_x / g.wall_h.max(0.001)).atan();
     let inset = p.t / alpha.cos().max(0.001);
@@ -4025,6 +4318,7 @@ fn add_one_side_wall(
                     z: zf,
                 },
             ],
+            include_end_caps,
         );
     } else {
         let outer_bottom = (g.w_bot / 2.0) as f32;
@@ -4077,13 +4371,20 @@ fn add_one_side_wall(
                     z: zb,
                 },
             ],
+            include_end_caps,
         );
     }
 }
 
-fn add_side_walls(mesh: &mut Vec<Tri>, p: &NichoirParams, g: &GeometryPayload, base_y: f64) {
-    add_one_side_wall(mesh, p, g, base_y, true);
-    add_one_side_wall(mesh, p, g, base_y, false);
+fn add_side_walls(
+    mesh: &mut Vec<Tri>,
+    p: &NichoirParams,
+    g: &GeometryPayload,
+    base_y: f64,
+    include_end_caps: bool,
+) {
+    add_one_side_wall(mesh, p, g, base_y, true, include_end_caps);
+    add_one_side_wall(mesh, p, g, base_y, false, include_end_caps);
 }
 
 fn side_panel_tris(p: &NichoirParams, g: &GeometryPayload, left: bool) -> Vec<Tri> {
@@ -4093,7 +4394,7 @@ fn side_panel_tris(p: &NichoirParams, g: &GeometryPayload, left: bool) -> Vec<Tr
         0.0
     };
     let mut tris = Vec::<Tri>::new();
-    add_one_side_wall(&mut tris, p, g, base_y, left);
+    add_one_side_wall(&mut tris, p, g, base_y, left, true);
     clean_tris(tris)
 }
 
@@ -4201,6 +4502,7 @@ fn add_extruded_shape_with_holes_z(
     tx: f64,
     ty: f64,
     tz: f64,
+    skip_outer_edges: &[usize],
 ) -> bool {
     if outer.len() < 3 {
         return false;
@@ -4273,6 +4575,9 @@ fn add_extruded_shape_with_holes_z(
 
     if let Some(outer_ring) = rings.first() {
         for i in 0..outer_ring.len() {
+            if skip_outer_edges.contains(&i) {
+                continue;
+            }
             let j = (i + 1) % outer_ring.len();
             let a = v(outer_ring[i].0, outer_ring[i].1, 0.0);
             let b = v(outer_ring[j].0, outer_ring[j].1, 0.0);
@@ -5095,15 +5400,34 @@ fn add_facade_with_cutouts(
     tx: f64,
     ty: f64,
     tz: f64,
+    skip_outer_edges: &[usize],
 ) {
     if matches!(p.door, DoorMode::None) && !p.perch {
-        add_extruded_polygon_z(mesh, &facade_points(g), depth, tx, ty, tz, 0.0);
+        add_extruded_polygon_z_skip_edges(
+            mesh,
+            &facade_points(g),
+            depth,
+            tx,
+            ty,
+            tz,
+            0.0,
+            skip_outer_edges,
+        );
         return;
     }
 
     let holes = facade_holes(p, g);
     if !holes.is_empty()
-        && add_extruded_shape_with_holes_z(mesh, &facade_points(g), &holes, depth, tx, ty, tz)
+        && add_extruded_shape_with_holes_z(
+            mesh,
+            &facade_points(g),
+            &holes,
+            depth,
+            tx,
+            ty,
+            tz,
+            skip_outer_edges,
+        )
     {
         return;
     }
@@ -5583,38 +5907,73 @@ fn build_house_tris(p: &NichoirParams) -> Vec<Tri> {
     let peak_y = base_y + g.wall_h + g.roof_h;
     let roof_len = g.roof_len.max(0.5);
     let mut tris = Vec::<Tri>::new();
+    let seam_eps = 0.035_f32;
+    let mut append_part = |mesh: &mut Vec<Tri>, dx: f32, dy: f32, dz: f32| {
+        translate_tris(mesh, dx, dy, dz);
+        tris.extend(mesh.drain(..));
+    };
 
-    add_facade_with_cutouts(&mut tris, p, &g, p.t, 0.0, base_y, p.d / 2.0 - p.t);
-    add_back_panel_with_mount_holes(&mut tris, p, &g, p.t, 0.0, base_y, -p.d / 2.0);
+    let mut front = Vec::<Tri>::new();
+    add_facade_with_cutouts(
+        &mut front,
+        p,
+        &g,
+        p.t,
+        0.0,
+        base_y,
+        p.d / 2.0 - p.t,
+        &[],
+    );
+    append_part(&mut front, 0.0, 0.0, -seam_eps);
+
+    let mut back = Vec::<Tri>::new();
+    add_back_panel_with_mount_holes(&mut back, p, &g, p.t, 0.0, base_y, -p.d / 2.0, &[]);
+    append_part(&mut back, 0.0, 0.0, seam_eps);
+
     if p.wall_mount {
+        let mut mount = Vec::<Tri>::new();
         add_wall_mount_block(
-            &mut tris,
+            &mut mount,
             p,
             &g,
             base_y,
             -p.d / 2.0 - wall_mount_depth(p),
             true,
         );
+        append_part(&mut mount, 0.0, 0.0, -seam_eps);
     }
 
-    add_side_walls(&mut tris, p, &g, base_y);
-    add_floor_panel(&mut tris, p, &g);
+    let mut sides = Vec::<Tri>::new();
+    add_side_walls(&mut sides, p, &g, base_y, true);
+    append_part(&mut sides, 0.0, 0.0, 0.0);
 
-    add_roof_panel_with_holes(&mut tris, p, &g, true, 0.0, peak_y, -roof_len / 2.0, ang);
-    add_roof_panel_with_holes(&mut tris, p, &g, false, 0.0, peak_y, -roof_len / 2.0, -ang);
+    let mut floor = Vec::<Tri>::new();
+    add_floor_panel(&mut floor, p, &g, true);
+    append_part(&mut floor, 0.0, seam_eps, 0.0);
+
+    let mut roof_l = Vec::<Tri>::new();
+    add_roof_panel_with_holes(&mut roof_l, p, &g, true, 0.0, peak_y, -roof_len / 2.0, ang);
+    append_part(&mut roof_l, -seam_eps, seam_eps, 0.0);
+
+    let mut roof_r = Vec::<Tri>::new();
+    add_roof_panel_with_holes(&mut roof_r, p, &g, false, 0.0, peak_y, -roof_len / 2.0, -ang);
+    append_part(&mut roof_r, seam_eps, seam_eps, 0.0);
 
     if !matches!(p.door, DoorMode::None) && p.door_panel {
         let door_y = base_y + p.door_py / 100.0 * g.wall_h;
         let door_w_local = g.w_bot - 2.0 * p.taper_x * (p.door_py / 100.0);
         let door_x = -door_w_local / 2.0 + p.door_px / 100.0 * door_w_local;
         let pts = door_points(p);
-        add_extruded_polygon_z(&mut tris, &pts, p.t, door_x, door_y, p.d / 2.0 + 1.0, 0.0);
+        let mut door = Vec::<Tri>::new();
+        add_extruded_polygon_z(&mut door, &pts, p.t, door_x, door_y, p.d / 2.0 + 1.0, 0.0);
+        append_part(&mut door, 0.0, 0.0, 0.0);
     }
 
     if p.perch && !matches!(p.door, DoorMode::None) {
         let (perch_x, perch_y) = perch_center(p, &g);
+        let mut perch = Vec::<Tri>::new();
         add_cylinder_z(
-            &mut tris,
+            &mut perch,
             perch_x,
             base_y + perch_y,
             p.d / 2.0,
@@ -5622,6 +5981,7 @@ fn build_house_tris(p: &NichoirParams) -> Vec<Tri> {
             p.perch_len,
             32,
         );
+        append_part(&mut perch, 0.0, 0.0, 0.0);
     }
 
     tris.extend(build_all_decor_tris(p, &g));
@@ -5717,6 +6077,16 @@ fn clean_tris(tris: Vec<Tri>) -> Vec<Tri> {
     tris.into_iter()
         .filter(|t| tri_is_finite(t) && tri_area2(t) >= 0.000_001)
         .collect()
+}
+
+fn translate_tris(tris: &mut [Tri], dx: f32, dy: f32, dz: f32) {
+    for t in tris {
+        for v in [&mut t.a, &mut t.b, &mut t.c] {
+            v.x += dx;
+            v.y += dy;
+            v.z += dz;
+        }
+    }
 }
 
 #[derive(Clone, Copy, Default)]
@@ -5941,7 +6311,7 @@ fn write_zip(entries: Vec<(String, Vec<u8>)>) -> Vec<u8> {
 
 fn front_panel_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
     let mut tris = Vec::<Tri>::new();
-    add_facade_with_cutouts(&mut tris, p, g, p.t, 0.0, 0.0, 0.0);
+    add_facade_with_cutouts(&mut tris, p, g, p.t, 0.0, 0.0, 0.0, &[]);
     clean_tris(tris)
 }
 
@@ -5953,20 +6323,30 @@ fn add_back_panel_with_mount_holes(
     tx: f64,
     ty: f64,
     tz: f64,
+    skip_outer_edges: &[usize],
 ) {
     let facade = facade_points(g);
     let holes = wall_mount_holes(p, g);
     if !holes.is_empty()
-        && add_extruded_shape_with_holes_z(mesh, &facade, &holes, depth, tx, ty, tz)
+        && add_extruded_shape_with_holes_z(
+            mesh,
+            &facade,
+            &holes,
+            depth,
+            tx,
+            ty,
+            tz,
+            skip_outer_edges,
+        )
     {
         return;
     }
-    add_extruded_polygon_z(mesh, &facade, depth, tx, ty, tz, 0.0);
+    add_extruded_polygon_z_skip_edges(mesh, &facade, depth, tx, ty, tz, 0.0, skip_outer_edges);
 }
 
 fn back_panel_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
     let mut tris = Vec::<Tri>::new();
-    add_back_panel_with_mount_holes(&mut tris, p, g, p.t, 0.0, 0.0, 0.0);
+    add_back_panel_with_mount_holes(&mut tris, p, g, p.t, 0.0, 0.0, 0.0, &[]);
     clean_tris(tris)
 }
 
@@ -6109,7 +6489,7 @@ fn wall_mount_receiver_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> 
     let receiver_radius = (m.receiver_w.min(m.receiver_h) * 0.18).clamp(8.0, 14.0);
     let outer = rounded_rect_profile(0.0, cy, m.receiver_w, m.receiver_h, receiver_radius, 10);
     let holes = wall_mount_receiver_holes(&m, cy);
-    if !add_extruded_shape_with_holes_z(&mut tris, &outer, &holes, m.receiver_t, 0.0, 0.0, 0.0) {
+    if !add_extruded_shape_with_holes_z(&mut tris, &outer, &holes, m.receiver_t, 0.0, 0.0, 0.0, &[]) {
         add_extruded_polygon_z(&mut tris, &outer, m.receiver_t, 0.0, 0.0, 0.0, 0.0);
     }
     add_dovetail_receiver_rails(&mut tris, &m, cy, m.receiver_t);
@@ -6567,7 +6947,7 @@ fn build_decor_tris_for_target_with_topology_guard(
         } else {
             None
         };
-        let clip_holes = if d.clip_to_panel {
+        let clip_holes = if d.clip_to_panel || key == "front" {
             deco_panel_clip_holes(p, g, key, origin, u, v)
         } else {
             Vec::new()
@@ -6632,10 +7012,57 @@ fn build_decor_preview_tris_for_target(
     build_decor_tris_for_target_with_topology_guard(p, g, key, false)
 }
 
+fn build_house_decor_tris_for_target(p: &NichoirParams, g: &GeometryPayload, key: &str) -> Vec<Tri> {
+    let tris = build_decor_preview_tris_for_target(p, g, key);
+    let Some(d) = deco_for(p, key) else {
+        return tris;
+    };
+    if d.source_type != "stl" {
+        return tris;
+    }
+
+    let Some((origin, u, v, n)) = deco_basis_for_target(p, g, key, d) else {
+        return Vec::new();
+    };
+    let clip_poly = if d.clip_to_panel {
+        deco_panel_clip_polygon(p, g, key, origin, u, v)
+    } else {
+        None
+    };
+    let clip_holes = if d.clip_to_panel || key == "front" {
+        deco_panel_clip_holes(p, g, key, origin, u, v)
+    } else {
+        Vec::new()
+    };
+    let mut fallback = Vec::new();
+    let base_embed = p.t.min(1.2).max(0.35);
+    add_imported_stl_heightfield_basis(
+        &mut fallback,
+        d,
+        origin,
+        u,
+        v,
+        n,
+        base_embed,
+        clip_poly.as_deref(),
+        Some(&clip_holes),
+    );
+    let fallback = clean_tris(fallback);
+    if !fallback.is_empty() && mesh_topology(&fallback).is_watertight() {
+        return fallback;
+    }
+
+    if !tris.is_empty() && mesh_topology(&tris).is_watertight() {
+        return tris;
+    }
+
+    Vec::new()
+}
+
 fn build_all_decor_tris(p: &NichoirParams, g: &GeometryPayload) -> Vec<Tri> {
     let mut tris = Vec::new();
     for key in deco_target_keys() {
-        tris.extend(build_decor_tris_for_target(p, g, key));
+        tris.extend(build_house_decor_tris_for_target(p, g, key));
     }
     clean_tris(tris)
 }
@@ -6714,7 +7141,7 @@ fn build_scene_meshes(p: &NichoirParams) -> Vec<RenderMesh> {
     let mut out = Vec::new();
 
     let mut front = Vec::<Tri>::new();
-    add_facade_with_cutouts(&mut front, p, &g, p.t, 0.0, base_y, p.d / 2.0 - p.t);
+    add_facade_with_cutouts(&mut front, p, &g, p.t, 0.0, base_y, p.d / 2.0 - p.t, &[]);
     out.push(render_mesh_offset(
         "front",
         "#d4a574",
@@ -6725,7 +7152,7 @@ fn build_scene_meshes(p: &NichoirParams) -> Vec<RenderMesh> {
     ));
 
     let mut back = Vec::<Tri>::new();
-    add_back_panel_with_mount_holes(&mut back, p, &g, p.t, 0.0, base_y, -p.d / 2.0);
+    add_back_panel_with_mount_holes(&mut back, p, &g, p.t, 0.0, base_y, -p.d / 2.0, &[]);
     out.push(render_mesh_offset(
         "back",
         "#d4a574",
@@ -6763,7 +7190,7 @@ fn build_scene_meshes(p: &NichoirParams) -> Vec<RenderMesh> {
     }
 
     let mut sides = Vec::<Tri>::new();
-    add_side_walls(&mut sides, p, &g, base_y);
+    add_side_walls(&mut sides, p, &g, base_y, true);
     out.push(render_mesh_offset(
         "sideWalls",
         "#c49464",
@@ -6774,7 +7201,7 @@ fn build_scene_meshes(p: &NichoirParams) -> Vec<RenderMesh> {
     ));
 
     let mut bottom = Vec::<Tri>::new();
-    add_floor_panel(&mut bottom, p, &g);
+    add_floor_panel(&mut bottom, p, &g, true);
     out.push(render_mesh_offset(
         "bottom",
         "#b48454",
@@ -8645,6 +9072,7 @@ mod tests {
             "clipToPanel": false
         });
         let input = serde_json::json!({
+            "door": "none",
             "decos": {
                 "front": decor
             }
@@ -8659,6 +9087,90 @@ mod tests {
         assert_eq!(tris.len(), 12);
         assert_eq!(preview_tris.len(), 12);
         assert!(mesh_topology(&tris).is_watertight());
+    }
+
+    #[test]
+    fn imported_front_stl_respects_entrance_hole_even_without_panel_clip() {
+        let data = test_box_stl_base64(test_vec3(-40.0, -40.0, 0.0), test_vec3(40.0, 40.0, 2.0));
+        let input = serde_json::json!({
+            "door": "round",
+            "doorW": 44,
+            "doorH": 44,
+            "decos": {
+                "front": {
+                    "enabled": true,
+                    "sourceType": "stl",
+                    "sourceData": data,
+                    "mode": "stl",
+                    "w": 80,
+                    "h": 80,
+                    "posX": 50,
+                    "posY": 50,
+                    "depth": 4,
+                    "clipToPanel": false
+                }
+            }
+        })
+        .to_string();
+
+        let mut p = parse_input(&input).expect("valid JSON should parse");
+        let g = GeometryPayload::from_p(&p);
+        let (_, door_y) = door_center(&p, &g);
+        let base_y = if matches!(p.floor, FloorMode::Pose) {
+            p.t
+        } else {
+            0.0
+        };
+        let wall_total = (g.wall_h + g.roof_h).max(1.0);
+        p.decos
+            .get_mut("front")
+            .expect("front decor should exist")
+            .pos_y = ((base_y + door_y) / wall_total * 100.0).clamp(0.0, 100.0);
+
+        let clipped = build_decor_preview_tris_for_target(&p, &g, "front");
+        let mut without_door = p.clone();
+        without_door.door = DoorMode::None;
+        let unclipped = build_decor_preview_tris_for_target(&without_door, &g, "front");
+        let export_tris = build_decor_tris_for_target(&p, &g, "front");
+        let house_export_tris = build_all_decor_tris(&p, &g);
+        let full_house_tris = build_house_tris(&p);
+        let mut no_decor = p.clone();
+        no_decor.decos.clear();
+        let base_house_tris = build_house_tris(&no_decor);
+        let full_topology = mesh_topology(&full_house_tris);
+        let base_topology = mesh_topology(&base_house_tris);
+
+        assert!(!unclipped.is_empty());
+        assert!(clipped.len() < unclipped.len());
+        assert!(export_tris.is_empty());
+        assert!(!house_export_tris.is_empty());
+        assert!(mesh_topology(&house_export_tris).is_watertight());
+        assert!(
+            base_topology.is_watertight(),
+            "base house topology open={}, non_manifold={}",
+            base_topology.open_edges,
+            base_topology.non_manifold_edges
+        );
+        assert!(
+            full_topology.is_watertight(),
+            "full house topology open={}, non_manifold={}",
+            full_topology.open_edges,
+            full_topology.non_manifold_edges
+        );
+    }
+
+    #[test]
+    fn default_house_export_is_watertight() {
+        let p = NichoirParams::default();
+        let tris = build_house_tris(&p);
+        let topology = mesh_topology(&tris);
+
+        assert!(
+            topology.is_watertight(),
+            "default house topology open={}, non_manifold={}",
+            topology.open_edges,
+            topology.non_manifold_edges
+        );
     }
 
     #[test]

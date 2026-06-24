@@ -9,10 +9,10 @@ import init, {
   export_panels_zip,
   mesh_report_json,
   plan_preview_svg,
-} from '../wasm/pkg/wasm.js?v=20260624-dovetail-wall-mount-v8';
+} from '../wasm/pkg/wasm.js?v=20260624-stl-decor-import-v8';
 import * as THREE from './vendor/three.module.min.js';
 
-const APP_BUILD_ID = '20260624-dovetail-wall-mount-v8';
+const APP_BUILD_ID = '20260624-stl-decor-import-v8';
 const root = document.getElementById('app');
 const LANG_KEY = 'nichoir-lang';
 const THEME_KEY = 'nichoir-theme';
@@ -46,8 +46,6 @@ const PHP_BASE = detectPhpBase();
 localStorage.removeItem('nichoir-auth-token');
 const MESH_REPORT_STORAGE_KEY = 'nichoir-last-mesh-report';
 const MAX_DECO_FILE_BYTES = 2 * 1024 * 1024;
-const MAX_DECO_STL_FILE_BYTES = 25 * 1024 * 1024;
-const MAX_DECO_STL_TRIANGLES_HINT = 120_000;
 const DECO_SIZE_MIN_MM = 5;
 const DECO_SIZE_MAX_MM = 400;
 const DECO_TARGET_KEYS = ['front', 'back', 'left', 'right', 'roofL', 'roofR'];
@@ -269,13 +267,14 @@ const I18N = {
     pricing_info: 'Credits: le serveur PHP confirme le cout reel avant chaque telechargement premium.',
     decor_load_supported: 'Decor: charge un SVG, STL ou une image prise en charge par ton navigateur.',
     decor_too_large: 'Decor: fichier trop lourd. Limite actuelle: 2 Mo.',
-    decor_stl_too_large: 'Decor: STL trop lourd. Limite actuelle: 25 Mo.',
+    decor_stl_too_large: 'Decor: STL tres volumineux. Il sera traite localement par ton navigateur.',
     decor_processing: 'Decor: conversion en heightmap...',
     decor_stl_processing: 'Decor: chargement du STL...',
     decor_svg_heightmap: 'Decor: SVG rasterise en heightmap et envoye au WASM.',
     decor_image_heightmap: 'Decor: image convertie en heightmap et envoyee au WASM.',
     decor_stl_loaded: 'Decor: STL charge et attache au panneau cible dans le mesh local.',
-    decor_stl_export_omitted: 'Decor: STL visible en apercu, mais exclu des exports car il devient ouvert ou non-manifold apres clipping.',
+    decor_stl_export_omitted: 'Decor: STL inclus dans la maison complete, mais exclu comme piece separee car il devient ouvert ou non-manifold apres clipping.',
+    decor_remove_current: 'Supprimer ce decor',
     decor_heightmap_failed: 'Decor: conversion heightmap impossible ({error}).',
     decor_stl_failed: 'Decor: STL impossible a charger ({error}).',
     decor_read_failed: 'Decor: impossible de lire le fichier.',
@@ -447,13 +446,14 @@ const I18N = {
     pricing_info: 'Credits: the PHP server confirms the real cost before each premium download.',
     decor_load_supported: 'Decor: load an SVG, STL, or image supported by your browser.',
     decor_too_large: 'Decor: file too large. Current limit: 2 MB.',
-    decor_stl_too_large: 'Decor: STL file too large. Current limit: 25 MB.',
+    decor_stl_too_large: 'Decor: very large STL. Your browser will process it locally.',
     decor_processing: 'Decor: converting to heightmap...',
     decor_stl_processing: 'Decor: loading STL...',
     decor_svg_heightmap: 'Decor: SVG rasterized to a heightmap and sent to WASM.',
     decor_image_heightmap: 'Decor: image converted to heightmap and sent to WASM.',
     decor_stl_loaded: 'Decor: STL loaded and attached to the selected panel in the local mesh.',
-    decor_stl_export_omitted: 'Decor: STL is visible in preview, but excluded from exports because it becomes open or non-manifold after clipping.',
+    decor_stl_export_omitted: 'Decor: STL is included in the complete house, but excluded as a separate part because it becomes open or non-manifold after clipping.',
+    decor_remove_current: 'Remove this decor',
     decor_heightmap_failed: 'Decor: heightmap conversion failed ({error}).',
     decor_stl_failed: 'Decor: unable to load STL ({error}).',
     decor_read_failed: 'Decor: unable to read the file.',
@@ -884,8 +884,8 @@ function stlByteDiagnostics(bytes) {
     binaryTriangleCount: binaryShapeMatches ? binaryTriangleCount : null,
     expectedBinaryBytes: binaryShapeMatches ? expectedBinaryBytes : null,
     extraBytes: binaryShapeMatches ? byteLength - expectedBinaryBytes : null,
-    wasmTriangleLimit: MAX_DECO_STL_TRIANGLES_HINT,
-    overTriangleLimit: binaryShapeMatches ? binaryTriangleCount > MAX_DECO_STL_TRIANGLES_HINT : null,
+    wasmTriangleLimit: null,
+    overTriangleLimit: null,
   };
 }
 
@@ -992,13 +992,12 @@ async function loadDecoFile(file) {
     });
     return false;
   }
-  const sizeLimit = kind.isStl ? MAX_DECO_STL_FILE_BYTES : MAX_DECO_FILE_BYTES;
-  if (file.size > sizeLimit) {
-    setDecoStatus(kind.isStl ? tr('decor_stl_too_large') : tr('decor_too_large'), 'warn');
+  if (!kind.isStl && file.size > MAX_DECO_FILE_BYTES) {
+    setDecoStatus(tr('decor_too_large'), 'warn');
     debugStlLog('file rejected: too large', {
       name: file.name,
       size: file.size,
-      sizeLimit,
+      sizeLimit: MAX_DECO_FILE_BYTES,
       isStl: kind.isStl,
     });
     return false;
@@ -2113,6 +2112,7 @@ function reportActiveStlExportStatus(reason = '') {
     });
     if (!part) {
       setDecoStatus(tr('decor_stl_export_omitted'), 'warn');
+      addDecoClearActionToStatus();
     }
     return part;
   } catch (err) {
@@ -2123,6 +2123,24 @@ function reportActiveStlExportStatus(reason = '') {
     });
     return null;
   }
+}
+
+function addDecoClearActionToStatus() {
+  const status = root.querySelector('[data-deco-status]') || root.querySelector('.deco-status');
+  if (!status || status.querySelector('[data-action="clear-active-deco-warning"]')) return;
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'tool-button';
+  button.dataset.action = 'clear-active-deco-warning';
+  button.textContent = tr('decor_remove_current');
+  button.addEventListener('click', () => {
+    const deco = activeDeco();
+    resetDecoSource(deco);
+    render();
+  });
+  status.appendChild(document.createTextNode(' '));
+  status.appendChild(button);
 }
 
 function exportGateContent(kind, context = {}) {
